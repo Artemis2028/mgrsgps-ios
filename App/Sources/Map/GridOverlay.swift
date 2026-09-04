@@ -18,9 +18,19 @@ final class GridOverlay {
     private var source: MLNShapeSource?
     private var lastKey: String = ""
 
+    /// Whether the source and layers are in a style yet. The delegate callback
+    /// that installs them is not guaranteed to arrive before the first camera
+    /// event, and when it did not, the geometry was computed every frame and
+    /// thrown away — the interval readout updated while the map stayed empty.
+    var isInstalled: Bool { source != nil }
+
     /// What the readout shows: "1 km", "100 m", "GZD".
     private(set) var intervalLabel: String = "—"
-    var onIntervalChange: ((String) -> Void)?
+    /// Lines in the last rebuild. On screen only in debug, but it is the
+    /// difference between "the geometry is wrong" and "the geometry is right
+    /// and the renderer never got it", which a screenshot cannot otherwise say.
+    private(set) var lineCount: Int = 0
+    var onChange: ((String, Int) -> Void)?
 
     var nightMode = false { didSet { applyColors() } }
     /// True over satellite imagery, where dark lines disappear.
@@ -42,7 +52,9 @@ final class GridOverlay {
     // MARK: - Style
 
     func install(into style: MLNStyle) {
+        guard source == nil else { return }
         self.style = style
+
         let src = MLNShapeSource(identifier: Self.sourceID, shape: nil, options: nil)
         style.addSource(src)
         source = src
@@ -66,17 +78,16 @@ final class GridOverlay {
         gzd.lineWidth = NSExpression(forConstantValue: 2.2)
         style.addLayer(gzd)
 
-        // Labels. Placed along the line, which is what a paper sheet does and
-        // what survives map rotation; the Android version anchors them to the
-        // screen edge instead and has to be switched off when the map turns.
+        // Labels along the line, which is what a paper sheet does and what
+        // survives map rotation. No font is named: a style whose glyph set
+        // lacks the requested face drops the whole layer, and losing the grid
+        // to a font preference would be a poor trade.
         let labels = MLNSymbolStyleLayer(identifier: "mgrs-labels", source: src)
         labels.text = NSExpression(forKeyPath: "text")
         labels.textFontSize = NSExpression(forConstantValue: 12)
-        labels.textFontNames = NSExpression(forConstantValue: ["Menlo-Bold", "Courier-Bold"])
         labels.textHaloWidth = NSExpression(forConstantValue: 1.6)
         labels.symbolPlacement = NSExpression(forConstantValue: "line")
         labels.textAllowsOverlap = NSExpression(forConstantValue: false)
-        labels.textIgnoresPlacement = NSExpression(forConstantValue: false)
         style.addLayer(labels)
 
         applyColors()
@@ -98,10 +109,12 @@ final class GridOverlay {
 
     // MARK: - Refresh
 
-    /// Rebuild for the current camera. Cheap to call on every camera-idle: it
+    /// Rebuild for the current camera. Cheap to call on every camera event: it
     /// short-circuits when the viewport has not moved enough to change the
     /// geometry, which is most of the time while a finger is on the screen.
     func refresh(bounds: MLNCoordinateBounds, metersPerPoint: Double) {
+        guard let source else { return }
+
         let key = String(format: "%.4f,%.4f,%.4f,%.4f,%.2f",
                          bounds.sw.latitude, bounds.sw.longitude,
                          bounds.ne.latitude, bounds.ne.longitude, metersPerPoint)
@@ -121,12 +134,19 @@ final class GridOverlay {
             metersPerPoint: metersPerPoint
         )
 
-        source?.shape = try? MLNShape(data: result.geoJSON(),
-                                      encoding: String.Encoding.utf8.rawValue)
-
-        if result.intervalLabel != intervalLabel {
-            intervalLabel = result.intervalLabel
-            onIntervalChange?(result.intervalLabel)
+        let data = result.geoJSON()
+        do {
+            source.shape = try MLNShape(data: data, encoding: String.Encoding.utf8.rawValue)
+        } catch {
+            // Never silently: a shape that fails to parse leaves the map bare
+            // and looks exactly like a grid that computed nothing.
+            NSLog("[grid] shape failed: \(error) — \(data.count) bytes")
         }
+
+        lineCount = result.lines.count
+        intervalLabel = result.intervalLabel
+        NSLog("[grid] interval=\(result.intervalLabel) lines=\(lineCount) "
+              + "labels=\(result.labels.count) bytes=\(data.count)")
+        onChange?(intervalLabel, lineCount)
     }
 }

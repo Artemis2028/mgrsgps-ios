@@ -45,9 +45,21 @@ xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-settled.png"
 # The map with the MGRS grid on it. CI cannot tap a tab bar, so the app reads
 # the starting tab from a launch argument.
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+
+# Stream the app's own log while the map screen runs. A screenshot cannot say
+# whether the grid geometry was empty or whether the renderer never got it;
+# the [grid] lines can.
+xcrun simctl spawn "$UDID" log stream --style compact \
+  --predicate 'eventMessage CONTAINS "[grid]"' > "$OUT_DIR/app.log" 2>&1 &
+LOG_PID=$!
+
 xcrun simctl launch "$UDID" "$BUNDLE_ID" -startTab map
-sleep 12                     # the basemap style and its tiles have to arrive
+sleep 14                     # the basemap style and its tiles have to arrive
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/map-grid.png"
+
+kill "$LOG_PID" 2>/dev/null || true
+echo "--- app log ---"
+cat "$OUT_DIR/app.log" 2>/dev/null | head -20 || true
 
 echo "screenshots:"
 ls -la "$OUT_DIR"

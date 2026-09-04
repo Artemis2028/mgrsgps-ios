@@ -12,13 +12,14 @@ import SwiftUI
 struct MapScreen: View {
     @EnvironmentObject private var location: LocationService
     @State private var intervalLabel = "—"
+    @State private var lineCount = 0
     @State private var nightMode = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             MapContainer(nightMode: nightMode,
                          follow: location.fix,
-                         onInterval: { intervalLabel = $0 })
+                         onChange: { intervalLabel = $0; lineCount = $1 })
                 .ignoresSafeArea()
 
             // Bottom right and square, the way Rafael asked for it on Android:
@@ -52,8 +53,16 @@ struct MapScreen: View {
                         Text(intervalLabel)
                             .font(Blackout.numerals(15, weight: .semibold))
                             .foregroundStyle(nightMode ? Blackout.night : Blackout.ink)
+                        #if DEBUG
+                        // Temporary: distinguishes "the geometry produced
+                        // nothing" from "the geometry was right and the
+                        // renderer never got it". A screenshot cannot.
+                        Text("\(lineCount) ln")
+                            .font(Blackout.numerals(9))
+                            .foregroundStyle(Blackout.inkDim)
+                        #endif
                     }
-                    .frame(width: 62, height: 46)
+                    .frame(width: 62, height: 58)
                     .background(Color.black.opacity(0.72))
                     .overlay(Rectangle().stroke(Blackout.hairline))
                 }
@@ -67,14 +76,17 @@ struct MapScreen: View {
 private struct MapContainer: UIViewRepresentable {
     let nightMode: Bool
     let follow: Fix?
-    let onInterval: (String) -> Void
+    let onChange: (String, Int) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onInterval: onInterval) }
+    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
 
     func makeUIView(context: Context) -> MLNMapView {
         let view = MLNMapView(frame: .zero)
-        view.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
+        // Delegate first. Setting styleURL can complete before a delegate
+        // assigned afterwards is in place, and a missed didFinishLoading means
+        // the overlay is never installed while everything else looks fine.
         view.delegate = context.coordinator
+        view.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
         view.logoView.isHidden = false          // attribution stays visible
         view.showsUserLocation = true
         view.setCenter(CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773),
@@ -96,9 +108,9 @@ private struct MapContainer: UIViewRepresentable {
         let overlay = GridOverlay()
         var hasCentred = false
 
-        init(onInterval: @escaping (String) -> Void) {
+        init(onChange: @escaping (String, Int) -> Void) {
             super.init()
-            overlay.onIntervalChange = onInterval
+            overlay.onChange = onChange
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
@@ -111,6 +123,11 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         private func redraw(_ mapView: MLNMapView) {
+            // Belt and braces: install here too, in case the camera moved
+            // before didFinishLoading arrived.
+            if let style = mapView.style, !overlay.isInstalled {
+                overlay.install(into: style)
+            }
             let bounds = mapView.visibleCoordinateBounds
             let metersPerPoint = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
             overlay.refresh(bounds: bounds, metersPerPoint: metersPerPoint)

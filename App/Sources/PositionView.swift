@@ -24,7 +24,11 @@ struct PositionView: View {
                 footer
             }
             .padding(.horizontal, 22)
-            .padding(.vertical, 18)
+            .padding(.top, 18)
+            // iOS 26 floats the tab bar over the content. Without this the
+            // DTG row sits underneath it and LAT/LON is cut off mid-line.
+            .padding(.bottom, 96)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(Blackout.ink)
         .onAppear { location.start() }
@@ -144,7 +148,10 @@ struct PositionView: View {
             Text(value)
                 .font(Blackout.numerals(13))
                 .foregroundStyle(tint)
-            Spacer()
+                // Lat/lon in DMS is wider than the screen at this size; let it
+                // wrap onto a second line rather than clipping mid-degree.
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 }
