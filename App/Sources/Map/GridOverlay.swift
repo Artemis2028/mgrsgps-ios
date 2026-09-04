@@ -93,7 +93,16 @@ final class GridOverlay {
         labels.textFontNames = NSExpression(forConstantValue: ["Open Sans Semibold"])
         labels.textFontSize = NSExpression(forConstantValue: 12)
         labels.textHaloWidth = NSExpression(forConstantValue: 1.6)
-        labels.symbolPlacement = NSExpression(forConstantValue: "line")
+        // Point placement, because the label features ARE points - one at each
+        // line's midpoint. "line" placement lays symbols along a LineString
+        // and silently renders nothing for a Point, which is the real reason
+        // the labels never appeared; the font was a second bug behind it.
+        //
+        // Running the digits along the line the way a printed sheet does means
+        // carrying the text on the line features instead. Worth doing when we
+        // control the basemap and its glyphs; not worth another blind round
+        // trip now.
+        labels.symbolPlacement = NSExpression(forConstantValue: "point")
         labels.textAllowsOverlap = NSExpression(forConstantValue: false)
         style.addLayer(labels)
 
@@ -119,7 +128,8 @@ final class GridOverlay {
     /// Rebuild for the current camera. Cheap to call on every camera event: it
     /// short-circuits when the viewport has not moved enough to change the
     /// geometry, which is most of the time while a finger is on the screen.
-    func refresh(bounds: MLNCoordinateBounds, metersPerPoint: Double) {
+    func refresh(bounds: MLNCoordinateBounds, metersPerPoint: Double,
+                 viewSize: CGSize = .zero, safeArea: UIEdgeInsets = .zero) {
         guard let source else { return }
 
         let key = String(format: "%.4f,%.4f,%.4f,%.4f,%.2f",
@@ -153,7 +163,9 @@ final class GridOverlay {
         lineCount = result.lines.count
         intervalLabel = result.intervalLabel
         NSLog("[grid] interval=\(result.intervalLabel) lines=\(lineCount) "
-              + "labels=\(result.labels.count) bytes=\(data.count)")
+              + "labels=\(result.labels.count) bytes=\(data.count) "
+              + "view=\(Int(viewSize.width))x\(Int(viewSize.height)) "
+              + "safe=t\(Int(safeArea.top)) b\(Int(safeArea.bottom))")
         onChange?(intervalLabel, lineCount)
     }
 }

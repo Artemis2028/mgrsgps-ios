@@ -63,7 +63,6 @@ struct MapScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background)
-        .ignoresSafeArea()
     }
 }
 
@@ -95,7 +94,7 @@ private struct MapContainer: UIViewRepresentable {
         view.logoViewPosition = .bottomLeft
         view.logoViewMargins = CGPoint(x: 8, y: 86)
         view.attributionButtonPosition = .bottomLeft
-        view.attributionButtonMargins = CGPoint(x: 148, y: 86)
+        view.attributionButtonMargins = CGPoint(x: 118, y: 86)
         view.showsUserLocation = true
         view.setCenter(CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773),
                        zoomLevel: 13, animated: false)
@@ -138,7 +137,9 @@ private struct MapContainer: UIViewRepresentable {
             }
             let bounds = mapView.visibleCoordinateBounds
             let metersPerPoint = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-            overlay.refresh(bounds: bounds, metersPerPoint: metersPerPoint)
+            overlay.refresh(bounds: bounds, metersPerPoint: metersPerPoint,
+                            viewSize: mapView.bounds.size,
+                            safeArea: mapView.safeAreaInsets)
         }
     }
 }
