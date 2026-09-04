@@ -91,6 +91,13 @@ jobs:
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
+          # The screenshots and the app's own log go here too. They are the
+          # only evidence for anything that is wrong on screen rather than in a
+          # test, and downloading a run artifact needs a token where a branch
+          # does not. Force-pushed to an orphan branch each run, so nothing
+          # accumulates.
+          cp screenshots/*.png /tmp/status/ 2>/dev/null || true
+          cp screenshots/app.log /tmp/status/applog.txt 2>/dev/null || true
           cat /tmp/status/outcome.txt
           cd /tmp/status
           git init -q -b ci-status
