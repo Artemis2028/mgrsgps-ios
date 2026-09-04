@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Needed only to publish the ci-status branch at the end. No other secret is
+# used anywhere in this workflow: a Simulator build is unsigned and the map
+# style is keyless, so nothing here needs a MapTiler key or a signing keystore.
+permissions:
+  contents: write
+
 # The Android pipeline learned this the hard way: a red test must not be able
 # to produce an artifact that looks shippable. Same rule here — the build and
 # the screenshots are gated on the field math passing first.
@@ -19,7 +25,6 @@ jobs:
       - name: Show the toolchain we actually got
         run: |
           sw_vers
-          ls /Applications | grep -i xcode || true
           xcodebuild -version
           swift --version
 
@@ -35,17 +40,10 @@ jobs:
           xcodebuild -list -project MGRSGPS.xcodeproj
 
       - name: Build for the Simulator
+        id: build
         run: |
           set -o pipefail
-          DEST=$(xcrun simctl list devices available -j | python3 -c '
-import json,sys
-d=json.load(sys.stdin)["devices"]
-for rt,ds in d.items():
-    if "iOS" not in rt: continue
-    for x in ds:
-        if x.get("isAvailable") and "iPhone" in x["name"]:
-            print(x["udid"]); raise SystemExit
-raise SystemExit("no simulator")')
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
           echo "building for $DEST"
           xcodebuild build \
             -project MGRSGPS.xcodeproj \
@@ -54,11 +52,11 @@ raise SystemExit("no simulator")')
             -destination "id=$DEST" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
-            | tee build.log | tail -n 40
+            2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40
 
       - name: Screenshots
         run: |
-          APP=$(find build/Build/Products -name "MGRSGPS.app" -maxdepth 3 | head -n 1)
+          APP=$(find build/Build/Products -maxdepth 4 -name "MGRSGPS.app" | head -n 1)
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
@@ -73,13 +71,29 @@ raise SystemExit("no simulator")')
             test.log
           if-no-files-found: warn
 
-      - name: Publish a status branch the phone can read
+      # Publish the outcome and the logs to a branch, so they can be read with
+      # a plain git fetch. The Actions API needs a token; a branch does not,
+      # and on a public repo that makes every run diagnosable from anywhere.
+      - name: Publish the run outcome to the ci-status branch
         if: always()
         run: |
+          mkdir -p /tmp/status
           {
             echo "run=${{ github.run_number }}"
             echo "sha=${GITHUB_SHA:0:7}"
             echo "tests=${{ steps.tests.outcome }}"
+            echo "build=${{ steps.build.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
-          } > ci-status.txt
-          cat ci-status.txt
+          } > /tmp/status/outcome.txt
+          cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
+          cat /tmp/status/outcome.txt
+          cd /tmp/status
+          git init -q -b ci-status
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "run ${{ github.run_number }}"
+          git push -q --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            ci-status
