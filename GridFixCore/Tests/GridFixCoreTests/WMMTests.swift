@@ -98,6 +98,30 @@ final class WMMTests: XCTestCase {
         XCTAssertEqual(south.inclination, -north.inclination, accuracy: 1e-7)
     }
 
+    func testAnAxialDipoleDipMatchesTheClosedFormExactly() {
+        // The dip of an axial dipole has an exact answer: in the geocentric
+        // frame tan(I) = 2 tan(latitude), and the conversion to the geodetic
+        // frame adds (geocentric - geodetic).
+        //
+        // This is the assertion that would have caught the rotation sign on
+        // its own. The declination tests cannot: the rotation mixes X and Z
+        // and never touches Y, so an axial dipole reads zero declination
+        // whichever way it is rotated, or if it is not rotated at all.
+        let m = dipole(g10: -30000)
+        let e2 = WMM.f * (2.0 - WMM.f)
+        for lat in [0.0, 30.0, 45.0, 60.0, -60.0, 78.0] {
+            let latRad = lat * .pi / 180.0
+            let rc = WMM.a / (1.0 - e2 * sin(latRad) * sin(latRad)).squareRoot()
+            let p = rc * cos(latRad)
+            let z = rc * (1.0 - e2) * sin(latRad)
+            let geocentric = atan2(z, p)
+            let expected = atan(2.0 * tan(geocentric)) * 180.0 / .pi
+                + (geocentric - latRad) * 180.0 / .pi
+            let got = m.field(lat: lat, lon: 33.0, decimalYear: 2025.0).inclination
+            XCTAssertEqual(got, expected, accuracy: 1e-6, "dip at \(lat)°")
+        }
+    }
+
     func testATiltedDipoleIsAntisymmetricInLongitude() {
         // g11 tilts the axis inside the 0/180 meridian plane, so the whole
         // configuration mirrors across it and declination must flip sign.

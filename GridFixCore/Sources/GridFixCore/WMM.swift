@@ -123,9 +123,13 @@ public struct WMM {
         }
         yp /= sinTheta
 
-        // Geocentric back to geodetic: rotate by the difference between the
-        // two latitudes. Skipping this is a silent error of up to 0.2°.
-        let delta = latRad - geocentricLat
+        // Geocentric back to geodetic. The rotation is by (geocentric minus
+        // geodetic), and getting the sign backwards is worse than omitting it:
+        // no rotation is out by one delta, the wrong sign by two. It is also
+        // invisible to a dipole test of declination, because the rotation only
+        // ever mixes X and Z and leaves Y alone — which is exactly how it
+        // survived until NOAA's own test values arrived.
+        let delta = geocentricLat - latRad
         let x = xp * cos(delta) - zp * sin(delta)
         let zz = xp * sin(delta) + zp * cos(delta)
         let y = yp
