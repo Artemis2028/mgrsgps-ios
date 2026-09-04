@@ -79,11 +79,18 @@ final class GridOverlay {
         style.addLayer(gzd)
 
         // Labels along the line, which is what a paper sheet does and what
-        // survives map rotation. No font is named: a style whose glyph set
-        // lacks the requested face drops the whole layer, and losing the grid
-        // to a font preference would be a poor trade.
+        // survives map rotation.
+        //
+        // The font has to be one the STYLE has glyphs for. Naming a face it
+        // lacks drops the layer; naming none falls back to a default it also
+        // lacks and renders nothing, which is how the first attempt lost its
+        // labels. demotiles ships only Open Sans Semibold. When the basemap is
+        // replaced (roadmap B) we serve our own glyphs and this becomes a mono
+        // face to match the readout — grid digits belong in the same typeface
+        // as the grid they name.
         let labels = MLNSymbolStyleLayer(identifier: "mgrs-labels", source: src)
         labels.text = NSExpression(forKeyPath: "text")
+        labels.textFontNames = NSExpression(forConstantValue: ["Open Sans Semibold"])
         labels.textFontSize = NSExpression(forConstantValue: 12)
         labels.textHaloWidth = NSExpression(forConstantValue: 1.6)
         labels.symbolPlacement = NSExpression(forConstantValue: "line")

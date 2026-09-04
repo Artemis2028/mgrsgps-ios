@@ -12,14 +12,13 @@ import SwiftUI
 struct MapScreen: View {
     @EnvironmentObject private var location: LocationService
     @State private var intervalLabel = "—"
-    @State private var lineCount = 0
     @State private var nightMode = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             MapContainer(nightMode: nightMode,
                          follow: location.fix,
-                         onChange: { intervalLabel = $0; lineCount = $1 })
+                         onChange: { label, _ in intervalLabel = label })
                 .ignoresSafeArea()
 
             // Bottom right and square, the way Rafael asked for it on Android:
@@ -53,23 +52,18 @@ struct MapScreen: View {
                         Text(intervalLabel)
                             .font(Blackout.numerals(15, weight: .semibold))
                             .foregroundStyle(nightMode ? Blackout.night : Blackout.ink)
-                        #if DEBUG
-                        // Temporary: distinguishes "the geometry produced
-                        // nothing" from "the geometry was right and the
-                        // renderer never got it". A screenshot cannot.
-                        Text("\(lineCount) ln")
-                            .font(Blackout.numerals(9))
-                            .foregroundStyle(Blackout.inkDim)
-                        #endif
                     }
-                    .frame(width: 62, height: 58)
+                    .frame(width: 62, height: 46)
                     .background(Color.black.opacity(0.72))
                     .overlay(Rectangle().stroke(Blackout.hairline))
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 92)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background)
+        .ignoresSafeArea()
     }
 }
 
@@ -87,7 +81,21 @@ private struct MapContainer: UIViewRepresentable {
         // the overlay is never installed while everything else looks fine.
         view.delegate = context.coordinator
         view.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
-        view.logoView.isHidden = false          // attribution stays visible
+        // Attribution is a licence obligation, not decoration, and has to stay
+        // visible AND tappable. MapLibre's default puts the (i) button
+        // bottom-right, which is where the grid chip lives — Rafael's call on
+        // Android, because top-left is vital real estate on a short screen. So
+        // the button moves left beside the logo, the arrangement MapLibre uses
+        // on Android anyway, and both sit clear of the floating tab bar.
+        //
+        // This stops being cosmetic once roadmap B serves our own
+        // OpenStreetMap tiles: ODbL requires the credit, and a chip covering
+        // half of it is then a licence problem.
+        view.logoView.isHidden = false
+        view.logoViewPosition = .bottomLeft
+        view.logoViewMargins = CGPoint(x: 8, y: 86)
+        view.attributionButtonPosition = .bottomLeft
+        view.attributionButtonMargins = CGPoint(x: 148, y: 86)
         view.showsUserLocation = true
         view.setCenter(CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773),
                        zoomLevel: 13, animated: false)
