@@ -31,7 +31,11 @@ jobs:
       - name: Field math (GridFixCore)
         id: tests
         working-directory: GridFixCore
-        run: swift test 2>&1 | tee "$GITHUB_WORKSPACE/test.log"
+        run: |
+          # Without pipefail the step's exit status is tee's, which is always
+          # zero: run 2 reported tests=success while the compiler was failing.
+          set -o pipefail
+          swift test 2>&1 | tee "$GITHUB_WORKSPACE/test.log"
 
       - name: Generate the Xcode project
         run: |

@@ -71,11 +71,11 @@ public struct WMM {
         let dt = decimalYear - epoch
 
         // Geodetic to geocentric.
-        let e2 = f * (2.0 - f)
+        let e2 = Self.f * (2.0 - Self.f)
         let latRad = lat * .pi / 180.0
         let lonRad = lon * .pi / 180.0
         let sinLat = sin(latRad), cosLat = cos(latRad)
-        let rc = a / (1.0 - e2 * sinLat * sinLat).squareRoot()
+        let rc = Self.a / (1.0 - e2 * sinLat * sinLat).squareRoot()
         let p = (rc + heightMeters) * cosLat
         let z = (rc * (1.0 - e2) + heightMeters) * sinLat
         let r = (p * p + z * z).squareRoot()
