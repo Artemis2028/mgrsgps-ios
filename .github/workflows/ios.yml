@@ -1,0 +1,85 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The Android pipeline learned this the hard way: a red test must not be able
+# to produce an artifact that looks shippable. Same rule here — the build and
+# the screenshots are gated on the field math passing first.
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show the toolchain we actually got
+        run: |
+          sw_vers
+          ls /Applications | grep -i xcode || true
+          xcodebuild -version
+          swift --version
+
+      - name: Field math (GridFixCore)
+        id: tests
+        working-directory: GridFixCore
+        run: swift test 2>&1 | tee "$GITHUB_WORKSPACE/test.log"
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -list -project MGRSGPS.xcodeproj
+
+      - name: Build for the Simulator
+        run: |
+          set -o pipefail
+          DEST=$(xcrun simctl list devices available -j | python3 -c '
+import json,sys
+d=json.load(sys.stdin)["devices"]
+for rt,ds in d.items():
+    if "iOS" not in rt: continue
+    for x in ds:
+        if x.get("isAvailable") and "iPhone" in x["name"]:
+            print(x["udid"]); raise SystemExit
+raise SystemExit("no simulator")')
+          echo "building for $DEST"
+          xcodebuild build \
+            -project MGRSGPS.xcodeproj \
+            -scheme MGRSGPS \
+            -configuration Debug \
+            -destination "id=$DEST" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | tail -n 40
+
+      - name: Screenshots
+        run: |
+          APP=$(find build/Build/Products -name "MGRSGPS.app" -maxdepth 3 | head -n 1)
+          echo "app: $APP"
+          ./scripts/simulator-shots.sh "$APP" screenshots
+
+      - name: Upload the build and the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mgrsgps-ios-${{ github.run_number }}
+          path: |
+            screenshots/
+            build.log
+            test.log
+          if-no-files-found: warn
+
+      - name: Publish a status branch the phone can read
+        if: always()
+        run: |
+          {
+            echo "run=${{ github.run_number }}"
+            echo "sha=${GITHUB_SHA:0:7}"
+            echo "tests=${{ steps.tests.outcome }}"
+            echo "finished=$(date -u +%FT%TZ)"
+          } > ci-status.txt
+          cat ci-status.txt

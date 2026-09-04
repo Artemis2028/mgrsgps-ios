@@ -1,0 +1,59 @@
+# XcodeGen spec. The .xcodeproj is generated, never committed — a hand-edited
+# pbxproj is the single most common source of "works on my machine" in iOS,
+# and this file is reviewable in a way that one is not.
+#
+#   brew install xcodegen && xcodegen generate && open MGRSGPS.xcodeproj
+name: MGRSGPS
+options:
+  bundleIdPrefix: app.gridfix
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  GridFixCore:
+    path: GridFixCore
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: 6.0.0
+
+targets:
+  MGRSGPS:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/Sources
+    dependencies:
+      - package: GridFixCore
+        product: GridFixCore
+      - package: MapLibre
+        product: MapLibre
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
+        # Portrait plus both landscapes: the app is used on a chest rig and on
+        # a wrist, and Android already ships worn-landscape layouts.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
+          UIInterfaceOrientationPortrait
+          UIInterfaceOrientationLandscapeLeft
+          UIInterfaceOrientationLandscapeRight
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    info:
+      path: App/Resources/Info.generated.plist
+      properties:
+        CFBundleDisplayName: MGRS GPS
+        UIUserInterfaceStyle: Dark
+        NSLocationWhenInUseUsageDescription: >-
+          MGRS GPS reads your position to show your grid. Nothing leaves the
+          phone — there are no accounts, no analytics and no network calls for
+          your location.
+        NSLocationAlwaysAndWhenInUseUsageDescription: >-
+          Background access lets MGRS GPS keep recording a track while the
+          screen is off. Nothing leaves the phone.
+        UIBackgroundModes:
+          - location

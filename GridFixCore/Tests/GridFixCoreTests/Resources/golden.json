@@ -1,0 +1,3221 @@
+{
+ "schema": 1,
+ "note": "Shared golden vectors for MGRS GPS. Read by CoordinatesGoldenTest.kt (Android) and GoldenTests.swift (iOS). Regenerate with kmp/gen_golden.py. MGRS strings carry >= 20 m clearance from every cell edge so exact string comparison is safe across two correct projections.",
+ "tolerances": {
+  "utmMeters": 0.5,
+  "latLonDegrees": 1e-05,
+  "distanceMeters": 0.5,
+  "bearingDegrees": 0.01,
+  "convergenceDegrees": 1e-06
+ },
+ "utm": [
+  {
+   "name": "uae-abu-dhabi",
+   "lat": 24.4539,
+   "lon": 54.3773,
+   "zone": 40,
+   "hemisphere": "N",
+   "easting": 234124.881,
+   "northing": 2707001.291,
+   "band": "R"
+  },
+  {
+   "name": "uae-liwa",
+   "lat": 23.13,
+   "lon": 53.78,
+   "zone": 39,
+   "hemisphere": "N",
+   "easting": 784702.852,
+   "northing": 2560625.46,
+   "band": "Q"
+  },
+  {
+   "name": "uae-jebel-hafeet",
+   "lat": 24.058,
+   "lon": 55.775,
+   "zone": 40,
+   "hemisphere": "N",
+   "easting": 375453.46,
+   "northing": 2661190.794,
+   "band": "R"
+  },
+  {
+   "name": "fort-benning",
+   "lat": 32.3524,
+   "lon": -84.947,
+   "zone": 16,
+   "hemisphere": "N",
+   "easting": 693189.275,
+   "northing": 3581350.292,
+   "band": "S"
+  },
+  {
+   "name": "fort-bragg",
+   "lat": 35.139,
+   "lon": -79.006,
+   "zone": 17,
+   "hemisphere": "N",
+   "easting": 681660.045,
+   "northing": 3890277.629,
+   "band": "S"
+  },
+  {
+   "name": "nttc-hohenfels",
+   "lat": 49.218,
+   "lon": 11.837,
+   "zone": 32,
+   "hemisphere": "N",
+   "easting": 706585.903,
+   "northing": 5455564.479,
+   "band": "U"
+  },
+  {
+   "name": "grafenwoehr",
+   "lat": 49.698,
+   "lon": 11.94,
+   "zone": 32,
+   "hemisphere": "N",
+   "easting": 712002.99,
+   "northing": 5509203.72,
+   "band": "U"
+  },
+  {
+   "name": "yakima",
+   "lat": 46.68,
+   "lon": -120.46,
+   "zone": 10,
+   "hemisphere": "N",
+   "easting": 694251.206,
+   "northing": 5172738.219,
+   "band": "T"
+  },
+  {
+   "name": "jbmdl",
+   "lat": 40.015,
+   "lon": -74.59,
+   "zone": 18,
+   "hemisphere": "N",
+   "easting": 534989.87,
+   "northing": 4429502.571,
+   "band": "T"
+  },
+  {
+   "name": "panama-jungle",
+   "lat": 9.08,
+   "lon": -79.68,
+   "zone": 17,
+   "hemisphere": "N",
+   "easting": 645066.723,
+   "northing": 1003960.522,
+   "band": "P"
+  },
+  {
+   "name": "kenya-nanyuki",
+   "lat": 0.017,
+   "lon": 37.073,
+   "zone": 37,
+   "hemisphere": "N",
+   "easting": 285532.447,
+   "northing": 1880.081,
+   "band": "N"
+  },
+  {
+   "name": "equator-south",
+   "lat": -0.51,
+   "lon": 36.9,
+   "zone": 37,
+   "hemisphere": "S",
+   "easting": 266279.094,
+   "northing": 9943591.524,
+   "band": "M"
+  },
+  {
+   "name": "sydney",
+   "lat": -33.8568,
+   "lon": 151.2152,
+   "zone": 56,
+   "hemisphere": "S",
+   "easting": 334891.318,
+   "northing": 6252288.592,
+   "band": "H"
+  },
+  {
+   "name": "chile-santiago",
+   "lat": -33.4489,
+   "lon": -70.6693,
+   "zone": 19,
+   "hemisphere": "S",
+   "easting": 344846.72,
+   "northing": 6297700.156,
+   "band": "H"
+  },
+  {
+   "name": "argentina-mendoza",
+   "lat": -32.8895,
+   "lon": -68.8458,
+   "zone": 19,
+   "hemisphere": "S",
+   "easting": 514422.658,
+   "northing": 6360952.449,
+   "band": "H"
+  },
+  {
+   "name": "norway-bergen",
+   "lat": 60.3913,
+   "lon": 5.3221,
+   "zone": 32,
+   "hemisphere": "N",
+   "easting": 297353.933,
+   "northing": 6700648.346,
+   "band": "V"
+  },
+  {
+   "name": "norway-interior",
+   "lat": 58.5,
+   "lon": 8.5,
+   "zone": 32,
+   "hemisphere": "N",
+   "easting": 470858.664,
+   "northing": 6484487.322,
+   "band": "V"
+  },
+  {
+   "name": "alaska-fairbanks",
+   "lat": 64.8378,
+   "lon": -147.7164,
+   "zone": 6,
+   "hemisphere": "N",
+   "easting": 466012.823,
+   "northing": 7190570.234,
+   "band": "W"
+  },
+  {
+   "name": "svalbard",
+   "lat": 78.2232,
+   "lon": 15.6267,
+   "zone": 33,
+   "hemisphere": "N",
+   "easting": 514278.715,
+   "northing": 8683355.47,
+   "band": "X"
+  },
+  {
+   "name": "iceland",
+   "lat": 64.1466,
+   "lon": -21.9426,
+   "zone": 27,
+   "hemisphere": "N",
+   "easting": 454138.377,
+   "northing": 7113689.87,
+   "band": "W"
+  },
+  {
+   "name": "japan-fuji",
+   "lat": 35.3606,
+   "lon": 138.7274,
+   "zone": 54,
+   "hemisphere": "N",
+   "easting": 293517.347,
+   "northing": 3915404.017,
+   "band": "S"
+  },
+  {
+   "name": "korea-camp-humph",
+   "lat": 36.963,
+   "lon": 127.032,
+   "zone": 52,
+   "hemisphere": "N",
+   "easting": 324800.663,
+   "northing": 4092577.499,
+   "band": "S"
+  },
+  {
+   "name": "s-africa-pretoria",
+   "lat": -25.7479,
+   "lon": 28.2293,
+   "zone": 35,
+   "hemisphere": "S",
+   "easting": 623292.802,
+   "northing": 7151659.526,
+   "band": "J"
+  },
+  {
+   "name": "brazil-manaus",
+   "lat": -3.119,
+   "lon": -60.0217,
+   "zone": 20,
+   "hemisphere": "S",
+   "easting": 831071.822,
+   "northing": 9654784.864,
+   "band": "M"
+  },
+  {
+   "name": "india-leh",
+   "lat": 34.1526,
+   "lon": 77.577,
+   "zone": 43,
+   "hemisphere": "N",
+   "easting": 737583.814,
+   "northing": 3782076.893,
+   "band": "S"
+  },
+  {
+   "name": "nz-queenstown",
+   "lat": -45.0311,
+   "lon": 168.6626,
+   "zone": 59,
+   "hemisphere": "S",
+   "easting": 315876.796,
+   "northing": 5010936.923,
+   "band": "G"
+  }
+ ],
+ "mgrsForward": [
+  {
+   "name": "uae-abu-dhabi",
+   "lat": 24.458463616,
+   "lon": 54.380904205,
+   "digits": 4,
+   "mgrs": "40RBN3407"
+  },
+  {
+   "name": "uae-abu-dhabi",
+   "lat": 24.45434376,
+   "lon": 54.377538478,
+   "digits": 6,
+   "mgrs": "40RBN341070"
+  },
+  {
+   "name": "uae-abu-dhabi",
+   "lat": 24.453933482,
+   "lon": 54.37730048,
+   "digits": 8,
+   "mgrs": "40RBN34120700"
+  },
+  {
+   "name": "uae-liwa",
+   "lat": 23.128902916,
+   "lon": 53.777997709,
+   "digits": 4,
+   "mgrs": "39QYF8460"
+  },
+  {
+   "name": "uae-liwa",
+   "lat": 23.130213296,
+   "lon": 53.780464528,
+   "digits": 6,
+   "mgrs": "39QYF847606"
+  },
+  {
+   "name": "uae-liwa",
+   "lat": 23.129995476,
+   "lon": 53.78002087,
+   "digits": 8,
+   "mgrs": "39QYF84706062"
+  },
+  {
+   "name": "uae-jebel-hafeet",
+   "lat": 24.060795837,
+   "lon": 55.775431172,
+   "digits": 4,
+   "mgrs": "40RCM7561"
+  },
+  {
+   "name": "uae-jebel-hafeet",
+   "lat": 24.057631351,
+   "lon": 55.774969472,
+   "digits": 6,
+   "mgrs": "40RCM754611"
+  },
+  {
+   "name": "uae-jebel-hafeet",
+   "lat": 24.058038101,
+   "lon": 55.775014784,
+   "digits": 8,
+   "mgrs": "40RCM75456119"
+  },
+  {
+   "name": "fort-benning",
+   "lat": 32.353695904,
+   "lon": -84.943669233,
+   "digits": 4,
+   "mgrs": "16SFA9381"
+  },
+  {
+   "name": "fort-benning",
+   "lat": 32.352404154,
+   "lon": -84.947417195,
+   "digits": 6,
+   "mgrs": "16SFA931813"
+  },
+  {
+   "name": "fort-benning",
+   "lat": 32.35244318,
+   "lon": -84.947044441,
+   "digits": 8,
+   "mgrs": "16SFA93188135"
+  },
+  {
+   "name": "fort-bragg",
+   "lat": 35.141032844,
+   "lon": -79.007706948,
+   "digits": 4,
+   "mgrs": "17SPU8190"
+  },
+  {
+   "name": "fort-bragg",
+   "lat": 35.138752827,
+   "lon": -79.00611627,
+   "digits": 6,
+   "mgrs": "17SPU816902"
+  },
+  {
+   "name": "fort-bragg",
+   "lat": 35.138975413,
+   "lon": -79.005946215,
+   "digits": 8,
+   "mgrs": "17SPU81669027"
+  },
+  {
+   "name": "nttc-hohenfels",
+   "lat": 49.217449659,
+   "lon": 11.835788659,
+   "digits": 4,
+   "mgrs": "32UQV0655"
+  },
+  {
+   "name": "nttc-hohenfels",
+   "lat": 49.21788202,
+   "lon": 11.836500134,
+   "digits": 6,
+   "mgrs": "32UQV065555"
+  },
+  {
+   "name": "nttc-hohenfels",
+   "lat": 49.218004986,
+   "lon": 11.836987882,
+   "digits": 8,
+   "mgrs": "32UQV06585556"
+  },
+  {
+   "name": "grafenwoehr",
+   "lat": 49.700486302,
+   "lon": 11.94704389,
+   "digits": 4,
+   "mgrs": "32UQA1209"
+  },
+  {
+   "name": "grafenwoehr",
+   "lat": 49.698399178,
+   "lon": 11.940676128,
+   "digits": 6,
+   "mgrs": "32UQA120092"
+  },
+  {
+   "name": "grafenwoehr",
+   "lat": 49.698010793,
+   "lon": 11.940028533,
+   "digits": 8,
+   "mgrs": "32UQA12000920"
+  },
+  {
+   "name": "yakima",
+   "lat": 46.677786084,
+   "lon": -120.456850621,
+   "digits": 4,
+   "mgrs": "10TFS9472"
+  },
+  {
+   "name": "yakima",
+   "lat": 46.680106268,
+   "lon": -120.460010782,
+   "digits": 6,
+   "mgrs": "10TFS942727"
+  },
+  {
+   "name": "yakima",
+   "lat": 46.679969961,
+   "lon": -120.459951792,
+   "digits": 8,
+   "mgrs": "10TFS94257273"
+  },
+  {
+   "name": "jbmdl",
+   "lat": 40.014996998,
+   "lon": -74.595740141,
+   "digits": 4,
+   "mgrs": "18TWK3429"
+  },
+  {
+   "name": "jbmdl",
+   "lat": 40.015428962,
+   "lon": -74.59046462,
+   "digits": 6,
+   "mgrs": "18TWK349295"
+  },
+  {
+   "name": "jbmdl",
+   "lat": 40.015022082,
+   "lon": -74.590056934,
+   "digits": 8,
+   "mgrs": "18TWK34982950"
+  },
+  {
+   "name": "panama-jungle",
+   "lat": 9.075821402,
+   "lon": -79.676073498,
+   "digits": 4,
+   "mgrs": "17PPL4503"
+  },
+  {
+   "name": "panama-jungle",
+   "lat": 9.0799054,
+   "lon": -79.680152486,
+   "digits": 6,
+   "mgrs": "17PPL450039"
+  },
+  {
+   "name": "panama-jungle",
+   "lat": 9.080040547,
+   "lon": -79.680015526,
+   "digits": 8,
+   "mgrs": "17PPL45060396"
+  },
+  {
+   "name": "kenya-nanyuki",
+   "lat": 0.013563242,
+   "lon": 37.072708604,
+   "digits": 4,
+   "mgrs": "37NBA8501"
+  },
+  {
+   "name": "kenya-nanyuki",
+   "lat": 0.016728003,
+   "lon": 37.073157658,
+   "digits": 6,
+   "mgrs": "37NBA855018"
+  },
+  {
+   "name": "kenya-nanyuki",
+   "lat": 0.017044477,
+   "lon": 37.07302293,
+   "digits": 8,
+   "mgrs": "37NBA85530188"
+  },
+  {
+   "name": "equator-south",
+   "lat": -0.510828137,
+   "lon": 36.901983696,
+   "digits": 4,
+   "mgrs": "37MBV6643"
+  },
+  {
+   "name": "equator-south",
+   "lat": -0.510375339,
+   "lon": 36.899738585,
+   "digits": 6,
+   "mgrs": "37MBV662435"
+  },
+  {
+   "name": "equator-south",
+   "lat": -0.509968559,
+   "lon": 36.899963243,
+   "digits": 8,
+   "mgrs": "37MBV66274359"
+  },
+  {
+   "name": "sydney",
+   "lat": -33.854832904,
+   "lon": 151.211011467,
+   "digits": 4,
+   "mgrs": "56HLH3452"
+  },
+  {
+   "name": "sydney",
+   "lat": -33.857141432,
+   "lon": 151.214746311,
+   "digits": 6,
+   "mgrs": "56HLH348522"
+  },
+  {
+   "name": "sydney",
+   "lat": -33.856832959,
+   "lon": 151.215239114,
+   "digits": 8,
+   "mgrs": "56HLH34895228"
+  },
+  {
+   "name": "chile-santiago",
+   "lat": -33.450654305,
+   "lon": -70.673063651,
+   "digits": 4,
+   "mgrs": "19HCC4497"
+  },
+  {
+   "name": "chile-santiago",
+   "lat": -33.448451083,
+   "lon": -70.669256116,
+   "digits": 6,
+   "mgrs": "19HCC448977"
+  },
+  {
+   "name": "chile-santiago",
+   "lat": -33.448856074,
+   "lon": -70.669317665,
+   "digits": 8,
+   "mgrs": "19HCC44849770"
+  },
+  {
+   "name": "argentina-mendoza",
+   "lat": -32.893580296,
+   "lon": -68.84496599,
+   "digits": 4,
+   "mgrs": "19HED1460"
+  },
+  {
+   "name": "argentina-mendoza",
+   "lat": -32.889521731,
+   "lon": -68.845507633,
+   "digits": 6,
+   "mgrs": "19HED144609"
+  },
+  {
+   "name": "argentina-mendoza",
+   "lat": -32.889476959,
+   "lon": -68.845774999,
+   "digits": 8,
+   "mgrs": "19HED14426095"
+  },
+  {
+   "name": "norway-bergen",
+   "lat": 60.390043904,
+   "lon": 5.324894607,
+   "digits": 4,
+   "mgrs": "32VKN9700"
+  },
+  {
+   "name": "norway-bergen",
+   "lat": 60.391312856,
+   "lon": 5.322027094,
+   "digits": 6,
+   "mgrs": "32VKN973006"
+  },
+  {
+   "name": "norway-bergen",
+   "lat": 60.391270559,
+   "lon": 5.322122682,
+   "digits": 8,
+   "mgrs": "32VKN97350064"
+  },
+  {
+   "name": "norway-interior",
+   "lat": 58.500089751,
+   "lon": 8.49384476,
+   "digits": 4,
+   "mgrs": "32VMK7084"
+  },
+  {
+   "name": "norway-interior",
+   "lat": 58.499664238,
+   "lon": 8.499856112,
+   "digits": 6,
+   "mgrs": "32VMK708844"
+  },
+  {
+   "name": "norway-interior",
+   "lat": 58.499978907,
+   "lon": 8.499937427,
+   "digits": 8,
+   "mgrs": "32VMK70858448"
+  },
+  {
+   "name": "alaska-fairbanks",
+   "lat": 64.837218965,
+   "lon": -147.706115463,
+   "digits": 4,
+   "mgrs": "6WVS6690"
+  },
+  {
+   "name": "alaska-fairbanks",
+   "lat": 64.837622238,
+   "lon": -147.715611618,
+   "digits": 6,
+   "mgrs": "6WVS660905"
+  },
+  {
+   "name": "alaska-fairbanks",
+   "lat": 64.837842993,
+   "lon": -147.716355255,
+   "digits": 8,
+   "mgrs": "6WVS66019057"
+  },
+  {
+   "name": "svalbard",
+   "lat": 78.224473573,
+   "lon": 15.636480511,
+   "digits": 4,
+   "mgrs": "33XWG1483"
+  },
+  {
+   "name": "svalbard",
+   "lat": 78.223153745,
+   "lon": 15.625437212,
+   "digits": 6,
+   "mgrs": "33XWG142833"
+  },
+  {
+   "name": "svalbard",
+   "lat": 78.223196148,
+   "lon": 15.626536734,
+   "digits": 8,
+   "mgrs": "33XWG14278335"
+  },
+  {
+   "name": "iceland",
+   "lat": 64.144944224,
+   "lon": -21.935111393,
+   "digits": 4,
+   "mgrs": "27WVM5413"
+  },
+  {
+   "name": "iceland",
+   "lat": 64.146243813,
+   "lon": -21.942349012,
+   "digits": 6,
+   "mgrs": "27WVM541136"
+  },
+  {
+   "name": "iceland",
+   "lat": 64.146555863,
+   "lon": -21.942667905,
+   "digits": 8,
+   "mgrs": "27WVM54131368"
+  },
+  {
+   "name": "japan-fuji",
+   "lat": 35.361461197,
+   "lon": 138.72718496,
+   "digits": 4,
+   "mgrs": "54STE9315"
+  },
+  {
+   "name": "japan-fuji",
+   "lat": 35.361021053,
+   "lon": 138.727747521,
+   "digits": 6,
+   "mgrs": "54STE935154"
+  },
+  {
+   "name": "japan-fuji",
+   "lat": 35.360608371,
+   "lon": 138.727373938,
+   "digits": 8,
+   "mgrs": "54STE93511540"
+  },
+  {
+   "name": "korea-camp-humph",
+   "lat": 36.962245788,
+   "lon": 127.028642504,
+   "digits": 4,
+   "mgrs": "52SCF2492"
+  },
+  {
+   "name": "korea-camp-humph",
+   "lat": 36.962761441,
+   "lon": 127.032560281,
+   "digits": 6,
+   "mgrs": "52SCF248925"
+  },
+  {
+   "name": "korea-camp-humph",
+   "lat": 36.962978295,
+   "lon": 127.032049274,
+   "digits": 8,
+   "mgrs": "52SCF24809257"
+  },
+  {
+   "name": "s-africa-pretoria",
+   "lat": -25.749322756,
+   "lon": 28.231380351,
+   "digits": 4,
+   "mgrs": "35JPM2351"
+  },
+  {
+   "name": "s-africa-pretoria",
+   "lat": -25.747989598,
+   "lon": 28.228874199,
+   "digits": 6,
+   "mgrs": "35JPM232516"
+  },
+  {
+   "name": "s-africa-pretoria",
+   "lat": -25.747940671,
+   "lon": 28.229322329,
+   "digits": 8,
+   "mgrs": "35JPM23295165"
+  },
+  {
+   "name": "brazil-manaus",
+   "lat": -3.121562706,
+   "lon": -60.01784439,
+   "digits": 4,
+   "mgrs": "20MRB3154"
+  },
+  {
+   "name": "brazil-manaus",
+   "lat": -3.119315546,
+   "lon": -60.021895245,
+   "digits": 6,
+   "mgrs": "20MRB310547"
+  },
+  {
+   "name": "brazil-manaus",
+   "lat": -3.118998691,
+   "lon": -60.021671442,
+   "digits": 8,
+   "mgrs": "20MRB31075478"
+  },
+  {
+   "name": "india-leh",
+   "lat": 34.156431081,
+   "lon": 77.576207526,
+   "digits": 4,
+   "mgrs": "43SGT3782"
+  },
+  {
+   "name": "india-leh",
+   "lat": 34.152365404,
+   "lon": 77.576626189,
+   "digits": 6,
+   "mgrs": "43SGT375820"
+  },
+  {
+   "name": "india-leh",
+   "lat": 34.152582676,
+   "lon": 77.577012331,
+   "digits": 8,
+   "mgrs": "43SGT37588207"
+  },
+  {
+   "name": "nz-queenstown",
+   "lat": -45.034931866,
+   "lon": 168.657660275,
+   "digits": 4,
+   "mgrs": "59GLL1510"
+  },
+  {
+   "name": "nz-queenstown",
+   "lat": -45.030975422,
+   "lon": 168.662264905,
+   "digits": 6,
+   "mgrs": "59GLL158109"
+  },
+  {
+   "name": "nz-queenstown",
+   "lat": -45.031116831,
+   "lon": 168.662576514,
+   "digits": 8,
+   "mgrs": "59GLL15871093"
+  }
+ ],
+ "mgrsParse": [
+  {
+   "mgrs": "40RBN3407",
+   "centreLat": 24.458463616,
+   "centreLon": 54.380904205,
+   "cornerLat": 24.45386698,
+   "cornerLon": 54.376069377
+  },
+  {
+   "mgrs": "40RBN341070",
+   "centreLat": 24.45434376,
+   "centreLon": 54.377538478,
+   "cornerLat": 24.453884093,
+   "cornerLon": 54.377055007
+  },
+  {
+   "mgrs": "40RBN34120700",
+   "centreLat": 24.453933482,
+   "centreLon": 54.37730048,
+   "cornerLat": 24.453887515,
+   "cornerLon": 54.377252133
+  },
+  {
+   "mgrs": "39QYF8460",
+   "centreLat": 23.128902916,
+   "centreLon": 53.777997709,
+   "cornerLat": 23.124477491,
+   "cornerLon": 53.773027089
+  },
+  {
+   "mgrs": "39QYF847606",
+   "centreLat": 23.130213296,
+   "centreLon": 53.780464528,
+   "cornerLat": 23.129770772,
+   "cornerLon": 53.779967439
+  },
+  {
+   "mgrs": "39QYF84706062",
+   "centreLat": 23.129995476,
+   "centreLon": 53.78002087,
+   "cornerLat": 23.129951224,
+   "cornerLon": 53.779971161
+  },
+  {
+   "mgrs": "40RCM7561",
+   "centreLat": 24.060795837,
+   "centreLon": 55.775431172,
+   "cornerLat": 24.056241344,
+   "cornerLon": 55.770557127
+  },
+  {
+   "mgrs": "40RCM754611",
+   "centreLat": 24.057631351,
+   "centreLon": 55.774969472,
+   "cornerLat": 24.057175907,
+   "cornerLon": 55.774482065
+  },
+  {
+   "mgrs": "40RCM75456119",
+   "centreLat": 24.058038101,
+   "centreLon": 55.775014784,
+   "cornerLat": 24.057992557,
+   "cornerLon": 55.774966043
+  },
+  {
+   "mgrs": "16SFA9381",
+   "centreLat": 32.353695904,
+   "centreLon": -84.943669233,
+   "cornerLat": 32.34927465,
+   "cornerLon": -84.949081583
+  },
+  {
+   "mgrs": "16SFA931813",
+   "centreLat": 32.352404154,
+   "centreLon": -84.947417195,
+   "cornerLat": 32.351962023,
+   "cornerLon": -84.947958429
+  },
+  {
+   "mgrs": "16SFA93188135",
+   "centreLat": 32.35244318,
+   "centreLon": -84.947044441,
+   "cornerLat": 32.352398967,
+   "cornerLon": -84.947098565
+  },
+  {
+   "mgrs": "17SPU8190",
+   "centreLat": 35.141032844,
+   "centreLon": -79.007706948,
+   "cornerLat": 35.13661704,
+   "cornerLon": -79.013301938
+  },
+  {
+   "mgrs": "17SPU816902",
+   "centreLat": 35.138752827,
+   "centreLon": -79.00611627,
+   "cornerLat": 35.138311267,
+   "cornerLon": -79.006675788
+  },
+  {
+   "mgrs": "17SPU81669027",
+   "centreLat": 35.138975413,
+   "centreLon": -79.005946215,
+   "cornerLat": 35.138931257,
+   "cornerLon": -79.006002167
+  },
+  {
+   "mgrs": "32UQV0655",
+   "centreLat": 49.217449659,
+   "centreLon": 11.835788659,
+   "cornerLat": 49.21312579,
+   "cornerLon": 11.828674584
+  },
+  {
+   "mgrs": "32UQV065555",
+   "centreLat": 49.21788202,
+   "centreLon": 11.836500134,
+   "cornerLat": 49.217449659,
+   "cornerLon": 11.835788659
+  },
+  {
+   "mgrs": "32UQV06585556",
+   "centreLat": 49.218004986,
+   "centreLon": 11.836987882,
+   "cornerLat": 49.21796175,
+   "cornerLon": 11.836916733
+  },
+  {
+   "mgrs": "32UQA1209",
+   "centreLat": 49.700486302,
+   "centreLon": 11.94704389,
+   "cornerLat": 49.696171104,
+   "cornerLon": 11.939848103
+  },
+  {
+   "mgrs": "32UQA120092",
+   "centreLat": 49.698399178,
+   "centreLon": 11.940676128,
+   "cornerLat": 49.697967639,
+   "cornerLon": 11.939956579
+  },
+  {
+   "mgrs": "32UQA12000920",
+   "centreLat": 49.698010793,
+   "centreLon": 11.940028533,
+   "cornerLat": 49.697967639,
+   "cornerLon": 11.939956579
+  },
+  {
+   "mgrs": "10TFS9472",
+   "centreLat": 46.677786084,
+   "centreLon": -120.456850621,
+   "cornerLat": 46.673435927,
+   "cornerLon": -120.463592205
+  },
+  {
+   "mgrs": "10TFS942727",
+   "centreLat": 46.680106268,
+   "centreLon": -120.460010782,
+   "cornerLat": 46.679671253,
+   "cornerLon": -120.460684994
+  },
+  {
+   "mgrs": "10TFS94257273",
+   "centreLat": 46.679969961,
+   "centreLon": -120.459951792,
+   "cornerLat": 46.67992646,
+   "cornerLon": -120.460019213
+  },
+  {
+   "mgrs": "18TWK3429",
+   "centreLat": 40.014996998,
+   "centreLon": -74.595740141,
+   "cornerLat": 40.010512505,
+   "cornerLon": -74.601625036
+  },
+  {
+   "mgrs": "18TWK349295",
+   "centreLat": 40.015428962,
+   "centreLon": -74.59046462,
+   "cornerLat": 40.014980553,
+   "cornerLon": -74.591053182
+  },
+  {
+   "mgrs": "18TWK34982950",
+   "centreLat": 40.015022082,
+   "centreLon": -74.590056934,
+   "cornerLat": 40.014977242,
+   "cornerLon": -74.590115791
+  },
+  {
+   "mgrs": "17PPL4503",
+   "centreLat": 9.075821402,
+   "centreLon": -79.676073498,
+   "cornerLat": 9.071316536,
+   "cornerLon": -79.680638765
+  },
+  {
+   "mgrs": "17PPL450039",
+   "centreLat": 9.0799054,
+   "centreLon": -79.680152486,
+   "cornerLat": 9.079454912,
+   "cornerLon": -79.68060902
+  },
+  {
+   "mgrs": "17PPL45060396",
+   "centreLat": 9.080040547,
+   "centreLon": -79.680015526,
+   "cornerLat": 9.079995498,
+   "cornerLon": -79.68006118
+  },
+  {
+   "mgrs": "37NBA8501",
+   "centreLat": 0.013563242,
+   "centreLon": 37.072708604,
+   "cornerLat": 0.009042137,
+   "cornerLon": 37.068217825
+  },
+  {
+   "mgrs": "37NBA855018",
+   "centreLat": 0.016728003,
+   "centreLon": 37.073157658,
+   "cornerLat": 0.01627589,
+   "cornerLon": 37.07270858
+  },
+  {
+   "mgrs": "37NBA85530188",
+   "centreLat": 0.017044477,
+   "centreLon": 37.07302293,
+   "cornerLat": 0.016999266,
+   "cornerLon": 37.072978022
+  },
+  {
+   "mgrs": "37MBV6643",
+   "centreLat": -0.510828137,
+   "centreLon": 36.901983696,
+   "cornerLat": -0.515347246,
+   "cornerLon": 36.897491708
+  },
+  {
+   "mgrs": "37MBV662435",
+   "centreLat": -0.510375339,
+   "centreLon": 36.899738585,
+   "cornerLat": -0.510827251,
+   "cornerLon": 36.899289387
+  },
+  {
+   "mgrs": "37MBV66274359",
+   "centreLat": -0.509968559,
+   "centreLon": 36.899963243,
+   "cornerLat": -0.510013751,
+   "cornerLon": 36.899918323
+  },
+  {
+   "mgrs": "56HLH3452",
+   "centreLat": -33.854832904,
+   "centreLon": 151.211011467,
+   "cornerLat": -33.859261704,
+   "cornerLon": 151.205514687
+  },
+  {
+   "mgrs": "56HLH348522",
+   "centreLat": -33.857141432,
+   "centreLon": 151.214746311,
+   "cornerLat": -33.85758434,
+   "cornerLon": 151.214196661
+  },
+  {
+   "mgrs": "56HLH34895228",
+   "centreLat": -33.856832959,
+   "centreLon": 151.215239114,
+   "cornerLat": -33.85687725,
+   "cornerLon": 151.21518415
+  },
+  {
+   "mgrs": "19HCC4497",
+   "centreLat": -33.450654305,
+   "centreLon": -70.673063651,
+   "cornerLat": -33.455089528,
+   "cornerLon": -70.678528139
+  },
+  {
+   "mgrs": "19HCC448977",
+   "centreLat": -33.448451083,
+   "centreLon": -70.669256116,
+   "cornerLat": -33.448894635,
+   "cornerLon": -70.669802507
+  },
+  {
+   "mgrs": "19HCC44849770",
+   "centreLat": -33.448856074,
+   "centreLon": -70.669317665,
+   "cornerLat": -33.448900429,
+   "cornerLon": -70.669372304
+  },
+  {
+   "mgrs": "19HED1460",
+   "centreLat": -32.893580296,
+   "centreLon": -68.84496599,
+   "cornerLat": -32.898097058,
+   "cornerLon": -68.850304388
+  },
+  {
+   "mgrs": "19HED144609",
+   "centreLat": -32.889521731,
+   "centreLon": -68.845507633,
+   "cornerLat": -32.889973416,
+   "cornerLon": -68.846041427
+  },
+  {
+   "mgrs": "19HED14426095",
+   "centreLat": -32.889476959,
+   "centreLon": -68.845774999,
+   "cornerLat": -32.889522127,
+   "cornerLon": -68.845828378
+  },
+  {
+   "mgrs": "32VKN9700",
+   "centreLat": 60.390043904,
+   "centreLon": 5.324894607,
+   "cornerLat": 60.385313327,
+   "cornerLon": 5.316348875
+  },
+  {
+   "mgrs": "32VKN973006",
+   "centreLat": 60.391312856,
+   "centreLon": 5.322027094,
+   "cornerLat": 60.390839804,
+   "cornerLon": 5.321172419
+  },
+  {
+   "mgrs": "32VKN97350064",
+   "centreLat": 60.391270559,
+   "centreLon": 5.322122682,
+   "cornerLat": 60.391223254,
+   "cornerLon": 5.322037213
+  },
+  {
+   "mgrs": "32VMK7084",
+   "centreLat": 58.500089751,
+   "centreLon": 8.49384476,
+   "cornerLat": 58.495565146,
+   "cornerLon": 8.485331956
+  },
+  {
+   "mgrs": "32VMK708844",
+   "centreLat": 58.499664238,
+   "centreLon": 8.499856112,
+   "cornerLat": 58.499211842,
+   "cornerLon": 8.499004666
+  },
+  {
+   "mgrs": "32VMK70858448",
+   "centreLat": 58.499978907,
+   "centreLon": 8.499937427,
+   "cornerLat": 58.499933668,
+   "cornerLon": 8.499852281
+  },
+  {
+   "mgrs": "6WVS6690",
+   "centreLat": 64.837218965,
+   "centreLon": -147.706115463,
+   "cornerLat": 64.832682402,
+   "cornerLon": -147.716534222
+  },
+  {
+   "mgrs": "6WVS660905",
+   "centreLat": 64.837622238,
+   "centreLon": -147.715611618,
+   "cornerLat": 64.837168548,
+   "cornerLon": -147.716653507
+  },
+  {
+   "mgrs": "6WVS66019057",
+   "centreLat": 64.837842993,
+   "centreLon": -147.716355255,
+   "cornerLat": 64.837797624,
+   "cornerLon": -147.716459445
+  },
+  {
+   "mgrs": "33XWG1483",
+   "centreLat": 78.224473573,
+   "centreLon": 15.636480511,
+   "cornerLat": 78.220041516,
+   "cornerLon": 15.614304233
+  },
+  {
+   "mgrs": "33XWG142833",
+   "centreLat": 78.223153745,
+   "centreLon": 15.625437212,
+   "cornerLat": 78.222710531,
+   "cornerLon": 15.623219498
+  },
+  {
+   "mgrs": "33XWG14278335",
+   "centreLat": 78.223196148,
+   "centreLon": 15.626536734,
+   "cornerLat": 78.223151829,
+   "cornerLon": 15.62631495
+  },
+  {
+   "mgrs": "27WVM5413",
+   "centreLat": 64.144944224,
+   "centreLon": -21.935111393,
+   "cornerLat": 64.140391654,
+   "cornerLon": -21.945233121
+  },
+  {
+   "mgrs": "27WVM541136",
+   "centreLat": 64.146243813,
+   "centreLon": -21.942349012,
+   "cornerLat": 64.145788538,
+   "cornerLon": -21.943361263
+  },
+  {
+   "mgrs": "27WVM54131368",
+   "centreLat": 64.146555863,
+   "centreLon": -21.942667905,
+   "cornerLat": 64.146510335,
+   "cornerLon": -21.942769132
+  },
+  {
+   "mgrs": "54STE9315",
+   "centreLat": 35.361461197,
+   "centreLon": 138.72718496,
+   "cornerLat": 35.356852718,
+   "cornerLon": 138.721812259
+  },
+  {
+   "mgrs": "54STE935154",
+   "centreLat": 35.361021053,
+   "centreLon": 138.727747521,
+   "cornerLat": 35.360560218,
+   "cornerLon": 138.727210223
+  },
+  {
+   "mgrs": "54STE93511540",
+   "centreLat": 35.360608371,
+   "centreLon": 138.727373938,
+   "cornerLat": 35.360562287,
+   "cornerLon": 138.727320208
+  },
+  {
+   "mgrs": "52SCF2492",
+   "centreLat": 36.962245788,
+   "centreLon": 127.028642504,
+   "cornerLat": 36.95764787,
+   "cornerLon": 127.023145633
+  },
+  {
+   "mgrs": "52SCF248925",
+   "centreLat": 36.962761441,
+   "centreLon": 127.032560281,
+   "cornerLat": 36.962301677,
+   "cornerLon": 127.032010536
+  },
+  {
+   "mgrs": "52SCF24809257",
+   "centreLat": 36.962978295,
+   "centreLon": 127.032049274,
+   "cornerLat": 36.962932318,
+   "cornerLon": 127.031994299
+  },
+  {
+   "mgrs": "35JPM2351",
+   "centreLat": -25.749322756,
+   "centreLon": 28.231380351,
+   "cornerLat": -25.75387887,
+   "cornerLon": 28.226442278
+  },
+  {
+   "mgrs": "35JPM232516",
+   "centreLat": -25.747989598,
+   "centreLon": 28.228874199,
+   "cornerLat": -25.748445208,
+   "cornerLon": 28.228380404
+  },
+  {
+   "mgrs": "35JPM23295165",
+   "centreLat": -25.747940671,
+   "centreLon": 28.229322329,
+   "cornerLat": -25.747986232,
+   "cornerLon": 28.22927295
+  },
+  {
+   "mgrs": "20MRB3154",
+   "centreLat": -3.121562706,
+   "centreLon": -60.01784439,
+   "cornerLat": -3.126092886,
+   "cornerLon": -60.022325532
+  },
+  {
+   "mgrs": "20MRB310547",
+   "centreLat": -3.119315546,
+   "centreLon": -60.021895245,
+   "cornerLat": -3.119768562,
+   "cornerLon": -60.022343361
+  },
+  {
+   "mgrs": "20MRB31075478",
+   "centreLat": -3.118998691,
+   "centreLon": -60.021671442,
+   "cornerLat": -3.119043992,
+   "cornerLon": -60.021716253
+  },
+  {
+   "mgrs": "43SGT3782",
+   "centreLat": 34.156431081,
+   "centreLon": 77.576207526,
+   "cornerLat": 34.152039967,
+   "cornerLon": 77.570652147
+  },
+  {
+   "mgrs": "43SGT375820",
+   "centreLat": 34.152365404,
+   "centreLon": 77.576626189,
+   "cornerLat": 34.151926306,
+   "cornerLon": 77.576070651
+  },
+  {
+   "mgrs": "43SGT37588207",
+   "centreLat": 34.152582676,
+   "centreLon": 77.577012331,
+   "cornerLat": 34.152538766,
+   "cornerLon": 77.576956776
+  },
+  {
+   "mgrs": "59GLL1510",
+   "centreLat": -45.034931866,
+   "centreLon": 168.657660275,
+   "cornerLat": -45.039298682,
+   "cornerLon": 168.651133727
+  },
+  {
+   "mgrs": "59GLL158109",
+   "centreLat": -45.030975422,
+   "centreLon": 168.662264905,
+   "cornerLat": -45.031412149,
+   "cornerLon": 168.661612375
+  },
+  {
+   "mgrs": "59GLL15871093",
+   "centreLat": -45.031116831,
+   "centreLon": 168.662576514,
+   "cornerLat": -45.031160505,
+   "cornerLon": 168.662511262
+  }
+ ],
+ "distance": [
+  {
+   "name": "zero",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.4539,
+   "toLon": 54.3773,
+   "meters": 0.0,
+   "bearing": 0.0
+  },
+  {
+   "name": "course-ring-25m",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.45412,
+   "toLon": 54.3773,
+   "meters": 24.3683,
+   "bearing": 0.0
+  },
+  {
+   "name": "short-100m",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.4548,
+   "toLon": 54.3773,
+   "meters": 99.6883,
+   "bearing": 0.0
+  },
+  {
+   "name": "arrival-50m",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.4539,
+   "toLon": 54.37779,
+   "meters": 49.6819,
+   "bearing": 89.999899
+  },
+  {
+   "name": "leg-1km-north",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.46293,
+   "toLon": 54.3773,
+   "meters": 1000.2069,
+   "bearing": 0.0
+  },
+  {
+   "name": "leg-1km-east",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.4539,
+   "toLon": 54.38722,
+   "meters": 1005.8058,
+   "bearing": 89.997947
+  },
+  {
+   "name": "leg-10km-east",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.4539,
+   "toLon": 54.4763,
+   "meters": 10037.779,
+   "bearing": 89.979509
+  },
+  {
+   "name": "leg-10km-north",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.5442,
+   "toLon": 54.3773,
+   "meters": 10002.1231,
+   "bearing": 0.0
+  },
+  {
+   "name": "leg-25km-diag",
+   "fromLat": 24.4539,
+   "fromLon": 54.3773,
+   "toLat": 24.6139,
+   "toLon": 54.5573,
+   "meters": 25431.2521,
+   "bearing": 45.785372
+  },
+  {
+   "name": "cross-equator",
+   "fromLat": -0.5,
+   "fromLon": 36.9,
+   "toLat": 0.5,
+   "toLon": 36.9,
+   "meters": 110574.304,
+   "bearing": 0.0
+  },
+  {
+   "name": "high-lat",
+   "fromLat": 64.8378,
+   "fromLon": -147.7164,
+   "toLat": 64.9378,
+   "toLon": -147.5164,
+   "meters": 14631.1681,
+   "bearing": 40.267859
+  },
+  {
+   "name": "southern",
+   "fromLat": -33.8568,
+   "fromLon": 151.2152,
+   "toLat": -33.9568,
+   "toLon": 151.3152,
+   "meters": 14441.9443,
+   "bearing": 140.206572
+  },
+  {
+   "name": "antimeridian",
+   "fromLat": 1.0,
+   "fromLon": 179.95,
+   "toLat": 1.0,
+   "toLon": -179.95,
+   "meters": 11130.265,
+   "bearing": 89.999127
+  },
+  {
+   "name": "vincenty-canonical",
+   "fromLat": -37.9510334167,
+   "fromLon": 144.4248678889,
+   "toLat": -37.6528211389,
+   "toLon": 143.9264955278,
+   "meters": 54972.2711,
+   "bearing": 306.868159
+  },
+  {
+   "name": "one-degree-lat-eq",
+   "fromLat": 0.0,
+   "fromLon": 0.0,
+   "toLat": 1.0,
+   "toLon": 0.0,
+   "meters": 110574.3886,
+   "bearing": 0.0
+  },
+  {
+   "name": "one-degree-lat-45",
+   "fromLat": 45.0,
+   "fromLon": 0.0,
+   "toLat": 46.0,
+   "toLon": 0.0,
+   "meters": 111141.5485,
+   "bearing": 0.0
+  },
+  {
+   "name": "one-degree-lon-eq",
+   "fromLat": 0.0,
+   "fromLon": 0.0,
+   "toLat": 0.0,
+   "toLon": 1.0,
+   "meters": 111319.4908,
+   "bearing": 90.0
+  }
+ ],
+ "convergence": [
+  {
+   "lat": 24.4539,
+   "lon": 54.5,
+   "zone": 40,
+   "degrees": -1.035446923
+  },
+  {
+   "lat": 24.4539,
+   "lon": 56.0,
+   "zone": 40,
+   "degrees": -0.41399579
+  },
+  {
+   "lat": 24.4539,
+   "lon": 57.0,
+   "zone": 40,
+   "degrees": 0.0
+  },
+  {
+   "lat": 24.4539,
+   "lon": 58.0,
+   "zone": 40,
+   "degrees": 0.41399579
+  },
+  {
+   "lat": 24.4539,
+   "lon": 59.5,
+   "zone": 40,
+   "degrees": 1.035446923
+  },
+  {
+   "lat": 23.13,
+   "lon": 48.5,
+   "zone": 39,
+   "degrees": -0.982574067
+  },
+  {
+   "lat": 23.13,
+   "lon": 50.0,
+   "zone": 39,
+   "degrees": -0.392852415
+  },
+  {
+   "lat": 23.13,
+   "lon": 51.0,
+   "zone": 39,
+   "degrees": 0.0
+  },
+  {
+   "lat": 23.13,
+   "lon": 52.0,
+   "zone": 39,
+   "degrees": 0.392852415
+  },
+  {
+   "lat": 23.13,
+   "lon": 53.5,
+   "zone": 39,
+   "degrees": 0.982574067
+  },
+  {
+   "lat": 24.058,
+   "lon": 54.5,
+   "zone": 40,
+   "degrees": -1.019692618
+  },
+  {
+   "lat": 24.058,
+   "lon": 56.0,
+   "zone": 40,
+   "degrees": -0.407695726
+  },
+  {
+   "lat": 24.058,
+   "lon": 57.0,
+   "zone": 40,
+   "degrees": 0.0
+  },
+  {
+   "lat": 24.058,
+   "lon": 58.0,
+   "zone": 40,
+   "degrees": 0.407695726
+  },
+  {
+   "lat": 24.058,
+   "lon": 59.5,
+   "zone": 40,
+   "degrees": 1.019692618
+  },
+  {
+   "lat": 32.3524,
+   "lon": -89.5,
+   "zone": 16,
+   "degrees": -1.338419052
+  },
+  {
+   "lat": 32.3524,
+   "lon": -88.0,
+   "zone": 16,
+   "degrees": -0.535163941
+  },
+  {
+   "lat": 32.3524,
+   "lon": -87.0,
+   "zone": 16,
+   "degrees": 0.0
+  },
+  {
+   "lat": 32.3524,
+   "lon": -86.0,
+   "zone": 16,
+   "degrees": 0.535163941
+  },
+  {
+   "lat": 32.3524,
+   "lon": -84.5,
+   "zone": 16,
+   "degrees": 1.338419052
+  },
+  {
+   "lat": 35.139,
+   "lon": -83.5,
+   "zone": 17,
+   "degrees": -1.439515927
+  },
+  {
+   "lat": 35.139,
+   "lon": -82.0,
+   "zone": 17,
+   "degrees": -0.5756011
+  },
+  {
+   "lat": 35.139,
+   "lon": -81.0,
+   "zone": 17,
+   "degrees": 0.0
+  },
+  {
+   "lat": 35.139,
+   "lon": -80.0,
+   "zone": 17,
+   "degrees": 0.5756011
+  },
+  {
+   "lat": 35.139,
+   "lon": -78.5,
+   "zone": 17,
+   "degrees": 1.439515927
+  },
+  {
+   "lat": 49.218,
+   "lon": 6.5,
+   "zone": 32,
+   "degrees": -1.893513343
+  },
+  {
+   "lat": 49.218,
+   "lon": 8.0,
+   "zone": 32,
+   "degrees": -0.7572331
+  },
+  {
+   "lat": 49.218,
+   "lon": 9.0,
+   "zone": 32,
+   "degrees": 0.0
+  },
+  {
+   "lat": 49.218,
+   "lon": 10.0,
+   "zone": 32,
+   "degrees": 0.7572331
+  },
+  {
+   "lat": 49.218,
+   "lon": 11.5,
+   "zone": 32,
+   "degrees": 1.893513343
+  },
+  {
+   "lat": 49.698,
+   "lon": 6.5,
+   "zone": 32,
+   "degrees": -1.907120648
+  },
+  {
+   "lat": 49.698,
+   "lon": 8.0,
+   "zone": 32,
+   "degrees": -0.762678151
+  },
+  {
+   "lat": 49.698,
+   "lon": 9.0,
+   "zone": 32,
+   "degrees": 0.0
+  },
+  {
+   "lat": 49.698,
+   "lon": 10.0,
+   "zone": 32,
+   "degrees": 0.762678151
+  },
+  {
+   "lat": 49.698,
+   "lon": 11.5,
+   "zone": 32,
+   "degrees": 1.907120648
+  },
+  {
+   "lat": 46.68,
+   "lon": -125.5,
+   "zone": 10,
+   "degrees": -1.819376687
+  },
+  {
+   "lat": 46.68,
+   "lon": -124.0,
+   "zone": 10,
+   "degrees": -0.72756809
+  },
+  {
+   "lat": 46.68,
+   "lon": -123.0,
+   "zone": 10,
+   "degrees": 0.0
+  },
+  {
+   "lat": 46.68,
+   "lon": -122.0,
+   "zone": 10,
+   "degrees": 0.72756809
+  },
+  {
+   "lat": 46.68,
+   "lon": -120.5,
+   "zone": 10,
+   "degrees": 1.819376687
+  },
+  {
+   "lat": 40.015,
+   "lon": -77.5,
+   "zone": 18,
+   "degrees": -1.608068892
+  },
+  {
+   "lat": 40.015,
+   "lon": -76.0,
+   "zone": 18,
+   "degrees": -0.643026435
+  },
+  {
+   "lat": 40.015,
+   "lon": -75.0,
+   "zone": 18,
+   "degrees": 0.0
+  },
+  {
+   "lat": 40.015,
+   "lon": -74.0,
+   "zone": 18,
+   "degrees": 0.643026435
+  },
+  {
+   "lat": 40.015,
+   "lon": -72.5,
+   "zone": 18,
+   "degrees": 1.608068892
+  },
+  {
+   "lat": 9.08,
+   "lon": -83.5,
+   "zone": 17,
+   "degrees": -0.394777785
+  },
+  {
+   "lat": 9.08,
+   "lon": -82.0,
+   "zone": 17,
+   "degrees": -0.157829012
+  },
+  {
+   "lat": 9.08,
+   "lon": -81.0,
+   "zone": 17,
+   "degrees": 0.0
+  },
+  {
+   "lat": 9.08,
+   "lon": -80.0,
+   "zone": 17,
+   "degrees": 0.157829012
+  },
+  {
+   "lat": 9.08,
+   "lon": -78.5,
+   "zone": 17,
+   "degrees": 0.394777785
+  },
+  {
+   "lat": 0.017,
+   "lon": 36.5,
+   "zone": 37,
+   "degrees": -0.000742236
+  },
+  {
+   "lat": 0.017,
+   "lon": 38.0,
+   "zone": 37,
+   "degrees": -0.000296736
+  },
+  {
+   "lat": 0.017,
+   "lon": 39.0,
+   "zone": 37,
+   "degrees": 0.0
+  },
+  {
+   "lat": 0.017,
+   "lon": 40.0,
+   "zone": 37,
+   "degrees": 0.000296736
+  },
+  {
+   "lat": 0.017,
+   "lon": 41.5,
+   "zone": 37,
+   "degrees": 0.000742236
+  },
+  {
+   "lat": -0.51,
+   "lon": 36.5,
+   "zone": 37,
+   "degrees": 0.022266786
+  },
+  {
+   "lat": -0.51,
+   "lon": 38.0,
+   "zone": 37,
+   "degrees": 0.008901965
+  },
+  {
+   "lat": -0.51,
+   "lon": 39.0,
+   "zone": 37,
+   "degrees": -0.0
+  },
+  {
+   "lat": -0.51,
+   "lon": 40.0,
+   "zone": 37,
+   "degrees": -0.008901965
+  },
+  {
+   "lat": -0.51,
+   "lon": 41.5,
+   "zone": 37,
+   "degrees": -0.022266786
+  },
+  {
+   "lat": -33.8568,
+   "lon": 150.5,
+   "zone": 56,
+   "degrees": 1.39340764
+  },
+  {
+   "lat": -33.8568,
+   "lon": 152.0,
+   "zone": 56,
+   "degrees": 0.55715815
+  },
+  {
+   "lat": -33.8568,
+   "lon": 153.0,
+   "zone": 56,
+   "degrees": -0.0
+  },
+  {
+   "lat": -33.8568,
+   "lon": 154.0,
+   "zone": 56,
+   "degrees": -0.55715815
+  },
+  {
+   "lat": -33.8568,
+   "lon": 155.5,
+   "zone": 56,
+   "degrees": -1.39340764
+  },
+  {
+   "lat": -33.4489,
+   "lon": -71.5,
+   "zone": 19,
+   "degrees": 1.378591698
+  },
+  {
+   "lat": -33.4489,
+   "lon": -70.0,
+   "zone": 19,
+   "degrees": 0.55123202
+  },
+  {
+   "lat": -33.4489,
+   "lon": -69.0,
+   "zone": 19,
+   "degrees": -0.0
+  },
+  {
+   "lat": -33.4489,
+   "lon": -68.0,
+   "zone": 19,
+   "degrees": -0.55123202
+  },
+  {
+   "lat": -33.4489,
+   "lon": -66.5,
+   "zone": 19,
+   "degrees": -1.378591698
+  },
+  {
+   "lat": -32.8895,
+   "lon": -71.5,
+   "zone": 19,
+   "degrees": 1.358159178
+  },
+  {
+   "lat": -32.8895,
+   "lon": -70.0,
+   "zone": 19,
+   "degrees": 0.543059454
+  },
+  {
+   "lat": -32.8895,
+   "lon": -69.0,
+   "zone": 19,
+   "degrees": -0.0
+  },
+  {
+   "lat": -32.8895,
+   "lon": -68.0,
+   "zone": 19,
+   "degrees": -0.543059454
+  },
+  {
+   "lat": -32.8895,
+   "lon": -66.5,
+   "zone": 19,
+   "degrees": -1.358159178
+  },
+  {
+   "lat": 60.3913,
+   "lon": 6.5,
+   "zone": 32,
+   "degrees": -2.173886478
+  },
+  {
+   "lat": 60.3913,
+   "lon": 8.0,
+   "zone": 32,
+   "degrees": -0.869441467
+  },
+  {
+   "lat": 60.3913,
+   "lon": 9.0,
+   "zone": 32,
+   "degrees": 0.0
+  },
+  {
+   "lat": 60.3913,
+   "lon": 10.0,
+   "zone": 32,
+   "degrees": 0.869441467
+  },
+  {
+   "lat": 60.3913,
+   "lon": 11.5,
+   "zone": 32,
+   "degrees": 2.173886478
+  },
+  {
+   "lat": 58.5,
+   "lon": 6.5,
+   "zone": 32,
+   "degrees": -2.131969694
+  },
+  {
+   "lat": 58.5,
+   "lon": 8.0,
+   "zone": 32,
+   "degrees": -0.8526638
+  },
+  {
+   "lat": 58.5,
+   "lon": 9.0,
+   "zone": 32,
+   "degrees": 0.0
+  },
+  {
+   "lat": 58.5,
+   "lon": 10.0,
+   "zone": 32,
+   "degrees": 0.8526638
+  },
+  {
+   "lat": 58.5,
+   "lon": 11.5,
+   "zone": 32,
+   "degrees": 2.131969694
+  },
+  {
+   "lat": 64.8378,
+   "lon": -149.5,
+   "zone": 6,
+   "degrees": -2.263028946
+  },
+  {
+   "lat": 64.8378,
+   "lon": -148.0,
+   "zone": 6,
+   "degrees": -0.905124371
+  },
+  {
+   "lat": 64.8378,
+   "lon": -147.0,
+   "zone": 6,
+   "degrees": 0.0
+  },
+  {
+   "lat": 64.8378,
+   "lon": -146.0,
+   "zone": 6,
+   "degrees": 0.905124371
+  },
+  {
+   "lat": 64.8378,
+   "lon": -144.5,
+   "zone": 6,
+   "degrees": 2.263028946
+  },
+  {
+   "lat": 78.2232,
+   "lon": 12.5,
+   "zone": 33,
+   "degrees": -2.447439958
+  },
+  {
+   "lat": 78.2232,
+   "lon": 14.0,
+   "zone": 33,
+   "degrees": -0.978954253
+  },
+  {
+   "lat": 78.2232,
+   "lon": 15.0,
+   "zone": 33,
+   "degrees": 0.0
+  },
+  {
+   "lat": 78.2232,
+   "lon": 16.0,
+   "zone": 33,
+   "degrees": 0.978954253
+  },
+  {
+   "lat": 78.2232,
+   "lon": 17.5,
+   "zone": 33,
+   "degrees": 2.447439958
+  },
+  {
+   "lat": 64.1466,
+   "lon": -23.5,
+   "zone": 27,
+   "degrees": -2.25005331
+  },
+  {
+   "lat": 64.1466,
+   "lon": -22.0,
+   "zone": 27,
+   "degrees": -0.899930118
+  },
+  {
+   "lat": 64.1466,
+   "lon": -21.0,
+   "zone": 27,
+   "degrees": 0.0
+  },
+  {
+   "lat": 64.1466,
+   "lon": -20.0,
+   "zone": 27,
+   "degrees": 0.899930118
+  },
+  {
+   "lat": 64.1466,
+   "lon": -18.5,
+   "zone": 27,
+   "degrees": 2.25005331
+  },
+  {
+   "lat": 35.3606,
+   "lon": 138.5,
+   "zone": 54,
+   "degrees": -1.447412151
+  },
+  {
+   "lat": 35.3606,
+   "lon": 140.0,
+   "zone": 54,
+   "degrees": -0.578759589
+  },
+  {
+   "lat": 35.3606,
+   "lon": 141.0,
+   "zone": 54,
+   "degrees": 0.0
+  },
+  {
+   "lat": 35.3606,
+   "lon": 142.0,
+   "zone": 54,
+   "degrees": 0.578759589
+  },
+  {
+   "lat": 35.3606,
+   "lon": 143.5,
+   "zone": 54,
+   "degrees": 1.447412151
+  },
+  {
+   "lat": 36.963,
+   "lon": 126.5,
+   "zone": 52,
+   "degrees": -1.503857181
+  },
+  {
+   "lat": 36.963,
+   "lon": 128.0,
+   "zone": 52,
+   "degrees": -0.601338144
+  },
+  {
+   "lat": 36.963,
+   "lon": 129.0,
+   "zone": 52,
+   "degrees": 0.0
+  },
+  {
+   "lat": 36.963,
+   "lon": 130.0,
+   "zone": 52,
+   "degrees": 0.601338144
+  },
+  {
+   "lat": 36.963,
+   "lon": 131.5,
+   "zone": 52,
+   "degrees": 1.503857181
+  },
+  {
+   "lat": -25.7479,
+   "lon": 24.5,
+   "zone": 35,
+   "degrees": 1.086590069
+  },
+  {
+   "lat": -25.7479,
+   "lon": 26.0,
+   "zone": 35,
+   "degrees": 0.434448034
+  },
+  {
+   "lat": -25.7479,
+   "lon": 27.0,
+   "zone": 35,
+   "degrees": -0.0
+  },
+  {
+   "lat": -25.7479,
+   "lon": 28.0,
+   "zone": 35,
+   "degrees": -0.434448034
+  },
+  {
+   "lat": -25.7479,
+   "lon": 29.5,
+   "zone": 35,
+   "degrees": -1.086590069
+  },
+  {
+   "lat": -3.119,
+   "lon": -65.5,
+   "zone": 20,
+   "degrees": 0.136110977
+  },
+  {
+   "lat": -3.119,
+   "lon": -64.0,
+   "zone": 20,
+   "degrees": 0.054415446
+  },
+  {
+   "lat": -3.119,
+   "lon": -63.0,
+   "zone": 20,
+   "degrees": -0.0
+  },
+  {
+   "lat": -3.119,
+   "lon": -62.0,
+   "zone": 20,
+   "degrees": -0.054415446
+  },
+  {
+   "lat": -3.119,
+   "lon": -60.5,
+   "zone": 20,
+   "degrees": -0.136110977
+  },
+  {
+   "lat": 34.1526,
+   "lon": 72.5,
+   "zone": 43,
+   "degrees": -1.404107599
+  },
+  {
+   "lat": 34.1526,
+   "lon": 74.0,
+   "zone": 43,
+   "degrees": -0.561437994
+  },
+  {
+   "lat": 34.1526,
+   "lon": 75.0,
+   "zone": 43,
+   "degrees": 0.0
+  },
+  {
+   "lat": 34.1526,
+   "lon": 76.0,
+   "zone": 43,
+   "degrees": 0.561437994
+  },
+  {
+   "lat": 34.1526,
+   "lon": 77.5,
+   "zone": 43,
+   "degrees": 1.404107599
+  },
+  {
+   "lat": -45.0311,
+   "lon": 168.5,
+   "zone": 59,
+   "degrees": 1.769286963
+  },
+  {
+   "lat": -45.0311,
+   "lon": 170.0,
+   "zone": 59,
+   "degrees": 0.707526374
+  },
+  {
+   "lat": -45.0311,
+   "lon": 171.0,
+   "zone": 59,
+   "degrees": -0.0
+  },
+  {
+   "lat": -45.0311,
+   "lon": 172.0,
+   "zone": 59,
+   "degrees": -0.707526374
+  },
+  {
+   "lat": -45.0311,
+   "lon": 173.5,
+   "zone": 59,
+   "degrees": -1.769286963
+  }
+ ],
+ "graphicGeometry": [
+  {
+   "type": "phase_line",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "phase_line",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "phase_line",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "phase_line",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "phase_line",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "phase_line",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "boundary",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "axis",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "doa",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "objective",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "aa",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "route",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "route",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "route",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "route",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "route",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "route",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "lz",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "pz",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "bp",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "ea",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "nai",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "tai",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "area",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "area",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "area",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "area",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "area",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "area",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "screen_l",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "guard_l",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "cover_l",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "flot",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "obstacle_line",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "wire",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "lane",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "minefield",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 3,
+   "kind": "Polygon"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 4,
+   "kind": "Polygon"
+  },
+  {
+   "type": "strongpoint",
+   "vertexCount": 7,
+   "kind": "Polygon"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "roadblock",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "ring",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "sector",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "trp",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "checkpoint",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "dp",
+   "vertexCount": 7,
+   "kind": "LineString"
+  },
+  {
+   "type": "text",
+   "vertexCount": 0,
+   "kind": "none"
+  },
+  {
+   "type": "text",
+   "vertexCount": 1,
+   "kind": "Point"
+  },
+  {
+   "type": "text",
+   "vertexCount": 2,
+   "kind": "LineString"
+  },
+  {
+   "type": "text",
+   "vertexCount": 3,
+   "kind": "LineString"
+  },
+  {
+   "type": "text",
+   "vertexCount": 4,
+   "kind": "LineString"
+  },
+  {
+   "type": "text",
+   "vertexCount": 7,
+   "kind": "LineString"
+  }
+ ],
+ "areaTypes": [
+  "aa",
+  "area",
+  "bp",
+  "ea",
+  "lz",
+  "minefield",
+  "nai",
+  "objective",
+  "pz",
+  "strongpoint",
+  "tai"
+ ]
+}
