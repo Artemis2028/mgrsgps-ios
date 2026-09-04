@@ -32,6 +32,20 @@ public enum Format {
         return s.count >= width ? s : String(repeating: "0", count: width - s.count) + s
     }
 
+    /// Zero-pad the whole-number part of a formatted decimal.
+    ///
+    /// `String(format: "%04.1f", 0.0)` pads with a SPACE on Darwin, where
+    /// Kotlin's `String.format` (which is Java's) pads with a zero. The two
+    /// platforms disagreed on one character of a coordinate readout, which is
+    /// exactly the class of drift this project exists to prevent, so the
+    /// padding is done here rather than trusted to a format string.
+    static func padDecimal(_ value: Double, intDigits: Int, decimals: Int) -> String {
+        let text = f("%.\(decimals)f", value)
+        let whole = text.prefix { $0 != "." }.count
+        guard whole < intDigits else { return text }
+        return String(repeating: "0", count: intDigits - whole) + text
+    }
+
     /// Distance for the readout. Metric switches to km at 1 km and drops a
     /// decimal past 10 km, because a fourth significant figure on a 12 km leg
     /// is noise you cannot pace out anyway.
@@ -76,12 +90,13 @@ public enum Format {
                 let d = tenths / 36000
                 let mm = (tenths % 36000) / 600
                 let s = Double(tenths % 600) / 10.0
-                return "\(d)° " + pad(mm, 2) + "' " + f("%04.1f", s) + "\" \(hemi)"
+                return "\(d)° " + pad(mm, 2) + "' "
+                    + padDecimal(s, intDigits: 2, decimals: 1) + "\" \(hemi)"
             case .degreesMinutes:
                 let milli = Int((v * 60000.0).rounded())
                 let d = milli / 60000
                 let mFull = Double(milli % 60000) / 1000.0
-                return "\(d)° " + f("%06.3f", mFull) + "' \(hemi)"
+                return "\(d)° " + padDecimal(mFull, intDigits: 2, decimals: 3) + "' \(hemi)"
             }
         }
         return one(lat, "N", "S") + "   " + one(lon, "E", "W")

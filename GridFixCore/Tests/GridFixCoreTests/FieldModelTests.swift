@@ -138,6 +138,26 @@ final class FieldModelTests: XCTestCase {
                        "1° 00' 00.0\" N   0° 00' 00.0\" E")
     }
 
+    func testSingleDigitSecondsAndMinutesKeepTheirLeadingZero() {
+        // Regression. String(format: "%04.1f", 0.0) pads with a SPACE on
+        // Darwin and a ZERO in Kotlin, so the two platforms printed a
+        // coordinate that differed by one character. Padding is explicit now.
+        XCTAssertEqual(Format.latLon(lat: 1.001, lon: 0.0, format: .degreesMinutesSeconds),
+                       "1° 00' 03.6\" N   0° 00' 00.0\" E")
+        XCTAssertEqual(Format.latLon(lat: 1.09, lon: 0.0, format: .degreesMinutes),
+                       "1° 05.400' N   0° 00.000' E")
+    }
+
+    func testDecimalPaddingIsExplicitNotLeftToTheFormatter() {
+        XCTAssertEqual(Format.padDecimal(0.0, intDigits: 2, decimals: 1), "00.0")
+        XCTAssertEqual(Format.padDecimal(3.6, intDigits: 2, decimals: 1), "03.6")
+        XCTAssertEqual(Format.padDecimal(14.0, intDigits: 2, decimals: 1), "14.0")
+        XCTAssertEqual(Format.padDecimal(5.5, intDigits: 2, decimals: 3), "05.500")
+        XCTAssertEqual(Format.padDecimal(27.234, intDigits: 2, decimals: 3), "27.234")
+        XCTAssertFalse(Format.padDecimal(0.0, intDigits: 2, decimals: 1).contains(" "),
+                       "a space where a zero belongs is the bug this guards")
+    }
+
     func testSouthAndWestGetTheRightHemisphere() {
         XCTAssertEqual(Format.latLon(lat: -33.8568, lon: -70.6693, format: .decimalDegrees),
                        "33.85680° S   70.66930° W")
