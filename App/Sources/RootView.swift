@@ -23,17 +23,21 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $selection) {
-            PositionView()
-                .tabItem { Label("Position", systemImage: "location.north.line") }
-                .tag(0)
-            MapScreen()
-                .tabItem { Label("Map", systemImage: "map") }
-                .tag(1)
-            WaypointsView()
-                .tabItem { Label("Waypoints", systemImage: "flag") }
-                .tag(2)
+        VStack(spacing: 0) {
+            Group {
+                switch selection {
+                case 1:
+                    MapScreen()
+                case 2:
+                    WaypointsView()
+                default:
+                    PositionView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            FieldTabBar(selection: $selection)
         }
-        .tint(Blackout.accent)
+        .background(Blackout.background.ignoresSafeArea())
     }
 }

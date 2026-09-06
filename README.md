@@ -32,6 +32,16 @@ scripts/              simulator boot + screenshot, used by CI and by hand
 .github/workflows/    macOS runner: swift test -> build -> screenshots
 ```
 
+## Field chrome and CI shots
+
+The bottom nav is custom blackout chrome (`FieldTabBar`) — pure black, amber
+selected, dim unselected — not the system `TabView` bar. Tabs stay Position /
+Map / Waypoints (tags 0/1/2); `-startTab` launch args still drive CI shots.
+
+`scripts/pick-simulator.sh` prefers **iPhone 16**, then **15**, then **14** for
+stable screenshot geometry, then falls back to any plain `iPhone <n>` so image
+churn does not brick the pipeline. Override locally with `SIMULATOR_DEVICE_NAME`.
+
 ## The loop
 
 Push to `main`. CI runs the field math, generates the project, builds for the
