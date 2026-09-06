@@ -35,12 +35,13 @@ scripts/              simulator boot + screenshot, used by CI and by hand
 ## Field chrome and CI shots
 
 The bottom nav is custom blackout chrome (`FieldTabBar`) — pure black, amber
-selected, dim unselected — not the system `TabView` bar. Tabs stay Position /
-Map / Waypoints (tags 0/1/2); `-startTab` launch args still drive CI shots.
+selected, dim unselected — not the system `TabView` bar. Four tabs match Android
+(Position / Navigate / Map / Waypoints; tags 0/1/2/3); CI `-startTab map` opens
+Map at tag **2**.
 
-`scripts/pick-simulator.sh` prefers **iPhone 16**, then **15**, then **14** for
-stable screenshot geometry, then falls back to any plain `iPhone <n>` so image
-churn does not brick the pipeline. Override locally with `SIMULATOR_DEVICE_NAME`.
+`scripts/pick-simulator.sh` prefers exact **iPhone 16**, then **15**, then **14**
+(so `iPhone 16e` cannot beat a real `iPhone 16`), then series/plain fallbacks so
+image churn does not brick the pipeline. Override with `SIMULATOR_DEVICE_NAME`.
 
 ## The loop
 

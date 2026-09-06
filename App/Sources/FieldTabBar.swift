@@ -3,6 +3,10 @@ import SwiftUI
 /// Custom blackout bottom nav — replaces system `TabView` chrome so the bar
 /// matches Android GridFix: pure black, amber selected, dim unselected, labels
 /// under icons. Always visible (including on Map), like Android portrait.
+///
+/// RootView hosts this via `safeAreaInset(edge: .bottom)`, which keeps the
+/// control row above the home indicator. The black background still paints
+/// into the unsafe area with `ignoresSafeArea(edges: .bottom)`.
 struct FieldTabBar: View {
     @Binding var selection: Int
 
@@ -14,8 +18,9 @@ struct FieldTabBar: View {
 
     private let items: [Item] = [
         Item(id: 0, title: "Position", systemImage: "location.north.line"),
-        Item(id: 1, title: "Map", systemImage: "map"),
-        Item(id: 2, title: "Waypoints", systemImage: "flag"),
+        Item(id: 1, title: "Navigate", systemImage: "safari"),
+        Item(id: 2, title: "Map", systemImage: "map"),
+        Item(id: 3, title: "Waypoints", systemImage: "flag"),
     ]
 
     var body: some View {
@@ -29,9 +34,11 @@ struct FieldTabBar: View {
                     tabButton(item)
                 }
             }
+            // ~52pt control row — clear of the home indicator because
+            // safeAreaInset already reserves that space under this view.
             .frame(minHeight: 52)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
         }
         .background(Blackout.background.ignoresSafeArea(edges: .bottom))
     }
@@ -42,7 +49,7 @@ struct FieldTabBar: View {
         Button {
             selection = item.id
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Image(systemName: item.systemImage)
                     .font(.system(size: 20, weight: selected ? .semibold : .regular))
                 Text(item.title)

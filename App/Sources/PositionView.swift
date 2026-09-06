@@ -25,9 +25,7 @@ struct PositionView: View {
             }
             .padding(.horizontal, 22)
             .padding(.top, 18)
-            // iOS 26 floats the tab bar over the content. Without this the
-            // DTG row sits underneath it and LAT/LON is cut off mid-line.
-            .padding(.bottom, 96)
+            .padding(.bottom, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(Blackout.ink)

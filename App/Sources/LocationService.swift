@@ -13,6 +13,8 @@ struct Fix: Equatable {
     let lon: Double
     let accuracyMeters: Double
     let altitudeMeters: Double?
+    /// Ground speed when Core Location reports a usable value; nil otherwise.
+    let speedMetersPerSecond: Double?
     let timestamp: Date
 
     /// 0 to 5, from horizontal accuracy.
@@ -92,11 +94,13 @@ final class LocationService: NSObject, ObservableObject {
 extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let l = locations.last else { return }
+        let speed: Double? = l.speed >= 0 ? l.speed : nil
         let f = Fix(
             lat: l.coordinate.latitude,
             lon: l.coordinate.longitude,
             accuracyMeters: l.horizontalAccuracy,
             altitudeMeters: l.verticalAccuracy >= 0 ? l.altitude : nil,
+            speedMetersPerSecond: speed,
             timestamp: l.timestamp
         )
         Task { @MainActor [weak self] in self?.fix = f }

@@ -43,7 +43,7 @@ sleep 5
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-settled.png"
 
 # The map with the MGRS grid on it. CI cannot tap a tab bar, so the app reads
-# the starting tab from a launch argument.
+# the starting tab from a launch argument (-startTab map → tag 2; navigate=1).
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
 
 # Stream the app's own log while the map screen runs. A screenshot cannot say

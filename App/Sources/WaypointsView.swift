@@ -29,7 +29,7 @@ struct WaypointsView: View {
                     list
                 }
             }
-            .padding(.bottom, 96)
+            .padding(.bottom, 12)
         }
         .foregroundStyle(Blackout.ink)
         .sheet(isPresented: $showingEditor) { editor }
@@ -105,6 +105,12 @@ struct WaypointsView: View {
                                 row(wp)
                             }
                             .listRowBackground(Blackout.background)
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    store.select(wp.id)
+                                } label: { Label("Nav", systemImage: "safari") }
+                                .tint(Color(red: 1.0, green: 0.698, blue: 0.0))
+                            }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     store.delete(ids: [wp.id])
@@ -131,13 +137,22 @@ struct WaypointsView: View {
     }
 
     private func row(_ wp: Waypoint) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(wp.name)
-                .font(Blackout.label(16, weight: .semibold))
-                .foregroundStyle(wp.visible ? Blackout.ink : Blackout.inkDim)
-            Text(MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—")
-                .font(Blackout.numerals(13))
-                .foregroundStyle(Blackout.inkDim)
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(wp.name)
+                    .font(Blackout.label(16, weight: .semibold))
+                    .foregroundStyle(wp.visible ? Blackout.ink : Blackout.inkDim)
+                Text(MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—")
+                    .font(Blackout.numerals(13))
+                    .foregroundStyle(Blackout.inkDim)
+            }
+            Spacer(minLength: 8)
+            if store.selectedId == wp.id {
+                Text("NAV")
+                    .font(Blackout.label(10, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(Blackout.accent)
+            }
         }
         .padding(.vertical, 4)
     }
