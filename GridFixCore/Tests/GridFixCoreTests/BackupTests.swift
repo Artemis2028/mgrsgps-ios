@@ -64,7 +64,7 @@ final class BackupTests: XCTestCase {
         }
     }
 
-    func testGPXRoundTripPreservesMilGpsMetadata() {
+    func testGPXRoundTripPreservesMilGpsMetadata() throws {
         let wp = Waypoint(
             id: "1", name: "Mark", lat: 24.5, lon: 54.4,
             metadata: WaypointMetadata(color: "cyan", milgpsSymbolCode: 2100,
@@ -78,7 +78,8 @@ final class BackupTests: XCTestCase {
         XCTAssertEqual(drafts[0].name, "Mark")
         XCTAssertEqual(drafts[0].metadata?.color, "cyan")
         XCTAssertEqual(drafts[0].metadata?.milgpsSymbolCode, 2100)
-        XCTAssertEqual(drafts[0].metadata?.elevationMeters!, 5, accuracy: 1e-9)
+        let elev = try XCTUnwrap(drafts[0].metadata?.elevationMeters)
+        XCTAssertEqual(elev, 5, accuracy: 1e-9)
     }
 
     func testMilGpsSymbolEncodeDecode() {
