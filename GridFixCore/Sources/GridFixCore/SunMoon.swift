@@ -143,7 +143,7 @@ public enum SunMoon {
 
     private static func moonAltitude(jd: Double, lat: Double, lon: Double) -> Double {
         let pos = moonPos(jd: jd)
-        let lst = norm360(gmstDeg(jd) + lon)
+        let lst = norm360(gmstDeg(jd: jd) + lon)
         let h = (lst - pos.ra) * d2r
         return asin(
             sin(lat * d2r) * sin(pos.dec * d2r)

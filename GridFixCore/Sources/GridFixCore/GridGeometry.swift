@@ -97,7 +97,7 @@ public enum Grid {
         guard firstIndex <= maxIndex else { return [] }
         var value = Int64(firstIndex) * Int64(interval)
         var out: [Int64] = []
-        out.reserveCapacity(min(guardLimit, 64))
+        out.reserveCapacity(Swift.min(guardLimit, 64))
         while Double(value) <= max && out.count < guardLimit {
             out.append(value)
             let next = value &+ Int64(interval)
