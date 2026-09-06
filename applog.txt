@@ -1,0 +1,6 @@
+getpwuid_r did not find a match for uid 501
+Filtering the log data using "composedMessage CONTAINS "[grid]""
+Timestamp               Ty Process[PID:TID]
+2026-09-06 18:22:27.558 Df MGRSGPS[7231:6bf9] (Foundation) [grid] interval=1 km lines=6 labels=6 bytes=3293 view=320x480 safe=t47 b34
+2026-09-06 18:22:28.934 Df MGRSGPS[7231:6bf9] (Foundation) [grid] interval=1 km lines=5 labels=5 bytes=2751 view=320x480 safe=t47 b34
+Child process terminated with signal 15: Terminated

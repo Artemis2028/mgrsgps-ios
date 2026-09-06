@@ -1,0 +1,758 @@
+Command line invocation:
+    /Applications/Xcode_26.6.app/Contents/Developer/usr/bin/xcodebuild build -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug -destination id=A3044FA3-EBC3-4291-A153-352B9541A61A -derivedDataPath build CODE_SIGNING_ALLOWED=NO
+
+Build settings from command line:
+    CODE_SIGNING_ALLOWED = NO
+
+Resolve Package Graph
+
+Fetching from https://github.com/maplibre/maplibre-gl-native-distribution (cached)
+
+Creating working copy of package ‘maplibre-gl-native-distribution’
+
+Checking out 6.29.0 of package ‘maplibre-gl-native-distribution’
+
+
+Resolved source packages:
+  MapLibre Native: https://github.com/maplibre/maplibre-gl-native-distribution @ 6.29.0
+  GridFixCore: /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+
+2026-09-06 18:19:24.157 xcodebuild[3441:14686] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:A3044FA3-EBC3-4291-A153-352B9541A61A, OS:26.2, name:iPhone 16e }
+{ platform:iOS Simulator, arch:x86_64, id:A3044FA3-EBC3-4291-A153-352B9541A61A, OS:26.2, name:iPhone 16e }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (5 targets)
+    Target 'MGRSGPS' in project 'MGRSGPS'
+        ➜ Explicit dependency on target 'GridFixCore' in project 'GridFixCore'
+        ➜ Explicit dependency on target 'MapLibre' in project 'MapLibre Native'
+    Target 'MapLibre' in project 'MapLibre Native' (no dependencies)
+    Target 'GridFixCore' in project 'GridFixCore'
+        ➜ Explicit dependency on target 'GridFixCore' in project 'GridFixCore'
+        ➜ Explicit dependency on target 'GridFixCore_GridFixCore' in project 'GridFixCore'
+    Target 'GridFixCore' in project 'GridFixCore'
+        ➜ Explicit dependency on target 'GridFixCore_GridFixCore' in project 'GridFixCore'
+    Target 'GridFixCore_GridFixCore' in project 'GridFixCore' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+Build description signature: 233113e84b3c527815e7770e71768699
+Build description path: /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/XCBuildData/233113e84b3c527815e7770e71768699.xcbuilddata
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products
+
+ClangStatCache /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS-781308db945d440937eae65d70db1545-VFS-iphonesimulator/all-product-headers.yaml
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS-781308db945d440937eae65d70db1545-VFS-iphonesimulator/all-product-headers.yaml
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/ExplicitPrecompiledModules
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+
+CreateBuildDirectory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-create-build-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/empty-GridFixCore_GridFixCore.plist (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/empty-GridFixCore_GridFixCore.plist
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/GridFixCore_GridFixCore.DependencyStaticMetadataFileList (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/GridFixCore_GridFixCore.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/GridFixCore_GridFixCore.DependencyMetadataFileList (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/GridFixCore_GridFixCore.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_const_extract_protocols.json (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftConstValuesFileList (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.LinkFileList (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-OutputFileMap.json (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.modulemap (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.modulemap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyStaticMetadataFileList (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyMetadataFileList (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/resource_bundle_accessor.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/resource_bundle_accessor.swift
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/GridFixCore.modulemap /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.modulemap (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.modulemap /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator
+
+MkDir /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    /bin/mkdir -p /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle
+
+ProcessXCFramework /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MapLibre.framework ios simulator
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-process-xcframework --xcframework /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework --platform ios --environment simulator --target-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator
+
+ProcessInfoPlistFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle/Info.plist /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/empty-GridFixCore_GridFixCore.plist (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-infoPlistUtility /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore_GridFixCore.build/empty-GridFixCore_GridFixCore.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle/Info.plist
+
+CpResource /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle/WMM.COF /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Resources/WMM.COF (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Resources/WMM.COF /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle
+
+CpResource /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle/README.md /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Resources/README.md (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Resources/README.md /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle
+
+RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle
+
+Touch /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle (in target 'GridFixCore_GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    /usr/bin/touch -c /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-OutputFileMap.json (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_const_extract_protocols.json (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftConstValuesFileList (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.LinkFileList (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyStaticMetadataFileList (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyMetadataFileList (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-project-headers.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-project-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-own-target-headers.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-generated-files.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-generated-files.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-target-headers.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-non-framework-target-headers.hmap (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibPath-normal-arm64.txt (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibPath-normal-arm64.txt
+
+WriteAuxiliaryFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibInstallName-normal-arm64.txt (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    write-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibInstallName-normal-arm64.txt
+
+MkDir /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /bin/mkdir -p /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks
+
+MkDir /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /bin/mkdir -p /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+
+SwiftDriver GridFixCore normal arm64 com.apple.xcode.tools.swift.compiler (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-SwiftDriver -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name GridFixCore -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -DSWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE -DXcode -plugin-path /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -package-name gridfixcore -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_const_extract_protocols.json -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj -experimental-emit-module-separately -disable-cmo
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_AvailabilityInternal-367GJE67U7CU4CQ1CPM9BF4S2.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/SwiftShims-6NFNUI4B3T9DD0AMUX0VRIOOU.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_SwiftConcurrencyShims-L20OCIE7UGN8GRSMWOHQCP1S.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ptrcheck-4EF5ASA2VJ8NU8LKFUW03TABZ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stddef-9U905HSAKRNO6C2KFJ1BMYZU0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdarg-4LCMI517SKGZ6EITCHFESSNZO.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_float-9T22T91RKKEE03L8JNREXA4GD.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ptrauth-A56Q803FCR25CF21CA9F5EYPX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation1-JX10JH2SFLFUGW9C29VZKGOT.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdbool-CHRYAF493CM8SVGRXRU54PS4P.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_limits-217I7T0NBBYEUU9QTZ9RPV0RJ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation2-DXSTSINNG6AA5RU8YK7JYQW1H.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/sys_types-AJPS5REM1R75NYKRH72U72E9V.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdint-4TXQVQTONTZTNV6266CIWQLK3.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation3-DXYBTKF4DURIQQO57G8Y3YI3U.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_inttypes-6CANDDMMC0OSIX4J29EJJRV0U.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/zlib-BRI0WE0LLBTUPXN4W9H4BHI0R.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Darwin-2FKXKJCRS4AR68OQZJYR38BNN.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ObjectiveC-3TV2CKY6CWNQVNV09FOR6RHF0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/os_object-5IO208D185B35LC2QVR6Z8T0I.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/os_workgroup-C1O3NKJ1URX2EKAVSY7DLA6S8.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Dispatch-32YSKWT0FT00ZXYKC8CB5AGZW.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreFoundation-41A098F9HXGRRI843VEP9B1CM.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/XPC-CGXPD1MMYY0PCWGLRL0RWJ27R.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Security-3FOP1S7OH1EW62TJS639AXGWT.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CFNetwork-DRA970YDEZ1G927WRJLF4IRGY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Foundation-2MJL6PWP2GHCLUVY321B2NCTC.pcm
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ GridFixCore (in target 'GridFixCore' from project 'GridFixCore')
+
+EmitSwiftModule normal arm64 (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ resource_bundle_accessor.swift,\ Backup.swift,\ Folders.swift,\ Formatting.swift,\ GPX.swift,\ Geodesy.swift,\ GridGeometry.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/resource_bundle_accessor.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Backup.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Folders.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Formatting.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/GPX.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Geodesy.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/GridGeometry.swift (in target 'GridFixCore' from project 'GridFixCore')
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/resource_bundle_accessor.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Backup.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Folders.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Formatting.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/GPX.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Geodesy.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/GridGeometry.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ TacticalGraphics.swift,\ UTM.swift,\ WMM.swift,\ WaypointStore.swift,\ Waypoints.swift,\ ZipArchive.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/TacticalGraphics.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/UTM.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/WMM.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/WaypointStore.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Waypoints.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/ZipArchive.swift (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/TacticalGraphics.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/UTM.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/WMM.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/WaypointStore.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Waypoints.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/ZipArchive.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 Compiling\ MGRS.swift,\ ManualDeclination.swift,\ MapModels.swift,\ MgrsGrid.swift,\ Phonetic.swift,\ SunMoon.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MGRS.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/ManualDeclination.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MapModels.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MgrsGrid.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Phonetic.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/SunMoon.swift (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MGRS.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/ManualDeclination.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MapModels.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/MgrsGrid.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/Phonetic.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/Sources/GridFixCore/SunMoon.swift (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for GridFixCore (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftDriver\ Compilation\ Requirements GridFixCore normal arm64 com.apple.xcode.tools.swift.compiler (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name GridFixCore -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -DSWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE -DXcode -plugin-path /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -package-name gridfixcore -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_const_extract_protocols.json -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Compiling TacticalGraphics.swift, UTM.swift, WMM.swift, WaypointStore.swift, Waypoints.swift, ZipArchive.swift (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftDriverJobDiscovery normal arm64 Compiling MGRS.swift, ManualDeclination.swift, MapModels.swift, MgrsGrid.swift, Phonetic.swift, SunMoon.swift (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftDriverJobDiscovery normal arm64 Compiling resource_bundle_accessor.swift, Backup.swift, Folders.swift, Formatting.swift, GPX.swift, Geodesy.swift, GridGeometry.swift (in target 'GridFixCore' from project 'GridFixCore')
+
+SwiftMergeGeneratedHeaders /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/GridFixCore-Swift.h /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-Swift.h (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-Swift.h -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/GridFixCore-Swift.h
+
+SwiftDriver\ Compilation GridFixCore normal arm64 com.apple.xcode.tools.swift.compiler (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj
+    builtin-Swift-Compilation -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name GridFixCore -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList -DSWIFT_PACKAGE -DDEBUG -DSWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE -DXcode -plugin-path /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -Isystem /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -package-name gridfixcore -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_const_extract_protocols.json -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/DerivedSources -Xcc -DSWIFT_PACKAGE -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios/MGRSGPS.xcodeproj -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.swiftdoc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftdoc (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftdoc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.swiftdoc
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.abi.json (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.abi.json /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftsourceinfo (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftsourceinfo /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Ld /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.o normal (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -r -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -O0 -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -iframework /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -iframework /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk/Developer/Library/Frameworks -filelist /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.LinkFileList -nostdlib -Xlinker -object_path_lto -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_lto.o -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-linker-args.resp -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.o
+
+SwiftDriver MGRSGPS normal arm64 com.apple.xcode.tools.swift.compiler (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-SwiftDriver -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name MGRSGPS -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-generated-files.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-own-target-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS-781308db945d440937eae65d70db1545-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-project-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios -experimental-emit-module-separately -disable-cmo
+
+ExtractAppIntentsMetadata (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.6.109.0.l6kQMZ/Metal.xctoolchain --module-name GridFixCore --sdk-root /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk --xcode-version 17F113 --platform-family iOS --deployment-target 16.0 --bundle-identifier gridfixcore.GridFixCore --output /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.appintents --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.o --dependency-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore_dependency_info.dat --stringsdata-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftFileList --metadata-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/GridFixCore.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.SwiftConstValuesFileList --force --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-09-06 18:19:35.846 appintentsmetadataprocessor[3806:16057] Starting appintentsmetadataprocessor export
+2026-09-06 18:19:35.900 appintentsmetadataprocessor[3806:16057] Extracted no relevant App Intents symbols, skipping writing output
+
+RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.o (in target 'GridFixCore' from project 'GridFixCore')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore
+    builtin-RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore.o
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/GridFixCore_GridFixCore.bundle /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/GridFixCore_GridFixCore.bundle /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks/MapLibre.framework /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework/ios-arm64_x86_64-simulator/MapLibre.framework (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks -remove-static-executable /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SourcePackages/artifacts/maplibre-gl-native-distribution/MapLibre/MapLibre.xcframework/ios-arm64_x86_64-simulator/MapLibre.framework /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks
+
+Ld /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/__preview.dylib normal (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -O0 -L/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -install_name @rpath/MGRSGPS.debug.dylib -Xlinker -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_dependency_info.dat -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/__preview.dylib
+
+ProcessInfoPlistFile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Info.plist /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Resources/Info.generated.plist (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-infoPlistUtility /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Resources/Info.generated.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -scanforprivacyfile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks/MapLibre.framework -scanforprivacyfile /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/GridFixCore_GridFixCore.bundle -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Info.plist
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stddef-EOPSAKEGRNXRB4XZ1BVRTH9JS.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_SwiftConcurrencyShims-E0VF2GYMXAIBDEVLTSRIPWKGF.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdbool-1UL1YS1YL570R5UR06WCXEM85.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_float-A7MQ3R05S0U62WK2EZPS27GO1.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ptrcheck-5P4W3518UECSVMIGU6D5BYBOW.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/SwiftShims-DKRJ0PXRCOQKWB8SNBX146MOF.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdarg-5CAZV671Y287P5N7B8RNF37WJ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ptrauth-9CQZ692SY9ZLOTE2SKMV69FV2.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_AvailabilityInternal-8C4K60VW7D5U2VWA15QN02E8V.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/DeveloperToolsSupport-EOJ20VBLTLXRWSBQ6A2D52DEX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation1-B4LL8F6HYCR0GH45UNVKA714Y.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_limits-DNTUM9TPE8VEQE0EC1C3FNY79.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation2-DVIS42LVN0P33AEX5IU0ESGM7.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_tgmath-1W9265DP0RX7VDMXS890X9VKY.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/sys_types-8WFDLU09FX46LFZRIHK8L4PQP.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdint-7KXUVBNJKON4AWHHCPVRUIB9R.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_intrinsics-BRXDNM6L248T5N5AMW0KCZURV.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_stdatomic-6TECHJNKIEBI64H2K6S069F4L.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_DarwinFoundation3-E7D9AETUPU9NN3UY4XGRHO5CB.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_Builtin_inttypes-6UZ7S3V2E1E28PJUXUYP59PLL.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/zlib-AXYR8WYCFSYUEHQL4WIQM8ZUA.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Darwin-7JDVBQVSK9UG7DC0SU1V8SSSV.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/simd-35KWZRQVVHXQ2DTCHSFTIVY94.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ObjectiveC-BDZ2RKGUHRLOA8F01ZTI4L4O9.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/MachO-2CALPILPIZD3GHEAVTZJ1Q7Y0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/os_object-8YAZ9ONALXLEXYJVRQC0P7LZX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/os_workgroup-89T926LCA82WLFLPIGKDMEZ01.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Dispatch-E9GBOVRFZKX0T6WE95WZ7P21Y.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Spatial-5TSKYIE4QRWPIQH8Y3A8ZFN1X.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreFoundation-EYCSVJLCC50ZS77KUITN0F7S9.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/XPC-ANAFYW9CFYGCNPJLDL8NZOG0H.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/os-859UCIUWDEUMTXZ1N8TE0CU88.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CFNetwork-6784WD3KJ62NVEVEME7RGHIZB.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreGraphics-5Q7BFGIMZXPC2QVHH56Z7GBPG.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Security-9UCOSK30RRU4PRNMBDSSLV0FZ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreText-4PK06RAQVEH9B8Q6981CDJQSQ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ImageIO-5Q7CJT7NCYGB2LIS0O96XSVNQ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Foundation-4TLDL12T8ZEG0GFYG0806C2T4.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreData-9Z7IFR9DBL5B90QY8WD94Q8Q6.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreTransferable-CLY53OQCH68NHDHQSTO7PLOL7.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/UserNotifications-7UD8UH243JPNB4YUGNEJNK6RR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/IOSurface-3135LCWMMEOHM5XYBXFKUOCNG.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/OSLog-E3NO640Z79UX6T1A01S2VO6CX.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Accessibility-D7RCJ3CII5JYBTK1QZ03DX0HP.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/OpenGLES-DR1SEJYXRRH3Z6JFNHARYZ7BR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/FileProvider-69UOX23AWBMFI6JX0UD3IMYAF.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/UniformTypeIdentifiers-ERKX0WWP0YDJ7MAAHU0D93NND.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/DataDetection-4RFIZWJVABGCYQPBIC3AKQQI.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Symbols-775UZZEIBO8KU6H48OD6Y1639.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/UIUtilities-AZQ15M647268O4VXXB0M5Q76X.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/_LocationEssentials-81TNJMFOTANB44PVJPQXPIK6Y.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Metal-6D6O9OVBNCEAE1ZKGLP03UYS8.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/ModelIO-CDDJSWNKONWN37JXNCF424JR0.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreLocation-EV7L2WVEU3MO1PCAZBW44PNX9.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreVideo-3UZRCFYHPFVGX3VIG4JWCHS37.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/QuartzCore-ECVJUWK1K4WAT8B3ZGDJ7LE4E.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/CoreImage-3KCPPDRTFO57HH7GCMHTONIR3.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/SwiftUICore-6D4OKNZQXEVM795LDOGNAJHJR.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/UIKit-2WZOD3TLJU9PES2Q0HE36Q335.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/MetalKit-CROVRI9C5YZ3VRU6LLGWNET81.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/SwiftUI-E3RTWJFNQFYRS9L9O1M0DQXGJ.pcm
+
+SwiftExplicitDependencyGeneratePcm arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules/MapLibre-9EQBBJTEY3GD0KWW39ADCIECD.pcm
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ MGRSGPS (in target 'MGRSGPS' from project 'MGRSGPS')
+
+EmitSwiftModule normal arm64 (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: warning: conformance of 'MapContainer.Coordinator' to protocol 'MLNMapViewDelegate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: note: isolate this conformance to the main actor with '@MainActor'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+                                       @MainActor 
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:17: note: mark all declarations used in the conformance 'nonisolated'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: note: turn data races into runtime errors with '@preconcurrency'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+                                       @preconcurrency 
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:128:14: note: main actor-isolated instance method 'mapView(_:regionDidChangeAnimated:)' cannot satisfy nonisolated requirement
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+             ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:123:14: note: main actor-isolated instance method 'mapView(_:didFinishLoading:)' cannot satisfy nonisolated requirement
+        func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+             ^
+
+SwiftCompile normal arm64 Compiling\ MGRSGPSApp.swift,\ MapScreen.swift,\ NavigateView.swift,\ PositionView.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/MGRSGPSApp.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/NavigateView.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/PositionView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/MGRSGPSApp.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: warning: conformance of 'MapContainer.Coordinator' to protocol 'MLNMapViewDelegate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: note: isolate this conformance to the main actor with '@MainActor'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+                                       @MainActor 
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:17: note: mark all declarations used in the conformance 'nonisolated'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:114:40: note: turn data races into runtime errors with '@preconcurrency'
+    final class Coordinator: NSObject, MLNMapViewDelegate {
+                                       ^
+                                       @preconcurrency 
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:128:14: note: main actor-isolated instance method 'mapView(_:regionDidChangeAnimated:)' cannot satisfy nonisolated requirement
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+             ^
+/Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/MapScreen.swift:123:14: note: main actor-isolated instance method 'mapView(_:didFinishLoading:)' cannot satisfy nonisolated requirement
+        func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+             ^
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/NavigateView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/PositionView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 Compiling\ RootView.swift,\ Theme.swift,\ WaypointsView.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/RootView.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Theme.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/WaypointsView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/RootView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Theme.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/WaypointsView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 Compiling\ DeclinationService.swift,\ FieldTabBar.swift,\ GridOverlay.swift,\ LocationService.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/DeclinationService.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/FieldTabBar.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/GridOverlay.swift /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/LocationService.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/DeclinationService.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/FieldTabBar.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/Map/GridOverlay.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/App/Sources/LocationService.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for MGRSGPS (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftDriver\ Compilation\ Requirements MGRSGPS normal arm64 com.apple.xcode.tools.swift.compiler (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name MGRSGPS -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-generated-files.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-own-target-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS-781308db945d440937eae65d70db1545-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-project-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Compiling RootView.swift, Theme.swift, WaypointsView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftMergeGeneratedHeaders /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources/MGRSGPS-Swift.h /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-Swift.h (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-Swift.h -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources/MGRSGPS-Swift.h
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.swiftdoc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftdoc (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftdoc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.swiftdoc
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.abi.json (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.abi.json /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftsourceinfo (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftsourceinfo /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+SwiftDriverJobDiscovery normal arm64 Compiling DeclinationService.swift, FieldTabBar.swift, GridOverlay.swift, LocationService.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftDriverJobDiscovery normal arm64 Compiling MGRSGPSApp.swift, MapScreen.swift, NavigateView.swift, PositionView.swift (in target 'MGRSGPS' from project 'MGRSGPS')
+
+SwiftDriver\ Compilation MGRSGPS normal arm64 com.apple.xcode.tools.swift.compiler (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-Swift-Compilation -- /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name MGRSGPS -Onone @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/SDKStatCaches.noindex/iphonesimulator26.5-23F81a-688ef53f1462e2c8f657fdc38a81448ff45c64a1807a658693f2a61704f17a36.sdkstatcache -output-file-map /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -sdk-module-cache-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-generated-files.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-own-target-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-all-non-framework-target-headers.hmap -Xcc -ivfsoverlay -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS-781308db945d440937eae65d70db1545-VFS-iphonesimulator/all-product-headers.yaml -Xcc -iquote -Xcc /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-project-headers.hmap -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-Swift.h -working-directory /Users/runner/work/mgrsgps-ios/mgrsgps-ios -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS.debug.dylib normal (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -O0 -L/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -filelist /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.LinkFileList -install_name @rpath/MGRSGPS.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.swiftmodule @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS-linker-args.resp -Wl,-no_warn_duplicate_libraries -lz -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -framework MapLibre -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS.debug.dylib -Xlinker -add_ast_path -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore.swiftmodule @/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/GridFixCore.build/Debug-iphonesimulator/GridFixCore.build/Objects-normal/arm64/GridFixCore-linker-args.resp
+
+ConstructStubExecutorLinkFileList /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-ExecutorLinkFileList-normal-arm64.txt (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    construct-stub-executor-link-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS.debug.dylib /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'MGRSGPS' from project 'MGRSGPS')
+
+Ld /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS normal (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -isysroot /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk -O0 -L/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -F/Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/PackageFrameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS-ExecutorLinkFileList-normal-arm64.txt /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS.debug.dylib -o /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS
+
+ExtractAppIntentsMetadata (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.6.109.0.l6kQMZ/Metal.xctoolchain --module-name MGRSGPS --sdk-root /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.5.sdk --xcode-version 17F113 --platform-family iOS --deployment-target 16.0 --bundle-identifier app.gridfix.ios --output /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS --dependency-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS_dependency_info.dat --stringsdata-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftFileList --metadata-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/Objects-normal/arm64/MGRSGPS.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-09-06 18:19:45.385 appintentsmetadataprocessor[4085:16918] Starting appintentsmetadataprocessor export
+2026-09-06 18:19:45.388 appintentsmetadataprocessor[4085:16918] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+CopySwiftLibs /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/MGRSGPS.debug.dylib --scan-folder /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks --scan-folder /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/PlugIns --scan-folder /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/SystemExtensions --scan-folder /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Extensions --platform iphonesimulator --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.6.109.0.l6kQMZ/Metal.xctoolchain --toolchain /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+Ignoring --strip-bitcode because --sign was not passed
+
+AppIntentsSSUTraining (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Info.plist --temp-dir-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/ssu --bundle-id app.gridfix.ios --product-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app --extracted-metadata-path /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Metadata.appintents --metadata-file-list /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Intermediates.noindex/MGRSGPS.build/Debug-iphonesimulator/MGRSGPS.build/MGRSGPS.DependencyMetadataFileList --source-file /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app/Info.plist --archive-ssu-assets
+2026-09-06 18:19:45.426 appintentsnltrainingprocessor[4086:16921] Parsing options for appintentsnltrainingprocessor
+2026-09-06 18:19:45.427 appintentsnltrainingprocessor[4086:16921] Starting AppIntents SSU YAML Generation
+2026-09-06 18:19:45.433 appintentsnltrainingprocessor[4086:16921] No AppShortcuts found - Skipping.
+
+RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-RegisterExecutionPolicyException /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+
+Validate /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    builtin-validationUtility /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app (in target 'MGRSGPS' from project 'MGRSGPS')
+    cd /Users/runner/work/mgrsgps-ios/mgrsgps-ios
+    /usr/bin/touch -c /Users/runner/work/mgrsgps-ios/mgrsgps-ios/build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+
+** BUILD SUCCEEDED **
+

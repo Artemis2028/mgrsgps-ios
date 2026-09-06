@@ -1,0 +1,292 @@
+Building for debugging...
+[0/11] /Users/runner/work/mgrsgps-ios/mgrsgps-ios/GridFixCore/.build/arm64-apple-macosx/debug/GridFixCorePackageTests.derived/runner.swift
+[1/11] Copying WMM2025_TEST_VALUES.txt
+[2/11] Copying golden.json
+[3/11] Copying WMM.COF
+[3/11] Copying README.md
+[5/11] Write sources
+[8/11] Write swift-version-7974D3F7F03D5E95.txt
+[10/25] Compiling GridFixCore ManualDeclination.swift
+[11/25] Compiling GridFixCore MapModels.swift
+[12/25] Compiling GridFixCore MgrsGrid.swift
+[13/25] Compiling GridFixCore Phonetic.swift
+[14/25] Compiling GridFixCore SunMoon.swift
+[15/25] Compiling GridFixCore TacticalGraphics.swift
+[16/31] Emitting module GridFixCore
+[17/31] Compiling GridFixCore Backup.swift
+[18/31] Compiling GridFixCore Folders.swift
+[19/31] Compiling GridFixCore Formatting.swift
+[20/31] Compiling GridFixCore GPX.swift
+[21/31] Compiling GridFixCore Geodesy.swift
+[22/31] Compiling GridFixCore GridGeometry.swift
+[23/31] Compiling GridFixCore MGRS.swift
+[24/31] Compiling GridFixCore UTM.swift
+[25/31] Compiling GridFixCore WMM.swift
+[26/31] Compiling GridFixCore WaypointStore.swift
+[27/31] Compiling GridFixCore Waypoints.swift
+[28/31] Compiling GridFixCore ZipArchive.swift
+[29/31] Compiling GridFixCore resource_bundle_accessor.swift
+[30/39] Compiling GridFixCoreTests MgrsGridTests.swift
+[31/39] Compiling GridFixCoreTests SunMoonTests.swift
+[32/39] Compiling GridFixCoreTests TacticalGraphicsTests.swift
+[33/39] Compiling GridFixCoreTests BackupTests.swift
+[34/39] Compiling GridFixCoreTests FieldModelTests.swift
+[35/39] Compiling GridFixCoreTests Golden.swift
+[36/39] Compiling GridFixCoreTests GoldenTests.swift
+[37/39] Emitting module GridFixCoreTests
+[38/42] Compiling GridFixCoreTests WMMTests.swift
+[39/42] Compiling GridFixCoreTests WMMValidationTests.swift
+[40/42] Compiling GridFixCoreTests resource_bundle_accessor.swift
+[41/44] Compiling GridFixCorePackageTests runner.swift
+[42/44] Emitting module GridFixCorePackageTests
+[42/44] Write Objects.LinkFileList
+[43/44] Linking GridFixCorePackageTests
+Build complete! (27.53s)
+Test Suite 'All tests' started at 2026-09-06 18:18:58.440.
+Test Suite 'GridFixCorePackageTests.xctest' started at 2026-09-06 18:18:58.441.
+Test Suite 'BackupTests' started at 2026-09-06 18:18:58.441.
+Test Case '-[GridFixCoreTests.BackupTests testGPXRoundTripPreservesMilGpsMetadata]' started.
+Test Case '-[GridFixCoreTests.BackupTests testGPXRoundTripPreservesMilGpsMetadata]' passed (0.005 seconds).
+Test Case '-[GridFixCoreTests.BackupTests testManifestRoundTripPreservesWaypointsAndNullDeclination]' started.
+Test Case '-[GridFixCoreTests.BackupTests testManifestRoundTripPreservesWaypointsAndNullDeclination]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.BackupTests testMilGpsSymbolEncodeDecode]' started.
+Test Case '-[GridFixCoreTests.BackupTests testMilGpsSymbolEncodeDecode]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.BackupTests testUnsupportedVersionIsRefused]' started.
+Test Case '-[GridFixCoreTests.BackupTests testUnsupportedVersionIsRefused]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.BackupTests testZipRoundTripAndAdditiveRestore]' started.
+Test Case '-[GridFixCoreTests.BackupTests testZipRoundTripAndAdditiveRestore]' passed (0.010 seconds).
+Test Suite 'BackupTests' passed at 2026-09-06 18:18:58.462.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.019 (0.020) seconds
+Test Suite 'FieldModelTests' started at 2026-09-06 18:18:58.462.
+Test Case '-[GridFixCoreTests.FieldModelTests testADenserScreenNeverAsksForAFinerGrid]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testADenserScreenNeverAsksForAFinerGrid]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testAltitudeAccuracyAndSpeed]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testAltitudeAccuracyAndSpeed]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testAnAlignedMinimumIsIncludedNotSkipped]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testAnAlignedMinimumIsIncludedNotSkipped]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testBearingReadout]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testBearingReadout]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testDateTimeGroupIsZulu]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testDateTimeGroupIsZulu]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testDecimalPaddingIsExplicitNotLeftToTheFormatter]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testDecimalPaddingIsExplicitNotLeftToTheFormatter]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testDistanceReadout]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testDistanceReadout]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testEveryIntervalTheChooserCanReturnHasALabel]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testEveryIntervalTheChooserCanReturnHasALabel]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testEveryMultipleInRangeFromAnUnalignedStart]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testEveryMultipleInRangeFromAnUnalignedStart]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testFinePassWalksEveryStep]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testFinePassWalksEveryStep]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testFolderMatchingIsCaseInsensitiveAgainstFoldersInUse]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testFolderMatchingIsCaseInsensitiveAgainstFoldersInUse]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testGridMagneticEntryNeedsConvergence]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testGridMagneticEntryNeedsConvergence]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testGridSpellsForRadio]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testGridSpellsForRadio]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testImageQuadRefusesAnythingButFourCorners]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testImageQuadRefusesAnythingButFourCorners]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testIncompleteOrOutOfRangeDeclinationIsRejected]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testIncompleteOrOutOfRangeDeclinationIsRejected]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testIntervalIsTheFinestGridThatClearsMinimumSpacing]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testIntervalIsTheFinestGridThatClearsMinimumSpacing]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testIntervalSurvivesNonsenseInput]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testIntervalSurvivesNonsenseInput]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testLatLonReadoutInAllThreeFormats]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testLatLonReadoutInAllThreeFormats]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testLegacyFolderNamesCollapseIntoBase]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testLegacyFolderNamesCollapseIntoBase]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testLineValuesGuardCapsWithoutDroppingTheStart]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testLineValuesGuardCapsWithoutDroppingTheStart]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testLineValuesRejectsNonsense]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testLineValuesRejectsNonsense]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testMapModelsSurviveARoundTripThroughJSON]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testMapModelsSurviveARoundTripThroughJSON]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testMilitaryDigitsAreUsedNotPlainEnglish]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testMilitaryDigitsAreUsedNotPlainEnglish]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testNoMultipleMeansNoLines]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testNoMultipleMeansNoLines]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testReservedNamesWarnBeforeTheUserCommits]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testReservedNamesWarnBeforeTheUserCommits]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testSecondsCarryInsteadOfPrintingSixty]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testSecondsCarryInsteadOfPrintingSixty]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testSingleDigitSecondsAndMinutesKeepTheirLeadingZero]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testSingleDigitSecondsAndMinutesKeepTheirLeadingZero]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testSouthAndWestGetTheRightHemisphere]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testSouthAndWestGetTheRightHemisphere]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testSpellingIgnoresPunctuationAndExtraSpaces]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testSpellingIgnoresPunctuationAndExtraSpaces]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testTrueDeclinationDoesNotNeedALocation]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testTrueDeclinationDoesNotNeedALocation]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.FieldModelTests testUTMReadout]' started.
+Test Case '-[GridFixCoreTests.FieldModelTests testUTMReadout]' passed (0.000 seconds).
+Test Suite 'FieldModelTests' passed at 2026-09-06 18:18:58.476.
+	 Executed 31 tests, with 0 failures (0 unexpected) in 0.010 (0.014) seconds
+Test Suite 'GoldenTests' started at 2026-09-06 18:18:58.476.
+Test Case '-[GridFixCoreTests.GoldenTests testBearingMatchesTheSharedVectors]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testBearingMatchesTheSharedVectors]' passed (0.006 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testConvergenceIsZeroOnTheCentralMeridianAndGrowsOutward]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testConvergenceIsZeroOnTheCentralMeridianAndGrowsOutward]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testConvergenceMatchesTheSharedVectors]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testConvergenceMatchesTheSharedVectors]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testCornerIsAlwaysSouthWestOfTheCentre]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testCornerIsAlwaysSouthWestOfTheCentre]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testDistanceIsSymmetric]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testDistanceIsSymmetric]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testDistanceMatchesTheSharedVectors]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testDistanceMatchesTheSharedVectors]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testFixtureIsNotEmpty]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testFixtureIsNotEmpty]' passed (0.004 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testGreatCircleIsCloseButNotEqualToTheEllipsoid]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testGreatCircleIsCloseButNotEqualToTheEllipsoid]' passed (0.004 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSForwardMatchesTheSharedVectorsExactly]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSForwardMatchesTheSharedVectorsExactly]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseCornerHitsTheGridLineIntersection]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseCornerHitsTheGridLineIntersection]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseHitsTheCellCentre]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseHitsTheCellCentre]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseIgnoresSpacingAndCase]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSParseIgnoresSpacingAndCase]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSPartsSplitTheWayTheReadoutExpects]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSPartsSplitTheWayTheReadoutExpects]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSRejectsJunk]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSRejectsJunk]' passed (0.004 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSRoundTripsAtEveryPrecision]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSRoundTripsAtEveryPrecision]' passed (0.006 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSTruncatesAndNeverRounds]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testMGRSTruncatesAndNeverRounds]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testTwoRayFixLandsWhereTheRaysCross]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testTwoRayFixLandsWhereTheRaysCross]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testTwoRayFixRejectsGeometryAnInstructorWouldReject]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testTwoRayFixRejectsGeometryAnInstructorWouldReject]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testUTMCoordinateRoundsTheSameWayAndroidRounds]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testUTMCoordinateRoundsTheSameWayAndroidRounds]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testUTMForwardMatchesTheSharedVectors]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testUTMForwardMatchesTheSharedVectors]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testUTMIsUndefinedOutsideTheBands]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testUTMIsUndefinedOutsideTheBands]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testUTMRoundTripsThroughItsOwnInverse]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testUTMRoundTripsThroughItsOwnInverse]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.GoldenTests testZeroDistanceDoesNotProduceNaN]' started.
+Test Case '-[GridFixCoreTests.GoldenTests testZeroDistanceDoesNotProduceNaN]' passed (0.003 seconds).
+Test Suite 'GoldenTests' passed at 2026-09-06 18:18:58.548.
+	 Executed 23 tests, with 0 failures (0 unexpected) in 0.067 (0.072) seconds
+Test Suite 'MgrsGridTests' started at 2026-09-06 18:18:58.548.
+Test Case '-[GridFixCoreTests.MgrsGridTests testAGridLineNeverLeavesItsOwnZone]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testAGridLineNeverLeavesItsOwnZone]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testAnEmptyViewportProducesValidEmptyGeoJSON]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testAnEmptyViewportProducesValidEmptyGeoJSON]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testAnOrdinaryViewportGivesOneCell]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testAnOrdinaryViewportGivesOneCell]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testAViewportOnAZoneBoundaryDrawsBothSides]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testAViewportOnAZoneBoundaryDrawsBothSides]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testCellsAreEmptyBelowTheUTMLimit]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testCellsAreEmptyBelowTheUTMLimit]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testGeoJSONIsWellFormedAndCarriesWhatTheStyleNeeds]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testGeoJSONIsWellFormedAndCarriesWhatTheStyleNeeds]' passed (0.004 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testNorwayWidensZone32AtTheExpenseOf31]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testNorwayWidensZone32AtTheExpenseOf31]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testPrincipalDigitsFollowTheMapMarginConvention]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testPrincipalDigitsFollowTheMapMarginConvention]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testSquareLettersAgreeWithTheGridReadout]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testSquareLettersAgreeWithTheGridReadout]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testSvalbardHasFourWideZonesAndThreeThatDoNotExist]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testSvalbardHasFourWideZonesAndThreeThatDoNotExist]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheAntimeridianDoesNotSwallowTheGrid]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheAntimeridianDoesNotSwallowTheGrid]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheTopBandRunsToEightyFour]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheTopBandRunsToEightyFour]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheTwoIntervalOverloadsAgree]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testTheTwoIntervalOverloadsAgree]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testWorkStaysBoundedFromStreetLevelToWholeContinent]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testWorkStaysBoundedFromStreetLevelToWholeContinent]' passed (0.010 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testZoneBoundariesAreNotDrawnTwice]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testZoneBoundariesAreNotDrawnTwice]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.MgrsGridTests testZoomedOutFarEnoughOnlyTheZoneBoundariesRemain]' started.
+Test Case '-[GridFixCoreTests.MgrsGridTests testZoomedOutFarEnoughOnlyTheZoneBoundariesRemain]' passed (0.011 seconds).
+Test Suite 'MgrsGridTests' passed at 2026-09-06 18:18:58.584.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.034 (0.036) seconds
+Test Suite 'SunMoonTests' started at 2026-09-06 18:18:58.585.
+Test Case '-[GridFixCoreTests.SunMoonTests testPolarDayReportsNoSunriseRatherThanAWrongOne]' started.
+Test Case '-[GridFixCoreTests.SunMoonTests testPolarDayReportsNoSunriseRatherThanAWrongOne]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.SunMoonTests testTwilightBracketsTheDayInOrder]' started.
+Test Case '-[GridFixCoreTests.SunMoonTests testTwilightBracketsTheDayInOrder]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.SunMoonTests testZuluFormattingIsFourDigitsAndAZ]' started.
+Test Case '-[GridFixCoreTests.SunMoonTests testZuluFormattingIsFourDigitsAndAZ]' passed (0.000 seconds).
+Test Suite 'SunMoonTests' passed at 2026-09-06 18:18:58.586.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'TacticalGraphicsTests' started at 2026-09-06 18:18:58.586.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAGraphicWithNoVerticesProducesNoFeature]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAGraphicWithNoVerticesProducesNoFeature]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testALineKeepsItsVerticesInOrder]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testALineKeepsItsVerticesInOrder]' passed (0.005 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnAreaClosesItsRing]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnAreaClosesItsRing]' passed (0.005 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnAreaTypeWithTwoVerticesStaysALine]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnAreaTypeWithTwoVerticesStaysALine]' passed (0.004 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnEmptyOverlayIsStillValid]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnEmptyOverlayIsStillValid]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnOverlayIsOneFeatureCollection]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAnOverlayIsOneFeatureCollection]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAPointGraphicIsLongitudeThenLatitude]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testAPointGraphicIsLongitudeThenLatitude]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testEveryTypeAtItsMinimumVertexCountProducesAValidFeature]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testEveryTypeAtItsMinimumVertexCountProducesAValidFeature]' passed (0.008 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testEveryTypeInTheFixtureIsATypeThisAppKnows]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testEveryTypeInTheFixtureIsATypeThisAppKnows]' passed (0.003 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testGeometryKindMatchesTheSharedFixture]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testGeometryKindMatchesTheSharedFixture]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testNastyNamesStillParse]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testNastyNamesStillParse]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testPropertiesCarryWhatTheStyleFiltersOn]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testPropertiesCarryWhatTheStyleFiltersOn]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testTheAreaTypeListMatchesAndroid]' started.
+Test Case '-[GridFixCoreTests.TacticalGraphicsTests testTheAreaTypeListMatchesAndroid]' passed (0.001 seconds).
+Test Suite 'TacticalGraphicsTests' passed at 2026-09-06 18:18:58.627.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.038 (0.041) seconds
+Test Suite 'WMMTests' started at 2026-09-06 18:18:58.627.
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipoleDipMatchesTheClosedFormExactly]' started.
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipoleDipMatchesTheClosedFormExactly]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipoleHasZeroDeclinationEverywhere]' started.
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipoleHasZeroDeclinationEverywhere]' passed (0.077 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipolePointsNorthAndDips]' started.
+Test Case '-[GridFixCoreTests.WMMTests testAnAxialDipolePointsNorthAndDips]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testATiltedDipoleIsAntisymmetricInLongitude]' started.
+Test Case '-[GridFixCoreTests.WMMTests testATiltedDipoleIsAntisymmetricInLongitude]' passed (0.008 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserReadsTheShapeNOAAShips]' started.
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserReadsTheShapeNOAAShips]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserRefusesAnIncompleteFile]' started.
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserRefusesAnIncompleteFile]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserRefusesGarbage]' started.
+Test Case '-[GridFixCoreTests.WMMTests testCOFParserRefusesGarbage]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testDecimalYear]' started.
+Test Case '-[GridFixCoreTests.WMMTests testDecimalYear]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testIntensityFallsOffWithAltitude]' started.
+Test Case '-[GridFixCoreTests.WMMTests testIntensityFallsOffWithAltitude]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testLegendreDerivativesMatchNumericalDifferentiation]' started.
+Test Case '-[GridFixCoreTests.WMMTests testLegendreDerivativesMatchNumericalDifferentiation]' passed (0.001 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testLegendreMatchesClosedFormsAtDegreeOneAndTwo]' started.
+Test Case '-[GridFixCoreTests.WMMTests testLegendreMatchesClosedFormsAtDegreeOneAndTwo]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testSecularVariationMovesTheFieldOverTime]' started.
+Test Case '-[GridFixCoreTests.WMMTests testSecularVariationMovesTheFieldOverTime]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testTheModelKnowsWhenItHasExpired]' started.
+Test Case '-[GridFixCoreTests.WMMTests testTheModelKnowsWhenItHasExpired]' passed (0.000 seconds).
+Test Case '-[GridFixCoreTests.WMMTests testTheRealModelIfItIsBundled]' started.
+Test Case '-[GridFixCoreTests.WMMTests testTheRealModelIfItIsBundled]' passed (0.002 seconds).
+Test Suite 'WMMTests' passed at 2026-09-06 18:18:58.722.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.094 (0.096) seconds
+Test Suite 'WMMValidationTests' started at 2026-09-06 18:18:58.723.
+Test Case '-[GridFixCoreTests.WMMValidationTests testAgainstNOAAPublishedTestValues]' started.
+Test Case '-[GridFixCoreTests.WMMValidationTests testAgainstNOAAPublishedTestValues]' passed (0.002 seconds).
+Test Case '-[GridFixCoreTests.WMMValidationTests testTheParserSkipsCommentsAndKeepsData]' started.
+Test Case '-[GridFixCoreTests.WMMValidationTests testTheParserSkipsCommentsAndKeepsData]' passed (0.000 seconds).
+Test Suite 'WMMValidationTests' passed at 2026-09-06 18:18:58.725.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'GridFixCorePackageTests.xctest' passed at 2026-09-06 18:18:58.725.
+	 Executed 107 tests, with 0 failures (0 unexpected) in 0.266 (0.284) seconds
+Test Suite 'All tests' passed at 2026-09-06 18:18:58.725.
+	 Executed 107 tests, with 0 failures (0 unexpected) in 0.266 (0.285) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
