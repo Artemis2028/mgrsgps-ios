@@ -12,7 +12,11 @@ let package = Package(
             name: "GridFixCore",
             // Declaring resources is what makes Bundle.module exist. WMM.COF
             // drops into this folder and is picked up with no code change.
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            linkerSettings: [
+                // zlib for ZIP DEFLATE inflate (Android ZipOutputStream backups).
+                .linkedLibrary("z"),
+            ]
         ),
         .testTarget(
             name: "GridFixCoreTests",

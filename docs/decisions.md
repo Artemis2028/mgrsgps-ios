@@ -70,5 +70,6 @@ So `DeclinationService` resolves in this order: **operator override → live hea
 ## Still open
 
 - The demo basemap is MapLibre's keyless world style. It proves the grid draws and is not the shipping basemap — self-hosted OSM vector tiles plus Copernicus-derived terrain replace it, which is also what makes worldwide offline download possible.
-- Waypoints, the folder model and backup read/write are next. `backup-format-v1.md` is the spec; the reference backup zip it needs is not committed yet.
-- SunMoon, terrain LOS and viewshed, and GPX/KML/ATAK interchange exist only in Kotlin and are all portable.
+- Waypoints, folders, backup v1 read/write and GPX waypoint interchange landed as a first slice (see `parity-with-android.md`). Still open: a reference Android backup zip committed as a restore fixture, settings/graphics/tracks UI, and full additive restore of those sections.
+- Terrain LOS and viewshed, KML/KMZ/ATAK CoT, track recording and course history remain Android-only and portable.
+- Target tip for parity work: Android **0.9.32** (`v0.9.32-b68`).

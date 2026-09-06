@@ -121,10 +121,10 @@ Every folder field in the backup — on waypoints, graphics, tracks and the `fol
 
 ## What this app still has to build
 
-1. Zip read and write. Foundation has no zip; use Compression with a small local zip container, or a vendored single-file helper. No third-party dependency is worth taking for this.
-2. Document encode/decode against this spec, with the same defaults and the same required-field behaviour.
-3. The additive, id-keyed merge.
-4. A round-trip suite that is **fixture-driven, not self-referential**: a reference backup zip produced by the Android app, committed here, that this app must read into the same object graph and re-emit equivalently. A test where this app reads only its own output proves nothing — the same mistake as a geodesy test that pins haversine to itself.
+1. ~~Zip read and write.~~ `ZipArchive` (STORE write; DEFLATE read via zlib) ships in GridFixCore.
+2. ~~Document encode/decode against this spec.~~ `Backup.encodeManifest` / `decodeManifest` / `exportZip` / `importZip`.
+3. ~~The additive, id-keyed merge~~ for waypoints and folders (`WaypointStore.merge`). Graphics / tracks / course / settings restore wiring is still thin.
+4. A round-trip suite that is **fixture-driven, not self-referential**: a reference backup zip produced by the Android app, committed here, that this app must read into the same object graph and re-emit equivalently. Unit tests today round-trip this app's own writer — necessary but not sufficient.
 
 ## Version policy
 

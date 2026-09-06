@@ -212,16 +212,13 @@ public enum MgrsGrid {
                          kind: GridLine.Kind, heavy: Bool,
                          _ lines: inout [GridLine],
                          _ labels: inout [GridLabel]) {
-        let step = Double(interval)
-
-        // Constant easting.
-        var v = eMin
-        var count = 0
-        while v <= eMax && count < lineGuard {
-            let value = (v / step).rounded() * step
-            v += step
-            count += 1
-            if skip > 0 && Int(value.rounded()) % skip == 0 { continue }
+        // Values come from the pure helper (and its tests) rather than from a
+        // rounded walk off an unaligned start — see Grid.lineValues / Android
+        // gridLineValues for the 100 km line that cost.
+        for eL in Grid.lineValues(min: eMin, max: eMax, interval: interval,
+                                  guardLimit: lineGuard) {
+            if skip > 0 && eL % Int64(skip) == 0 { continue }
+            let value = Double(eL)
             var pts: [GeoPoint] = []
             pts.reserveCapacity(samplesPerLine + 1)
             for i in 0...samplesPerLine {
@@ -234,14 +231,10 @@ public enum MgrsGrid {
                  vertical: true, &lines, &labels)
         }
 
-        // Constant northing.
-        v = nMin
-        count = 0
-        while v <= nMax && count < lineGuard {
-            let value = (v / step).rounded() * step
-            v += step
-            count += 1
-            if skip > 0 && Int(value.rounded()) % skip == 0 { continue }
+        for nL in Grid.lineValues(min: nMin, max: nMax, interval: interval,
+                                  guardLimit: lineGuard) {
+            if skip > 0 && nL % Int64(skip) == 0 { continue }
+            let value = Double(nL)
             var pts: [GeoPoint] = []
             pts.reserveCapacity(samplesPerLine + 1)
             for i in 0...samplesPerLine {

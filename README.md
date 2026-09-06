@@ -68,3 +68,11 @@ MGRS truncates and never rounds. A typed grid resolves to the cell centre;
 calibration control points resolve to the SW corner. Distances are ellipsoidal.
 Bearings come out in 0..<360. Night mode is red on black. No accounts, no
 analytics, nothing leaves the phone.
+
+## Parity with Android
+
+Field math is pinned to the shared golden fixture. Product surfaces are catching
+up toward `gridfix` **0.9.32** — see `docs/parity-with-android.md` for the
+matched / unmatched checklist. Waypoints, folders, backup v1 and GPX import/export
+are in; terrain, tracks UI and KML/ATAK are not.
+

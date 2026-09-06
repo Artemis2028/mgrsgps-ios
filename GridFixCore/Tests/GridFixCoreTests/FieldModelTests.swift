@@ -50,6 +50,74 @@ final class FieldModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Grid line values (0.9.20 seam)
+
+    func testEveryMultipleInRangeFromAnUnalignedStart() {
+        // Exact viewport from the Android 0.9.20 review: the old walk dropped 400000.
+        XCTAssertEqual(Grid.lineValues(min: 330000.0, max: 415000.0, interval: 100000),
+                       [400000])
+    }
+
+    func testAnAlignedMinimumIsIncludedNotSkipped() {
+        XCTAssertEqual(Grid.lineValues(min: 300000.0, max: 415000.0, interval: 100000),
+                       [300000, 400000])
+    }
+
+    func testFinePassWalksEveryStep() {
+        XCTAssertEqual(
+            Grid.lineValues(min: 330000.0, max: 415000.0, interval: 10000),
+            [330000, 340000, 350000, 360000, 370000, 380000, 390000, 400000, 410000]
+        )
+    }
+
+    func testNoMultipleMeansNoLines() {
+        XCTAssertTrue(Grid.lineValues(min: 330001.0, max: 399999.0, interval: 100000).isEmpty)
+    }
+
+    func testLineValuesGuardCapsWithoutDroppingTheStart() {
+        XCTAssertEqual(
+            Grid.lineValues(min: 0.0, max: 1_000_000.0, interval: 10, guardLimit: 5),
+            [0, 10, 20, 30, 40]
+        )
+    }
+
+    func testLineValuesRejectsNonsense() {
+        XCTAssertTrue(Grid.lineValues(min: 0.0, max: 100.0, interval: 0).isEmpty)
+        XCTAssertTrue(Grid.lineValues(min: 0.0, max: 100.0, interval: -10).isEmpty)
+        XCTAssertTrue(Grid.lineValues(min: 100.0, max: 0.0, interval: 10).isEmpty)
+        XCTAssertTrue(Grid.lineValues(min: .nan, max: 100.0, interval: 10).isEmpty)
+        XCTAssertTrue(Grid.lineValues(min: 0.0, max: .infinity, interval: 10).isEmpty)
+    }
+
+    // MARK: - Manual declination
+
+    func testGridMagneticEntryNeedsConvergence() {
+        XCTAssertNil(ManualDeclination.resolve(text: "5", east: true, mils: false,
+                                               asGridMagnetic: true, convergence: nil))
+        XCTAssertNil(ManualDeclination.resolve(text: "5", east: true, mils: false,
+                                               asGridMagnetic: true, convergence: .nan))
+        XCTAssertEqual(ManualDeclination.resolve(text: "5", east: true, mils: false,
+                                                 asGridMagnetic: true, convergence: 1.1)!,
+                       6.1, accuracy: 0.0001)
+    }
+
+    func testTrueDeclinationDoesNotNeedALocation() {
+        XCTAssertEqual(ManualDeclination.resolve(text: "5", east: false, mils: false,
+                                                 asGridMagnetic: false, convergence: nil)!,
+                       -5.0, accuracy: 0.0001)
+        XCTAssertEqual(ManualDeclination.resolve(text: "100", east: true, mils: true,
+                                                 asGridMagnetic: false, convergence: nil)!,
+                       5.625, accuracy: 0.0001)
+    }
+
+    func testIncompleteOrOutOfRangeDeclinationIsRejected() {
+        for text in ["", ".", "NaN", "Infinity", "181", "-1"] {
+            XCTAssertNil(ManualDeclination.resolve(text: text, east: true, mils: false,
+                                                   asGridMagnetic: false, convergence: nil),
+                         text)
+        }
+    }
+
     // MARK: - Folders
 
     func testLegacyFolderNamesCollapseIntoBase() {
