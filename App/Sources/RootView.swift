@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
-    @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var settings: AppSettings
     @State private var selection: Int
 
     init() {
@@ -38,6 +38,7 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
+        .environment(\.fieldNight, settings.nightMode)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             FieldTabBar(selection: $selection)
         }

@@ -1,11 +1,14 @@
 import GridFixCore
 import SwiftUI
 
-/// First Navigate slice — azimuth / back-azimuth / distance / ETA to the
-/// selected waypoint, same field math Android's Glance navigate face uses.
+/// Navigate slice — azimuth / back-azimuth / distance / ETA to the selected
+/// waypoint. Honours saved units, MGRS digits, north reference, and night mode.
 struct NavigateView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var settings: AppSettings
+
+    private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
     private var target: Waypoint? {
         guard let id = store.selectedId else { return nil }
@@ -14,7 +17,7 @@ struct NavigateView: View {
 
     var body: some View {
         ZStack {
-            Blackout.background.ignoresSafeArea()
+            palette.background.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 22) {
                 SectionLabel(text: "Navigate")
                 if let wp = target {
@@ -29,7 +32,8 @@ struct NavigateView: View {
             .padding(.bottom, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .foregroundStyle(Blackout.ink)
+        .foregroundStyle(palette.ink)
+        .environment(\.fieldNight, settings.nightMode)
         .onAppear { location.start() }
     }
 
@@ -39,23 +43,22 @@ struct NavigateView: View {
                 .font(Blackout.label(18, weight: .semibold))
             Text("Pick a waypoint on the Waypoints tab (swipe Nav), then come back here for azimuth, distance and ETA.")
                 .font(Blackout.label(14))
-                .foregroundStyle(Blackout.inkDim)
+                .foregroundStyle(palette.inkDim)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     @ViewBuilder
     private func targetBlock(_ wp: Waypoint) -> some View {
-        let mgrs = MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—"
+        let mgrs = MGRS.string(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits) ?? "—"
         let nav: Geodesy.NavInfo? = {
             guard let f = location.fix else { return nil }
             return Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
         }()
-        let azimuth = nav.map { Format.angle(degrees: $0.bearingTrue, unit: .degrees) } ?? "—"
-        let back = nav.map {
-            Format.angle(degrees: ($0.bearingTrue + 180.0).truncatingRemainder(dividingBy: 360.0), unit: .degrees)
-        } ?? "—"
-        let distance = nav.map { Format.distance(meters: $0.distanceMeters, unit: .metric) } ?? "—"
+        let letter = settings.northRef.letter
+        let azimuth = formattedAzimuth(nav, offset: 0)
+        let back = formattedAzimuth(nav, offset: 180)
+        let distance = nav.map { Format.distance(meters: $0.distanceMeters, unit: settings.units) } ?? "—"
         let eta = etaText(nav: nav)
 
         VStack(alignment: .leading, spacing: 18) {
@@ -64,13 +67,13 @@ struct NavigateView: View {
                     .font(Blackout.label(22, weight: .semibold))
                 Text(mgrs)
                     .font(Blackout.numerals(16))
-                    .foregroundStyle(Blackout.inkDim)
+                    .foregroundStyle(palette.inkDim)
             }
 
             if location.fix == nil {
                 Text("Waiting for a fix…")
                     .font(Blackout.label(14))
-                    .foregroundStyle(Blackout.inkDim)
+                    .foregroundStyle(palette.inkDim)
             } else {
                 Text(distance)
                     .font(Blackout.numerals(48, weight: .bold))
@@ -82,12 +85,29 @@ struct NavigateView: View {
                 GridItem(.flexible(), spacing: 12),
                 GridItem(.flexible(), spacing: 12),
             ], spacing: 14) {
-                cell(title: "Azimuth · T", value: azimuth)
-                cell(title: "Back az · T", value: back)
+                cell(title: "Azimuth · \(letter)", value: azimuth)
+                cell(title: "Back az · \(letter)", value: back)
                 cell(title: "Distance", value: distance)
                 cell(title: "Time to go", value: eta)
             }
         }
+    }
+
+    /// Azimuth in the saved north reference. Magnetic without a declination
+    /// is a dash, not the true bearing labelled as magnetic and not 0.
+    private func formattedAzimuth(_ nav: Geodesy.NavInfo?, offset: Double) -> String {
+        guard let nav, let f = location.fix else { return "—" }
+        let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
+            .declination(lat: f.lat, lon: f.lon, heightMeters: f.altitudeMeters ?? 0,
+                         heading: location.heading, isCurrentPosition: true)
+        let conv = UTM.gridConvergence(lat: f.lat, lon: f.lon)
+        guard let az = FieldMath.toNorthRef(
+            angleTrue: nav.bearingTrue + offset,
+            north: settings.northRef,
+            declinationEast: decl.degreesEast,
+            convergence: conv
+        ) else { return "—" }
+        return Format.angle(degrees: az, unit: settings.angleUnit)
     }
 
     private func cell(title: String, value: String) -> some View {
@@ -95,10 +115,10 @@ struct NavigateView: View {
             Text(title.uppercased())
                 .font(Blackout.label(10))
                 .tracking(1.2)
-                .foregroundStyle(Blackout.accent)
+                .foregroundStyle(palette.accent)
             Text(value)
                 .font(Blackout.numerals(22, weight: .semibold))
-                .foregroundStyle(Blackout.ink)
+                .foregroundStyle(palette.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
         }
@@ -106,7 +126,7 @@ struct NavigateView: View {
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Blackout.hairline, lineWidth: 1)
+                .stroke(palette.hairline, lineWidth: 1)
         )
     }
 

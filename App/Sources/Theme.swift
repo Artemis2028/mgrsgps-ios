@@ -26,13 +26,70 @@ enum Blackout {
     }
 }
 
-/// A section label: small, wide-tracked, amber. Matches the Android headers.
+/// Red-on-black when night is on. Day colours stay the blackout set.
+struct FieldPalette {
+    var night: Bool
+
+    var background: Color { .black }
+    var ink: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.ink }
+    var inkDim: Color { night ? Color(red: 0.62, green: 0.16, blue: 0.12) : Blackout.inkDim }
+    var accent: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.accent }
+    var good: Color { night ? Color(red: 1.0, green: 0.35, blue: 0.24) : Blackout.good }
+    var warn: Color { night ? Color(red: 1.0, green: 0.32, blue: 0.20) : Blackout.warn }
+    var hairline: Color { night ? Color(red: 0.32, green: 0.08, blue: 0.06) : Blackout.hairline }
+    var lume: Color { night ? Color(red: 1.0, green: 0.28, blue: 0.20) : Blackout.good }
+}
+
+private struct FieldNightKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var fieldNight: Bool {
+        get { self[FieldNightKey.self] }
+        set { self[FieldNightKey.self] = newValue }
+    }
+}
+
+/// A section label: small, wide-tracked, amber — red when night mode is on.
 struct SectionLabel: View {
     let text: String
+    @Environment(\.fieldNight) private var night
+
     var body: some View {
         Text(text.uppercased())
             .font(Blackout.label(11))
             .tracking(1.6)
-            .foregroundStyle(Blackout.accent)
+            .foregroundStyle(night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.accent)
+    }
+}
+
+/// Hairline segmented control used by Settings and the precision picker.
+struct BlackoutSegments: View {
+    let options: [String]
+    let selected: Int
+    var palette: FieldPalette
+    var onSelect: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, title in
+                Button {
+                    onSelect(index)
+                } label: {
+                    Text(title)
+                        .font(Blackout.numerals(13, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .foregroundStyle(index == selected ? palette.background : palette.ink)
+                        .background(index == selected ? palette.accent : Color.clear)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color(white: palette.night ? 0.06 : 0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.hairline))
     }
 }

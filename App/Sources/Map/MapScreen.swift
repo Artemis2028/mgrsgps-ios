@@ -11,12 +11,18 @@ import SwiftUI
 /// what makes worldwide offline download possible.
 struct MapScreen: View {
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var settings: AppSettings
     @State private var intervalLabel = "—"
     @State private var nightMode = false
 
+    /// Map tiles stay as they are. Chrome (and the grid overlay ink) follows
+    /// the saved night switch, or this screen's own DAY/NIGHT control.
+    private var chromeNight: Bool { settings.nightMode || nightMode }
+    private var palette: FieldPalette { FieldPalette(night: chromeNight) }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            MapContainer(nightMode: nightMode,
+            MapContainer(nightMode: chromeNight,
                          follow: location.fix,
                          onChange: { label, _ in intervalLabel = label })
                 .ignoresSafeArea()
@@ -28,13 +34,13 @@ struct MapScreen: View {
                 Button {
                     nightMode.toggle()
                 } label: {
-                    Text(nightMode ? "NIGHT" : "DAY")
+                    Text(chromeNight ? "NIGHT" : "DAY")
                         .font(Blackout.label(10))
                         .tracking(1.2)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
                         .background(Color.black.opacity(0.72))
-                        .foregroundStyle(nightMode ? Blackout.night : Blackout.ink)
+                        .foregroundStyle(chromeNight ? palette.ink : Blackout.ink)
                 }
                 .buttonStyle(.plain)
             }
@@ -48,14 +54,14 @@ struct MapScreen: View {
                         Text("GRID")
                             .font(Blackout.label(9))
                             .tracking(1.4)
-                            .foregroundStyle(Blackout.inkDim)
+                            .foregroundStyle(chromeNight ? palette.inkDim : Blackout.inkDim)
                         Text(intervalLabel)
                             .font(Blackout.numerals(15, weight: .semibold))
-                            .foregroundStyle(nightMode ? Blackout.night : Blackout.ink)
+                            .foregroundStyle(chromeNight ? palette.ink : Blackout.ink)
                     }
                     .frame(width: 62, height: 46)
                     .background(Color.black.opacity(0.72))
-                    .overlay(Rectangle().stroke(Blackout.hairline))
+                    .overlay(Rectangle().stroke(chromeNight ? palette.hairline : Blackout.hairline))
                 }
             }
             .padding(.horizontal, 12)

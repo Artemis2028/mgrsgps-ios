@@ -4,6 +4,9 @@ Target tip: `Artemis2028/gridfix` tag **v0.9.32-b68** (`40d5900`).
 This file is the checklist of what this iOS tree matches, and what is still
 Android-only. It is not a promise of feature parity.
 
+Settings and the three Position faces (Glance / Lensatic / Dial) have landed.
+The still-missing list below is otherwise unchanged.
+
 ## Matched (behaviour / fixture)
 
 | Area | Notes |
@@ -22,6 +25,7 @@ Android-only. It is not a promise of feature parity.
 | Waypoints + folders store | Local JSON persistence; additive id-keyed merge. |
 | Backup v1 | Zip + `gridfix-backup.json` read/write; version >1 refused; null declination preserved. Graphics/tracks/course encoded; restore slice applies waypoints/folders. |
 | GPX baseline | Waypoint import/export with MilGPS `symbolcode` / `color`, elevation, time. |
+| Settings + Position faces | Settings sheet from the gear on Position (not a fifth tab). Persists `settings-v1.json` beside the waypoint store. Night (red-on-black), MGRS digits 4/6/8/10, units, lat/lon format, angle unit, north reference (true/mag/grid), and manual G-M override are honored on Position and Navigate. Three faces: Glance (default, so CI shots stay the large grid), Lensatic, Dial. No heading yet draws a dash, never a fake 0. |
 
 ## Intentional differences
 
@@ -38,7 +42,7 @@ Android-only. It is not a promise of feature parity.
 - KML/KMZ/ATAK CoT interchange beyond GPX waypoints.
 - Billing / paywall, crash-report prompt, in-app feedback.
 - Landscape map tool rail polish (0.9.23–0.9.25), multi-select batch ops (0.9.27).
-- Settings screen UI (codes and backup settings decode exist; no Settings face yet).
+- Settings backup/restore UI, pace count, and orientation lock (the Settings face itself has landed; see above).
 - Reference Android zip fixture committed for restore tests (still open — see `backup-format-v1.md`).
 
 ## How to re-check the fixture

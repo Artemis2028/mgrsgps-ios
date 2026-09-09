@@ -57,6 +57,10 @@ struct Fix: Equatable {
 @MainActor
 final class LocationService: NSObject, ObservableObject {
     @Published private(set) var fix: Fix?
+    /// Latest compass sample. Nil until Core Location reports one. A negative
+    /// headingAccuracy means the sample is not a heading — callers must not
+    /// treat 0 as "north" when this is nil or invalid.
+    @Published private(set) var heading: CLHeading?
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     /// True when the user granted only coarse location: kilometre-scale error,
     /// which makes every grid on screen a lie. The UI must say so, not degrade
@@ -80,10 +84,18 @@ final class LocationService: NSObject, ObservableObject {
             manager.requestWhenInUseAuthorization()
         }
         manager.startUpdatingLocation()
+        startHeading()
     }
 
     func stop() {
         manager.stopUpdatingLocation()
+        manager.stopUpdatingHeading()
+    }
+
+    private func startHeading() {
+        guard CLLocationManager.headingAvailable() else { return }
+        manager.headingFilter = 1
+        manager.startUpdatingHeading()
     }
 
     private func refreshAccuracyAuthorization() {
@@ -114,8 +126,13 @@ extension LocationService: CLLocationManagerDelegate {
             self.refreshAccuracyAuthorization()
             if status == .authorizedWhenInUse || status == .authorizedAlways {
                 m.startUpdatingLocation()
+                self.startHeading()
             }
         }
+    }
+
+    nonisolated func locationManager(_ m: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+        Task { @MainActor [weak self] in self?.heading = newHeading }
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {

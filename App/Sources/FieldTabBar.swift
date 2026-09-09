@@ -9,6 +9,9 @@ import SwiftUI
 /// into the unsafe area with `ignoresSafeArea(edges: .bottom)`.
 struct FieldTabBar: View {
     @Binding var selection: Int
+    @EnvironmentObject private var settings: AppSettings
+
+    private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
     private struct Item: Identifiable {
         let id: Int
@@ -26,7 +29,7 @@ struct FieldTabBar: View {
     var body: some View {
         VStack(spacing: 0) {
             Rectangle()
-                .fill(Blackout.hairline)
+                .fill(palette.hairline)
                 .frame(height: 1)
 
             HStack(spacing: 0) {
@@ -40,7 +43,7 @@ struct FieldTabBar: View {
             .padding(.top, 8)
             .padding(.bottom, 8)
         }
-        .background(Blackout.background.ignoresSafeArea(edges: .bottom))
+        .background(palette.background.ignoresSafeArea(edges: .bottom))
     }
 
     @ViewBuilder
@@ -56,11 +59,11 @@ struct FieldTabBar: View {
                     .font(Blackout.label(10, weight: selected ? .semibold : .medium))
                 // Small amber underline for selected — not iOS translucent chrome.
                 Capsule()
-                    .fill(selected ? Blackout.accent : Color.clear)
+                    .fill(selected ? palette.accent : Color.clear)
                     .frame(width: 18, height: 2)
                     .padding(.top, 1)
             }
-            .foregroundStyle(selected ? Blackout.accent : Blackout.inkDim)
+            .foregroundStyle(selected ? palette.accent : palette.inkDim)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }

@@ -6,6 +6,9 @@ import UniformTypeIdentifiers
 struct WaypointsView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var settings: AppSettings
+
+    private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     @State private var editing: Waypoint?
     @State private var showingEditor = false
     @State private var draftName = ""
@@ -20,7 +23,7 @@ struct WaypointsView: View {
 
     var body: some View {
         ZStack {
-            Blackout.background.ignoresSafeArea()
+            palette.background.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 0) {
                 header
                 if store.waypoints.isEmpty {
@@ -31,7 +34,8 @@ struct WaypointsView: View {
             }
             .padding(.bottom, 12)
         }
-        .foregroundStyle(Blackout.ink)
+        .foregroundStyle(palette.ink)
+        .environment(\.fieldNight, settings.nightMode)
         .sheet(isPresented: $showingEditor) { editor }
         .fileExporter(isPresented: Binding(
             get: { exportDoc != nil },
@@ -67,7 +71,7 @@ struct WaypointsView: View {
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 22))
-                    .foregroundStyle(Blackout.accent)
+                    .foregroundStyle(palette.accent)
             }
         }
         .padding(.horizontal, 22)
@@ -81,9 +85,9 @@ struct WaypointsView: View {
                 .font(Blackout.label(18, weight: .semibold))
             Text("Add one at your current fix, or import a GridFix backup / GPX.")
                 .font(Blackout.label(14))
-                .foregroundStyle(Blackout.inkDim)
+                .foregroundStyle(palette.inkDim)
             if let status {
-                Text(status).font(Blackout.label(12)).foregroundStyle(Blackout.accent)
+                Text(status).font(Blackout.label(12)).foregroundStyle(palette.accent)
             }
             Spacer()
         }
@@ -104,12 +108,12 @@ struct WaypointsView: View {
                             } label: {
                                 row(wp)
                             }
-                            .listRowBackground(Blackout.background)
+                            .listRowBackground(palette.background)
                             .swipeActions(edge: .leading) {
                                 Button {
                                     store.select(wp.id)
                                 } label: { Label("Nav", systemImage: "safari") }
-                                .tint(Color(red: 1.0, green: 0.698, blue: 0.0))
+                                .tint(palette.accent)
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
@@ -121,15 +125,15 @@ struct WaypointsView: View {
                         Text(folder.name.uppercased())
                             .font(Blackout.label(11))
                             .tracking(1.4)
-                            .foregroundStyle(Blackout.accent)
+                            .foregroundStyle(palette.accent)
                     }
                 }
             }
             if let status {
                 Text(status)
                     .font(Blackout.label(12))
-                    .foregroundStyle(Blackout.accent)
-                    .listRowBackground(Blackout.background)
+                    .foregroundStyle(palette.accent)
+                    .listRowBackground(palette.background)
             }
         }
         .listStyle(.plain)
@@ -141,17 +145,17 @@ struct WaypointsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(wp.name)
                     .font(Blackout.label(16, weight: .semibold))
-                    .foregroundStyle(wp.visible ? Blackout.ink : Blackout.inkDim)
+                    .foregroundStyle(wp.visible ? palette.ink : palette.inkDim)
                 Text(MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—")
                     .font(Blackout.numerals(13))
-                    .foregroundStyle(Blackout.inkDim)
+                    .foregroundStyle(palette.inkDim)
             }
             Spacer(minLength: 8)
             if store.selectedId == wp.id {
                 Text("NAV")
                     .font(Blackout.label(10, weight: .semibold))
                     .tracking(1.2)
-                    .foregroundStyle(Blackout.accent)
+                    .foregroundStyle(palette.accent)
             }
         }
         .padding(.vertical, 4)
@@ -163,7 +167,7 @@ struct WaypointsView: View {
                 TextField("Name", text: $draftName)
                 TextField("Folder", text: $draftFolder)
                 if let hint = Folders.reservedHint(draftFolder) {
-                    Text(hint).foregroundStyle(Blackout.warn).font(Blackout.label(12))
+                    Text(hint).foregroundStyle(palette.warn).font(Blackout.label(12))
                 }
             }
             .navigationTitle(editing == nil ? "New waypoint" : "Edit waypoint")
@@ -188,7 +192,7 @@ struct WaypointsView: View {
                 status = "No fix yet — wait for a position"
                 return
             }
-            draftName = MGRS.string(lat: f.lat, lon: f.lon, digits: 8) ?? "Waypoint"
+            draftName = MGRS.string(lat: f.lat, lon: f.lon, digits: settings.mgrsDigits) ?? "Waypoint"
             // Empty id marks a new waypoint; coords come from the fix.
             editing = Waypoint(id: "", name: draftName, lat: f.lat, lon: f.lon)
         } else {
