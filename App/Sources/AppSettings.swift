@@ -81,6 +81,21 @@ final class AppSettings: ObservableObject {
         fileURL = dir.appendingPathComponent("settings-v1.json")
         load()
         ready = true
+        applyLaunchFace()
+    }
+
+    /// CI cannot tap Settings, so `-startFace glance|lensatic|dial` picks the
+    /// Position instrument for this launch. Overrides the saved face.
+    private func applyLaunchFace() {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "-startFace"),
+              args.index(after: idx) < args.endIndex else { return }
+        switch args[args.index(after: idx)].lowercased() {
+        case "glance": face = .glance
+        case "lensatic": face = .lensatic
+        case "dial": face = .dial
+        default: break
+        }
     }
 
     func setMgrsDigits(_ value: Int) {

@@ -33,7 +33,7 @@ xcrun simctl privacy "$UDID" grant location-always "$BUNDLE_ID" || true
 xcrun simctl location "$UDID" set "$LAT,$LON" || \
   echo "note: simctl location unavailable on this Xcode; the app will show NO FIX"
 
-xcrun simctl launch "$UDID" "$BUNDLE_ID"
+xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace glance
 sleep 6
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/position.png"
 
@@ -41,6 +41,17 @@ xcrun simctl io "$UDID" screenshot "$OUT_DIR/position.png"
 # delivers its first fix after the app has already drawn once.
 sleep 5
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-settled.png"
+
+# Lensatic and Dial. CI cannot open Settings, so the face comes from -startFace.
+xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace lensatic
+sleep 5
+xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-lensatic.png"
+
+xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
+xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace dial
+sleep 5
+xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-dial.png"
 
 # The map with the MGRS grid on it. CI cannot tap a tab bar, so the app reads
 # the starting tab from a launch argument (-startTab map → tag 2; navigate=1).
