@@ -109,10 +109,6 @@ struct CompassInstrument: View {
                 let mid = d % 10 == 0
                 guard major || mid else { continue }
                 let inner = r - (major ? 16 : 8)
-                var path = Path()
-                path(c, r - 2, Double(d), &path)
-                var innerPath = Path()
-                path(c, inner, Double(d), &innerPath)
                 var line = Path()
                 line.move(to: polar(c, r - 2, Double(d)))
                 line.addLine(to: polar(c, inner, Double(d)))
