@@ -31,7 +31,19 @@ struct PositionView: View {
         return DeclinationReading(degreesEast: nil, source: .none, modelExpired: false)
     }
 
+    /// CI has no magnetometer. `-startHeading 47` paints a real reading
+    /// so Lensatic and Dial are instruments, not an empty dash.
+    private var injectedHeading: Double? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "-startHeading"),
+              args.index(after: idx) < args.endIndex,
+              let v = Double(args[args.index(after: idx)]),
+              v >= 0, v < 360 else { return nil }
+        return v
+    }
+
     private var headingDegrees: Double? {
+        if let injected = injectedHeading { return injected }
         let h = location.heading
         let trueH: Double? = {
             guard let h, h.headingAccuracy >= 0, h.trueHeading >= 0 else { return nil }
@@ -194,22 +206,17 @@ struct PositionView: View {
     }
 
     private var instrument: some View {
-        VStack(spacing: 12) {
-            CompassInstrument(
-                style: settings.face == .lensatic ? .lensatic : .dial,
-                heading: headingDegrees,
-                northLetter: settings.northRef.letter,
-                palette: palette,
-                gzdSquare: parts.map { $0.gzd + " " + $0.square } ?? "—",
-                easting: parts?.easting ?? "—",
-                northing: parts?.northing ?? "—",
-                statusLine: statusLine,
-                headingLine: headingLine
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            precisionPicker
-            footer
-        }
+        CompassInstrument(
+            style: settings.face == .lensatic ? .lensatic : .dial,
+            heading: headingDegrees,
+            northLetter: settings.northRef.letter,
+            palette: palette,
+            gzdSquare: parts.map { $0.gzd + " " + $0.square } ?? "—",
+            easting: parts?.easting ?? "—",
+            northing: parts?.northing ?? "—",
+            statusLine: statusLine
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var statusLine: String {

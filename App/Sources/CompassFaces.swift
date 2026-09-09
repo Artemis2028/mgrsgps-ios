@@ -1,18 +1,11 @@
 import SwiftUI
 
-/// Issued-compass and clean-card instruments for the Position screen.
-///
-/// Not a pixel clone of the Android Compose faces: the same reading — a dial,
-/// a grid on the glass, heading, accuracy — drawn so night mode is red ink.
+/// Full-bleed Position instruments. The dial is the screen, not a doodle
+/// above the Glance block.
 struct CompassInstrument: View {
-    enum Style {
-        case lensatic
-        case dial
-    }
+    enum Style { case lensatic, dial }
 
     let style: Style
-    /// Degrees in the selected north reference, or nil when the compass has
-    /// not reported. A nil heading must not paint as 000.
     let heading: Double?
     let northLetter: String
     let palette: FieldPalette
@@ -20,202 +13,149 @@ struct CompassInstrument: View {
     let easting: String
     let northing: String
     let statusLine: String
-    let headingLine: String
 
     var body: some View {
-        VStack(spacing: 10) {
-            GeometryReader { geo in
-                let side = min(geo.size.width, geo.size.height)
-                ZStack {
-                    Canvas { context, size in
-                        draw(context: &context, size: size)
-                    }
-                    .opacity(heading == nil ? 0.42 : 1)
-                    centerReadout
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height * 0.92)
+            ZStack {
+                if style == .lensatic {
+                    Circle()
+                        .fill(palette.night
+                              ? Color(red: 0.14, green: 0.03, blue: 0.02)
+                              : Color(red: 0.28, green: 0.32, blue: 0.18))
+                        .frame(width: side, height: side)
                 }
-                .frame(width: side, height: side)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                dialCard(side: side)
+                    .frame(width: side * 0.86, height: side * 0.86)
+                indexMark
+                    .frame(width: side, height: side)
+                glassReadout
+                    .frame(width: side * 0.46)
             }
-            Text(headingLine)
-                .font(Blackout.numerals(13))
-                .foregroundStyle(heading == nil ? palette.inkDim : palette.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
     }
 
-    private var centerReadout: some View {
-        VStack(spacing: 0) {
-            Text(gzdSquare)
-                .font(Blackout.numerals(style == .lensatic ? 12 : 14, weight: .medium))
-                .tracking(2)
-                .foregroundStyle(palette.inkDim)
-            Text(easting)
+    private var glassReadout: some View {
+        VStack(spacing: 2) {
+            Text(headingText)
                 .font(Blackout.numerals(style == .lensatic ? 28 : 34, weight: .bold))
+                .foregroundStyle(palette.accent)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            Text(northLetter)
+                .font(Blackout.label(11))
+                .tracking(1.4)
+                .foregroundStyle(palette.inkDim)
+            Text(gzdSquare)
+                .font(Blackout.numerals(13, weight: .medium))
+                .tracking(1.5)
+                .foregroundStyle(palette.inkDim)
+                .padding(.top, 8)
+            Text(easting)
+                .font(Blackout.numerals(22, weight: .bold))
                 .foregroundStyle(palette.ink)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(northing)
-                .font(Blackout.numerals(style == .lensatic ? 28 : 34, weight: .bold))
+                .font(Blackout.numerals(22, weight: .bold))
                 .foregroundStyle(palette.ink)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
             Text(statusLine)
                 .font(Blackout.label(10))
-                .tracking(1.1)
-                .foregroundStyle(palette.inkDim)
-                .padding(.top, 4)
+                .tracking(1.0)
+                .foregroundStyle(palette.good)
+                .padding(.top, 6)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
         }
-        .padding(.horizontal, 36)
         .allowsHitTesting(false)
     }
 
-    private func draw(context: inout GraphicsContext, size: CGSize) {
-        let c = CGPoint(x: size.width / 2, y: size.height / 2)
-        let r = min(size.width, size.height) / 2
-        switch style {
-        case .lensatic:
-            drawLensatic(context: &context, c: c, r: r)
-        case .dial:
-            drawDial(context: &context, c: c, r: r)
+    private var headingText: String {
+        guard let h = heading else { return "— — —" }
+        return String(format: "%03.0f°", h)
+    }
+
+    private var indexMark: some View {
+        VStack {
+            Triangle()
+                .fill(palette.accent)
+                .frame(width: 16, height: 12)
+                .padding(.top, 6)
+            Spacer()
         }
     }
 
-    private func drawLensatic(context: inout GraphicsContext, c: CGPoint, r: CGFloat) {
-        let night = palette.night
-        let caseColor = night ? Color(red: 0.16, green: 0.04, blue: 0.02) : Color(red: 0.29, green: 0.33, blue: 0.20)
-        let bezel = night ? Color(red: 0.05, green: 0.01, blue: 0.01) : Color(red: 0.11, green: 0.11, blue: 0.11)
-        let tick = night ? Color(red: 0.43, green: 0.09, blue: 0.06) : Color(red: 0.56, green: 0.58, blue: 0.54)
-        let face = Color.black
-        let mils = night ? Color(red: 0.48, green: 0.10, blue: 0.07) : Color(red: 0.85, green: 0.83, blue: 0.78)
-        let deg = night ? Color(red: 0.56, green: 0.11, blue: 0.08) : Color(red: 0.91, green: 0.27, blue: 0.18)
-        let s = r / 180
-
-        context.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: .color(caseColor))
-        context.fill(Path(ellipseIn: CGRect(x: c.x - (r - 8 * s), y: c.y - (r - 8 * s), width: (r - 8 * s) * 2, height: (r - 8 * s) * 2)), with: .color(bezel))
-
-        for i in 0..<120 {
-            let long = i % 10 == 0
-            strokeTick(context: &context, c: c, bearing: Double(i) * 3, from: r - 22 * s, to: r - 11 * s,
-                       color: tick, width: (long ? 1.4 : 0.8) * s)
+    private func dialCard(side: CGFloat) -> some View {
+        let rotation = heading.map { -Angle.degrees($0) } ?? .zero
+        return ZStack {
+            Circle()
+                .fill(Color.black)
+            Circle()
+                .stroke(palette.night ? palette.accent.opacity(0.55) : Color(white: 0.35), lineWidth: 2)
+            tickRing
+            cardinals
         }
-
-        let big = r - 26 * s
-        context.fill(Path(ellipseIn: CGRect(x: c.x - big, y: c.y - big, width: big * 2, height: big * 2)), with: .color(face))
-        context.stroke(Path(ellipseIn: CGRect(x: c.x - big, y: c.y - big, width: big * 2, height: big * 2)),
-                       with: .color(palette.hairline), lineWidth: s)
-
-        // Card rotates so the heading sits under the fixed index. No heading:
-        // leave the card north-up and dimmed — do not pretend the index reads 000.
-        var card = context
-        if let h = heading {
-            card.translateBy(x: c.x, y: c.y)
-            card.rotate(by: .degrees(-h))
-            card.translateBy(x: -c.x, y: -c.y)
-        }
-
-        for k in 0..<320 {
-            let milsVal = k * 20
-            let long = milsVal % 100 == 0
-            let bearing = Double(milsVal) * 360.0 / 6400.0
-            strokeTick(context: &card, c: c, bearing: bearing, from: big - (long ? 9 : 5) * s, to: big - s,
-                       color: mils, width: (long ? 1.1 : 0.6) * s)
-        }
-        for d in stride(from: 0, to: 360, by: 5) {
-            let long = d % 10 == 0
-            strokeTick(context: &card, c: c, bearing: Double(d), from: big - 23 * s, to: big - (long ? 30 : 27) * s,
-                       color: deg, width: (long ? 1 : 0.7) * s)
-        }
-
-        // Luminous north arrow on the card.
-        var arrow = Path()
-        arrow.move(to: CGPoint(x: c.x, y: c.y - (big - 32 * s)))
-        arrow.addLine(to: CGPoint(x: c.x - 7.5 * s, y: c.y - (big - 54 * s)))
-        arrow.addLine(to: CGPoint(x: c.x + 7.5 * s, y: c.y - (big - 54 * s)))
-        arrow.closeSubpath()
-        card.fill(arrow, with: .color(palette.lume))
-        let stem = CGRect(x: c.x - 2.5 * s, y: c.y - (big - 54 * s), width: 5 * s, height: 20 * s)
-        card.fill(Path(stem), with: .color(palette.lume))
-
-        drawRadialLabel(context: &card, c: c, text: "E", bearing: 90, radius: big - 52 * s, size: 15 * s, color: palette.lume)
-        drawRadialLabel(context: &card, c: c, text: "S", bearing: 180, radius: big - 52 * s, size: 15 * s, color: palette.ink)
-        drawRadialLabel(context: &card, c: c, text: "W", bearing: 270, radius: big - 52 * s, size: 15 * s, color: palette.lume)
-        for d in stride(from: 20, to: 360, by: 20) {
-            drawRadialLabel(context: &card, c: c, text: "\(d)", bearing: Double(d), radius: big - 40 * s,
-                            size: 9 * s, color: deg)
-        }
-
-        // Fixed index on the crystal — the sighting wire.
-        var index = Path()
-        index.move(to: CGPoint(x: c.x, y: c.y - r + 9 * s))
-        index.addLine(to: CGPoint(x: c.x, y: c.y - r + 58 * s))
-        context.stroke(index, with: .color(palette.ink), style: StrokeStyle(lineWidth: 2 * s, lineCap: .round))
+        .rotationEffect(rotation)
     }
 
-    private func drawDial(context: inout GraphicsContext, c: CGPoint, r: CGFloat) {
-        let s = r / 165
-        let ring = palette.night ? palette.hairline : Color(red: 0.23, green: 0.23, blue: 0.20)
-        var bezel = Path(ellipseIn: CGRect(x: c.x - (r - 2 * s), y: c.y - (r - 2 * s), width: (r - 2 * s) * 2, height: (r - 2 * s) * 2))
-        context.stroke(bezel, with: .color(ring), lineWidth: 1.5 * s)
-
-        // Card stays north-up. The mark rides the ring at the heading.
-        for d in stride(from: 0, to: 360, by: 10) {
-            let big = d % 30 == 0
-            strokeTick(context: &context, c: c, bearing: Double(d),
-                       from: r - (big ? 16 : 9) * s, to: r - 3 * s,
-                       color: big ? palette.ink : palette.inkDim, width: (big ? 2 : 1) * s)
+    private var tickRing: some View {
+        Canvas { context, size in
+            let c = CGPoint(x: size.width / 2, y: size.height / 2)
+            let r = min(size.width, size.height) / 2
+            for d in 0..<360 {
+                let major = d % 30 == 0
+                let mid = d % 10 == 0
+                guard major || mid else { continue }
+                let inner = r - (major ? 16 : 8)
+                var path = Path()
+                path(c, r - 2, Double(d), &path)
+                var innerPath = Path()
+                path(c, inner, Double(d), &innerPath)
+                var line = Path()
+                line.move(to: polar(c, r - 2, Double(d)))
+                line.addLine(to: polar(c, inner, Double(d)))
+                context.stroke(line, with: .color(major ? palette.ink : palette.inkDim),
+                               style: StrokeStyle(lineWidth: major ? 2 : 1, lineCap: .butt))
+            }
         }
-        drawUprightLabel(context: &context, c: c, text: "N", bearing: 0, radius: r - 36 * s, size: 16 * s, color: palette.lume)
-        drawUprightLabel(context: &context, c: c, text: "E", bearing: 90, radius: r - 36 * s, size: 16 * s, color: palette.ink)
-        drawUprightLabel(context: &context, c: c, text: "S", bearing: 180, radius: r - 36 * s, size: 16 * s, color: palette.ink)
-        drawUprightLabel(context: &context, c: c, text: "W", bearing: 270, radius: r - 36 * s, size: 16 * s, color: palette.ink)
+    }
 
-        if let h = heading {
-            let pos = polar(c, r - 22 * s, h)
-            var mark = context
-            mark.translateBy(x: pos.x, y: pos.y)
-            mark.rotate(by: .degrees(h))
-            var tri = Path()
-            tri.move(to: CGPoint(x: 0, y: -9 * s))
-            tri.addLine(to: CGPoint(x: 6 * s, y: 3 * s))
-            tri.addLine(to: CGPoint(x: -6 * s, y: 3 * s))
-            tri.closeSubpath()
-            mark.fill(tri, with: .color(palette.lume))
+    private var cardinals: some View {
+        ZStack {
+            label("N", 0, palette.lume)
+            label("E", 90, palette.ink)
+            label("S", 180, palette.ink)
+            label("W", 270, palette.ink)
         }
-
-        _ = northLetter
     }
 
-    private func strokeTick(context: inout GraphicsContext, c: CGPoint, bearing: Double,
-                             from: CGFloat, to: CGFloat, color: Color, width: CGFloat) {
-        var path = Path()
-        path.move(to: polar(c, from, bearing))
-        path.addLine(to: polar(c, to, bearing))
-        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .butt))
+    private func label(_ text: String, _ bearing: Double, _ color: Color) -> some View {
+        GeometryReader { geo in
+            let c = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            let r = min(geo.size.width, geo.size.height) / 2 - 28
+            Text(text)
+                .font(Blackout.numerals(18, weight: .bold))
+                .foregroundStyle(color)
+                .position(polar(c, r, bearing))
+                .rotationEffect(.degrees(heading ?? 0))
+        }
     }
 
-    private func drawRadialLabel(context: inout GraphicsContext, c: CGPoint, text: String,
-                                 bearing: Double, radius: CGFloat, size: CGFloat, color: Color) {
-        let pos = polar(c, radius, bearing)
-        var local = context
-        local.translateBy(x: pos.x, y: pos.y)
-        local.rotate(by: .degrees(bearing))
-        local.draw(Text(text).font(.system(size: max(8, size), weight: .semibold, design: .default)).foregroundColor(color),
-                    at: .zero, anchor: .center)
-    }
-
-    private func drawUprightLabel(context: inout GraphicsContext, c: CGPoint, text: String,
-                                  bearing: Double, radius: CGFloat, size: CGFloat, color: Color) {
-        let pos = polar(c, radius, bearing)
-        context.draw(Text(text).font(.system(size: max(8, size), weight: .semibold)).foregroundColor(color),
-                      at: pos, anchor: .center)
-    }
-
-    /// Bearing 0 is north, clockwise. Screen y grows downward.
     private func polar(_ c: CGPoint, _ radius: CGFloat, _ bearingDeg: Double) -> CGPoint {
         let a = (bearingDeg - 90) * .pi / 180
         return CGPoint(x: c.x + radius * CGFloat(cos(a)), y: c.y + radius * CGFloat(sin(a)))
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
     }
 }

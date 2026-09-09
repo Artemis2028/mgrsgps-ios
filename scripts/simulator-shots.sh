@@ -44,12 +44,12 @@ xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-settled.png"
 
 # Lensatic and Dial. CI cannot open Settings, so the face comes from -startFace.
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
-xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace lensatic
+xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace lensatic -startHeading 47
 sleep 5
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-lensatic.png"
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" || true
-xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace dial
+xcrun simctl launch "$UDID" "$BUNDLE_ID" -startFace dial -startHeading 47
 sleep 5
 xcrun simctl io "$UDID" screenshot "$OUT_DIR/position-dial.png"
 
