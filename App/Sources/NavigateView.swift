@@ -7,6 +7,7 @@ struct NavigateView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var navigation: NavigationSession
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -36,8 +37,9 @@ struct NavigateView: View {
                     } else {
                         emptyPrompt
                     }
-                    if target != nil {
-                        Button("Stop navigation") { store.select(nil) }
+                    NavigationControlsView()
+                    if target != nil || navigation.progress != nil {
+                        Button("Stop navigation") { navigation.stop(); store.select(nil) }
                             .buttonStyle(.bordered).tint(palette.accent)
                     }
                 }

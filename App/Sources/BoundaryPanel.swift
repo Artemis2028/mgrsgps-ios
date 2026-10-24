@@ -69,7 +69,7 @@ struct BoundaryPanel: View {
                 Button("Delete",role: .destructive) { if let deleting { monitor.delete(deleting) }; deleting = nil }
                 Button("Keep",role: .cancel) { deleting = nil }
             }
-        }
+        }.fieldSheetAppearance()
     }
 }
 

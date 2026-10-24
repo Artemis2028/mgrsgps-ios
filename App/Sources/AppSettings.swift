@@ -64,6 +64,16 @@ final class AppSettings: ObservableObject {
     @Published var keepScreenOn = true { didSet { persist() } }
     @Published var pacePer100m = 65 { didSet { persist() } }
     // Preserved for cross-platform backups; orientation UI is a later slice.
+    @Published var guideAllowance = 10 { didSet { persist() } }
+    @Published var guideHoldOffSec = 5 { didSet { persist() } }
+    @Published var guideHeartbeatSec = 30 { didSet { persist() } }
+    @Published var guideMode = 0 { didSet { persist() } }
+    @Published var guideCorridorM = 0 { didSet { persist() } }
+    var guideConfiguration: GuideConfiguration {
+        var c = GuideConfiguration()
+        c.allowance = Double(guideAllowance); c.holdOff = Double(guideHoldOffSec); c.heartbeat = Double(guideHeartbeatSec)
+        c.holdAzimuth = guideMode == 0; c.corridor = Double(guideCorridorM); return c
+    }
     @Published var orientation = 0 { didSet { persist() } }
     @Published var disclaimerAccepted = false { didSet { persist() } }
 
@@ -81,6 +91,11 @@ final class AppSettings: ObservableObject {
         var face: Int
         var keepScreenOn: Bool?
         var pacePer100m: Int?
+        var guideAllowance: Int?
+        var guideHoldOffSec: Int?
+        var guideHeartbeatSec: Int?
+        var guideMode: Int?
+        var guideCorridorM: Int?
         var orientation: Int?
         var disclaimerAccepted: Bool?
     }
@@ -136,6 +151,9 @@ final class AppSettings: ObservableObject {
         face = PositionFace(rawValue: snap.face) ?? .lensatic
         keepScreenOn = snap.keepScreenOn ?? true
         pacePer100m = snap.pacePer100m ?? 65
+        guideAllowance = min(90,max(1,snap.guideAllowance ?? 10)); guideHoldOffSec = min(60,max(0,snap.guideHoldOffSec ?? 5))
+        guideHeartbeatSec = min(600,max(0,snap.guideHeartbeatSec ?? 30)); guideMode = snap.guideMode == 1 ? 1 : 0
+        guideCorridorM = min(2000,max(0,snap.guideCorridorM ?? 0))
         orientation = snap.orientation ?? 0
         disclaimerAccepted = snap.disclaimerAccepted ?? false
     }
@@ -146,6 +164,8 @@ final class AppSettings: ObservableObject {
         s.latLonFormat = latLonFormat.rawValue; s.angleUnit = angleUnit.rawValue; s.northRef = northRef.rawValue
         s.declinationOverride = declinationOverride; s.face = face.rawValue; s.keepScreenOn = keepScreenOn
         s.pacePer100m = pacePer100m; s.orientation = orientation; s.disclaimerAccepted = disclaimerAccepted
+        s.guideAllowance = guideAllowance; s.guideHoldOffSec = guideHoldOffSec; s.guideHeartbeatSec = guideHeartbeatSec
+        s.guideMode = guideMode; s.guideCorridorM = guideCorridorM
         return s
     }
 
@@ -153,11 +173,13 @@ final class AppSettings: ObservableObject {
         var check = Backup.Document(settings: s)
         check.hasSettings = true
         try Backup.validate(check)
-        let snapshot = Snapshot(nightMode: s.nightMode, mgrsDigits: s.mgrsDigits, units: s.units,
+        var snapshot = Snapshot(nightMode: s.nightMode, mgrsDigits: s.mgrsDigits, units: s.units,
                                 latLonFormat: s.latLonFormat, angleUnit: s.angleUnit, northRef: s.northRef,
                                 declinationOverride: s.declinationOverride, face: s.face,
                                 keepScreenOn: s.keepScreenOn, pacePer100m: s.pacePer100m,
                                 orientation: s.orientation, disclaimerAccepted: s.disclaimerAccepted)
+        snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
+        snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM
         try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
         ready = false
         nightMode = s.nightMode; mgrsDigits = s.mgrsDigits
@@ -165,13 +187,15 @@ final class AppSettings: ObservableObject {
         angleUnit = AngleUnit(rawValue: s.angleUnit)!; northRef = NorthReference(rawValue: s.northRef)!
         declinationOverride = s.declinationOverride; face = PositionFace(rawValue: s.face)!
         keepScreenOn = s.keepScreenOn; pacePer100m = s.pacePer100m
+        guideAllowance = s.guideAllowance; guideHoldOffSec = s.guideHoldOffSec; guideHeartbeatSec = s.guideHeartbeatSec
+        guideMode = s.guideMode; guideCorridorM = s.guideCorridorM
         orientation = s.orientation; disclaimerAccepted = s.disclaimerAccepted
         ready = true
     }
 
     private func persist() {
         guard ready else { return }
-        let snap = Snapshot(
+        var snap = Snapshot(
             nightMode: nightMode,
             mgrsDigits: mgrsDigits,
             units: units.rawValue,
@@ -183,6 +207,8 @@ final class AppSettings: ObservableObject {
             keepScreenOn: keepScreenOn, pacePer100m: pacePer100m,
             orientation: orientation, disclaimerAccepted: disclaimerAccepted
         )
+        snap.guideAllowance = guideAllowance; snap.guideHoldOffSec = guideHoldOffSec; snap.guideHeartbeatSec = guideHeartbeatSec
+        snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }

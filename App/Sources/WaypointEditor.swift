@@ -117,7 +117,7 @@ struct WaypointEditor: View {
                 }
             }
             .tint(palette.accent)
-        }
+        }.fieldSheetAppearance()
     }
 
     private func save() {

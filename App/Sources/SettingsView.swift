@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var location: LocationService
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingGuide = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
     @State private var east = true
@@ -26,6 +27,8 @@ struct SettingsView: View {
                     Stepper("Paces per 100 m: \(settings.pacePer100m)", value: $settings.pacePer100m, in: 1...1000)
                         .font(.subheadline).foregroundStyle(palette.ink)
 
+                    Button("Haptic navigation settings") { showingGuide = true }
+                        .foregroundStyle(palette.accent)
                     section("Grid & units")
                     digitsBlock
                     latLonBlock
@@ -54,6 +57,7 @@ struct SettingsView: View {
         .environment(\.fieldNight, settings.nightMode)
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }
+        .sheet(isPresented: $showingGuide) { GuideSettingsView() }
     }
 
     private func section(_ title: String) -> some View {

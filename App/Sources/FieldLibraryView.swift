@@ -139,6 +139,7 @@ struct RouteDetailView: View {
     var onNavigate: () -> Void = {}
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var waypoints: WaypointStore
+    @EnvironmentObject private var navigation: NavigationSession
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @State private var routeRequest: RouteEditorRequest?
@@ -161,6 +162,9 @@ struct RouteDetailView: View {
                         perform { try fieldData.saveGraphic(changed) }
                     }))
                     Button("Edit route") { routeRequest = RouteEditorRequest(route: route) }
+                    Button("Follow route automatically") { navigation.follow(route); if navigation.error == nil { onNavigate() } }
+                        .disabled(navigation.running || navigation.preparing).accessibilityIdentifier("follow-route")
+                    if let error = navigation.error { Text(error).font(.footnote).foregroundStyle(palette.warn) }
                     Button("Generate waypoints") { perform { try generate(route); status = "Route waypoints updated" } }
                         .accessibilityIdentifier("generate-route-waypoints")
                     ShareLink("Share route card", item: cardText(route))

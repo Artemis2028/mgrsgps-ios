@@ -26,6 +26,6 @@ struct GPXPasteImportView: View {
                     }.disabled(text.isEmpty).accessibilityIdentifier("confirm-gpx-import")
                 }
             }
-        }.foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent)
+        }.foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent).fieldSheetAppearance()
     }
 }

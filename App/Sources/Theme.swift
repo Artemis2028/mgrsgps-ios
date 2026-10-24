@@ -148,3 +148,12 @@ struct BlackoutSegments: View {
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.hairline))
     }
 }
+
+/// Field forms use light ink on dark content surfaces, even when presented
+/// from the map's light chrome environment.
+extension View {
+    func fieldSheetAppearance() -> some View {
+        self.environment(\.colorScheme,.dark).preferredColorScheme(.dark)
+            .toolbarColorScheme(.dark,for: .navigationBar)
+    }
+}

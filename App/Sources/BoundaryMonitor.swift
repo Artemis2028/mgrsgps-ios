@@ -140,6 +140,7 @@ final class BoundaryMonitor: ObservableObject {
         preparing = true; generation = UUID(); let token = generation
         operation = Task {
             await alerts.prepare()
+            await waitForPermissionForeground(foreground)
             guard generation == token else { return }
             guard !Task.isCancelled, foreground(), hasPermission else {
                 preparing = false; error = "Start monitoring with the app open and Precise Location enabled."; return

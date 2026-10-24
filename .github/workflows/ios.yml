@@ -106,6 +106,7 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath build/ui-tests.xcresult \
             -skip-testing:MGRSGPSUITests/BoundaryWorkflowTests \
+            -skip-testing:MGRSGPSUITests/NavigationWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log" | tail -n 40
 
@@ -131,12 +132,36 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log" | tail -n 40
 
+      - name: Automatic route following with real background locations
+        id: navigation_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          python3 scripts/navigation-test-route.py "$DEST" > /tmp/navigation-route.log 2>&1 &
+          NAVIGATION_ROUTE_PID=$!
+          cleanup_navigation_route() {
+            kill "$NAVIGATION_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_navigation_route EXIT
+          xcodebuild test \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/navigation-tests.xcresult \
+            -only-testing:MGRSGPSUITests/NavigationWorkflowTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log" | tail -n 40
+
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
         run: |
           if [ -d build/ui-tests.xcresult ]; then
             xcrun xcresulttool export attachments \
               --path build/ui-tests.xcresult --output-path screenshots/ui-tests
+          fi
+          if [ -d build/navigation-tests.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/navigation-tests.xcresult --output-path screenshots/navigation-tests
           fi
           if [ -d build/boundary-tests.xcresult ]; then
             xcrun xcresulttool export attachments \
@@ -154,6 +179,8 @@ jobs:
             test.log
             ui-test.log
             boundary-test.log
+            navigation-test.log
+            build/navigation-tests.xcresult/
             build/ui-tests.xcresult/
             build/boundary-tests.xcresult/
           if-no-files-found: warn
@@ -172,12 +199,14 @@ jobs:
             echo "build=${{ steps.build.outcome }}"
             echo "ui_tests=${{ steps.ui_tests.outcome }}"
             echo "boundary_tests=${{ steps.boundary_tests.outcome }}"
+            echo "navigation_tests=${{ steps.navigation_tests.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/ui-test.log" /tmp/status/ui-testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/boundary-test.log" /tmp/status/boundary-testlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/navigation-test.log" /tmp/status/navigation-testlog.txt 2>/dev/null || true
           # The screenshots and the app's own log go here too. They are the
           # only evidence for anything that is wrong on screen rather than in a
           # test, and downloading a run artifact needs a token where a branch

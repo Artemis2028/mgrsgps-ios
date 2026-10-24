@@ -112,7 +112,7 @@ struct MapLayersView: View {
                 Button("Delete", role: .destructive) { if let deleting { Task { await maps.delete(deleting) } }; deleting = nil }
                 Button("Keep map", role: .cancel) { deleting = nil }
             } message: { Text("This removes the saved map from this device.") }
-        }
+        }.fieldSheetAppearance()
     }
     private func propose(_ layer: RasterLayer) {
         do {

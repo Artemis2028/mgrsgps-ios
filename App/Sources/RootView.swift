@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var maps: MapLayerStore
     @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var navigation: NavigationSession
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
     @State private var showingRecorder = false
@@ -42,6 +43,16 @@ struct RootView: View {
                     }.padding(.horizontal,12).padding(.vertical,6)
                 }.accessibilityIdentifier("boundary-monitor-banner")
             }
+            if navigation.running || navigation.preparing {
+                Button { selection = 1 } label: {
+                    HStack {
+                        Image(systemName: "location.north.line")
+                        Text(navigation.progress?.name ?? "Haptic guide")
+                        Spacer()
+                        Text(navigation.status).font(.caption).lineLimit(2)
+                    }.padding(.horizontal,12).padding(.vertical,6)
+                }.accessibilityIdentifier("navigation-session-banner")
+            }
             TabView(selection: $selection) {
                 PositionView()
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
@@ -70,7 +81,8 @@ struct RootView: View {
         .onAppear { location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
-            if phase == .active { location.start(); boundaries.becameActive() }
+            if phase == .active { location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
+            else if phase == .inactive { navigation.foregroundChanged(false) }
             else if phase == .background { location.stop(); maps.pauseDownload() }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in

@@ -94,7 +94,7 @@ struct TrackRecordingPanel: View {
                 }
                 if recorder.canStop {
                     Section("Finish track") {
-                        TextField("Track name (optional)", text: $name).accessibilityIdentifier("recording-name")
+                        TextField("Track name (optional)", text: $name, prompt: Text("Track name (optional)").foregroundColor(palette.inkDim)).accessibilityIdentifier("recording-name")
                             .onChange(of: name) { name = String($0.prefix(30)) }
                         Button("Save track") { recorder.stop(name: name) }.foregroundStyle(palette.accent).accessibilityIdentifier("save-recording")
                         Button("Discard recording", role: .destructive) { confirmingDiscard = true }
@@ -124,6 +124,6 @@ struct TrackRecordingPanel: View {
                 Button("Discard recording", role: .destructive) { recorder.discard() }
                 Button("Keep recording", role: .cancel) {}
             }
-        }.tint(palette.accent)
+        }.tint(palette.accent).fieldSheetAppearance()
     }
 }

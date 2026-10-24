@@ -1,6 +1,7 @@
 # MGRS GPS — iOS
 
-Current work targets Android **1.0.4**. See [the current parity roadmap](docs/ios-parity-1.0.4.md)
+Current work compares against Android **release/1.1.0** (`482b417`). See
+[the remaining parity inventory](docs/ios-parity-release-1.1.0.md). Earlier work targets Android **1.0.4**. See [the current parity roadmap](docs/ios-parity-1.0.4.md)
 for implemented features, validation, and remaining work.
 
 Native Swift and SwiftUI. The sibling of the Android app in
@@ -120,3 +121,7 @@ return. Dedicated background location and system notifications support locked
 screen use within iOS limits. Physical-device validation remains before release.
 Terrain field tools, practice courses, and KML/ATAK remain.
 
+
+Automatic route following and haptic navigation now follow the release/1.1.0
+guide policy and course checkpoint thresholds; see [navigation](docs/navigation-guide.md)
+for foreground patterns, background milestones and the separation from boundaries.

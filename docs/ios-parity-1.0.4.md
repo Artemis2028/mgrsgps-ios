@@ -101,6 +101,9 @@ The inspected release branch has no
 changes to the underlying map catalog/grid/elevation source files; the offline
 map milestone above remains based on the same Android raster-storage model.
 
+See [the release/1.1.0 gap inventory](ios-parity-release-1.1.0.md) and
+[automatic route following and haptics](navigation-guide.md) for subsequent work.
+
 ## Remaining feature groups
 
 | Area | Current iOS state | Remaining work |
@@ -108,7 +111,7 @@ map milestone above remains based on the same Android raster-storage model.
 | Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Orientation/landscape refinement, callouts/QR |
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
 | Maps | Android raster catalog, MGRS grid, waypoint/route/track overlays, camera controls, USGS offline areas, raster MBTiles, offline-only mode | Deployment key validation, physical offline verification, ruler, full tactical graphic editor/overlays |
-| Navigation | Target selection, bearings, back azimuth, distance, ETA, editable boundary perimeters with crossing-only monitoring/background notifications | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
+| Navigation | Target metrics, relative-heading guidance, Android 1.1.0 guide settings/arrival cues, automatic route following, editable crossing-only boundaries | Physical haptic/locked-screen validation; Android continuous locked-screen steering cadence is limited by iOS |
 | Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, larger libraries beyond archive limits, track rename/move, practice course creation/running |
 | Terrain | Hillshade overlay/base, Terrarium cache/area downloads, contours | Elevation/slope readouts, LOS, viewshed |
 | Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
@@ -117,8 +120,8 @@ map milestone above remains based on the same Android raster-storage model.
 
 ## Verification
 
-Local validation on 24 October 2026: 160 core tests and 28 app integration tests pass.
-All 14 distinct iPhone simulator UI workflows pass across the full regression
+Local validation on 24 October 2026: 168 core tests and 37 app integration tests pass.
+The iPhone simulator UI workflows pass across the full regression
 and focused final runs; the drawing/dragging/relaunch workflow also passes on
 iPad. Real background crossing validation is documented in
 [backstops and handrails](backstops-handrails.md). Map validation also covers

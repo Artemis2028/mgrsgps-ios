@@ -19,6 +19,11 @@ public enum Backup {
         public var northRef: Int = 0
         public var pacePer100m: Int = 65
         public var face: Int = 1
+        public var guideAllowance = 10
+        public var guideHoldOffSec = 5
+        public var guideHeartbeatSec = 30
+        public var guideMode = 0
+        public var guideCorridorM = 0
         public var orientation: Int = 0
         public var disclaimerAccepted: Bool = false
         /// Nil means unset — never conflate with 0.0° (a real meridian value).
@@ -196,6 +201,11 @@ public enum Backup {
             "pacePer100m": doc.settings.pacePer100m,
             "face": doc.settings.face,
             "orientation": doc.settings.orientation,
+            "guideAllowance": doc.settings.guideAllowance,
+            "guideHoldOffSec": doc.settings.guideHoldOffSec,
+            "guideHeartbeatSec": doc.settings.guideHeartbeatSec,
+            "guideMode": doc.settings.guideMode,
+            "guideCorridorM": doc.settings.guideCorridorM,
             "disclaimerAccepted": doc.settings.disclaimerAccepted,
         ]
         if let d = doc.settings.declinationOverride {
@@ -316,6 +326,8 @@ public enum Backup {
             try require([4,6,8,10].contains(s.mgrsDigits) && (0...2).contains(s.latLonFormat)
                         && (0...2).contains(s.units) && (0...1).contains(s.angleUnit) && (0...2).contains(s.northRef)
                         && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
+                        && (1...90).contains(s.guideAllowance) && (0...60).contains(s.guideHoldOffSec)
+                        && (0...600).contains(s.guideHeartbeatSec) && (0...1).contains(s.guideMode) && (0...2000).contains(s.guideCorridorM)
                         && (s.declinationOverride.map { $0.isFinite && (-180...180).contains($0) } ?? true), "Invalid settings in backup")
         }
         try require(doc.courseHistory.count <= 10_000 && doc.courseHistory.allSatisfy {
@@ -427,6 +439,11 @@ public enum Backup {
         s.pacePer100m = int(o["pacePer100m"]) ?? 65
         s.face = int(o["face"]) ?? 1
         s.orientation = int(o["orientation"]) ?? 0
+        s.guideAllowance = int(o["guideAllowance"]) ?? 10
+        s.guideHoldOffSec = int(o["guideHoldOffSec"]) ?? 5
+        s.guideHeartbeatSec = int(o["guideHeartbeatSec"]) ?? 30
+        s.guideMode = int(o["guideMode"]) ?? 0
+        s.guideCorridorM = int(o["guideCorridorM"]) ?? 0
         s.disclaimerAccepted = o["disclaimerAccepted"] as? Bool ?? false
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {
             s.declinationOverride = nil
