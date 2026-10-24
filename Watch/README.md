@@ -1,7 +1,7 @@
 # GridFix for Apple Watch
 
 Native SwiftUI companion, watchOS 10+. Swipe between **Position** and **Navigate**.
-Position uses the Android Glance font assets (Antonio/Fira Mono) and bone/amber/lume palette. Phone night mode turns the app content red on black. The system watch clock and system UI follow watchOS appearance; the app cannot promise that every system surface becomes red.
+Position uses the Android Glance font assets (Antonio bold/Fira Mono/Saira Semi Condensed) and bone/amber/lume palette. Phone night mode turns the app content red on black. Each page also offers a local Night mode toggle for disconnected use; Follow phone night mode removes that persistent local override. The system watch clock and system UI follow watchOS appearance; the app cannot promise that every system surface becomes red.
 
 ## Build
 
@@ -26,7 +26,7 @@ Do not pass a global `-sdk iphonesimulator` when building the phone scheme: that
 
 Only when-in-use location permission is requested. The watch starts its own CoreLocation foreground session when active and stops when inactive/backgrounded. There are no workout/background modes, route logging, complications, notifications or haptic guidance. Apple may provide assisted location through the paired system; “Watch location” identifies the app's CoreLocation session, not a claim of independent satellite hardware reception.
 
-The displayed grid and navigation numbers require precise location, nonnegative accuracy ≤25 m and fix age ≤10 seconds. Receipt age is anchored to system uptime so a clock adjustment cannot revive an expired fix. Invalid/stale fixes suppress grid/bearing/distance rather than present them as current; the last reported accuracy and age remain visible. At the target's uncertainty radius, the app replaces bearing with “Within fix uncertainty.” Distances use shared Vincenty math and phone units. Bearings show TRUE, MAG or GRID explicitly; magnetic uses the phone's manual override or a valid bundled WMM. Expired/missing models suppress magnetic bearings.
+The displayed grid and navigation numbers require current location authorization, precise location, finite nonnegative accuracy ≤25 m and finite fix age ≤10 seconds. Revoking authorization immediately stops acquisition and clears the retained fix. A fresh fix outside the core’s -80…84° MGRS coverage is labeled OUTSIDE MGRS COVERAGE. Receipt age is anchored to system uptime so a clock adjustment cannot revive an expired fix. Invalid/stale fixes suppress grid/bearing/distance rather than present them as current; the last reported accuracy and age remain visible. At the target's uncertainty radius, the app replaces bearing with “Within fix uncertainty.” Distances use shared Vincenty math and phone units. Bearings show TRUE, MAG or GRID explicitly; magnetic uses the phone's manual override or a valid bundled WMM. Expired/missing models suppress magnetic bearings.
 
 The first version deliberately displays numeric bearing to the waypoint. It does not rotate a target arrow or claim a compass heading. Apple Watch heading availability varies with hardware and simulator; compass and haptic behavior require paired-device testing before future guidance features.
 
@@ -43,3 +43,7 @@ The installed Xcode has watchOS 27 SDKs; no watchOS simulator runtime/device was
 Device checklist: install paired phone/watch builds; select, rename, move and delete a waypoint; explicitly clear selection; change units/reference/precision/night mode; put phone out of reach and relaunch watch; reconnect and verify latest state replaces cache; deny/reduce/grant location; verify stale numbers disappear after 10 seconds and acquisition stops on background. Test a small watch display and large Dynamic Type for readable scrolling.
 
 Font licenses are bundled beside the original Android font files.
+
+## Isolated simulator fixtures (DEBUG only)
+
+Launch the dedicated phone simulator app with `-uiTesting -uiTestWatch` to seed a temporary store with **SYNTHETIC RALLY** at 24.4639,54.3873. Optional `-uiTestWatchClear`, `-uiTestWatchNight`, `-uiTestWatchPrecision4` and `-uiTestWatchMag` set explicit clear/night/four-digit/manual-magnetic contexts. These switches require the existing isolated `-uiTesting` store and cannot seed production data. Launch watch with `-watchNavigate` to select its second page. The watch has no mock fix or target injection: simulated location must be delivered through the simulator’s location controls and targets/settings through the real WatchConnectivity context.

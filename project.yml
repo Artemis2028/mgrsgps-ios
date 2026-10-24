@@ -112,6 +112,7 @@ targets:
         UIAppFonts:
           - antonio.ttf
           - fira_mono_regular.ttf
+          - saira_semi_condensed_semibold.ttf
 
   MGRSGPSTests:
     type: bundle.unit-test

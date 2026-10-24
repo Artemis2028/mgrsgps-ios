@@ -43,16 +43,21 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         }
     }
 
+    private var authorized: Bool {
+        manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse
+    }
+
     private func startAuthorized() {
-        guard foreground else { return }
         reducedAccuracy = manager.accuracyAuthorization == .reducedAccuracy
-        switch manager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse:
-            status = "Acquiring GPS"
-            manager.startUpdatingLocation()
-        case .denied, .restricted: status = "Location disabled"
-        default: status = "Allow location for grid"
+        guard authorized else {
+            manager.stopUpdatingLocation()
+            fix = nil; fixTimestampUptime = nil
+            status = manager.authorizationStatus == .notDetermined ? "Allow location for grid" : "Location disabled"
+            return
         }
+        guard foreground else { return }
+        status = "Acquiring GPS"
+        manager.startUpdatingLocation()
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -63,10 +68,10 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         Task { @MainActor in self.receive(latest) }
     }
     private func receive(_ latest: CLLocation) {
-        guard foreground,
-              CLLocationCoordinate2DIsValid(latest.coordinate), latest.horizontalAccuracy >= 0 else { return }
         let initialAge = Date().timeIntervalSince(latest.timestamp)
-        guard initialAge >= 0 else { return }
+        guard foreground, authorized,
+              WatchFixPolicy.accepts(lat: latest.coordinate.latitude, lon: latest.coordinate.longitude,
+                                     accuracy: latest.horizontalAccuracy, age: initialAge) else { return }
         fixTimestampUptime = ProcessInfo.processInfo.systemUptime - initialAge
         fix = latest; status = "Watch location"
     }
@@ -75,11 +80,11 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     }
 
     func usable(at date: Date) -> Bool {
-        guard foreground, !reducedAccuracy, let fix, let fixTimestampUptime else { return false }
-        return NavigationFixPolicy.isUsable(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude,
-                                            accuracyMeters: fix.horizontalAccuracy,
-                                            timestampUptime: fixTimestampUptime,
-                                            nowUptime: ProcessInfo.processInfo.systemUptime)
+        guard let fix, let fixTimestampUptime else { return false }
+        return WatchFixPolicy.isUsable(authorized: authorized, precise: manager.accuracyAuthorization == .fullAccuracy,
+                                       foreground: foreground, lat: fix.coordinate.latitude, lon: fix.coordinate.longitude,
+                                       accuracy: fix.horizontalAccuracy, timestampUptime: fixTimestampUptime,
+                                       nowUptime: ProcessInfo.processInfo.systemUptime)
     }
 
     private func apply(_ context: [String: Any]) {

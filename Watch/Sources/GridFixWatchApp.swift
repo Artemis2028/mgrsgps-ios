@@ -16,29 +16,38 @@ struct GridFixWatchApp: App {
 
 struct WatchGlanceView: View {
     @ObservedObject var model: WatchModel
-    private var ink: Color { model.snapshot.nightMode ? Color(red: 1, green: 0.23, blue: 0.19) : Color(red: 0.961, green: 0.961, blue: 0.941) }
-    private var accent: Color { model.snapshot.nightMode ? ink : Color(red: 1, green: 0.698, blue: 0) }
-    private var good: Color { model.snapshot.nightMode ? ink : Color(red: 0.749, green: 1, blue: 0.478) }
+    @State private var selection = 0
+    // -1 follows the phone; 0/1 is a persistent local override for disconnected use.
+    @AppStorage("watch.night.preference") private var nightPreference = -1
+    private var night: Bool { nightPreference == -1 ? model.snapshot.nightMode : nightPreference == 1 }
+    private var ink: Color { night ? Color(red: 1, green: 0.23, blue: 0.19) : Color(red: 0.961, green: 0.961, blue: 0.941) }
+    private var accent: Color { night ? ink : Color(red: 1, green: 0.698, blue: 0) }
+    private var good: Color { night ? ink : Color(red: 0.749, green: 1, blue: 0.478) }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            TabView {
-                page(date: timeline.date, navigation: false)
-                page(date: timeline.date, navigation: true)
+            TabView(selection: $selection) {
+                page(date: timeline.date, navigation: false).tag(0)
+                page(date: timeline.date, navigation: true).tag(1)
             }
             .tabViewStyle(.page)
             .background(Color.black)
             .foregroundStyle(ink)
             .tint(accent)
         }
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-watchNavigate") { selection = 1 }
+            #endif
+        }
         .preferredColorScheme(.dark)
     }
 
-    private func label(_ text: String) -> some View {
-        Text(text).font(.custom("FiraMono-Regular", size: 10)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.7)
+    private func label(_ text: String, color: Color? = nil) -> some View {
+        Text(text).font(.custom("SairaSemiCondensed-SemiBold", size: 11)).foregroundStyle(color ?? accent).lineLimit(1).minimumScaleFactor(0.7)
     }
     private func number(_ text: String, size: CGFloat = 48) -> some View {
-        Text(text).font(.custom("Antonio-Regular", size: size)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
+        Text(text).font(.custom("Antonio-Bold", size: size)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
     }
     private func page(date: Date, navigation: Bool) -> some View {
         ScrollView {
@@ -52,17 +61,22 @@ struct WatchGlanceView: View {
                 if model.hasSync {
                     label("CACHED SYNC · \(age(date.timeIntervalSince(model.snapshot.updatedAt)))")
                 } else { label("OPEN IPHONE TO SYNC TARGET") }
+                nightControls
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
         }
         .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder private func gridContent(date: Date) -> some View {
-        if model.usable(at: date), let fix = model.fix,
-           let p = MGRS.parts(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, digits: model.snapshot.mgrsDigits) {
-            label(p.gzd + " " + p.square)
-            number(p.easting)
-            number(p.northing).foregroundStyle(good)
+        if model.usable(at: date), let fix = model.fix {
+            if let p = MGRS.parts(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, digits: model.snapshot.mgrsDigits) {
+                Text(p.gzd + " " + p.square).font(.custom("FiraMono-Regular", size: 12)).foregroundStyle(accent)
+                number(p.easting)
+                number(p.northing)
+            } else {
+                number("— —", size: 42)
+                label("OUTSIDE MGRS COVERAGE")
+            }
         } else {
             number("— —", size: 42)
             label(model.reducedAccuracy ? "PRECISE LOCATION REQUIRED" : "WAITING FOR FRESH FIX")
@@ -95,16 +109,24 @@ struct WatchGlanceView: View {
 
     private func fixStatus(date: Date) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            label(model.status.uppercased())
+            label(model.status.uppercased(), color: model.usable(at: date) ? good : accent)
             if let fix = model.fix {
-                label("±\(Int(fix.horizontalAccuracy.rounded())) M · \(age(date.timeIntervalSince(fix.timestamp)))" + (model.usable(at: date) ? "" : " · NOT NAV"))
+                label(String(format: "±%.0f M", fix.horizontalAccuracy) + " · \(age(date.timeIntervalSince(fix.timestamp)))" + (model.usable(at: date) ? "" : " · NOT NAV"))
             }
         }
     }
-    private func age(_ seconds: TimeInterval) -> String {
-        guard seconds >= 0 else { return "CLOCK CHANGED" }
-        if seconds < 60 { return "\(Int(seconds))S AGO" }
-        if seconds < 3600 { return "\(Int(seconds / 60))M AGO" }
-        return "\(Int(seconds / 3600))H AGO"
+    private var nightControls: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle("Night mode", isOn: Binding(get: { night }, set: { nightPreference = $0 ? 1 : 0 }))
+                .font(.custom("SairaSemiCondensed-SemiBold", size: 14))
+                .accessibilityHint("Overrides phone night mode on this watch")
+            if nightPreference != -1 {
+                Button("Follow phone night mode") { nightPreference = -1 }
+                    .font(.custom("SairaSemiCondensed-SemiBold", size: 12))
+                    .accessibilityHint("Resumes using the latest phone setting")
+            } else { label("NIGHT MODE FOLLOWS PHONE") }
+        }
     }
+
+    private func age(_ seconds: TimeInterval) -> String { WatchFixPolicy.ageLabel(seconds) }
 }

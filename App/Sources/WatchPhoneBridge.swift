@@ -43,3 +43,19 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }
+
+#if DEBUG
+extension WatchPhoneBridge {
+    /// Explicit opt-in, temporary-store-only fixture for paired simulator delivery tests.
+    static func seedUITest(store: WaypointStore, settings: AppSettings) {
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("-uiTesting"), args.contains("-uiTestWatch") else { return }
+        let target = store.add(.init(name: "SYNTHETIC RALLY", lat: 24.4639, lon: 54.3873))
+        store.select(args.contains("-uiTestWatchClear") ? nil : target.id)
+        settings.nightMode = args.contains("-uiTestWatchNight")
+        settings.setMgrsDigits(args.contains("-uiTestWatchPrecision4") ? 4 : 10)
+        settings.northRef = args.contains("-uiTestWatchMag") ? .magnetic : .trueNorth
+        settings.declinationOverride = args.contains("-uiTestWatchMag") ? 4 : nil
+    }
+}
+#endif

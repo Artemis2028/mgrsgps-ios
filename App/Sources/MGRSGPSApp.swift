@@ -30,6 +30,9 @@ struct MGRSGPSApp: App {
         #endif
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
+        #if DEBUG
+        WatchPhoneBridge.seedUITest(store: waypointStore, settings: settingsStore)
+        #endif
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore)
         _waypoints = StateObject(wrappedValue: waypointStore)
         _settings = StateObject(wrappedValue: settingsStore)
