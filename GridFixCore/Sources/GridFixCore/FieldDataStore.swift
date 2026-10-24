@@ -53,6 +53,46 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         try commit(next)
     }
 
+    public func applyLibraryBatch(graphicIDs: Set<String>,trackIDs: Set<String>,action: LibraryBatchAction) throws {
+        guard !graphicIDs.isEmpty || !trackIDs.isEmpty else { return }
+        lock.lock(); defer { lock.unlock() }
+        var next = document
+        switch action {
+        case .swapVisibility:
+            for i in next.graphics.indices where graphicIDs.contains(next.graphics[i].id) { next.graphics[i].visible.toggle() }
+            for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible.toggle() }
+        case .delete:
+            next.graphics.removeAll { graphicIDs.contains($0.id) }; next.tracks.removeAll { trackIDs.contains($0.id) }
+            for id in trackIDs { next.trackFiles.removeValue(forKey: id) }
+        }
+        try commit(next)
+    }
+
+    public func changeLibraryFolder(from: String,to: String?,deleteContents: Bool = false) throws {
+        guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { return }
+        lock.lock(); defer { lock.unlock() }
+        var next = document
+        if deleteContents {
+            let removedTracks = Set(next.tracks.filter { $0.folder.caseInsensitiveCompare(from) == .orderedSame }.map(\.id))
+            next.graphics.removeAll { $0.folder.caseInsensitiveCompare(from) == .orderedSame }
+            next.tracks.removeAll { removedTracks.contains($0.id) }
+            for id in removedTracks { next.trackFiles.removeValue(forKey: id) }
+        } else {
+            let target = Folders.canonical(to)
+            for i in next.graphics.indices where next.graphics[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.graphics[i].folder = target }
+            for i in next.tracks.indices where next.tracks[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.tracks[i].folder = target }
+        }
+        try commit(next)
+    }
+
+    public func moveTrack(_ id: String,to folder: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        var next = document
+        guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return }
+        next.tracks[i].folder = Folders.canonical(folder)
+        try commit(next)
+    }
+
     /// Final publication is idempotent after a crash between archive commit and
     /// journal cleanup. Never silently replace a different log with the same ID.
     public func saveRecordedTrack(_ recording: Backup.Document) throws {

@@ -101,6 +101,78 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         persistLocked()
     }
 
+    /// Library batches publish only after their complete snapshot is durable.
+    public func applyLibraryBatch(ids: Set<String>,action: LibraryBatchAction) throws {
+        guard !ids.isEmpty else { return }
+        lock.lock(); defer { lock.unlock() }
+        var next = waypoints
+        switch action {
+        case .swapVisibility: for i in next.indices where ids.contains(next[i].id) { next[i].visible.toggle() }
+        case .delete: next.removeAll { ids.contains($0.id) }
+        }
+        let selection = next.contains { $0.id == selectedId } ? selectedId : nil
+        try publishLibraryLocked(next,folders: folders,selection: selection)
+    }
+
+    @discardableResult
+    public func createLibraryFolder(_ raw: String) throws -> String {
+        lock.lock(); defer { lock.unlock() }
+        let name = Folders.match(known: knownNamesLocked(),raw: raw)
+        var nextFolders = folders
+        if !nextFolders.contains(where: { $0.name == name }) { nextFolders.append(.init(name: name)) }
+        try publishLibraryLocked(waypoints,folders: nextFolders,selection: selectedId)
+        return name
+    }
+
+    public func setLibraryFolderVisible(_ raw: String,visible: Bool) throws {
+        lock.lock(); defer { lock.unlock() }
+        let name = Folders.match(known: knownNamesLocked(),raw: raw)
+        var next = folders
+        if let i = next.firstIndex(where: { $0.name == name }) { next[i].visible = visible }
+        else { next.append(.init(name: name,visible: visible)) }
+        try publishLibraryLocked(waypoints,folders: next,selection: selectedId)
+    }
+
+    /// Renaming onto an existing folder merges records; either visible source
+    /// makes the merged folder visible, as in Android's mergeFolder.
+    @discardableResult
+    public func renameLibraryFolder(from: String,to raw: String) throws -> String {
+        guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame,
+              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return from }
+        lock.lock(); defer { lock.unlock() }
+        let target = Folders.match(known: knownNamesLocked().filter { $0.caseInsensitiveCompare(from) != .orderedSame },raw: raw)
+        let visible = folders.first { $0.name.caseInsensitiveCompare(from) == .orderedSame }?.visible ?? true
+        var nextFolders = folders.filter { $0.name.caseInsensitiveCompare(from) != .orderedSame }
+        if let i = nextFolders.firstIndex(where: { $0.name == target }) { nextFolders[i].visible = nextFolders[i].visible || visible }
+        else { nextFolders.append(.init(name: target,visible: visible)) }
+        let next = waypoints.map { point -> Waypoint in
+            var point = point
+            if point.folder.caseInsensitiveCompare(from) == .orderedSame { point.folder = target }
+            return point
+        }
+        try publishLibraryLocked(next,folders: nextFolders,selection: selectedId)
+        return target
+    }
+
+    public func removeLibraryFolder(_ name: String,deleteContents: Bool) throws {
+        guard name.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { return }
+        lock.lock(); defer { lock.unlock() }
+        let next = waypoints.compactMap { point -> Waypoint? in
+            guard point.folder.caseInsensitiveCompare(name) == .orderedSame else { return point }
+            if deleteContents { return nil }
+            var moved = point; moved.folder = Folders.defaultFolder; return moved
+        }
+        let selection = next.contains { $0.id == selectedId } ? selectedId : nil
+        try publishLibraryLocked(next,folders: folders.filter { $0.name.caseInsensitiveCompare(name) != .orderedSame },selection: selection)
+    }
+
+    private func publishLibraryLocked(_ next: [Waypoint],folders: [FolderInfo],selection: String?) throws {
+        let nextFolders = Self.mergeFolderList(stored: folders,referenced: next.map(\.folder))
+        let data = try JSONEncoder().encode(Snapshot(waypoints: next,folders: nextFolders,selectedId: selection))
+        try data.write(to: fileURL,options: .atomic)
+        waypoints = next; self.folders = nextFolders; selectedId = selection
+    }
+
     public func select(_ id: String?) {
         lock.lock(); defer { lock.unlock() }
         selectedId = id

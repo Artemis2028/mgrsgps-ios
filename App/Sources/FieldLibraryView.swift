@@ -227,6 +227,7 @@ struct TrackDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var status: String?
     @State private var export: GPXDocumentFile?
+    @State private var confirmingDelete = false
     private var track: Backup.TrackMeta? { fieldData.document.tracks.first { $0.id == trackID } }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     var body: some View {
@@ -241,13 +242,17 @@ struct TrackDetailView: View {
                 Button("Export GPX") {
                     perform { export = GPXDocumentFile(text: GPX.build(waypoints: [], tracks: [.init(name: track.name, points: try fieldData.points(for: trackID))])) }
                 }
-                Button("Delete track", role: .destructive) { perform { try fieldData.deleteTrack(trackID); dismiss() } }
+                Button("Delete track", role: .destructive) { confirmingDelete = true }
             }
             if let status { Text(status).foregroundStyle(.red) }
         }
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(track?.name ?? "Track")
+        .alert("Delete \(track?.name ?? "track")?",isPresented: $confirmingDelete) {
+            Button("Delete",role: .destructive) { perform { try fieldData.deleteTrack(trackID); dismiss() } }
+            Button("Cancel",role: .cancel) {}
+        } message: { Text("The finished track and its saved point log will be removed.") }
         .fileExporter(isPresented: Binding(get: { export != nil }, set: { if !$0 { export = nil } }), document: export,
                       contentType: .gridFixGPX, defaultFilename: "track") { result in
             if case let .failure(error) = result { status = error.localizedDescription }

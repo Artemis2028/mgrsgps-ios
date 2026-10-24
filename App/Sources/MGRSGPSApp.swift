@@ -36,6 +36,24 @@ struct MGRSGPSApp: App {
         _boundaries = StateObject(wrappedValue: BoundaryMonitor(directory: directory))
         let fieldStore = FieldDataStore(directory: directory)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty, fieldStore.document.graphics.isEmpty {
+            _ = waypointStore.add(.init(name: "Alpha",lat: 24.4539,lon: 54.3773))
+            let hidden = waypointStore.add(.init(name: "Bravo",lat: 24.4542,lon: 54.3775,folder: "Recon"))
+            waypointStore.setVisible(id: hidden.id,visible: false)
+            _ = waypointStore.add(.init(name: "Charlie",lat: 24.455,lon: 54.379))
+            var fixture = Backup.Document(); fixture.hasSettings = false
+            fixture.graphics = [
+                .init(id: "library-route",name: "Recon route",type: "route",points: [.init(lat: 24.4539,lon: 54.3773),.init(lat: 24.455,lon: 54.379)],folder: "Recon"),
+                .init(id: "library-checkpoint",name: "Base checkpoint",type: "checkpoint",points: [.init(lat: 24.4539,lon: 54.3773)],visible: false)
+            ]
+            if let (track,bytes) = try? TrackCodec.imported(name: "Recon track",points: [.init(lat: 24.4539,lon: 54.3773),.init(lat: 24.455,lon: 54.379)],now: 1000,folder: "Recon") {
+                fixture.tracks = [track]; fixture.trackFiles[track.id] = bytes
+            }
+            _ = try? fieldStore.restore(fixture)
+        }
+        #endif
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting") && (ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")), waypointStore.waypoints.isEmpty {
             _ = waypointStore.add(.init(name: "West observer",lat: 24.4539,lon: 54.3773))
             _ = waypointStore.add(.init(name: "East target",lat: 24.4539,lon: 54.3923))

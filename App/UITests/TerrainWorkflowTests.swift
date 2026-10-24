@@ -25,7 +25,9 @@ final class TerrainWorkflowTests: XCTestCase {
         launch(); pick("observer","West observer"); pick("target","East target")
         let check = app.buttons["terrain-check"]; reveal(check); check.tap()
         let status = app.staticTexts["terrain-sight-status"]
-        XCTAssertTrue(status.waitForExistence(timeout: 15)); reveal(status); XCTAssertEqual(status.label,"MASKED")
+        // Older Form runtimes don't materialize result rows below the viewport
+        // until they are scrolled into view, even after analysis has completed.
+        reveal(status); XCTAssertTrue(status.waitForExistence(timeout: 15)); XCTAssertEqual(status.label,"MASKED")
         let chart = app.otherElements["terrain-profile-chart"]; reveal(chart)
         capture("terrain-line-of-sight")
         let route = app.buttons["terrain-profile-Terrain patrol"]; reveal(route); route.tap()
@@ -56,7 +58,7 @@ final class TerrainWorkflowTests: XCTestCase {
     func testMissingOfflineElevationShowsUnavailableAndNeverInventsShade() {
         launch(missing: true); pick("observer","West observer"); pick("target","East target")
         let check = app.buttons["terrain-check"]; reveal(check); check.tap()
-        let error = app.staticTexts["terrain-error"]; XCTAssertTrue(error.waitForExistence(timeout: 10)); reveal(error)
+        let error = app.staticTexts["terrain-error"]; reveal(error); XCTAssertTrue(error.waitForExistence(timeout: 10))
         XCTAssertTrue(error.label.contains("No usable elevation")); XCTAssertFalse(app.staticTexts["terrain-sight-status"].exists)
         capture("terrain-missing-data")
         app.navigationBars.buttons["Done"].tap(); XCTAssertFalse(app.buttons["viewshed-legend"].exists)

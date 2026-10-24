@@ -64,7 +64,7 @@ struct RootView: View {
                 MapScreen(onNavigate: { selection = 1 })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Map", systemImage: "map") }.tag(2)
-                WaypointsView(onNavigate: { selection = 1 })
+                WaypointsView(onNavigate: { selection = 1 },onShowMap: { selection = 2 })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
             }

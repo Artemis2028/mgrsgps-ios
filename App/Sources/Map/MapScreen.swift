@@ -237,6 +237,8 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
+        .onAppear { if let request = maps.focusRequest { cameraRequest = request } }
+        .onChange(of: maps.focusRequest?.id) { _ in if let request = maps.focusRequest { cameraRequest = request } }
         .onChange(of: terrain.viewshed?.id) { _ in
             if let shade = terrain.viewshed {
                 cameraRequest = MapCameraRequest(action: .showBounds(.init(south: shade.south,north: shade.north,west: shade.west,east: shade.east)))
@@ -310,7 +312,7 @@ struct MapScreen: View {
     }
 }
 
-private struct MapCameraRequest {
+struct MapCameraRequest {
     enum Action { case locate(Double, Double), fitData, showBounds(MapBounds), showBoundary([GeoPoint]) }
     let id = UUID()
     let action: Action
@@ -422,7 +424,9 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.nightMode = nightMode
         if let style = view.style { coordinator.rasterLayers.update(style: style, store: mapStore, night: nightMode); coordinator.contours.refresh(map: view, store: mapStore, night: nightMode) }
         coordinator.fieldOverlay.onChange = onOverlays
-        coordinator.fieldOverlay.update(document: document, folders: folders, night: nightMode)
+        var overlayDocument = document
+        if let i = overlayDocument.tracks.firstIndex(where: { $0.id == mapStore.viewedTrackID }) { overlayDocument.tracks[i].visible = true }
+        coordinator.fieldOverlay.update(document: overlayDocument, folders: folders, night: nightMode)
         coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
         coordinator.raiseAnnotations(in: view)

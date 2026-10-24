@@ -58,6 +58,11 @@ adjust it. Area results can become a saved graphic. Measurements and tactical
 graphics remain separate from quiet-inside monitoring. See
 [map measurements](docs/map-measurement.md).
 
+The Waypoints tab includes graphics and finished tracks, distance-bucket ordering,
+mixed selection/visibility/deletion, and folder management. Track viewing can
+temporarily show a hidden record without changing its visibility flag. See
+[field library workflows](docs/field-library.md).
+
 After `xcodegen generate`, run the scheme's UI tests with:
 
 ```bash
