@@ -11,6 +11,7 @@ struct MapScreen: View {
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var recorder: TrackRecorder
     @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var boundaries: BoundaryMonitor
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
@@ -25,6 +26,8 @@ struct MapScreen: View {
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
     @State private var zoom = 6.5
     @State private var contourLabel = ""
+    @State private var showingBoundaries = false
+    @State private var boundaryDraft: BoundaryDraft?
 
     private var chromeNight: Bool { settings.nightMode || nightMode }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
@@ -50,18 +53,25 @@ struct MapScreen: View {
                          waypoints: visible, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders,
                          recordingPoints: recorder.active?.livePoints ?? [],
+                         boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],
+                         boundaryEditing: boundaryDraft != nil, boundarySelection: boundaryDraft?.selected,
+                         onBoundaryPoint: { point in
+                             guard boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             boundaryDraft!.vertices.append(point); boundaryDraft!.selected = boundaryDraft!.vertices.count-1
+                         },
+                         onBoundarySelect: { boundaryDraft?.selected = $0 },
+                         onBoundaryMove: { index, point in
+                             if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
+                         },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
-                         onSelect: { selectedID = $0 },
+                         onSelect: { if boundaryDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
                              intervalLabel = label; centre = position; viewport = bounds; zoom = level
                              maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
                          })
                 .ignoresSafeArea()
-            Image(systemName: "plus")
-                .font(.system(size: 22, weight: .light)).foregroundStyle(palette.accent)
-                .shadow(color: .black, radius: 2).allowsHitTesting(false).accessibilityHidden(true)
             VStack(spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
@@ -83,6 +93,10 @@ struct MapScreen: View {
                     .padding(14).fieldChrome()
                     Spacer(minLength: 0)
                     VStack(spacing: 8) {
+                        Button { showingBoundaries = true } label: {
+                            Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
+                        }.fieldGlassButton().accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
+                            .disabled(boundaryDraft != nil)
                         Button { showingLayers = true } label: {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
@@ -93,7 +107,12 @@ struct MapScreen: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if let waypoint = selected {
+                if let draft = boundaryDraft {
+                    BoundaryDrawingControls(draft: Binding(get: { boundaryDraft ?? draft },set: { boundaryDraft = $0 }),
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaries.error,
+                        save: { if let area = boundaryDraft?.area, boundaries.save(area) { boundaryDraft = nil } },cancel: { boundaryDraft = nil; boundaries.clearError() })
+                }
+                if let waypoint = selected, boundaryDraft == nil {
                     selectedCard(waypoint)
                 }
                 Text(mapAttribution)
@@ -113,7 +132,7 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false)
+                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil)
                     .accessibilityLabel("Show all visible data")
                     RecordingButton()
                     Spacer(minLength: 0)
@@ -134,6 +153,13 @@ struct MapScreen: View {
         .environment(\.fieldNight, chromeNight)
         .onChange(of: maps.preferences.baseLayer) { _ in
             if let map = maps.selectedMap { cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
+        .sheet(isPresented: $showingBoundaries) {
+            BoundaryPanel(onDraw: { area in
+                selectedID = nil; boundaries.clearError()
+                boundaryDraft = area.map(BoundaryDraft.init) ?? BoundaryDraft()
+                if let area { cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) }
+            },onShow: { area in boundaries.displayedID = area.id; cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) })
         }
         .sheet(isPresented: $showingLayers) {
             MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
@@ -170,7 +196,7 @@ struct MapScreen: View {
 }
 
 private struct MapCameraRequest {
-    enum Action { case locate(Double, Double), fitData, showBounds(MapBounds) }
+    enum Action { case locate(Double, Double), fitData, showBounds(MapBounds), showBoundary([GeoPoint]) }
     let id = UUID()
     let action: Action
 }
@@ -184,6 +210,12 @@ private struct MapContainer: UIViewRepresentable {
     let document: Backup.Document
     let folders: [FolderInfo]
     let recordingPoints: [GeoPoint]
+    let boundaryPoints: [GeoPoint]
+    let boundaryEditing: Bool
+    let boundarySelection: Int?
+    let onBoundaryPoint: (GeoPoint) -> Void
+    let onBoundarySelect: (Int) -> Void
+    let onBoundaryMove: (Int,GeoPoint) -> Void
     let onContour: (String) -> Void
     let onOverlays: (Int, Int, Bool) -> Void
     let cameraRequest: MapCameraRequest?
@@ -202,6 +234,18 @@ private struct MapContainer: UIViewRepresentable {
         view.logoViewMargins = CGPoint(x: 12, y: 150)
         view.attributionButtonPosition = .bottomLeft
         view.attributionButtonMargins = CGPoint(x: 118, y: 150)
+        let tap = UITapGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.boundaryTap(_:)))
+        tap.cancelsTouchesInView = false; tap.delegate = context.coordinator
+        for other in view.gestureRecognizers ?? [] {
+            if let doubleTap = other as? UITapGestureRecognizer, doubleTap.numberOfTapsRequired == 2 { tap.require(toFail: doubleTap) }
+        }
+        view.addGestureRecognizer(tap)
+        let crosshair = context.coordinator.crosshair
+        crosshair.translatesAutoresizingMaskIntoConstraints = false
+        crosshair.isUserInteractionEnabled = false; crosshair.accessibilityElementsHidden = true
+        crosshair.layer.shadowColor = UIColor.black.cgColor; crosshair.layer.shadowRadius = 2; crosshair.layer.shadowOpacity = 0.8
+        view.addSubview(crosshair)
+        NSLayoutConstraint.activate([crosshair.centerXAnchor.constraint(equalTo: view.centerXAnchor),crosshair.centerYAnchor.constraint(equalTo: view.centerYAnchor),crosshair.widthAnchor.constraint(equalToConstant: 22),crosshair.heightAnchor.constraint(equalToConstant: 22)])
         view.showsUserLocation = true
         view.setCenter(CLLocationCoordinate2D(latitude: mapStore.preferences.latitude, longitude: mapStore.preferences.longitude), zoomLevel: mapStore.preferences.zoom, animated: false)
         return view
@@ -210,9 +254,23 @@ private struct MapContainer: UIViewRepresentable {
     func updateUIView(_ view: MLNMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.maps = mapStore
+        // Keep a new vertex at the crosshair draggable even when it is exactly
+        // at the GPS fix. The position marker returns when editing ends.
+        if view.showsUserLocation == boundaryEditing { view.showsUserLocation = !boundaryEditing }
+        coordinator.crosshair.tintColor = nightMode ? .systemRed : UIColor(Blackout.accent)
+        view.bringSubviewToFront(coordinator.crosshair)
         coordinator.contours.onInterval = { text in DispatchQueue.main.async { onContour(text) } }
         coordinator.onChange = onChange
         coordinator.onSelect = onSelect
+        coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryEditing = boundaryEditing
+        coordinator.boundarySelection = boundarySelection
+        // A quick pair of drawing taps must add vertices, not zoom the map.
+        // Pinch/pan remain available while drawing.
+        for gesture in view.gestureRecognizers ?? [] {
+            if let tap = gesture as? UITapGestureRecognizer, tap.numberOfTapsRequired == 2 { tap.isEnabled = !boundaryEditing }
+        }
+        coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove
+        coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
@@ -225,12 +283,16 @@ private struct MapContainer: UIViewRepresentable {
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
             switch request.action {
+            case let .showBoundary(points):
+                if let bounds = FieldMapGeometry.bounds(points) {
+                    view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 210,left: 65,bottom: 350,right: 65),animated: true,completionHandler: nil)
+                }
             case let .showBounds(bounds):
                 view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: UIEdgeInsets(top: 180, left: 30, bottom: 220, right: 30), animated: true, completionHandler: nil)
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
             case .fitData:
-                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + recordingPoints
+                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + recordingPoints + boundaryPoints
                 if let bounds = FieldMapGeometry.bounds(points) {
                     if bounds.south == bounds.north && bounds.west == bounds.east {
                         view.setCenter(CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), zoomLevel: 15, animated: true)
@@ -249,12 +311,35 @@ private struct MapContainer: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
+    final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate, UIGestureRecognizerDelegate {
+        let crosshair = UIImageView(image: UIImage(systemName: "plus",withConfiguration: UIImage.SymbolConfiguration(pointSize: 22,weight: .light)))
         let overlay = GridOverlay()
         let fieldOverlay = FieldOverlay()
         let liveOverlay = LiveTrackOverlay()
         let rasterLayers = RasterMapLayers()
         let contours = ContourMapOverlay()
+        let boundaryOverlay = BoundaryMapOverlay()
+        var boundaryPoints: [GeoPoint] = []
+        var boundaryEditing = false
+        var boundarySelection: Int?
+        var onBoundaryPoint: ((GeoPoint) -> Void)?
+        var onBoundarySelect: ((Int) -> Void)?
+        var onBoundaryMove: ((Int,GeoPoint) -> Void)?
+        @objc func boundaryTap(_ gesture: UITapGestureRecognizer) {
+            guard boundaryEditing, gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
+            onBoundaryPoint?(GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180))
+        }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { boundaryEditing }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldReceive touch: UITouch) -> Bool {
+            guard boundaryEditing else { return false }
+            var view = touch.view
+            while let current = view {
+                if current is MLNAnnotationView || current is UIControl { return false }
+                view = current.superview
+            }
+            return true
+        }
         var maps: MapLayerStore?
         var nightMode = false
         var hasCentred = false
@@ -288,6 +373,16 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            if let vertex = annotation as? BoundaryVertexAnnotation {
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "boundary-vertex") as? BoundaryVertexView) ?? BoundaryVertexView(reuseIdentifier: "boundary-vertex")
+                view.configure(index: vertex.index,selected: boundarySelection == vertex.index,night: nightMode)
+                view.onSelect = { [weak self] in self?.onBoundarySelect?(vertex.index) }
+                view.onDragStart = { [weak self] in self?.onBoundarySelect?(vertex.index) }
+                view.onDragEnd = { [weak self] point in
+                    self?.onBoundaryMove?(vertex.index,GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180))
+                }
+                return view
+            }
             guard let annotation = annotation as? WaypointAnnotation else { return nil }
             let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: "waypoint") as? WaypointMarkerView)
                 ?? WaypointMarkerView(reuseIdentifier: "waypoint")
@@ -296,6 +391,9 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
+            if let vertex = annotation as? BoundaryVertexAnnotation {
+                onBoundarySelect?(vertex.index); mapView.deselectAnnotation(vertex,animated: false); return
+            }
             guard let annotation = annotation as? WaypointAnnotation else { return }
             onSelect?(annotation.waypoint.id)
             // Deselect immediately so the same marker can reopen a dismissed card.
@@ -308,6 +406,8 @@ private struct MapContainer: UIViewRepresentable {
             fieldOverlay.install(into: style)
             liveOverlay.install(into: style)
             contours.install(style: style)
+            boundaryOverlay.install(style: style)
+            boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: mapView)
             redraw(mapView)
         }
 

@@ -105,8 +105,31 @@ jobs:
             -destination "id=$DEST" \
             -derivedDataPath build \
             -resultBundlePath build/ui-tests.xcresult \
+            -skip-testing:MGRSGPSUITests/BoundaryWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log" | tail -n 40
+
+      - name: Boundary drawing and real background crossing
+        id: boundary_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          # This route alternates inside/outside a drawn perimeter. Never run
+          # alongside the northbound recording feed from the previous step.
+          python3 scripts/boundary-test-route.py "$DEST" > /tmp/boundary-route.log 2>&1 &
+          BOUNDARY_ROUTE_PID=$!
+          cleanup_boundary_route() {
+            kill "$BOUNDARY_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_boundary_route EXIT
+          xcodebuild test \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/boundary-tests.xcresult \
+            -only-testing:MGRSGPSUITests/BoundaryWorkflowTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log" | tail -n 40
 
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
@@ -114,6 +137,10 @@ jobs:
           if [ -d build/ui-tests.xcresult ]; then
             xcrun xcresulttool export attachments \
               --path build/ui-tests.xcresult --output-path screenshots/ui-tests
+          fi
+          if [ -d build/boundary-tests.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/boundary-tests.xcresult --output-path screenshots/boundary-tests
           fi
 
       - name: Upload the build and the screenshots
@@ -126,7 +153,9 @@ jobs:
             build.log
             test.log
             ui-test.log
+            boundary-test.log
             build/ui-tests.xcresult/
+            build/boundary-tests.xcresult/
           if-no-files-found: warn
 
       # Publish the outcome and the logs to a branch, so they can be read with
@@ -142,11 +171,13 @@ jobs:
             echo "tests=${{ steps.tests.outcome }}"
             echo "build=${{ steps.build.outcome }}"
             echo "ui_tests=${{ steps.ui_tests.outcome }}"
+            echo "boundary_tests=${{ steps.boundary_tests.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/ui-test.log" /tmp/status/ui-testlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/boundary-test.log" /tmp/status/boundary-testlog.txt 2>/dev/null || true
           # The screenshots and the app's own log go here too. They are the
           # only evidence for anything that is wrong on screen rather than in a
           # test, and downloading a run artifact needs a token where a branch

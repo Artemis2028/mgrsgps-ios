@@ -95,7 +95,9 @@ The user subsequently identified `release/1.1.0` (`482b417`) as the attempted
 backstop/handrail implementation. Its fixed-width, heading-driven single-leg
 corridor differs from the requested editable bent boundaries with crossing-only
 buzzes and silence inside. See [the source review and intended contract](backstops-handrails.md).
-This feature is not implemented on iOS. The inspected release branch has no
+The iOS boundary editor and monitor now implement that intended contract, with
+locked-screen alerts through system notifications and explicit iOS limitations.
+The inspected release branch has no
 changes to the underlying map catalog/grid/elevation source files; the offline
 map milestone above remains based on the same Android raster-storage model.
 
@@ -106,7 +108,7 @@ map milestone above remains based on the same Android raster-storage model.
 | Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Orientation/landscape refinement, callouts/QR |
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
 | Maps | Android raster catalog, MGRS grid, waypoint/route/track overlays, camera controls, USGS offline areas, raster MBTiles, offline-only mode | Deployment key validation, physical offline verification, ruler, full tactical graphic editor/overlays |
-| Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
+| Navigation | Target selection, bearings, back azimuth, distance, ETA, editable boundary perimeters with crossing-only monitoring/background notifications | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
 | Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, larger libraries beyond archive limits, track rename/move, practice course creation/running |
 | Terrain | Hillshade overlay/base, Terrarium cache/area downloads, contours | Elevation/slope readouts, LOS, viewshed |
 | Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
@@ -115,10 +117,13 @@ map milestone above remains based on the same Android raster-storage model.
 
 ## Verification
 
-Local validation on 24 October 2026: 151 core tests, 20 app integration tests,
-and 12 iPhone simulator UI workflows pass. Map validation covers offline imports,
-network-free saved-tile lookup, resumable downloads, colour transforms, and contour orientation, alongside
-the coordinate, route, backup and recording regression suites. The unsigned iPhone Release
+Local validation on 24 October 2026: 160 core tests and 28 app integration tests pass.
+All 14 distinct iPhone simulator UI workflows pass across the full regression
+and focused final runs; the drawing/dragging/relaunch workflow also passes on
+iPad. Real background crossing validation is documented in
+[backstops and handrails](backstops-handrails.md). Map validation also covers
+offline imports, network-free saved-tile lookup, resumable downloads, colour
+transforms and contour orientation. The unsigned iPhone Release
 build also succeeds. GPX document registration is checked on iOS so exports
 use `.gpx` filenames.
 

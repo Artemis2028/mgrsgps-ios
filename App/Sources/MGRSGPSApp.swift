@@ -9,6 +9,7 @@ struct MGRSGPSApp: App {
     @StateObject private var fieldData: FieldDataStore
     @StateObject private var recorder: TrackRecorder
     @StateObject private var maps: MapLayerStore
+    @StateObject private var boundaries: BoundaryMonitor
 
     init() {
         var directory: URL?
@@ -26,6 +27,7 @@ struct MGRSGPSApp: App {
         _waypoints = StateObject(wrappedValue: WaypointStore(directory: directory))
         _settings = StateObject(wrappedValue: AppSettings(directory: directory))
         _maps = StateObject(wrappedValue: MapLayerStore(directory: directory))
+        _boundaries = StateObject(wrappedValue: BoundaryMonitor(directory: directory))
         let fieldStore = FieldDataStore(directory: directory)
         _fieldData = StateObject(wrappedValue: fieldStore)
         _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))
@@ -40,6 +42,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(fieldData)
                 .environmentObject(recorder)
                 .environmentObject(maps)
+                .environmentObject(boundaries)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)

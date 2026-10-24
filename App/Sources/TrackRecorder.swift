@@ -16,7 +16,8 @@ protocol RecordingLocationDriver: AnyObject {
 }
 
 /// Dedicated manager: leaving the foreground stops the position/compass manager,
-/// never this one. Only an explicit recording enables background location.
+/// never this one. Each recorder or boundary monitor owns its own instance;
+/// only an explicit recording/monitoring action enables background location.
 @MainActor
 final class CoreLocationRecordingDriver: NSObject, RecordingLocationDriver, @preconcurrency CLLocationManagerDelegate {
     private let manager = CLLocationManager()

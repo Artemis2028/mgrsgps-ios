@@ -114,5 +114,9 @@ in. Recording uses dedicated background location and lock-compatible log files;
 physical locked-screen verification remains before release. Map layers, USGS
 area downloads, raster MBTiles and contours are also in. See
 [track recording](docs/track-recording.md) and [offline maps](docs/offline-maps.md).
+Editable [backstops and handrails](docs/backstops-handrails.md) define a closed
+perimeter with bends: quiet inside, one alert on a confirmed exit, re-arm on
+return. Dedicated background location and system notifications support locked
+screen use within iOS limits. Physical-device validation remains before release.
 Terrain field tools, practice courses, and KML/ATAK remain.
 
