@@ -79,6 +79,7 @@ struct RouteEditor: View {
     @State private var folder: String
     @State private var points: [Backup.GraphicPoint]
     @State private var error: String?
+    @FocusState private var focusedField: String?
 
     init(route: Backup.Graphic?, onSave: @escaping (Backup.Graphic) throws -> Void) {
         original = route; self.onSave = onSave
@@ -92,7 +93,9 @@ struct RouteEditor: View {
             Form {
                 Section("Route") {
                     TextField("Name", text: $name).accessibilityIdentifier("route-name")
+                        .focused($focusedField, equals: "name").submitLabel(.done)
                     TextField("Folder", text: $folder)
+                        .focused($focusedField, equals: "folder").submitLabel(.done)
                 }
                 Section {
                     ForEach(Array(points.enumerated()), id: \.offset) { index, point in
@@ -103,7 +106,7 @@ struct RouteEditor: View {
                             Spacer()
                             Button { points.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up").frame(minWidth: 44, minHeight: 44) }
                                 .disabled(index == 0).buttonStyle(.borderless).accessibilityLabel("Move vertex \(index + 1) up")
-                        }
+                        }.accessibilityIdentifier("route-vertex-\(index)")
                     }.onDelete { points.remove(atOffsets: $0) }
                     Menu {
                         ForEach(waypoints.waypoints) { point in
@@ -116,8 +119,13 @@ struct RouteEditor: View {
                 if let error { Text(error).foregroundStyle(.red) }
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
+            .onSubmit { focusedField = nil }
             .navigationTitle(original == nil ? "New route" : "Edit route").navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Hide keyboard") { focusedField = nil }
+                }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -167,6 +175,7 @@ struct RouteDetailView: View {
                     if let error = navigation.error { Text(error).font(.footnote).foregroundStyle(palette.warn) }
                     Button("Generate waypoints") { perform { try generate(route); status = "Route waypoints updated" } }
                         .accessibilityIdentifier("generate-route-waypoints")
+                    NavigationLink("Elevation profile") { RouteTerrainProfileView(route: route) }.accessibilityIdentifier("route-terrain-profile")
                     ShareLink("Share route card", item: cardText(route))
                 }
                 Section("Route card · \(settings.northRef.letter)") {

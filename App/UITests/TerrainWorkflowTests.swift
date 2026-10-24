@@ -1,0 +1,71 @@
+import XCTest
+
+final class TerrainWorkflowTests: XCTestCase {
+    private var app: XCUIApplication!
+    private func launch(missing: Bool = false) {
+        continueAfterFailure = false
+        app = XCUIApplication(); app.launchArguments = ["-uiTesting",missing ? "-uiTestTerrainNoData" : "-uiTestTerrain","-startTab","map"]; app.launch()
+        let open = app.buttons["map-terrain"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        XCTAssertTrue(app.navigationBars["Terrain visibility"].waitForExistence(timeout: 5))
+    }
+    private func pick(_ prefix: String,_ name: String) {
+        app.buttons["terrain-\(prefix)-source"].tap(); app.buttons["Waypoint"].tap()
+        app.buttons["terrain-\(prefix)-waypoint"].tap(); app.buttons["terrain-\(prefix)-choice-\(name)"].firstMatch.tap()
+    }
+    private func reveal(_ element: XCUIElement) {
+        for _ in 0..<8 {
+            // Canvas has no tappable activation point on some runtimes. Its
+            // visible frame, rather than button hittability, controls scrolling.
+            if element.exists && !element.frame.isEmpty && element.frame.midY > 150 && element.frame.midY < 720 { return }
+            if element.exists && element.frame.midY < 150 { app.swipeDown() } else { app.swipeUp() }
+        }
+    }
+    private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
+    func testOfflineLineOfSightProfileAndViewshedUseRealEncodedTerrain() {
+        launch(); pick("observer","West observer"); pick("target","East target")
+        let check = app.buttons["terrain-check"]; reveal(check); check.tap()
+        let status = app.staticTexts["terrain-sight-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 15)); reveal(status); XCTAssertEqual(status.label,"MASKED")
+        let chart = app.otherElements["terrain-profile-chart"]; reveal(chart)
+        capture("terrain-line-of-sight")
+        let route = app.buttons["terrain-profile-Terrain patrol"]; reveal(route); route.tap()
+        let missing = app.staticTexts["terrain-missing-count"]
+        reveal(missing); XCTAssertTrue(missing.waitForExistence(timeout: 15))
+        XCTAssertTrue(missing.label.hasPrefix("0 missing"))
+        capture("terrain-route-profile")
+        // Reopen the sheet to return to its initial scroll position and clear results.
+        app.navigationBars.buttons["Done"].tap(); app.buttons["map-terrain"].tap()
+        pick("observer","West observer")
+        let shade = app.buttons["terrain-shade"]; reveal(shade); shade.tap()
+        let legend = app.buttons["viewshed-legend"]
+        XCTAssertTrue(legend.waitForExistence(timeout: 45),app.debugDescription)
+        capture("terrain-viewshed-day")
+        app.buttons["Toggle map night mode"].tap()
+        XCTAssertTrue(legend.waitForExistence(timeout: 5)); capture("terrain-viewshed-night")
+        legend.tap(); XCTAssertFalse(app.buttons["viewshed-legend"].exists)
+    }
+    func testRouteCardOpensElevationProfile() {
+        launch(); app.navigationBars.buttons["Done"].tap()
+        app.tabBars.buttons["Waypoints"].tap(); app.buttons["open-field-library"].tap()
+        app.buttons["route-Terrain patrol"].tap()
+        let profile = app.buttons["route-terrain-profile"]; reveal(profile); profile.tap()
+        let summary = app.staticTexts["terrain-route-profile-summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15)); reveal(summary)
+        XCTAssertTrue(summary.label.contains("climb 80")); capture("terrain-route-card-profile")
+    }
+    func testMissingOfflineElevationShowsUnavailableAndNeverInventsShade() {
+        launch(missing: true); pick("observer","West observer"); pick("target","East target")
+        let check = app.buttons["terrain-check"]; reveal(check); check.tap()
+        let error = app.staticTexts["terrain-error"]; XCTAssertTrue(error.waitForExistence(timeout: 10)); reveal(error)
+        XCTAssertTrue(error.label.contains("No usable elevation")); XCTAssertFalse(app.staticTexts["terrain-sight-status"].exists)
+        capture("terrain-missing-data")
+        app.navigationBars.buttons["Done"].tap(); XCTAssertFalse(app.buttons["viewshed-legend"].exists)
+        app.tabBars.buttons["Waypoints"].tap(); app.buttons["open-field-library"].tap()
+        app.buttons["route-Terrain patrol"].tap()
+        let profile = app.buttons["route-terrain-profile"]; reveal(profile); profile.tap()
+        let unavailable = app.staticTexts["terrain-profile-unavailable"]
+        XCTAssertTrue(unavailable.waitForExistence(timeout: 15)); reveal(unavailable)
+        XCTAssertFalse(app.staticTexts["terrain-route-profile-summary"].exists)
+        capture("terrain-route-profile-unavailable")
+    }
+}

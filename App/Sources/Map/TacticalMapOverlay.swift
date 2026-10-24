@@ -8,12 +8,19 @@ final class TacticalMapOverlay: UIView {
     var draft: Backup.Graphic?
     var night = false
     var lightLines = false
+    var viewshed: TerrainAnalysis.Viewshed?
+    private var shade: UIImage?
+    private var shadeKey = ""
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isOpaque = false; isUserInteractionEnabled = false; accessibilityElementsHidden = true; contentMode = .redraw }
     required init?(coder: NSCoder) { fatalError("Created by map") }
-    func update(document: Backup.Document, folders: [FolderInfo], draft: Backup.Graphic?, night: Bool, light: Bool) {
+    func update(document: Backup.Document, folders: [FolderInfo], draft: Backup.Graphic?, night: Bool, light: Bool, viewshed: TerrainAnalysis.Viewshed?) {
         let hidden = Set(folders.filter { !$0.visible }.map { $0.name.lowercased() })
         graphics = document.graphics.filter { $0.visible && !hidden.contains($0.folder.lowercased()) && $0.id != draft?.id }
-        self.draft = draft; self.night = night; lightLines = light; setNeedsDisplay()
+        self.draft = draft; self.night = night; lightLines = light
+        self.viewshed = viewshed
+        let key = "\(viewshed?.id.uuidString ?? "")|\(night)"
+        if key != shadeKey { shadeKey = key; shade = viewshed.flatMap { TerrainViewshedRenderer.image($0,night: night) } }
+        setNeedsDisplay()
     }
     private func projected(_ graphic: Backup.Graphic) -> [CGPoint] {
         guard let map else { return [] }
@@ -49,6 +56,20 @@ final class TacticalMapOverlay: UIView {
     }
     override func draw(_ rect: CGRect) {
         guard let c = UIGraphicsGetCurrentContext() else { return }
+        if let value = viewshed,let shade,let map {
+            let west = map.centerCoordinate.longitude + TerrainGeometry.wrap(value.west-map.centerCoordinate.longitude)
+            func project(_ lat: Double,_ lon: Double) -> CGPoint { map.convert(CLLocationCoordinate2D(latitude: lat,longitude: lon),toPointTo: self) }
+            let nw = project(value.north,west), ne = project(value.north,west+value.east-value.west), sw = project(value.south,west)
+            let size = CGFloat(value.size)
+            c.saveGState(); c.interpolationQuality = .none
+            c.concatenate(CGAffineTransform(a: (ne.x-nw.x)/size,b: (ne.y-nw.y)/size,c: (sw.x-nw.x)/size,d: (sw.y-nw.y)/size,tx: nw.x,ty: nw.y))
+            shade.draw(in: CGRect(x: 0,y: 0,width: size,height: size)); c.restoreGState()
+            let observer = project(value.observer.lat,west+(value.observer.lon-value.west))
+            let edge = project(value.observer.lat,west+value.east-value.west), r = hypot(edge.x-observer.x,edge.y-observer.y)
+            c.setStrokeColor((night ? UIColor.systemRed : UIColor.darkGray).withAlphaComponent(0.63).cgColor); c.setLineWidth(1.5)
+            c.strokeEllipse(in: CGRect(x: observer.x-r,y: observer.y-r,width: 2*r,height: 2*r))
+            c.setFillColor((night ? UIColor.systemRed : UIColor.darkGray).cgColor); c.fillEllipse(in: CGRect(x: observer.x-3,y: observer.y-3,width: 6,height: 6))
+        }
         for graphic in graphics { TacticalGraphicCanvas.draw(graphic,points: projected(graphic),in: c,night: night,lightLines: lightLines) }
         if let draft { TacticalGraphicCanvas.draw(draft,points: projected(draft),in: c,night: night,lightLines: lightLines,selected: true,draft: true) }
     }

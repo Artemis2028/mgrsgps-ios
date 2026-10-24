@@ -3,6 +3,7 @@
 *.xcodeproj
 *.xcworkspace
 build/
+build-release/
 .build/
 DerivedData/
 screenshots/

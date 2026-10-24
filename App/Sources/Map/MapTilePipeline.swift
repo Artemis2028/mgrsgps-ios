@@ -26,7 +26,8 @@ final class MapTilePipeline: @unchecked Sendable {
         config.httpAdditionalHeaders = ["User-Agent": "GridFix-iOS/0.1 (MGRS GPS map client)"]
         session = URLSession(configuration: config)
         let terrainConfig = (configuration?.copy() as? URLSessionConfiguration) ?? URLSessionConfiguration.ephemeral
-        terrainConfig.urlCache = nil; terrainConfig.timeoutIntervalForRequest = 25
+        terrainConfig.urlCache = nil; terrainConfig.timeoutIntervalForRequest = 8
+        terrainConfig.timeoutIntervalForResource = 16
         terrainConfig.httpAdditionalHeaders = config.httpAdditionalHeaders
         terrainSession = URLSession(configuration: terrainConfig)
         terrainCache = TerrainTileCache(directory: directory, pinnedBytes: { library?.elevationBytes ?? 0 })

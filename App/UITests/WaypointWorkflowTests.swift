@@ -165,9 +165,10 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["create-route"].tap()
         let name = app.textFields["route-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Training")
+        name.tap(); name.typeText("Training\n")
         XCTAssertFalse(app.buttons["save-route"].isEnabled)
         app.buttons["append-route-waypoint"].tap(); app.buttons["Start"].tap()
+        XCTAssertTrue(app.staticTexts.matching(identifier: "route-vertex-0").firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["save-route"].isEnabled)
         app.buttons["append-route-waypoint"].tap(); app.buttons["Finish"].tap()
         app.buttons["save-route"].tap()

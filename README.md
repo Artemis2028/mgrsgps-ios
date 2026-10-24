@@ -131,3 +131,8 @@ native drawing/editing with draggable segment handles, and waypoint-snapped
 route drawing tied to route cards and automatic navigation. See
 [graphics and route drawing](docs/tactical-graphics.md). Quiet-inside boundary
 monitoring remains a separate mode.
+
+Terrain tools now include map-centre elevation/slope estimates, point-to-point
+line of sight, route elevation profiles, and day/night viewsheds using the same
+cached/downloaded DEM data as contours. Missing data stays unknown. See
+[terrain visibility](docs/terrain-visibility.md) for behavior and validation.

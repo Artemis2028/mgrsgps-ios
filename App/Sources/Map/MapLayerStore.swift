@@ -16,6 +16,7 @@ final class MapLayerStore: ObservableObject {
     @Published private(set) var downloadProgress = 0
     @Published private(set) var revision = 0
     @Published private(set) var isImporting = false
+    lazy var terrainSampler = TerrainSampler(pipeline: pipeline)
     let pipeline: MapTilePipeline
     let layers: [RasterLayer]
     private let library: MapTileLibrary?
@@ -43,7 +44,7 @@ final class MapLayerStore: ObservableObject {
         savedMaps = library?.maps ?? []
         if !layers.contains(where: { $0.key == preferences.baseLayer }) && !savedMaps.contains(where: { "mbtiles:" + $0.id == preferences.baseLayer }) { preferences.baseLayer = layers.first!.key }
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTesting") && (ProcessInfo.processInfo.arguments.contains("-uiTestOfflineMap") || ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap")), savedMaps.isEmpty, let library {
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting") && (ProcessInfo.processInfo.arguments.contains("-uiTestOfflineMap") || ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")), savedMaps.isEmpty, let library {
             // Synthetic data exercises the real MBTiles importer and renderer;
             // it never runs in Release or against normal field data.
             do {
@@ -60,10 +61,15 @@ final class MapLayerStore: ObservableObject {
                 try db.put(png, tile: .init(z: 0,x: 0,y: 0))
                 let map = try library.importFile(file)
                 savedMaps = library.maps; preferences.baseLayer = "mbtiles:" + map.id
-                preferences.offlineOnly = true; preferences.hasCamera = true; preferences.zoom = ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap") ? 16 : 1
+                preferences.offlineOnly = true; preferences.hasCamera = true; preferences.zoom = (ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")) ? 16 : 1
                 try JSONEncoder().encode(preferences).write(to: preferencesURL, options: .atomic)
                 try? FileManager.default.removeItem(at: file)
             } catch { loadError = error.localizedDescription }
+        }
+        #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting") && ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") {
+            do { try TerrainTestFixture.seed(pipeline) } catch { loadError = error.localizedDescription }
         }
         #endif
         pipeline.offlineOnly = preferences.offlineOnly

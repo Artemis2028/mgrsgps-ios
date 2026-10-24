@@ -4,6 +4,7 @@ struct RootView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var terrain: TerrainSession
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var navigation: NavigationSession
     @Environment(\.scenePhase) private var scenePhase
@@ -83,7 +84,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
             else if phase == .inactive { navigation.foregroundChanged(false) }
-            else if phase == .background { location.stop(); maps.pauseDownload() }
+            else if phase == .background { location.stop(); maps.pauseDownload(); terrain.backgrounded() }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             location.refreshFixValidity(); boundaries.refresh()

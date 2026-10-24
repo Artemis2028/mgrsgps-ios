@@ -12,6 +12,7 @@ struct MapScreen: View {
     @EnvironmentObject private var recorder: TrackRecorder
     @EnvironmentObject private var maps: MapLayerStore
     @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var terrain: TerrainSession
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
@@ -22,6 +23,7 @@ struct MapScreen: View {
     @State private var cameraRequest: MapCameraRequest?
     @State private var editorRequest: WaypointEditorRequest?
     @State private var showingLayers = false
+    @State private var showingTerrain = false
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
     @State private var zoom = 6.5
     @State private var contourLabel = ""
@@ -48,7 +50,7 @@ struct MapScreen: View {
         if maps.preferences.hillshade, maps.selectedMap == nil, maps.layers.contains(where: { $0.key == "hillshade" }) {
             text += " · Shading: Esri, USGS, NASA"
         }
-        if maps.preferences.contours { text += " · Elevation: Mapzen / AWS" }
+        if maps.preferences.contours || terrain.readout?.elevation != nil || terrain.viewshed != nil { text += " · Elevation: Mapzen / AWS" }
         return text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
     }
 
@@ -58,6 +60,7 @@ struct MapScreen: View {
                          waypoints: visible, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders,
                          recordingPoints: recorder.active?.livePoints ?? [],
+                         viewshed: terrain.viewshed,
                          boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],
                          boundaryEditing: boundaryDraft != nil, boundarySelection: boundaryDraft?.selected,
                          onBoundaryPoint: { point in
@@ -85,6 +88,7 @@ struct MapScreen: View {
                          onSelect: { if boundaryDraft == nil && graphicDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
                              intervalLabel = label; centre = position; viewport = bounds; zoom = level
+                             terrain.updateCentre(GeoPoint(lat: position.latitude,lon: position.longitude))
                              maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
                          })
                 .ignoresSafeArea()
@@ -98,6 +102,11 @@ struct MapScreen: View {
                         Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                             .font(.caption2.weight(.semibold)).tracking(1)
                             .foregroundStyle(mapInkDim)
+                        if let readout = terrain.readout {
+                            Text(readout.elevation.map { String(format: "ELEV %.0f m",$0) } ?? "ELEV unavailable")
+                                .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-elevation")
+                            if let slope = readout.slope { Text(String(format: "SLOPE %.1f° · DEM estimate",slope)).font(.caption2).foregroundStyle(mapInkDim) }
+                        }
                         if !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
                         Text((maps.preferences.offlineOnly ? "OFFLINE ONLY · " : "") + maps.layerName)
                             .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-layer-name")
@@ -120,6 +129,10 @@ struct MapScreen: View {
                         Button { showingLayers = true } label: {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
+                        if boundaryDraft == nil && graphicDraft == nil {
+                            Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
+                                .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain")
+                        }
                         Button { settings.nightMode.toggle() } label: {
                             Image(systemName: chromeNight ? "moon.fill" : "moon")
                                 .frame(width: 44, height: 44)
@@ -148,6 +161,15 @@ struct MapScreen: View {
                 }
                 if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil {
                     selectedCard(waypoint)
+                }
+                if let shade = terrain.viewshed, boundaryDraft == nil && graphicDraft == nil {
+                    Button { terrain.clearViewshed() } label: {
+                        VStack(alignment: .leading,spacing: 4) {
+                            Text("Viewshed · \(Int(shade.radius)) m · tap to clear").font(.caption.bold())
+                            Text(chromeNight ? "Faint: seen · mid: standing · bright: masked · hatched: unknown" : "Green: seen · amber: standing · red: masked · hatched: unknown").font(.caption2)
+                            if shade.missing > 0 { Text("Missing terrain: \(shade.unknownCells) unknown cells").font(.caption2) }
+                        }.padding(10).fieldChrome()
+                    }.buttonStyle(.plain).accessibilityIdentifier("viewshed-legend")
                 }
                 Text(mapAttribution)
                     .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
@@ -188,6 +210,15 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
+        .onChange(of: terrain.viewshed?.id) { _ in
+            if let shade = terrain.viewshed {
+                cameraRequest = MapCameraRequest(action: .showBounds(.init(south: shade.south,north: shade.north,west: shade.west,east: shade.east)))
+            }
+        }
+        .onChange(of: maps.revision) { _ in
+            Task { await terrain.sampler.invalidateFailures(); terrain.refreshCentre(.init(lat: centre.latitude,lon: centre.longitude)) }
+        }
+        .onChange(of: maps.preferences.offlineOnly) { _ in terrain.refreshCentre(.init(lat: centre.latitude,lon: centre.longitude)) }
         .onChange(of: maps.preferences.baseLayer) { _ in
             if let map = maps.selectedMap { cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
         }
@@ -202,6 +233,9 @@ struct MapScreen: View {
         .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
             Button("OK") { routeWaypointError = nil }
         } message: { Text(routeWaypointError ?? "") }
+        .sheet(isPresented: $showingTerrain) {
+            TerrainPanel(centre: .init(lat: centre.latitude,lon: centre.longitude),position: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
+        }
         .sheet(isPresented: $showingGraphics) {
             GraphicPanel(onDraw: { draft in
                 selectedID = nil; graphicError = nil; graphicDraft = draft
@@ -264,6 +298,7 @@ private struct MapContainer: UIViewRepresentable {
     let document: Backup.Document
     let folders: [FolderInfo]
     let recordingPoints: [GeoPoint]
+    let viewshed: TerrainAnalysis.Viewshed?
     let boundaryPoints: [GeoPoint]
     let boundaryEditing: Bool
     let boundarySelection: Int?
@@ -341,7 +376,7 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
         coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
-        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer))
+        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed)
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
