@@ -82,8 +82,8 @@ deduplicates waypoint imports. Valid backed-up settings apply as a whole.
 folders, then applies settings. A later write failure reports saved sections;
 retry is safe. `FieldDataStore` atomically writes graphics, finished track logs,
 and history before publishing changes. If its existing archive is unreadable,
-it preserves the file and blocks overwriting it. This store does not implement
-live track recording or background recovery.
+it preserves the file and blocks overwriting it. Live recording and background recovery use a separate append journal until a
+finished track can be committed; see [track recording](track-recording.md).
 
 ## Verification
 

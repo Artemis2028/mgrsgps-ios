@@ -106,6 +106,9 @@ Field math is pinned to the shared golden fixture. Product surfaces are catching
 up toward `gridfix` **1.0.4** — see `docs/ios-parity-1.0.4.md` for the current
 checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline.
 Waypoints, folders, route creation/cards, saved tracks/overlays, complete backup
-v1, and GPX waypoint/route/track import/export are in. Live recording, terrain,
-practice courses, and KML/ATAK remain.
+v1, live track recording/recovery, and GPX waypoint/route/track import/export are
+in. Recording uses dedicated background location and lock-compatible log files;
+physical locked-screen verification remains before release. See
+[track recording](docs/track-recording.md). Terrain, practice courses, and
+KML/ATAK remain.
 

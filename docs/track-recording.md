@@ -1,0 +1,119 @@
+# Live track recording — Android 1.0.4 parity
+
+Reference: `gridfix` main `94c4cc4`, `TrackRecorderService.kt`,
+`TrackRepository.kt`, and the map's Stop recording dialog.
+
+## Recording behaviour
+
+Start from Map's record button or the Routes & Tracks library. Starting requires
+the app to be in the foreground, location authorization, and Precise Location.
+Recording does not require a fix already on screen. A banner on every tab shows
+saved point count and distance; tap it for the recording panel. Close the panel
+to keep recording. Save optionally names the track (up to 30 characters);
+Discard requires confirmation. Explicitly saving an empty recording keeps an
+empty track, matching Android. An interrupted recording with no points is removed.
+
+Accepted fixes have finite, nonnegative accuracy at most 30 m. After the first
+fix, save a point when movement is at least 5 m, or when more than 15 seconds
+have elapsed and movement exceeds 1 m. The anchor is the last successfully saved
+fix, not the latest received fix. Duplicate/reversed uptime is rejected. These
+are Android's thresholds; waypoint/navigation's separate 25 m policy does not
+filter the recorder. Batched Core Location updates are processed in order.
+
+Core Location does not expose Android's elapsedRealtimeNanos on each location.
+The adapter translates each timestamp to uptime using one wall-clock/uptime pair
+per delivered batch. Filtering uses that translated uptime; wall-clock timestamp
+order alone never decides whether movement is logged. Cached pre-start fixes,
+invalid coordinates, unavailable accuracy, negative timestamps, and fixes more
+than one second in the future are rejected. Core Location's orthometric/MSL
+`altitude` is logged only with a finite positive vertical accuracy. Missing height
+uses Android's -32768 sentinel and is omitted from GPX.
+
+The live red trace is separate from finished track overlays. Its preview keeps
+at most 4,000 points, dropping to the newest 2,000 when full, matching Android's
+memory bound. Every accepted point remains in the durable log. Final distance
+and count are recalculated from the stored seven-decimal coordinates. Existing
+backup/GPX exports include finished tracks; Save the current recording before
+exporting its data.
+
+## Background and locked screen
+
+A dedicated CLLocationManager is created on the main actor, independent of the
+position/compass manager. Recording sets:
+
+- `allowsBackgroundLocationUpdates = true`
+- `showsBackgroundLocationIndicator = true`
+- `pausesLocationUpdatesAutomatically = false`
+- best-for-navigation accuracy, no distance filter, and fitness activity type
+
+The app declares `UIBackgroundModes: [location]`. The ordinary scene background
+handler stops only position/heading updates. It never stops the recorder. Stop,
+discard, permission loss, and terminal write errors stop recording's manager
+and disable its background updates. Temporary GPS errors keep waiting.
+
+This uses the foreground-started continuous-location path supported with When
+In Use permission; it does not request Always access. The system supplies its
+background location indicator rather than Android's foreground-service
+notification. Keep screen on is independent: manually locking the screen should
+leave recording active. The app must have been unlocked once after boot before
+its recording files are available.
+
+Force-quitting, rebooting, OS termination, or revoking permission can end location
+delivery. There is no promise to restart a recording automatically. On next launch
+an interrupted log is finalized and reported in a recovery banner, matching
+Android's orphan-finalization policy.
+
+## Durable data and failures
+
+`TrackRecordingJournal` uses `Documents/LiveRecording/session.json` and
+`points.txt`. All journal operations run on one serial utility queue. Each
+accepted row is written and synchronized before updating live state. Appends
+are bounded to the backup-compatible 250,000 points / 16 MB per log; hitting a
+limit stops recording and keeps the saved log. Metadata and point files use
+Complete Until First User Authentication protection, as does the final archive,
+so they remain accessible after the screen locks.
+
+Stop first stops location delivery, drains already queued fixes, seals metadata,
+and publishes the finished track to FieldDataStore. Only a successful archive
+commit permits journal cleanup. An archive failure leaves the journal and offers
+Retry saving. Repeating publication after an interrupted cleanup is idempotent;
+a conflicting track ID with different bytes is never overwritten. A failed
+append stops queued writes and preserves earlier rows. Recovery drops only an
+incomplete final row; a malformed complete row or metadata file is preserved
+and reported, with explicit discard available.
+
+## Verification
+
+Core tests cover thresholds, monotonic ordering, clock changes, rejected-fix
+anchors, bounded preview with all durable points retained, stop ordering,
+partial tails, malformed logs, append/write failures, final publication retry,
+ID conflicts, empty tracks, discard, and relaunch recovery.
+
+App integration tests use an injected driver and clock for foreground/background
+lifecycle, batched fixes, permission changes, delayed permission grants, transient
+versus denied location errors, archive failures/retry, and corrupt-journal
+preservation. A real-manager test checks background configuration and the app's
+location background-mode declaration. On a physical device it also checks file
+protection attributes; Simulator does not implement Data Protection classes.
+
+`TrackRecordingWorkflowTests` uses **real Core Location callbacks** from a moving
+simulator location feed supplied by `scripts/recording-test-route.py`, outside
+the app. It checks background point growth, save/library/map, confirmed discard,
+and process termination/relaunch recovery. CI feeds locations across test app
+reinstalls and relaunches.
+
+A physical locked-screen walk remains required before release: with While Using
+and Precise Location, start a track, walk with the phone locked for at least ten
+minutes, unlock and confirm the trace/point count grew, save, and inspect GPX.
+Repeat while using another app and with Low Power Mode. Revoke location access
+mid-recording, then confirm earlier points recover. Repeat after a force quit
+and after a reboot/first unlock. Simulator background tests do not establish
+physical locked-screen GPS delivery, Data Protection, battery use, or OS-kill
+behaviour.
+
+## Apple references
+
+- [Background updates with CLLocationManager](https://developer.apple.com/documentation/corelocation/cllocationmanager/allowsbackgroundlocationupdates)
+- [Handling background location](https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background)
+- [File protection for background apps](https://developer.apple.com/documentation/uikit/encrypting-your-app-s-files)
+- [Core Location MSL altitude](https://developer.apple.com/documentation/corelocation/cllocation/altitude)

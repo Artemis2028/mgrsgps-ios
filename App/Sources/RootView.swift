@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var location: LocationService
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
+    @State private var showingRecorder = false
 
     init() {
         // The standalone screenshot script picks a tab with a launch argument;
@@ -26,19 +27,22 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $selection) {
-            PositionView()
-                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
-                .tabItem { Label("Position", systemImage: "location.north.line") }.tag(0)
-            NavigateView()
-                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
-                .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
-            MapScreen(onNavigate: { selection = 1 })
-                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
-                .tabItem { Label("Map", systemImage: "map") }.tag(2)
-            WaypointsView(onNavigate: { selection = 1 })
-                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
-                .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
+        VStack(spacing: 0) {
+            RecordingBanner(onOpen: { showingRecorder = true }).zIndex(1)
+            TabView(selection: $selection) {
+                PositionView()
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Position", systemImage: "location.north.line") }.tag(0)
+                NavigateView()
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
+                MapScreen(onNavigate: { selection = 1 })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Map", systemImage: "map") }.tag(2)
+                WaypointsView(onNavigate: { selection = 1 })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
+            }
         }
         // Keep the content hierarchy alive when night mode changes, including
         // an open Settings/editor sheet. Only the navigation chrome changes.
@@ -48,6 +52,7 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
+        .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)
         .onAppear { location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }

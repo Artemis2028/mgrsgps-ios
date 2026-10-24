@@ -53,6 +53,22 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         try commit(next)
     }
 
+    /// Final publication is idempotent after a crash between archive commit and
+    /// journal cleanup. Never silently replace a different log with the same ID.
+    public func saveRecordedTrack(_ recording: Backup.Document) throws {
+        try Backup.validate(recording)
+        guard recording.tracks.count == 1, let track = recording.tracks.first,
+              let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
+        lock.lock(); defer { lock.unlock() }
+        if document.tracks.contains(where: { $0.id == track.id }) {
+            guard document.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
+            return
+        }
+        var next = document
+        next.tracks.append(track); next.trackFiles[track.id] = bytes
+        try commit(next)
+    }
+
     /// Existing IDs win, course results are deduplicated by start/name and the
     /// newest 30 survive, matching Android's mergeCourseHistory policy.
     @discardableResult
@@ -88,7 +104,11 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     private func commit(_ next: Backup.Document) throws {
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
         let data = try Backup.exportZip(next)
-        try data.write(to: fileURL, options: .atomic)
+        var options: Data.WritingOptions = [.atomic]
+        #if os(iOS)
+        options.insert(.completeFileProtectionUntilFirstUserAuthentication)
+        #endif
+        try data.write(to: fileURL, options: options)
         document = next
     }
 }

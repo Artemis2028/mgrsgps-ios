@@ -69,6 +69,15 @@ Implemented:
 - Fresh installs use Android's ten-digit grid precision and Lensatic face;
   existing saved preferences are retained.
 
+## Live recording
+
+Track recording now uses Android's accuracy/movement/time thresholds, a durable
+append log, a bounded live map trace, stop/save/discard controls, and recovery of
+interrupted recordings. A dedicated background location manager and lock-compatible
+file protection support recording after the screen locks, using foreground-started
+When In Use permission. See [recording behaviour and validation](track-recording.md)
+for the exact contract and physical-device verification still required.
+
 ## Remaining feature groups
 
 | Area | Current iOS state | Remaining work |
@@ -77,7 +86,7 @@ Implemented:
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
 | Maps | Demo basemap, MGRS grid, waypoint/route/track overlays, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
 | Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
-| Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, restored course history | Live recording and recovery/background behaviour, track rename/move, practice course creation/running |
+| Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, track rename/move, practice course creation/running |
 | Terrain | No terrain UI/cache | DEM caching/downloads, elevation, slope/hillshade, contours, LOS, viewshed |
 | Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
 | Field tools | Sun/moon, geodesy and some geometry helpers in core | Field tools UI, pace count, strip-map PDFs and sharing |
@@ -85,8 +94,9 @@ Implemented:
 
 ## Verification
 
-Local validation on 24 October 2026: 130 core tests, four app integration tests,
-and all six iPhone simulator UI workflows pass. The unsigned iPhone Release
+Local validation on 24 October 2026: 140 core tests, 12 app integration tests,
+and all nine iPhone simulator UI workflows have passed (the foreground-transition
+workflow was rerun after making its test wait for native hit testing). The unsigned iPhone Release
 build also succeeds. GPX document registration is checked on iOS so exports
 use `.gpx` filenames.
 
@@ -113,7 +123,7 @@ captured from an Android device. Core tests also verify failed writes, malformed
 archives, course deduplication, route ownership, and dateline geometry.
 
 Simulator validation does not verify physical compass performance, GPS behaviour
-in the field, background recording, or device signing.
+in the field, physical locked-screen recording, or device signing.
 
 ## Design references
 

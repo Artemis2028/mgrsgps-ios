@@ -1,0 +1,160 @@
+import XCTest
+@testable import GridFixCore
+
+final class TrackRecordingTests: XCTestCase {
+    private let start: Int64 = 1_700_000_000_000
+    private func directory() throws -> URL {
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: path) }
+        return path
+    }
+    private func sample(meters: Double, seconds: Double, accuracy: Double = 5, altitude: Double? = nil) -> RecordingSample {
+        let point = GeoPoint(lat: 24 + meters / 110_760, lon: 54)
+        return RecordingSample(point: .init(lat: point.lat, lon: point.lon, time: start + Int64(seconds * 1000), altitudeMeters: altitude),
+                               accuracyMeters: accuracy, uptime: 100 + seconds)
+    }
+    private func journal(_ directory: URL) throws -> TrackRecordingJournal {
+        let journal = try TrackRecordingJournal(directory: directory)
+        try journal.start(now: start, uptime: 100)
+        return journal
+    }
+
+    func testAndroidAccuracySpacingAndSlowMovementThresholds() throws {
+        let j = try journal(directory())
+        XCTAssertNil(try j.append(sample(meters: 0, seconds: 0, accuracy: 30.01)))
+        XCTAssertNil(try j.append(sample(meters: 0, seconds: 0, accuracy: -1)))
+        XCTAssertNil(try j.append(sample(meters: 0, seconds: 0, accuracy: .nan)))
+        XCTAssertEqual(try j.append(sample(meters: 0, seconds: 0, accuracy: 30))?.pointCount, 1)
+        XCTAssertNil(try j.append(sample(meters: 4.9, seconds: 1)))
+        XCTAssertNil(try j.append(sample(meters: 1.1, seconds: 15)))
+        XCTAssertNil(try j.append(sample(meters: 0.9, seconds: 16)))
+        XCTAssertEqual(try j.append(sample(meters: 1.1, seconds: 16))?.pointCount, 2)
+        XCTAssertEqual(try j.append(sample(meters: 6.2, seconds: 17))?.pointCount, 3)
+        XCTAssertEqual(j.summary!.distanceM, 6.2, accuracy: 0.02)
+    }
+
+    func testRejectedSamplesNeverBecomeFilterAnchorAndTimesMustAdvance() throws {
+        let j = try journal(directory())
+        XCTAssertNil(try j.append(sample(meters: 0, seconds: -1)))
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        XCTAssertNil(try j.append(sample(meters: 10, seconds: 0)))
+        XCTAssertNil(try j.append(sample(meters: 10, seconds: -1)))
+        XCTAssertNil(try j.append(sample(meters: 4, seconds: 1)))
+        XCTAssertEqual(try j.append(sample(meters: 5.1, seconds: 2))?.pointCount, 2)
+        let doc = try XCTUnwrap(j.finish(now: start + 5000))
+        let points = try TrackCodec.decode(doc.trackFiles.values.first!)
+        XCTAssertEqual(points.count, 2)
+        XCTAssertNil(try j.append(sample(meters: 20, seconds: 6)), "Callbacks after Stop cannot append")
+    }
+
+    func testEachAcceptedPointIsOnDiskAndRecoveredWithoutExplicitStop() throws {
+        let dir = try directory(), j = try journal(dir)
+        let id = try XCTUnwrap(j.summary?.id)
+        _ = try j.append(sample(meters: 0, seconds: 0, altitude: 12.5))
+        _ = try j.append(sample(meters: 10, seconds: 2))
+        let bytes = try Data(contentsOf: dir.appendingPathComponent("LiveRecording/points.txt"))
+        XCTAssertEqual(try TrackCodec.decode(bytes).count, 2)
+        let reopened = try TrackRecordingJournal(directory: dir)
+        XCTAssertFalse(reopened.isRecording)
+        XCTAssertNil(try reopened.append(sample(meters: 20, seconds: 4)))
+        let doc = try XCTUnwrap(reopened.finish(now: start + 10_000))
+        XCTAssertEqual(doc.tracks.first?.id, id)
+        XCTAssertEqual(doc.tracks.first?.pointCount, 2)
+        XCTAssertEqual(doc.tracks.first!.distanceM, 10, accuracy: 0.02)
+        XCTAssertEqual(try TrackCodec.decode(doc.trackFiles[id]!).first?.altitudeMeters, 12.5)
+        XCTAssertNil(try TrackCodec.decode(doc.trackFiles[id]!).last?.altitudeMeters)
+    }
+
+    func testRecoveryDropsOnlyIncompleteTailAndRejectsMalformedCompleteRows() throws {
+        let dir = try directory(), j = try journal(dir)
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        let file = dir.appendingPathComponent("LiveRecording/points.txt")
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.seekToEnd(); try handle.write(contentsOf: Data("24.000".utf8)); try handle.close()
+        let reopened = try TrackRecordingJournal(directory: dir)
+        XCTAssertEqual(try reopened.finish(now: start + 1000)?.tracks.first?.pointCount, 1)
+        let original = try Data(contentsOf: file)
+        try (original + Data("not a point\n".utf8)).write(to: file)
+        XCTAssertThrowsError(try TrackRecordingJournal(directory: dir).finish(now: start + 1000))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testAppendFailureStopsQueuedWritesWithoutPublishingUnsavedDistance() throws {
+        let dir = try directory(), j = try journal(dir)
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        let previous = j.summary
+        let file = dir.appendingPathComponent("LiveRecording/points.txt")
+        let saved = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try j.append(sample(meters: 10, seconds: 2)))
+        XCTAssertFalse(j.isRecording)
+        XCTAssertEqual(j.summary, previous)
+        XCTAssertNil(try j.append(sample(meters: 20, seconds: 3)))
+        try FileManager.default.removeItem(at: file); try saved.write(to: file)
+        XCTAssertEqual(try j.finish(now: start + 10_000)?.tracks.first?.pointCount, 1)
+    }
+
+    func testFinishedPublicationIsIdempotentAndJournalSurvivesFailedArchiveWrite() throws {
+        let dir = try directory(), j = try journal(dir), store = FieldDataStore(directory: dir)
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        let doc = try XCTUnwrap(j.finish(now: start + 1000, name: "  Patrol  "))
+        let blocked = dir.appendingPathComponent("field-data-v1.zip")
+        try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try store.saveRecordedTrack(doc))
+        XCTAssertTrue(store.document.tracks.isEmpty)
+        XCTAssertTrue(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        try FileManager.default.removeItem(at: blocked)
+        try store.saveRecordedTrack(doc)
+        // Simulate process death after archive publication but before cleanup.
+        let retry = try XCTUnwrap(TrackRecordingJournal(directory: dir).finish(now: start + 5000))
+        try store.saveRecordedTrack(retry)
+        XCTAssertEqual(store.document.tracks.count, 1)
+        XCTAssertEqual(store.document.tracks.first?.name, "Patrol")
+        XCTAssertEqual(store.document.tracks.first?.endedAt, start + 1000)
+        try j.clear()
+        XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        XCTAssertEqual(FieldDataStore(directory: dir).document.tracks.count, 1)
+    }
+
+    func testConflictingTrackIdNeverDestroysRecoveryJournal() throws {
+        let dir = try directory(), j = try journal(dir), store = FieldDataStore(directory: dir)
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        let doc = try XCTUnwrap(j.finish(now: start + 1000))
+        var other = doc
+        other.trackFiles[doc.tracks[0].id] = try TrackCodec.encode([TrackPoint(lat: 25, lon: 55)])
+        try store.saveRecordedTrack(other)
+        XCTAssertThrowsError(try store.saveRecordedTrack(doc))
+        XCTAssertTrue(try TrackRecordingJournal(directory: dir).hasPendingSession)
+    }
+
+    func testEmptyRecordingAndDiscardDoNotCreateSavedTracks() throws {
+        let dir = try directory(), j = try journal(dir)
+        XCTAssertNil(try j.finish(now: start + 1000, discardEmpty: true))
+        try j.clear()
+        try j.start(now: start + 2000, uptime: 102)
+        _ = try j.append(sample(meters: 0, seconds: 2))
+        try j.clear()
+        XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        try j.start(now: start + 3000, uptime: 103)
+        XCTAssertEqual(try j.finish(now: start + 4000)?.tracks.first?.pointCount, 0, "An explicit empty save matches Android; only an empty orphan is discarded")
+    }
+
+    func testWallClockAdjustmentDoesNotReplaceMonotonicFiltering() throws {
+        let j = try journal(directory())
+        _ = try j.append(sample(meters: 0, seconds: 0))
+        let changed = RecordingSample(point: .init(lat: 24.0001, lon: 54, time: start - 10_000), accuracyMeters: 5, uptime: 105)
+        XCTAssertEqual(try j.append(changed)?.pointCount, 2)
+        let doc = try XCTUnwrap(j.finish(now: start + 10_000))
+        XCTAssertEqual(try TrackCodec.decode(doc.trackFiles.values.first!).last?.time, start - 10_000)
+    }
+
+    func testLivePreviewIsBoundedWithoutDroppingDurablePoints() throws {
+        let j = try journal(directory())
+        for index in 0..<4002 { _ = try j.append(sample(meters: Double(index) * 6, seconds: Double(index))) }
+        XCTAssertEqual(j.summary?.pointCount, 4002)
+        XCTAssertEqual(j.summary?.livePoints.count, 2001)
+        XCTAssertEqual(try j.finish(now: start + 5_000_000)?.tracks.first?.pointCount, 4002)
+    }
+}

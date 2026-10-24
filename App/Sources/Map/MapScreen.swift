@@ -9,6 +9,7 @@ struct MapScreen: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var fieldData: FieldDataStore
+    @EnvironmentObject private var recorder: TrackRecorder
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
@@ -34,6 +35,7 @@ struct MapScreen: View {
             MapContainer(nightMode: chromeNight, fix: location.usableFix,
                          waypoints: visible, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders,
+                         recordingPoints: recorder.active?.livePoints ?? [],
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
                          onSelect: { selectedID = $0 },
@@ -84,8 +86,9 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints)
+                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false)
                     .accessibilityLabel("Show all visible data")
+                    RecordingButton()
                     Spacer(minLength: 0)
                     Button {
                         editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
@@ -146,6 +149,7 @@ private struct MapContainer: UIViewRepresentable {
     let navigationID: String?
     let document: Backup.Document
     let folders: [FolderInfo]
+    let recordingPoints: [GeoPoint]
     let onOverlays: (Int, Int, Bool) -> Void
     let cameraRequest: MapCameraRequest?
     let onSelect: (String) -> Void
@@ -173,6 +177,7 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.overlay.nightMode = nightMode
         coordinator.fieldOverlay.onChange = onOverlays
         coordinator.fieldOverlay.update(document: document, folders: folders, night: nightMode)
+        coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
@@ -180,7 +185,7 @@ private struct MapContainer: UIViewRepresentable {
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
             case .fitData:
-                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points
+                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + recordingPoints
                 if let bounds = FieldMapGeometry.bounds(points) {
                     if bounds.south == bounds.north && bounds.west == bounds.east {
                         view.setCenter(CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), zoomLevel: 15, animated: true)
@@ -202,6 +207,7 @@ private struct MapContainer: UIViewRepresentable {
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
         let overlay = GridOverlay()
         let fieldOverlay = FieldOverlay()
+        let liveOverlay = LiveTrackOverlay()
         var hasCentred = false
         var lastRequest: UUID?
         var annotations: [String: WaypointAnnotation] = [:]
@@ -250,6 +256,7 @@ private struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             overlay.install(into: style)
             fieldOverlay.install(into: style)
+            liveOverlay.install(into: style)
             redraw(mapView)
         }
 

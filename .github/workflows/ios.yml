@@ -70,6 +70,15 @@ jobs:
         run: |
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          # Actual Core Location updates for recording/background workflow tests.
+          # Keep feeding across app reinstalls/relaunches by the test runner.
+          python3 scripts/recording-test-route.py "$DEST" > /tmp/recording-route.log 2>&1 &
+          ROUTE_PID=$!
+          cleanup_route() {
+            kill "$ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_route EXIT
           xcodebuild test \
             -project MGRSGPS.xcodeproj \
             -scheme MGRSGPS \

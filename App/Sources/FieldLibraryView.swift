@@ -29,6 +29,7 @@ struct FieldLibraryView: View {
                         .accessibilityIdentifier("create-route")
                 }
                 Section("Saved tracks") {
+                    HStack { Text("Track recording"); Spacer(); RecordingButton() }
                     ForEach(fieldData.document.tracks.sorted { $0.startedAt > $1.startedAt }) { track in
                         NavigationLink { TrackDetailView(trackID: track.id) } label: {
                             VStack(alignment: .leading, spacing: 4) {

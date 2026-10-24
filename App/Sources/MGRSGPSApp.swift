@@ -7,6 +7,7 @@ struct MGRSGPSApp: App {
     @StateObject private var waypoints: WaypointStore
     @StateObject private var settings: AppSettings
     @StateObject private var fieldData: FieldDataStore
+    @StateObject private var recorder: TrackRecorder
 
     init() {
         var directory: URL?
@@ -23,7 +24,9 @@ struct MGRSGPSApp: App {
         #endif
         _waypoints = StateObject(wrappedValue: WaypointStore(directory: directory))
         _settings = StateObject(wrappedValue: AppSettings(directory: directory))
-        _fieldData = StateObject(wrappedValue: FieldDataStore(directory: directory))
+        let fieldStore = FieldDataStore(directory: directory)
+        _fieldData = StateObject(wrappedValue: fieldStore)
+        _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))
     }
 
     var body: some Scene {
@@ -33,6 +36,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(waypoints)
                 .environmentObject(settings)
                 .environmentObject(fieldData)
+                .environmentObject(recorder)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)
