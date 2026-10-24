@@ -6,9 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Needed only to publish the ci-status branch at the end. No other secret is
-# used anywhere in this workflow: a Simulator build is unsigned and the map
-# style is keyless, so nothing here needs a MapTiler key or a signing keystore.
+# Write access publishes the ci-status branch. Simulator builds are unsigned.
+# The optional ESRI_KEY secret enables licensed global map layers; missing keys
+# retain Android's Debug fallbacks and Release USGS/imported-map availability.
 permissions:
   contents: write
 
@@ -28,6 +28,22 @@ jobs:
           sw_vers
           xcodebuild -version
           swift --version
+
+      - name: Configure optional global map key
+        env:
+          ESRI_KEY: ${{ secrets.ESRI_KEY }}
+        run: |
+          python3 - <<'PYKEY'
+          import os, pathlib, re
+          key = os.environ.get("ESRI_KEY", "").strip()
+          if key:
+              if not re.fullmatch(r"[A-Za-z0-9._~-]+", key):
+                  raise SystemExit("Map key has unsupported configuration characters")
+              path = pathlib.Path(os.environ["RUNNER_TEMP"]) / "gridfix-map-key.xcconfig"
+              path.write_text("GRIDFIX_ESRI_API_KEY = " + key + "\n")
+              with open(os.environ["GITHUB_ENV"], "a") as output:
+                  output.write("XCODE_XCCONFIG_FILE=" + str(path) + "\n")
+          PYKEY
 
       - name: Field math (GridFixCore)
         id: tests

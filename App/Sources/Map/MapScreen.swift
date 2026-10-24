@@ -2,14 +2,15 @@ import GridFixCore
 import MapLibre
 import SwiftUI
 
-/// The current basemap is still MapLibre's demonstration style. Production
-/// basemaps and offline packs are tracked separately from waypoint overlays.
+/// Raster catalog, imported maps, and saved areas share one tile pipeline.
+/// Field overlays stay installed while the underlying raster layer changes.
 struct MapScreen: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var recorder: TrackRecorder
+    @EnvironmentObject private var maps: MapLayerStore
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
@@ -20,6 +21,10 @@ struct MapScreen: View {
     @State private var selectedID: String?
     @State private var cameraRequest: MapCameraRequest?
     @State private var editorRequest: WaypointEditorRequest?
+    @State private var showingLayers = false
+    @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
+    @State private var zoom = 6.5
+    @State private var contourLabel = ""
 
     private var chromeNight: Bool { settings.nightMode || nightMode }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
@@ -30,18 +35,28 @@ struct MapScreen: View {
     }
     private var selected: Waypoint? { visible.first { $0.id == selectedID } }
 
+    private var mapAttribution: String {
+        var text = maps.selectedMap?.attribution ?? maps.selectedLayer.attribution
+        if maps.preferences.hillshade, maps.selectedMap == nil, maps.layers.contains(where: { $0.key == "hillshade" }) {
+            text += " · Shading: Esri, USGS, NASA"
+        }
+        if maps.preferences.contours { text += " · Elevation: Mapzen / AWS" }
+        return text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    }
+
     var body: some View {
         ZStack {
-            MapContainer(nightMode: chromeNight, fix: location.usableFix,
+            MapContainer(mapStore: maps, nightMode: chromeNight, fix: location.usableFix,
                          waypoints: visible, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders,
                          recordingPoints: recorder.active?.livePoints ?? [],
+                         onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
                          onSelect: { selectedID = $0 },
-                         onChange: { label, position in
-                             intervalLabel = label
-                             centre = position
+                         onChange: { label, position, bounds, level in
+                             intervalLabel = label; centre = position; viewport = bounds; zoom = level
+                             maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
                          })
                 .ignoresSafeArea()
             Image(systemName: "plus")
@@ -54,9 +69,12 @@ struct MapScreen: View {
                                         digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage")
                             .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                             .accessibilityIdentifier("map-centre-grid")
-                        Text("MAP CENTRE · \(intervalLabel) GRID")
+                        Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                             .font(.caption2.weight(.semibold)).tracking(1)
                             .foregroundStyle(mapInkDim)
+                        if !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
+                        Text((maps.preferences.offlineOnly ? "OFFLINE ONLY · " : "") + maps.layerName)
+                            .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-layer-name")
                         if overlayRoutes > 0 || overlayTracks > 0 {
                             Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
@@ -64,15 +82,24 @@ struct MapScreen: View {
                     }
                     .padding(14).fieldChrome()
                     Spacer(minLength: 0)
-                    Button { nightMode.toggle() } label: {
-                        Image(systemName: chromeNight ? "moon.fill" : "moon")
-                            .frame(width: 44, height: 44)
-                    }.fieldGlassButton().accessibilityLabel("Toggle map night mode")
+                    VStack(spacing: 8) {
+                        Button { showingLayers = true } label: {
+                            Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
+                        }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
+                        Button { nightMode.toggle() } label: {
+                            Image(systemName: chromeNight ? "moon.fill" : "moon")
+                                .frame(width: 44, height: 44)
+                        }.fieldGlassButton().accessibilityLabel("Toggle map night mode")
+                    }
                 }
                 Spacer(minLength: 0)
                 if let waypoint = selected {
                     selectedCard(waypoint)
                 }
+                Text(mapAttribution)
+                    .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
+                    .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.8), in: Capsule())
+                    .accessibilityIdentifier("map-attribution")
                 HStack(spacing: 12) {
                     Button {
                         guard let fix = location.usableFix else { return }
@@ -105,6 +132,12 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
+        .onChange(of: maps.preferences.baseLayer) { _ in
+            if let map = maps.selectedMap { cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
+        .sheet(isPresented: $showingLayers) {
+            MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
         .sheet(item: $editorRequest) { request in
             WaypointEditor(lat: request.lat, lon: request.lon) { draft in
                 let waypoint = store.add(draft)
@@ -137,12 +170,13 @@ struct MapScreen: View {
 }
 
 private struct MapCameraRequest {
-    enum Action { case locate(Double, Double), fitData }
+    enum Action { case locate(Double, Double), fitData, showBounds(MapBounds) }
     let id = UUID()
     let action: Action
 }
 
 private struct MapContainer: UIViewRepresentable {
+    let mapStore: MapLayerStore
     let nightMode: Bool
     let fix: Fix?
     let waypoints: [Waypoint]
@@ -150,31 +184,40 @@ private struct MapContainer: UIViewRepresentable {
     let document: Backup.Document
     let folders: [FolderInfo]
     let recordingPoints: [GeoPoint]
+    let onContour: (String) -> Void
     let onOverlays: (Int, Int, Bool) -> Void
     let cameraRequest: MapCameraRequest?
     let onSelect: (String) -> Void
-    let onChange: (String, CLLocationCoordinate2D) -> Void
+    let onChange: (String, CLLocationCoordinate2D, MapBounds, Double) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
         let view = MLNMapView(frame: .zero)
         view.delegate = context.coordinator
-        view.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
+        view.styleURL = mapStore.styleURL
+        context.coordinator.maps = mapStore
+        context.coordinator.hasCentred = mapStore.preferences.hasCamera
         view.logoViewPosition = .bottomLeft
         view.logoViewMargins = CGPoint(x: 12, y: 150)
         view.attributionButtonPosition = .bottomLeft
         view.attributionButtonMargins = CGPoint(x: 118, y: 150)
         view.showsUserLocation = true
-        view.setCenter(CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773), zoomLevel: 13, animated: false)
+        view.setCenter(CLLocationCoordinate2D(latitude: mapStore.preferences.latitude, longitude: mapStore.preferences.longitude), zoomLevel: mapStore.preferences.zoom, animated: false)
         return view
     }
 
     func updateUIView(_ view: MLNMapView, context: Context) {
         let coordinator = context.coordinator
+        coordinator.maps = mapStore
+        coordinator.contours.onInterval = { text in DispatchQueue.main.async { onContour(text) } }
         coordinator.onChange = onChange
         coordinator.onSelect = onSelect
         coordinator.overlay.nightMode = nightMode
+        coordinator.overlay.enabled = mapStore.preferences.gridEnabled
+        coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
+        coordinator.nightMode = nightMode
+        if let style = view.style { coordinator.rasterLayers.update(style: style, store: mapStore, night: nightMode); coordinator.contours.refresh(map: view, store: mapStore, night: nightMode) }
         coordinator.fieldOverlay.onChange = onOverlays
         coordinator.fieldOverlay.update(document: document, folders: folders, night: nightMode)
         coordinator.liveOverlay.update(recordingPoints)
@@ -182,6 +225,8 @@ private struct MapContainer: UIViewRepresentable {
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
             switch request.action {
+            case let .showBounds(bounds):
+                view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: UIEdgeInsets(top: 180, left: 30, bottom: 220, right: 30), animated: true, completionHandler: nil)
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
             case .fitData:
@@ -208,11 +253,15 @@ private struct MapContainer: UIViewRepresentable {
         let overlay = GridOverlay()
         let fieldOverlay = FieldOverlay()
         let liveOverlay = LiveTrackOverlay()
+        let rasterLayers = RasterMapLayers()
+        let contours = ContourMapOverlay()
+        var maps: MapLayerStore?
+        var nightMode = false
         var hasCentred = false
         var lastRequest: UUID?
         var annotations: [String: WaypointAnnotation] = [:]
         var onSelect: ((String) -> Void)?
-        var onChange: ((String, CLLocationCoordinate2D) -> Void)?
+        var onChange: ((String, CLLocationCoordinate2D, MapBounds, Double) -> Void)?
         private var previous: [Waypoint] = []
         private var navigationID: String?
         private var night = false
@@ -254,22 +303,28 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            if let maps { rasterLayers.update(style: style, store: maps, night: nightMode) }
             overlay.install(into: style)
             fieldOverlay.install(into: style)
             liveOverlay.install(into: style)
+            contours.install(style: style)
             redraw(mapView)
         }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
 
         private func redraw(_ map: MLNMapView) {
+            if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
             if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }
             overlay.refresh(bounds: map.visibleCoordinateBounds,
                             metersPerPoint: map.metersPerPoint(atLatitude: map.centerCoordinate.latitude),
                             viewSize: map.bounds.size, safeArea: map.safeAreaInsets)
             // MapLibre may call during updateUIView; publish on the next main turn.
             let label = overlay.intervalLabel, centre = map.centerCoordinate
-            DispatchQueue.main.async { [weak self] in self?.onChange?(label, centre) }
+            let b = map.visibleCoordinateBounds
+            let bounds = MapBounds(south: b.sw.latitude, north: b.ne.latitude, west: b.sw.longitude, east: b.ne.longitude)
+            let zoom = map.zoomLevel
+            DispatchQueue.main.async { [weak self] in self?.onChange?(label, centre, bounds, zoom) }
         }
     }
 }

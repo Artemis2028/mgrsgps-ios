@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var maps: MapLayerStore
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
     @State private var showingRecorder = false
@@ -58,7 +59,7 @@ struct RootView: View {
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
             if phase == .active { location.start() }
-            else if phase == .background { location.stop() }
+            else if phase == .background { location.stop(); maps.pauseDownload() }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             location.refreshFixValidity()

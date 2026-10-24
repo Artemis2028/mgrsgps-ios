@@ -32,6 +32,7 @@ final class GridOverlay {
     private(set) var lineCount: Int = 0
     var onChange: ((String, Int) -> Void)?
 
+    var enabled = true { didSet { applyColors() } }
     var nightMode = false { didSet { applyColors() } }
     /// True over satellite imagery, where dark lines disappear.
     var lightLines = false { didSet { applyColors() } }
@@ -81,13 +82,7 @@ final class GridOverlay {
         // Labels along the line, which is what a paper sheet does and what
         // survives map rotation.
         //
-        // The font has to be one the STYLE has glyphs for. Naming a face it
-        // lacks drops the layer; naming none falls back to a default it also
-        // lacks and renders nothing, which is how the first attempt lost its
-        // labels. demotiles ships only Open Sans Semibold. When the basemap is
-        // replaced (roadmap B) we serve our own glyphs and this becomes a mono
-        // face to match the readout — grid digits belong in the same typeface
-        // as the grid they name.
+        // Match the bundled glyph range so grid labels work on an offline map.
         let labels = MLNSymbolStyleLayer(identifier: "mgrs-labels", source: src)
         labels.text = NSExpression(forKeyPath: "text")
         labels.textFontNames = NSExpression(forConstantValue: ["Open Sans Semibold"])
@@ -97,11 +92,6 @@ final class GridOverlay {
         // line's midpoint. "line" placement lays symbols along a LineString
         // and silently renders nothing for a Point, which is the real reason
         // the labels never appeared; the font was a second bug behind it.
-        //
-        // Running the digits along the line the way a printed sheet does means
-        // carrying the text on the line features instead. Worth doing when we
-        // control the basemap and its glyphs; not worth another blind round
-        // trip now.
         labels.symbolPlacement = NSExpression(forConstantValue: "point")
         labels.textAllowsOverlap = NSExpression(forConstantValue: false)
         style.addLayer(labels)
@@ -111,6 +101,7 @@ final class GridOverlay {
 
     private func applyColors() {
         guard let style else { return }
+        for id in ["mgrs-fine", "mgrs-square", "mgrs-gzd", "mgrs-labels"] { style.layer(withIdentifier: id)?.isVisible = enabled }
         for id in ["mgrs-fine", "mgrs-square"] {
             (style.layer(withIdentifier: id) as? MLNLineStyleLayer)?
                 .lineColor = NSExpression(forConstantValue: lineColor)

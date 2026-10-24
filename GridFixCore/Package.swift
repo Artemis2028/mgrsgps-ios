@@ -8,8 +8,10 @@ let package = Package(
         .library(name: "GridFixCore", targets: ["GridFixCore"]),
     ],
     targets: [
+        .systemLibrary(name: "CSQLite", pkgConfig: "sqlite3"),
         .target(
             name: "GridFixCore",
+            dependencies: ["CSQLite"],
             // Declaring resources is what makes Bundle.module exist. WMM.COF
             // drops into this folder and is picked up with no code change.
             resources: [.process("Resources")],

@@ -23,6 +23,8 @@ targets:
     platform: iOS
     sources:
       - path: App/Sources
+      - path: App/Resources/MapAssets
+        buildPhase: resources
     dependencies:
       - package: GridFixCore
         product: GridFixCore
@@ -40,6 +42,7 @@ targets:
       path: App/Resources/Info.generated.plist
       properties:
         CFBundleDisplayName: MGRS GPS
+        GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: app.gridfix.gpx
             UTTypeDescription: GPS Exchange Format

@@ -78,25 +78,47 @@ file protection support recording after the screen locks, using foreground-start
 When In Use permission. See [recording behaviour and validation](track-recording.md)
 for the exact contract and physical-device verification still required.
 
+## Map layers and offline maps
+
+The Android raster catalog, USGS area downloads, copied raster MBTiles imports,
+persistent grid/shading/contour controls, offline-only mode, and saved-map
+management are implemented. Downloads retain partial tiles for resume; iOS pauses
+the downloader on backgrounding while track recording remains independent.
+Terrarium elevation caching/downloads and contour geometry follow Android.
+Licensed global layers require the Esri build key in Release; Debug has Android's
+fallbacks. See [offline behaviour, configuration and validation](offline-maps.md)
+for coverage, budgets, glyphs and platform differences.
+
+## Release 1.1.0 boundary-guidance review
+
+The user subsequently identified `release/1.1.0` (`482b417`) as the attempted
+backstop/handrail implementation. Its fixed-width, heading-driven single-leg
+corridor differs from the requested editable bent boundaries with crossing-only
+buzzes and silence inside. See [the source review and intended contract](backstops-handrails.md).
+This feature is not implemented on iOS. The inspected release branch has no
+changes to the underlying map catalog/grid/elevation source files; the offline
+map milestone above remains based on the same Android raster-storage model.
+
 ## Remaining feature groups
 
 | Area | Current iOS state | Remaining work |
 | --- | --- | --- |
 | Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Orientation/landscape refinement, callouts/QR |
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
-| Maps | Demo basemap, MGRS grid, waypoint/route/track overlays, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
+| Maps | Android raster catalog, MGRS grid, waypoint/route/track overlays, camera controls, USGS offline areas, raster MBTiles, offline-only mode | Deployment key validation, physical offline verification, ruler, full tactical graphic editor/overlays |
 | Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
 | Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, larger libraries beyond archive limits, track rename/move, practice course creation/running |
-| Terrain | No terrain UI/cache | DEM caching/downloads, elevation, slope/hillshade, contours, LOS, viewshed |
+| Terrain | Hillshade overlay/base, Terrarium cache/area downloads, contours | Elevation/slope readouts, LOS, viewshed |
 | Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
 | Field tools | Sun/moon, geodesy and some geometry helpers in core | Field tools UI, pace count, strip-map PDFs and sharing |
 | Distribution | Simulator builds and CI | StoreKit products/entitlements/paywall, app icon/privacy metadata, signing, device validation, TestFlight/App Store release |
 
 ## Verification
 
-Local validation on 24 October 2026: 140 core tests, 12 app integration tests,
-and all nine iPhone simulator UI workflows have passed (the foreground-transition
-workflow was rerun after making its test wait for native hit testing). The unsigned iPhone Release
+Local validation on 24 October 2026: 151 core tests, 20 app integration tests,
+and 12 iPhone simulator UI workflows pass. Map validation covers offline imports,
+network-free saved-tile lookup, resumable downloads, colour transforms, and contour orientation, alongside
+the coordinate, route, backup and recording regression suites. The unsigned iPhone Release
 build also succeeds. GPX document registration is checked on iOS so exports
 use `.gpx` filenames.
 

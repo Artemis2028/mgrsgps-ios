@@ -61,6 +61,7 @@ xcodebuild test -project MGRSGPS.xcodeproj -scheme MGRSGPS \
 Choose an installed simulator name. The UI tests use a separate Debug data
 store and cover coordinate entry/editing/persistence, marker navigation, folder
 visibility, map-centre creation, route cards/waypoint ownership, GPX tracks/routes,
+offline map imports/layer selection, download estimates,
 and restored data after relaunch. Screenshots are attached to the test results.
 
 ## The loop
@@ -70,11 +71,12 @@ Simulator, boots a phone, drops it on 40R BN in Abu Dhabi, and posts
 screenshots as artifacts - the position readout and the map with the MGRS grid
 drawn on it.
 
-The basemap is MapLibre's keyless demo style: enough to prove the grid draws,
-and **not** the shipping basemap. Roadmap B replaces it with self-hosted
-OpenStreetMap vector tiles and our own terrain, which is what makes worldwide
-offline download possible. That is the "I can see it" step — no Mac required to
-watch it work, same as the Android pipeline.
+MapLibre renders the same raster catalog as Android: Streets, Topographic,
+Satellite, USGS Topo/Imagery, and Hillshade, subject to build-key availability.
+USGS area downloads, raster MBTiles imports, offline-only mode, grid/shading
+switches, elevation downloads, and contours are implemented. Global licensed
+layers need an Esri build key in Release; Debug has Android's development
+fallbacks. See [offline maps and configuration](docs/offline-maps.md).
 
 The test step gates everything after it. A red field-math suite must not be
 able to produce a build that looks shippable; the Android pipeline learned
@@ -98,7 +100,8 @@ that one the expensive way.
 MGRS truncates and never rounds. A typed grid resolves to the cell centre;
 calibration control points resolve to the SW corner. Distances are ellipsoidal.
 Bearings come out in 0..<360. Night mode is red on black. No accounts, no
-analytics, nothing leaves the phone.
+analytics, or field-data uploads. Online maps request provider tiles; Offline
+only disables map network requests.
 
 ## Parity with Android
 
@@ -108,7 +111,8 @@ checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline.
 Waypoints, folders, route creation/cards, saved tracks/overlays, complete backup
 v1, live track recording/recovery, and GPX waypoint/route/track import/export are
 in. Recording uses dedicated background location and lock-compatible log files;
-physical locked-screen verification remains before release. See
-[track recording](docs/track-recording.md). Terrain, practice courses, and
-KML/ATAK remain.
+physical locked-screen verification remains before release. Map layers, USGS
+area downloads, raster MBTiles and contours are also in. See
+[track recording](docs/track-recording.md) and [offline maps](docs/offline-maps.md).
+Terrain field tools, practice courses, and KML/ATAK remain.
 
