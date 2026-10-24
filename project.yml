@@ -25,6 +25,9 @@ targets:
       - path: App/Sources
       - path: App/Resources/MapAssets
         buildPhase: resources
+      - path: App/Resources/MilitarySymbols
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: GridFixCore
         product: GridFixCore

@@ -69,8 +69,14 @@ final class MapLayerWorkflowTests: XCTestCase {
         toggle("Offline only")
         if !app.buttons["download-map-area"].exists { app.swipeUp() }
         XCTAssertFalse(app.buttons["download-map-area"].isEnabled)
-        app.swipeDown(); app.swipeDown()
-        app.buttons["layer-usgs"].tap()
+        let usgs = app.buttons["layer-usgs"]
+        // Stop at the first reachable layer row. A second downward swipe at
+        // the top of a sheet can dismiss it on the smaller CI simulator.
+        for _ in 0..<5 {
+            if usgs.isHittable && usgs.frame.midY > app.navigationBars.firstMatch.frame.maxY { break }
+            app.swipeDown()
+        }
+        XCTAssertTrue(usgs.isHittable); usgs.tap()
         app.swipeUp()
         let download = app.buttons["download-map-area"]
         XCTAssertTrue(download.isEnabled); download.tap()

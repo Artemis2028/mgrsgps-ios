@@ -191,8 +191,7 @@ struct WaypointsView: View {
 
     private func row(_ wp: Waypoint) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Image(systemName: store.selectedId == wp.id ? "location.north.fill" : "flag.fill")
-                .font(.title3).foregroundStyle(palette.accent)
+            MilitaryMarker(symbol: wp.symbol,affiliation: wp.affiliation,echelon: wp.echelon,rotation: wp.rotation,metadata: wp.metadata)
                 .frame(width: 44, height: 48)
                 .background(palette.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
                 .accessibilityHidden(true)

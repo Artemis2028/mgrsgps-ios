@@ -17,7 +17,6 @@ struct MapScreen: View {
     @State private var overlayRoutes = 0
     @State private var overlayTracks = 0
     @State private var hasFieldPoints = false
-    @State private var nightMode = false
     @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
     @State private var selectedID: String?
     @State private var cameraRequest: MapCameraRequest?
@@ -29,7 +28,7 @@ struct MapScreen: View {
     @State private var showingBoundaries = false
     @State private var boundaryDraft: BoundaryDraft?
 
-    private var chromeNight: Bool { settings.nightMode || nightMode }
+    private var chromeNight: Bool { settings.nightMode }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
     private var mapInk: Color { chromeNight ? palette.ink : .black }
     private var mapInkDim: Color { chromeNight ? palette.inkDim : .black.opacity(0.65) }
@@ -100,7 +99,7 @@ struct MapScreen: View {
                         Button { showingLayers = true } label: {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
-                        Button { nightMode.toggle() } label: {
+                        Button { settings.nightMode.toggle() } label: {
                             Image(systemName: chromeNight ? "moon.fill" : "moon")
                                 .frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Toggle map night mode")
@@ -448,15 +447,16 @@ private final class WaypointMarkerView: MLNAnnotationView {
 
     override init(reuseIdentifier: String?) {
         super.init(reuseIdentifier: reuseIdentifier)
-        frame = CGRect(x: 0, y: 0, width: 130, height: 62)
-        centerOffset = CGVector(dx: 0, dy: -17)
+        frame = CGRect(x: 0, y: 0, width: 130, height: 74)
+        // Keep the centre of the 44-point symbol exactly at its coordinate.
+        centerOffset = CGVector(dx: 0, dy: -13)
         nameLabel.frame = CGRect(x: 0, y: 0, width: 130, height: 26)
         nameLabel.font = .monospacedSystemFont(ofSize: 12, weight: .semibold)
         nameLabel.textAlignment = .center
         nameLabel.backgroundColor = .black
         nameLabel.layer.cornerRadius = 7
         nameLabel.clipsToBounds = true
-        dot.frame = CGRect(x: 49, y: 30, width: 32, height: 32)
+        dot.frame = CGRect(x: 43, y: 28, width: 44, height: 44)
         dot.contentMode = .scaleAspectFit
         dot.layer.shadowColor = UIColor.black.cgColor
         dot.layer.shadowOpacity = 0.8
@@ -477,11 +477,11 @@ private final class WaypointMarkerView: MLNAnnotationView {
         nameLabel.text = waypoint.name
         nameLabel.textColor = night ? .systemRed : .white
         dot.tintColor = style.color
-        dot.image = UIImage(systemName: style.symbolName)
+        dot.image = MilitaryMarkerRenderer.image(waypoint,night: night)
         dot.layer.cornerRadius = 16
         dot.layer.borderWidth = selected ? 2 : 0
         dot.layer.borderColor = (night ? UIColor.systemRed : .white).cgColor
-        character.text = style.character
+        character.text = nil
         accessibilityLabel = "Waypoint \(waypoint.name)"
         accessibilityIdentifier = "map-waypoint-\(waypoint.id)"
         accessibilityValue = selected ? "Navigation target" : ""

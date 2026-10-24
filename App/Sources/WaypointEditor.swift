@@ -16,9 +16,18 @@ struct WaypointEditor: View {
     @EnvironmentObject private var location: LocationService
     private let waypoint: Waypoint?
     private let onSave: (WaypointDraft) -> Void
+    private enum InputField: Hashable { case name, folder, grid, latitude, longitude, designation }
+    @FocusState private var focusedInput: InputField?
     @State private var name: String
     @State private var folder: String
     @State private var coordinate: WaypointCoordinateDraft
+    @State private var symbol: String
+    @State private var affiliation: String
+    @State private var echelon: String
+    @State private var designation: String
+    @State private var kind: String
+    @State private var rotation: Double
+    @State private var markerMetadata: WaypointMetadata?
     private var palette: FieldPalette { FieldPalette(night: night) }
     private var rowBackground: Color { night ? .black : Color(uiColor: .secondarySystemGroupedBackground) }
 
@@ -28,6 +37,13 @@ struct WaypointEditor: View {
         self.onSave = onSave
         _name = State(initialValue: waypoint?.name ?? "")
         _folder = State(initialValue: waypoint?.folder ?? Folders.defaultFolder)
+        _symbol = State(initialValue: waypoint?.symbol ?? DEFAULT_SYMBOL)
+        _affiliation = State(initialValue: waypoint?.affiliation ?? "none")
+        _echelon = State(initialValue: waypoint?.echelon ?? "")
+        _designation = State(initialValue: waypoint?.designation ?? "")
+        _kind = State(initialValue: waypoint?.kind ?? KIND_WP)
+        _rotation = State(initialValue: waypoint?.rotation ?? 0)
+        _markerMetadata = State(initialValue: waypoint?.metadata)
         _coordinate = State(initialValue: WaypointCoordinateDraft(lat: waypoint?.lat ?? lat, lon: waypoint?.lon ?? lon))
     }
 
@@ -35,8 +51,8 @@ struct WaypointEditor: View {
         NavigationStack {
             Form {
                 Section("Waypoint") {
-                    TextField("Name", text: $name).accessibilityIdentifier("waypoint-name")
-                    TextField("Folder", text: $folder).accessibilityIdentifier("waypoint-folder")
+                    TextField("Name", text: $name, prompt: Text("Name").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .name).accessibilityIdentifier("waypoint-name")
+                    TextField("Folder", text: $folder, prompt: Text("Folder").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .folder).accessibilityIdentifier("waypoint-folder")
                     if let hint = Folders.reservedHint(folder) {
                         Text(hint).font(.footnote).foregroundStyle(palette.warn)
                     }
@@ -53,21 +69,21 @@ struct WaypointEditor: View {
                     }
                     .pickerStyle(.segmented)
                     if coordinate.format == .mgrs {
-                        TextField("40R BN 34125 07001", text: $coordinate.grid)
+                        TextField("40R BN 34125 07001", text: $coordinate.grid, prompt: Text("40R BN 34125 07001").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .grid)
                             .textInputAutocapitalization(.characters)
                             .font(.system(.body, design: .monospaced))
                             .accessibilityLabel("MGRS coordinate")
                             .accessibilityIdentifier("waypoint-mgrs")
                     } else {
                         LabeledContent("Latitude") {
-                            TextField("−90 … 90", text: $coordinate.latitude)
+                            TextField("−90 … 90", text: $coordinate.latitude, prompt: Text("−90 … 90").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .latitude)
                                 .accessibilityIdentifier("waypoint-latitude")
                                 .accessibilityLabel("Latitude")
                                 .keyboardType(.numbersAndPunctuation)
                                 .multilineTextAlignment(.trailing)
                         }
                         LabeledContent("Longitude") {
-                            TextField("−180 … 180", text: $coordinate.longitude)
+                            TextField("−180 … 180", text: $coordinate.longitude, prompt: Text("−180 … 180").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .longitude)
                                 .accessibilityIdentifier("waypoint-longitude")
                                 .accessibilityLabel("Longitude")
                                 .keyboardType(.numbersAndPunctuation)
@@ -101,8 +117,36 @@ struct WaypointEditor: View {
                     }
                     .listRowBackground(rowBackground)
                 }
+                Section("Symbol & unit") {
+                    NavigationLink {
+                        MilitarySymbolPicker(symbol: $symbol,affiliation: $affiliation)
+                    } label: {
+                        HStack {
+                            MilitaryMarker(symbol: symbol,affiliation: affiliation,echelon: echelon,rotation: rotation,metadata: markerMetadata ?? .init()).frame(width: 48,height: 48)
+                            Text(MilitarySymbols.label(symbol)); Spacer()
+                        }
+                    }.accessibilityIdentifier("choose-military-symbol")
+                        .simultaneousGesture(TapGesture().onEnded { focusedInput = nil })
+                    Picker("Record type",selection: $kind) { Text("Waypoint").tag(KIND_WP); Text("Unit").tag(KIND_UNIT) }
+                        .onChange(of: kind) { value in
+                            if value == KIND_UNIT && !symbol.hasPrefix("nato_") { symbol = "nato_f_unit"; if affiliation == "none" { affiliation = "friendly" } }
+                            else if value == KIND_WP && symbol.hasPrefix("nato_") { symbol = "flag" }
+                        }
+                    Picker("Affiliation",selection: $affiliation) { ForEach(MilitarySymbols.affiliations) { Text($0.label).tag($0.key) } }
+                        .onChange(of: affiliation) { value in
+                            if let function = MilitarySymbols.function(symbol), value != "none" { symbol = "nato_\(MilitarySymbols.affiliationCode(value))_\(function)" }
+                        }
+                    Picker("Echelon",selection: $echelon) { ForEach(MilitarySymbols.echelons) { Text($0.label).tag($0.key) } }.accessibilityIdentifier("unit-echelon")
+                    TextField("Unit designation",text: $designation,prompt: Text("Unit designation").foregroundColor(palette.inkDim)).focused($focusedInput,equals: .designation).accessibilityIdentifier("unit-designation")
+                    if symbol.hasPrefix("task_") { Slider(value: $rotation,in: 0...360,step: 5); Text("Task rotation: \(Int(rotation))°") }
+                    if markerMetadata?.color != nil || markerMetadata?.milgpsSymbolCode != nil {
+                        ImportedMarkerEditor(metadata: Binding(get: { markerMetadata ?? .init() },set: { markerMetadata = $0 }))
+                    }
+                    if let elevation = markerMetadata?.elevationMeters { Text("Elevation: \(elevation, specifier: "%.1f") m").font(.caption) }
+                }.listRowBackground(rowBackground)
             }
             .autocorrectionDisabled()
+            .onSubmit { focusedInput = nil }
             .foregroundStyle(palette.ink)
             .scrollContentBackground(.hidden)
             .background { FieldScreenBackground() }
@@ -118,6 +162,11 @@ struct WaypointEditor: View {
             }
             .tint(palette.accent)
         }.fieldSheetAppearance()
+        .onChange(of: symbol) { value in
+            focusedInput = nil
+            if markerMetadata != nil { markerMetadata?.color = nil; markerMetadata?.milgpsSymbolCode = nil }
+            kind = value.hasPrefix("nato_") ? KIND_UNIT : KIND_WP
+        }
     }
 
     private func save() {
@@ -125,10 +174,8 @@ struct WaypointEditor: View {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         onSave(WaypointDraft(name: trimmed, lat: position.lat, lon: position.lon, folder: folder,
-                             symbol: waypoint?.symbol ?? DEFAULT_SYMBOL,
-                             affiliation: waypoint?.affiliation ?? "none", echelon: waypoint?.echelon ?? "",
-                             designation: waypoint?.designation ?? "", kind: waypoint?.kind ?? KIND_WP,
-                             rotation: waypoint?.rotation ?? 0, metadata: waypoint?.metadata))
+                             symbol: symbol, affiliation: affiliation, echelon: echelon,
+                             designation: designation, kind: kind, rotation: rotation, metadata: markerMetadata))
         dismiss()
     }
 }

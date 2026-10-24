@@ -47,10 +47,11 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["add-waypoint"].tap()
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Southern point")
+        name.tap(); name.typeText("Southern point\n")
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
         app.segmentedControls.buttons["Lat / Lon"].tap()
         let latitude = app.textFields["waypoint-latitude"]
+        XCTAssertTrue(latitude.waitForExistence(timeout: 5))
         latitude.tap(); latitude.typeText("-91")
         let longitude = app.textFields["waypoint-longitude"]
         longitude.tap(); longitude.typeText("151.2093")
