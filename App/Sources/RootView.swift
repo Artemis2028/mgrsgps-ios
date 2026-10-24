@@ -49,7 +49,8 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
         .environment(\.fieldNight, settings.nightMode)
-        .onAppear { location.start() }
+        .onAppear { location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
+        .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
             if phase == .active { location.start() }
             else if phase == .background { location.stop() }

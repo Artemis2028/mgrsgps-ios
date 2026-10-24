@@ -1,156 +1,183 @@
 import Foundation
 
-/// GPX 1.1 waypoint import/export with optional MilGPS extensions
-/// (`xmlns:milgps`), matching Android `InterchangeFiles` at 0.9.31/0.9.32.
+/// GPX interchange matching Android 1.0.4, including continuous track segments
+/// and the current MilGPS namespace. Old iOS-exported extensions remain readable.
 public enum GPX {
-
     public static let namespace = "http://www.topografix.com/GPX/1/1"
-    public static let milgpsNamespace = "http://www.milgps.com"
+    public static let milgpsNamespace = "https://milgps.com/gpx/v1"
 
-    public static func build(waypoints: [Waypoint]) -> String {
-        var sb = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        sb += "<gpx version=\"1.1\" creator=\"MGRS GPS\" xmlns=\"\(namespace)\" xmlns:milgps=\"\(milgpsNamespace)\">\n"
-        for w in waypoints {
-            sb += String(format: "  <wpt lat=\"%.7f\" lon=\"%.7f\">", w.lat, w.lon)
-            if let ele = w.metadata.elevationMeters, ele.isFinite {
-                sb += "<ele>\(plain(ele))</ele>"
+    public static func build(waypoints: [Waypoint], routes: [Backup.Graphic] = [], tracks: [Track] = []) -> String {
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" creator=\"MGRS GPS\" xmlns=\"\(namespace)\" xmlns:milgps=\"\(milgpsNamespace)\">\n"
+        for waypoint in waypoints {
+            xml += "<wpt \(coordinate(waypoint.lat, waypoint.lon))>"
+            if let altitude = waypoint.metadata.elevationMeters, altitude.isFinite { xml += "<ele>\(number(altitude))</ele>" }
+            if let time = waypoint.metadata.timestampMillis { xml += "<time>\(timestamp(time))</time>" }
+            xml += "<name>\(escape(waypoint.name))</name>"
+            if waypoint.metadata.color != nil || waypoint.metadata.milgpsSymbolCode != nil {
+                xml += "<extensions>"
+                if let code = waypoint.metadata.milgpsSymbolCode { xml += "<milgps:symbolcode>\(code)</milgps:symbolcode>" }
+                if let color = waypoint.metadata.color { xml += "<milgps:color>\(escape(color))</milgps:color>" }
+                xml += "</extensions>"
             }
-            if let t = w.metadata.timestampMillis {
-                sb += "<time>\(iso8601(t))</time>"
-            }
-            sb += "<name>\(escape(w.name))</name>"
-            let m = w.metadata
-            if m.color != nil || m.milgpsSymbolCode != nil {
-                sb += "<extensions>"
-                if let code = m.milgpsSymbolCode {
-                    sb += "<milgps:symbolcode>\(code)</milgps:symbolcode>"
-                }
-                if let color = m.color {
-                    sb += "<milgps:color>\(escape(color))</milgps:color>"
-                }
-                sb += "</extensions>"
-            }
-            sb += "</wpt>\n"
+            xml += "</wpt>\n"
         }
-        sb += "</gpx>\n"
-        return sb
+        for route in routes where route.type == "route" {
+            xml += "<rte><name>\(escape(route.name))</name>"
+            for point in route.points { xml += "<rtept \(coordinate(point.lat, point.lon))/>" }
+            xml += "</rte>\n"
+        }
+        for track in tracks {
+            xml += "<trk><name>\(escape(track.name))</name><trkseg>"
+            for point in track.points {
+                xml += "<trkpt \(coordinate(point.lat, point.lon))>"
+                if let altitude = point.altitudeMeters, altitude.isFinite { xml += "<ele>\(number(altitude))</ele>" }
+                if point.time > 0 { xml += "<time>\(timestamp(point.time))</time>" }
+                xml += "</trkpt>"
+            }
+            xml += "</trkseg></trk>\n"
+        }
+        return xml + "</gpx>\n"
     }
 
-    /// Parse GPX waypoints into drafts. Routes/tracks are ignored in this slice.
-    public static func parseWaypoints(_ xml: String,
-                                      defaultFolder: String = "Imported") -> [WaypointDraft] {
-        guard let data = xml.data(using: .utf8) else { return [] }
-        let parser = GPXParser(defaultFolder: defaultFolder)
-        let xmlParser = XMLParser(data: data)
-        xmlParser.delegate = parser
-        xmlParser.shouldProcessNamespaces = true
-        xmlParser.parse()
-        return parser.waypoints
+    public struct Track {
+        public let name: String
+        public let points: [TrackPoint]
+        public init(name: String, points: [TrackPoint]) { self.name = name; self.points = points }
     }
 
-    private static func escape(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&apos;")
+    public static func parse(_ xml: String, defaultFolder: String = "Imported",
+                              now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) throws -> Backup.Document {
+        guard xml.utf8.count <= ZipArchive.totalLimit else { throw BackupError.notABackup("GPX exceeds 32 MB") }
+        let reader = GPXReader(folder: defaultFolder)
+        let parser = XMLParser(data: Data(xml.utf8))
+        parser.shouldProcessNamespaces = true
+        parser.shouldResolveExternalEntities = false
+        parser.delegate = reader
+        guard parser.parse(), reader.hasRoot, !reader.exceededLimit else { throw BackupError.notABackup("Malformed or oversized GPX") }
+        var result = Backup.Document(waypoints: reader.waypoints, graphics: reader.routes)
+        result.hasSettings = false
+        for track in reader.tracks {
+            let (metadata, file) = try TrackCodec.imported(name: track.name, points: track.points, now: now, folder: defaultFolder)
+            result.tracks.append(metadata); result.trackFiles[metadata.id] = file
+        }
+        try Backup.validate(result)
+        return result
     }
 
-    private static func plain(_ d: Double) -> String {
-        // Avoid scientific notation for elevations.
-        String(format: "%g", d)
+    public static func parseWaypoints(_ xml: String, defaultFolder: String = "Imported") -> [WaypointDraft] {
+        ((try? parse(xml, defaultFolder: defaultFolder))?.waypoints ?? []).map {
+            WaypointDraft(name: $0.name, lat: $0.lat, lon: $0.lon, folder: $0.folder, metadata: $0.metadata)
+        }
     }
 
-    private static func iso8601(_ millis: Int64) -> String {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-        return ISO8601DateFormatter().string(from: date)
+    private static func coordinate(_ lat: Double, _ lon: Double) -> String {
+        String(format: "lat=\"%.7f\" lon=\"%.7f\"", locale: Locale(identifier: "en_US_POSIX"), lat, lon)
+    }
+    private static func number(_ value: Double) -> String { String(format: "%g", locale: Locale(identifier: "en_US_POSIX"), value) }
+    private static func timestamp(_ millis: Int64) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter.string(from: Date(timeIntervalSince1970: Double(millis) / 1000))
+    }
+    private static func escape(_ value: String) -> String {
+        value.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;").replacingOccurrences(of: "'", with: "&apos;")
     }
 }
 
-private final class GPXParser: NSObject, XMLParserDelegate {
-    let defaultFolder: String
-    var waypoints: [WaypointDraft] = []
+private final class GPXReader: NSObject, XMLParserDelegate {
+    struct Element { let name: String; let namespace: String; var text = "" }
+    private var stack: [Element] = []
+    private let folder: String
+    private var pendingWaypoint: Waypoint?
+    private var pendingTrackPoint: TrackPoint?
+    private var routeName = "", trackName = ""
+    private var routePoints: [Backup.GraphicPoint] = []
+    private var segment: [TrackPoint] = []
+    private var segments: [[TrackPoint]] = []
+    private var pointCount = 0
+    var waypoints: [Waypoint] = []
+    var routes: [Backup.Graphic] = []
+    var tracks: [GPX.Track] = []
+    var hasRoot = false
+    var exceededLimit = false
 
-    private var inWpt = false
-    private var wptLat = Double.nan
-    private var wptLon = Double.nan
-    private var name = ""
-    private var metadata = WaypointMetadata()
-    private var text = ""
-    private var inExtensions = false
-    private var milgpsLocalName: String?
+    init(folder: String) { self.folder = Folders.canonical(folder) }
+    private func gpx(_ uri: String) -> Bool { ["", GPX.namespace, "http://www.topografix.com/GPX/1/0"].contains(uri) }
+    private func finishSegment() { if !segment.isEmpty { segments.append(segment) }; segment = [] }
 
-    init(defaultFolder: String) {
-        self.defaultFolder = defaultFolder
-    }
-
-    func parser(_ parser: XMLParser, didStartElement elementName: String,
-                namespaceURI: String?, qualifiedName: String?,
-                attributes: [String: String] = [:]) {
-        text = ""
-        let local = elementName.contains(":")
-            ? String(elementName.split(separator: ":").last!)
-            : elementName
-        if local == "wpt" {
-            inWpt = true
-            wptLat = Double(attributes["lat"] ?? "") ?? .nan
-            wptLon = Double(attributes["lon"] ?? "") ?? .nan
-            name = ""
-            metadata = WaypointMetadata()
-            inExtensions = false
-        } else if inWpt && local == "extensions" {
-            inExtensions = true
-        } else if inWpt && inExtensions && (namespaceURI == GPX.milgpsNamespace
-                                            || elementName.hasPrefix("milgps:")) {
-            milgpsLocalName = local.lowercased()
+    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String]) {
+        let uri = namespaceURI ?? ""
+        stack.append(Element(name: name, namespace: uri))
+        guard stack.count <= 64 else { exceededLimit = true; parser.abortParsing(); return }
+        if stack.count == 1 { hasRoot = name == "gpx" && gpx(uri) }
+        guard gpx(uri), hasRoot, stack.dropLast().allSatisfy({ gpx($0.namespace) }) else { return }
+        func coordinate() -> (Double, Double)? {
+            guard let lat = Double(attributes["lat"] ?? ""), let lon = Double(attributes["lon"] ?? ""), TrackCodec.validCoordinates(lat, lon) else { return nil }
+            return (lat, lon)
         }
+        switch (name, stack.count) {
+        case ("wpt", 2): pendingWaypoint = coordinate().map { Waypoint(name: "", lat: $0.0, lon: $0.1, folder: folder) }
+        case ("rte", 2): routeName = ""; routePoints = []
+        case ("rtept", 3) where stack[1].name == "rte":
+            if let point = coordinate() { routePoints.append(Backup.GraphicPoint(lat: point.0, lon: point.1)); pointCount += 1 }
+        case ("trk", 2): trackName = ""; segment = []; segments = []
+        case ("trkseg", 3) where stack[1].name == "trk": finishSegment()
+        case ("trkpt", 4) where stack[2].name == "trkseg": pendingTrackPoint = coordinate().map { TrackPoint(lat: $0.0, lon: $0.1) }
+        default: break
+        }
+        if pointCount > 250_000 || waypoints.count + routes.count + tracks.count > 10_000 { exceededLimit = true; parser.abortParsing() }
     }
 
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
-        text += string
+    func parser(_ parser: XMLParser, foundCharacters text: String) {
+        guard !stack.isEmpty else { return }
+        stack[stack.count - 1].text += text
     }
 
-    func parser(_ parser: XMLParser, didEndElement elementName: String,
-                namespaceURI: String?, qualifiedName: String?) {
-        let local = elementName.contains(":")
-            ? String(elementName.split(separator: ":").last!)
-            : elementName
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if inWpt {
-            switch local {
-            case "name" where !inExtensions:
-                if name.isEmpty { name = trimmed }
-            case "ele" where !inExtensions:
-                if let v = Double(trimmed), v.isFinite {
-                    metadata.elevationMeters = v
-                }
-            case "time" where !inExtensions:
-                if let d = ISO8601DateFormatter().date(from: trimmed) {
-                    metadata.timestampMillis = Int64(d.timeIntervalSince1970 * 1000)
-                }
-            case "symbolcode" where inExtensions:
-                metadata.milgpsSymbolCode = Int(trimmed)
-            case "color" where inExtensions:
-                let c = trimmed.lowercased()
-                if !c.isEmpty { metadata.color = c }
-            case "extensions":
-                inExtensions = false
-            case "wpt":
-                if wptLat.isFinite && wptLon.isFinite,
-                   (-90...90).contains(wptLat), (-180...180).contains(wptLon) {
-                    let n = name.isEmpty ? "Waypoint" : name
-                    waypoints.append(WaypointDraft(
-                        name: n, lat: wptLat, lon: wptLon,
-                        folder: defaultFolder,
-                        metadata: metadata
-                    ))
-                }
-                inWpt = false
-            default:
-                break
+    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
+        guard let element = stack.last else { return }
+        let depth = stack.count, text = element.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer { stack.removeLast() }
+        let parent = depth > 1 ? stack[depth - 2].name : ""
+        if depth == 4, parent == "extensions", stack[1].name == "wpt", gpx(stack[1].namespace), gpx(stack[2].namespace),
+           [GPX.milgpsNamespace, "http://www.milgps.com"].contains(element.namespace) {
+            if name == "color" { pendingWaypoint?.metadata.color = text.isEmpty ? nil : text.lowercased() }
+            if name == "symbolcode" { pendingWaypoint?.metadata.milgpsSymbolCode = Int(text) }
+        }
+        guard gpx(element.namespace), stack.dropLast().allSatisfy({ gpx($0.namespace) }) else { return }
+        func time() -> Int64? {
+            let formatter = ISO8601DateFormatter()
+            var date = formatter.date(from: text)
+            if date == nil { formatter.formatOptions.insert(.withFractionalSeconds); date = formatter.date(from: text) }
+            return date.map { Int64(($0.timeIntervalSince1970 * 1000).rounded()) }
+        }
+        switch (name, depth) {
+        case ("name", 3) where parent == "wpt": if pendingWaypoint?.name.isEmpty == true { pendingWaypoint?.name = text }
+        case ("ele", 3) where parent == "wpt": pendingWaypoint?.metadata.elevationMeters = Double(text).flatMap { $0.isFinite ? $0 : nil }
+        case ("time", 3) where parent == "wpt": pendingWaypoint?.metadata.timestampMillis = time()
+        case ("name", 3) where parent == "rte": if routeName.isEmpty { routeName = text }
+        case ("name", 3) where parent == "trk": if trackName.isEmpty { trackName = text }
+        case ("ele", 5) where parent == "trkpt":
+            if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: p.time, altitudeMeters: Double(text).flatMap { $0.isFinite ? $0 : nil }) }
+        case ("time", 5) where parent == "trkpt":
+            if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: max(0, time() ?? 0), altitudeMeters: p.altitudeMeters) }
+        case ("trkpt", 4): if let point = pendingTrackPoint { segment.append(point); pointCount += 1 }; pendingTrackPoint = nil
+        case ("trkseg", 3): finishSegment()
+        case ("wpt", 2):
+            if var point = pendingWaypoint {
+                if point.name.isEmpty { point.name = "WP \(waypoints.count + 1)" }
+                waypoints.append(point)
             }
+            pendingWaypoint = nil
+        case ("rte", 2):
+            if routePoints.count >= 2 { routes.append(Backup.Graphic(id: UUID().uuidString.lowercased(), name: routeName.isEmpty ? "Imported route" : routeName, type: "route", points: routePoints, folder: folder)) }
+        case ("trk", 2):
+            finishSegment()
+            for (index, points) in segments.enumerated() {
+                let base = trackName.isEmpty ? "Imported track" : trackName
+                tracks.append(GPX.Track(name: segments.count == 1 ? base : "\(base) — segment \(index + 1)", points: points))
+            }
+        default: break
         }
-        milgpsLocalName = nil
-        text = ""
     }
 }

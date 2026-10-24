@@ -39,21 +39,56 @@ Implemented:
   the entire accuracy circle must fit inside the 50 m arrival ring. These rules
   match Android 1.0.4. Manual coordinate entry works without GPS.
 
+## Routes, saved tracks, and Android interchange
+
+Implemented:
+
+- Create and edit routes from ordered waypoints. Route cards show per-leg
+  distance, forward azimuth, back azimuth, destination grid, and paces using the
+  selected units/north reference. Reverse bearings are solved at the destination,
+  including its magnetic/grid correction. Share the card as text.
+- Generate route waypoints using Android's route ID / vertex index ownership.
+  Repeating generation preserves IDs and the selected target. Unrelated
+  same-name waypoints are never taken over. Navigate to a chosen route vertex.
+- Import/export GPX routes and saved tracks as well as waypoints. Each track
+  segment remains separate so gaps never become invented connecting legs.
+  MilGPS metadata uses the current namespace; old iOS exports remain readable.
+- A Routes & Tracks library with route editing, saved track statistics, map
+  visibility, deletion, individual track GPX export, and restored practice history.
+- Routes, saved tracks, and basic imported graphic geometry draw on the map,
+  follow record/folder visibility, and participate in Show all visible data.
+  Route/track dateline crossings are split rather than drawn across the world.
+- Complete backup snapshots and additive restore of settings, graphics/routes,
+  track logs, course history, waypoints, and folders. Track statistics are
+  recalculated from logs. Existing records win; duplicate course results are
+  merged and the latest 30 retained. GPX imports preserve current settings.
+- Android streaming ZIP/data descriptors are supported. Archives are checked
+  before writes, with CRC, record, and decompressed-size limits. Failed writes
+  retain saved data and report which sections were restored so retry is safe.
+- Keep screen on and pace-count settings, included in backup/restore.
+- Fresh installs use Android's ten-digit grid precision and Lensatic face;
+  existing saved preferences are retained.
+
 ## Remaining feature groups
 
 | Area | Current iOS state | Remaining work |
 | --- | --- | --- |
-| Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Current Android fix-quality policy, orientation/landscape refinement, callouts/QR, keep-awake setting |
+| Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Orientation/landscape refinement, callouts/QR |
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
-| Maps | Demo basemap, MGRS grid, waypoint markers, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
-| Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, route legs/cards |
-| Tracks and courses | Backup models only | Recording/persistence UI, track overlays, route/course creation and ownership, course history |
+| Maps | Demo basemap, MGRS grid, waypoint/route/track overlays, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
+| Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
+| Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, restored course history | Live recording and recovery/background behaviour, track rename/move, practice course creation/running |
 | Terrain | No terrain UI/cache | DEM caching/downloads, elevation, slope/hillshade, contours, LOS, viewshed |
-| Interchange and backup | GPX waypoints including MilGPS metadata; waypoint/folder ZIP restore | GPX tracks/routes, KML/KMZ/ATAK, complete settings/graphics/tracks/course restore, Android-generated reference archives |
+| Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
 | Field tools | Sun/moon, geodesy and some geometry helpers in core | Field tools UI, pace count, strip-map PDFs and sharing |
 | Distribution | Simulator builds and CI | StoreKit products/entitlements/paywall, app icon/privacy metadata, signing, device validation, TestFlight/App Store release |
 
 ## Verification
+
+Local validation on 24 October 2026: 130 core tests, four app integration tests,
+and all six iPhone simulator UI workflows pass. The unsigned iPhone Release
+build also succeeds. GPX document registration is checked on iOS so exports
+use `.gpx` filenames.
 
 `cd GridFixCore && swift test` runs the golden field-math, WMM, interchange,
 coordinate-entry, and map visibility tests. The new coordinate tests include
@@ -64,8 +99,18 @@ Generate with `xcodegen generate`, then run the `MGRSGPS` scheme's UI tests.
 `App/UITests/WaypointWorkflowTests.swift` exercises invalid/valid entry,
 coordinate edits after relaunch, visible markers, map-to-navigation selection,
 folder hide/show, adding at the map centre, night-mode sheet continuity, and a
-landscape waypoint layout. Test data uses a separate Debug
+landscape waypoint layout, route creation/regeneration, GPX route/track import,
+map overlays, navigation to a route vertex, and saved-track persistence/visibility.
+App integration tests restore the Android contract archive through the real
+stores and settings, check fresh defaults, and retry a failed partial restore.
+Test data uses a separate Debug
 store and never clears normal application data. UI attachments include screenshots.
+
+The contract fixture is synthetic, generated by
+`scripts/GenerateAndroidBackupFixture.java` using Java
+`ZipOutputStream` and the inspected Android 1.0.4 schema. It is not a backup
+captured from an Android device. Core tests also verify failed writes, malformed
+archives, course deduplication, route ownership, and dateline geometry.
 
 Simulator validation does not verify physical compass performance, GPS behaviour
 in the field, background recording, or device signing.

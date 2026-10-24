@@ -6,6 +6,7 @@ struct MGRSGPSApp: App {
     @StateObject private var location = LocationService()
     @StateObject private var waypoints: WaypointStore
     @StateObject private var settings: AppSettings
+    @StateObject private var fieldData: FieldDataStore
 
     init() {
         var directory: URL?
@@ -22,6 +23,7 @@ struct MGRSGPSApp: App {
         #endif
         _waypoints = StateObject(wrappedValue: WaypointStore(directory: directory))
         _settings = StateObject(wrappedValue: AppSettings(directory: directory))
+        _fieldData = StateObject(wrappedValue: FieldDataStore(directory: directory))
     }
 
     var body: some Scene {
@@ -30,6 +32,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(location)
                 .environmentObject(waypoints)
                 .environmentObject(settings)
+                .environmentObject(fieldData)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)

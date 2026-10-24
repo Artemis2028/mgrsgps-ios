@@ -40,6 +40,15 @@ targets:
       path: App/Resources/Info.generated.plist
       properties:
         CFBundleDisplayName: MGRS GPS
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: app.gridfix.gpx
+            UTTypeDescription: GPS Exchange Format
+            UTTypeConformsTo:
+              - public.xml
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - gpx
+              public.mime-type: application/gpx+xml
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -60,6 +69,24 @@ targets:
           screen is off. Nothing leaves the phone.
         UIBackgroundModes:
           - location
+
+  MGRSGPSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/Tests
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-backup-contract.zip
+        buildPhase: resources
+    dependencies:
+      - target: MGRSGPS
+      - package: GridFixCore
+        product: GridFixCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
 
   MGRSGPSUITests:
     type: bundle.ui-testing
@@ -82,4 +109,5 @@ schemes:
         MGRSGPS: all
     test:
       targets:
+        - MGRSGPSTests
         - MGRSGPSUITests

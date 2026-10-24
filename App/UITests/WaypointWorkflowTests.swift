@@ -22,7 +22,7 @@ final class WaypointWorkflowTests: XCTestCase {
         addWaypoint(name: "Rally point", grid: "40R BN 3450 0720")
         capture("waypoints-glass")
         app.tabBars.buttons["Map"].tap()
-        app.buttons["Show all waypoints"].tap()
+        app.buttons["Show all visible data"].tap()
         let waypoint = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@", "map-waypoint-", "Objective")).firstMatch
         XCTAssertTrue(waypoint.waitForExistence(timeout: 15), app.debugDescription)
         capture("map-waypoint-overlays")
@@ -35,12 +35,12 @@ final class WaypointWorkflowTests: XCTestCase {
         app.tabBars.buttons["Waypoints"].tap()
         app.buttons["folder-visibility-Base"].tap()
         app.tabBars.buttons["Map"].tap()
-        XCTAssertFalse(app.buttons["Show all waypoints"].isEnabled)
+        XCTAssertFalse(app.buttons["Show all visible data"].isEnabled)
         capture("map-folder-hidden")
         app.tabBars.buttons["Waypoints"].tap()
         app.buttons["folder-visibility-Base"].tap()
         app.tabBars.buttons["Map"].tap()
-        XCTAssertTrue(app.buttons["Show all waypoints"].isEnabled)
+        XCTAssertTrue(app.buttons["Show all visible data"].isEnabled)
     }
 
     func testBlankInvalidAndDecimalCoordinatesThenEditAndRelaunch() {
@@ -113,6 +113,70 @@ final class WaypointWorkflowTests: XCTestCase {
         night.tap()
         app.buttons["Done"].tap()
         XCTAssertTrue(app.tabBars.buttons["Waypoints"].waitForExistence(timeout: 5))
+    }
+
+    func testGpxRoutesAndTracksImportMapAndPersistence() {
+        let xml = """
+        <gpx xmlns="http://www.topografix.com/GPX/1/1"><rte><name>Patrol</name><rtept lat="24.4539" lon="54.3773"/><rtept lat="24.4549" lon="54.3783"/></rte><trk><name>Recorded walk</name><trkseg><trkpt lat="24.4539" lon="54.3773"/><trkpt lat="24.4545" lon="54.3790"/></trkseg></trk></gpx>
+        """
+        app.buttons["Waypoint actions"].tap()
+        app.buttons["Paste GPX"].tap()
+        let text = app.textViews["gpx-import-text"]
+        XCTAssertTrue(text.waitForExistence(timeout: 5))
+        text.tap(); text.typeText(xml)
+        app.buttons["confirm-gpx-import"].tap()
+        app.buttons["open-field-library"].tap()
+        XCTAssertTrue(app.buttons["track-Recorded walk"].waitForExistence(timeout: 5))
+        app.buttons["route-Patrol"].tap()
+        XCTAssertTrue(app.buttons["generate-route-waypoints"].waitForExistence(timeout: 5))
+        capture("route-card")
+        app.buttons["generate-route-waypoints"].tap()
+        app.buttons["Navigate to vertex 2"].tap()
+        XCTAssertTrue(app.staticTexts["Patrol WP 2"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Map"].tap()
+        app.buttons["Show all visible data"].tap()
+        XCTAssertTrue(app.staticTexts["map-field-overlays"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["map-field-overlays"].label, "1 routes · 1 tracks")
+        capture("routes-tracks-map")
+        app.terminate()
+        app.launchArguments += ["-keepUITestData"]
+        app.launch()
+        XCTAssertTrue(app.buttons["edit-waypoint-Patrol WP 2"].waitForExistence(timeout: 5))
+        app.buttons["open-field-library"].tap()
+        app.buttons["track-Recorded walk"].tap()
+        let visibility = app.switches["Visible on map"]
+        XCTAssertEqual(visibility.value as? String, "1")
+        visibility.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(visibility.value as? String, "0")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].tap()
+        app.tabBars.buttons["Map"].tap()
+        let updated = NSPredicate(format: "label == %@", "1 routes · 0 tracks")
+        expectation(for: updated, evaluatedWith: app.staticTexts["map-field-overlays"])
+        waitForExpectations(timeout: 5)
+    }
+
+    func testRouteCreationAndRepeatedWaypointGeneration() {
+        addWaypoint(name: "Start", grid: "40R BN 3412 0700")
+        addWaypoint(name: "Finish", grid: "40R BN 3450 0720")
+        app.buttons["open-field-library"].tap()
+        app.buttons["create-route"].tap()
+        let name = app.textFields["route-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Training")
+        XCTAssertFalse(app.buttons["save-route"].isEnabled)
+        app.buttons["append-route-waypoint"].tap(); app.buttons["Start"].tap()
+        XCTAssertFalse(app.buttons["save-route"].isEnabled)
+        app.buttons["append-route-waypoint"].tap(); app.buttons["Finish"].tap()
+        app.buttons["save-route"].tap()
+        app.buttons["route-Training"].tap()
+        app.buttons["generate-route-waypoints"].tap()
+        app.buttons["generate-route-waypoints"].tap()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-Training WP 2"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "edit-waypoint-Training WP 2").count, 1)
+        capture("route-generated-waypoints")
     }
 
     private func addWaypoint(name: String, grid: String) {

@@ -33,7 +33,7 @@ public enum Backup {
         public init(lat: Double, lon: Double) { self.lat = lat; self.lon = lon }
     }
 
-    public struct Graphic: Equatable, Sendable {
+    public struct Graphic: Equatable, Sendable, Identifiable {
         public var id: String
         public var name: String
         public var type: String
@@ -59,7 +59,7 @@ public enum Backup {
         }
     }
 
-    public struct TrackMeta: Equatable, Sendable {
+    public struct TrackMeta: Equatable, Sendable, Identifiable {
         public var id: String
         public var name: String
         public var startedAt: Int64
@@ -102,6 +102,7 @@ public enum Backup {
         public var courseHistory: [CourseResult]
         /// Track id → raw points file bytes (lat lon time alt lines).
         public var trackFiles: [String: Data]
+        public var hasSettings: Bool = true
 
         public init(exportedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
                     waypoints: [Waypoint] = [],
@@ -139,10 +140,16 @@ public enum Backup {
     // MARK: - Export
 
     public static func exportZip(_ doc: Document) throws -> Data {
+        try validate(doc)
         let manifest = try encodeManifest(doc)
         var entries = [ZipArchive.Entry(name: manifestName, data: manifest)]
         for (id, data) in doc.trackFiles {
             entries.append(ZipArchive.Entry(name: "tracks/\(id).txt", data: data))
+        }
+        guard entries.count <= 512, manifest.count <= ZipArchive.manifestLimit,
+              entries.allSatisfy({ $0.data.count <= ZipArchive.entryLimit }),
+              entries.reduce(0, { $0 + $1.data.count }) <= ZipArchive.totalLimit else {
+            throw BackupError.notABackup("Backup exceeds supported size limits")
         }
         return ZipArchive.write(entries: entries)
     }
@@ -164,6 +171,8 @@ public enum Backup {
                 "visible": w.visible,
             ]
             d["metadata"] = metadataJSON(w.metadata)
+            d["sourceRouteId"] = w.sourceRouteId
+            d["sourceRoutePointIndex"] = w.sourceRoutePointIndex
             return d
         }
         root["folders"] = doc.folders.map { ["name": $0.name, "visible": $0.visible] as [String: Any] }
@@ -194,7 +203,7 @@ public enum Backup {
         } else {
             settings["declinationOverride"] = NSNull()
         }
-        root["settings"] = settings
+        if doc.hasSettings { root["settings"] = settings }
         root["tracks"] = doc.tracks.map { t -> [String: Any] in
             [
                 "id": t.id, "name": t.name,
@@ -222,12 +231,18 @@ public enum Backup {
             throw BackupError.notABackup("not an MGRS GPS backup")
         }
         var doc = try decodeManifest(manifest)
-        for e in entries where e.name.hasPrefix("tracks/") && e.name.hasSuffix(".txt") {
-            let id = String(e.name.dropFirst("tracks/".count).dropLast(".txt".count))
-            if !id.isEmpty { doc.trackFiles[id] = e.data }
+        for entry in entries where entry.name.hasPrefix("tracks/") {
+            guard entry.name.hasSuffix(".txt") else { throw BackupError.notABackup("Invalid track filename") }
+            let id = String(entry.name.dropFirst(7).dropLast(4))
+            guard TrackCodec.validID(id) else { throw BackupError.notABackup("Invalid track ID") }
+            doc.trackFiles[id] = entry.data
         }
-        // A track whose points entry is absent is skipped entirely.
-        doc.tracks = doc.tracks.filter { doc.trackFiles[$0.id] != nil || $0.pointCount == 0 }
+        try validate(doc)
+        for index in doc.tracks.indices {
+            let points = try TrackCodec.decode(doc.trackFiles[doc.tracks[index].id] ?? Data())
+            doc.tracks[index].pointCount = points.count
+            doc.tracks[index].distanceM = TrackCodec.distance(points)
+        }
         return doc
     }
 
@@ -235,23 +250,39 @@ public enum Backup {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw BackupError.notABackup("not an MGRS GPS backup")
         }
-        if let v = root["version"] as? Int, v > VERSION {
-            throw BackupError.unsupportedVersion(v)
+        guard let version = root["version"] as? Int, version == VERSION else {
+            throw BackupError.unsupportedVersion(root["version"] as? Int ?? 0)
         }
+        guard ["GridFix", "MGRS GPS"].contains(root["app"] as? String ?? "") else {
+            throw BackupError.notABackup("Not an MGRS GPS backup")
+        }
+        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory"] {
+            guard root[key] == nil || root[key] is [[String: Any]], (root[key] as? [Any])?.count ?? 0 <= 10_000 else {
+                throw BackupError.notABackup("Invalid or oversized \(key) section")
+            }
+        }
+        guard root["settings"] == nil || root["settings"] is [String: Any] else { throw BackupError.notABackup("Invalid settings section") }
         let exportedAt = int64(root["exportedAt"]) ?? 0
         let waypoints = try (root["waypoints"] as? [[String: Any]] ?? []).map(decodeWaypoint)
-        let folders = (root["folders"] as? [[String: Any]] ?? []).compactMap { f -> FolderInfo? in
-            guard let name = f["name"] as? String else { return nil }
+        let folders = try (root["folders"] as? [[String: Any]] ?? []).map { f -> FolderInfo in
+            guard let name = f["name"] as? String else { throw BackupError.missingField("folder.name") }
             return FolderInfo(name: Folders.canonical(name),
                               visible: f["visible"] as? Bool ?? true)
         }
         let graphics = try (root["graphics"] as? [[String: Any]] ?? []).map(decodeGraphic)
-        let settings = decodeSettings(root["settings"] as? [String: Any] ?? [:])
-        let tracks = (root["tracks"] as? [[String: Any]] ?? []).compactMap(decodeTrack)
-        let course = (root["courseHistory"] as? [[String: Any]] ?? []).compactMap(decodeCourse)
-        return Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
-                        graphics: graphics, settings: settings, tracks: tracks,
-                        courseHistory: course)
+        let settings = try decodeSettings(root["settings"] as? [String: Any] ?? [:])
+        let tracks = try (root["tracks"] as? [[String: Any]] ?? []).map { record -> TrackMeta in
+            guard let track = decodeTrack(record) else { throw BackupError.missingField("track.id/name") }
+            return track
+        }
+        let course = try (root["courseHistory"] as? [[String: Any]] ?? []).map { record -> CourseResult in
+            try decodeCourse(record)
+        }
+        var document = Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
+                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course)
+        document.hasSettings = root["settings"] != nil
+        try validate(document, includingTrackFiles: false)
+        return document
     }
 
     /// Merge a document into a waypoint store (waypoints + folders only in this slice).
@@ -261,6 +292,50 @@ public enum Backup {
                              settingsApplied: false)
     }
 
+    public static func validate(_ doc: Document, includingTrackFiles: Bool = true) throws {
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw BackupError.notABackup(message) }
+        }
+        func ids(_ values: [String]) -> Bool {
+            values.count <= 10_000 && Set(values).count == values.count
+                && values.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 256 }
+        }
+        try require(ids(doc.waypoints.map(\.id)) && ids(doc.graphics.map(\.id)) && ids(doc.tracks.map(\.id)), "Duplicate or invalid record IDs")
+        try require(doc.folders.count <= 10_000, "Too many folders")
+        for point in doc.waypoints {
+            try require(TrackCodec.validCoordinates(point.lat, point.lon) && point.rotation.isFinite
+                        && (point.sourceRoutePointIndex.map { $0 >= 0 } ?? true), "Invalid waypoint coordinates or route ownership")
+        }
+        try require(doc.graphics.reduce(0) { $0 + $1.points.count } <= 250_000, "Too many graphic vertices")
+        for graphic in doc.graphics {
+            try require(graphic.points.count >= GraphicTypes.minPoints(graphic.type)
+                        && graphic.points.allSatisfy { TrackCodec.validCoordinates($0.lat, $0.lon) }, "Invalid graphic vertices")
+        }
+        let s = doc.settings
+        if doc.hasSettings {
+            try require([4,6,8,10].contains(s.mgrsDigits) && (0...2).contains(s.latLonFormat)
+                        && (0...2).contains(s.units) && (0...1).contains(s.angleUnit) && (0...2).contains(s.northRef)
+                        && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
+                        && (s.declinationOverride.map { $0.isFinite && (-180...180).contains($0) } ?? true), "Invalid settings in backup")
+        }
+        try require(doc.courseHistory.count <= 10_000 && doc.courseHistory.allSatisfy {
+            $0.points >= 0 && $0.started >= 0 && $0.total >= 0 && $0.splits.count <= 10_000 && $0.splits.allSatisfy { $0 >= 0 }
+        }, "Invalid course history")
+        var totalPoints = 0
+        for track in doc.tracks {
+            try require(TrackCodec.validID(track.id) && track.pointCount >= 0 && track.distanceM.isFinite && track.distanceM >= 0, "Invalid track metadata")
+            if includingTrackFiles {
+                try require(doc.trackFiles[track.id] != nil || track.pointCount == 0, "Missing points for track \(track.name)")
+                let points = try TrackCodec.decode(doc.trackFiles[track.id] ?? Data())
+                totalPoints += points.count
+                try require(totalPoints <= 250_000, "Too many backup track points")
+            }
+        }
+        if includingTrackFiles {
+            try require(Set(doc.trackFiles.keys).isSubset(of: Set(doc.tracks.map(\.id))), "Track file is missing from manifest")
+        }
+    }
+
     // MARK: - Decoders
 
     private static func decodeWaypoint(_ o: [String: Any]) throws -> Waypoint {
@@ -268,6 +343,9 @@ public enum Backup {
         guard let name = o["name"] as? String else { throw BackupError.missingField("waypoint.name") }
         guard let lat = double(o["lat"]) else { throw BackupError.missingField("waypoint.lat") }
         guard let lon = double(o["lon"]) else { throw BackupError.missingField("waypoint.lon") }
+        if let rawIndex = o["sourceRoutePointIndex"], !(rawIndex is NSNull), int(rawIndex) == nil {
+            throw BackupError.notABackup("Invalid route point index")
+        }
         let metaObj = o["metadata"] as? [String: Any]
         return Waypoint(
             id: id, name: name, lat: lat, lon: lon,
@@ -280,7 +358,9 @@ public enum Backup {
             kind: o["kind"] as? String ?? KIND_WP,
             rotation: double(o["rotation"]) ?? 0,
             visible: o["visible"] as? Bool ?? true,
-            metadata: decodeMetadata(metaObj)
+            metadata: decodeMetadata(metaObj),
+            sourceRouteId: o["sourceRouteId"] as? String,
+            sourceRoutePointIndex: int(o["sourceRoutePointIndex"])
         )
     }
 
@@ -318,19 +398,24 @@ public enum Backup {
         )
     }
 
-    private static func decodeCourse(_ o: [String: Any]) -> CourseResult? {
-        guard let name = o["name"] as? String else { return nil }
-        let splits = (o["splits"] as? [Any] ?? []).compactMap { int64($0) }
+    private static func decodeCourse(_ o: [String: Any]) throws -> CourseResult {
+        guard let name = o["name"] as? String, let points = int(o["points"]),
+              let started = int64(o["started"]), let total = int64(o["total"]),
+              let rawSplits = o["splits"] as? [Any] else { throw BackupError.missingField("course result") }
+        let splits = try rawSplits.map { value -> Int64 in
+            guard let split = int64(value) else { throw BackupError.notABackup("Invalid course split") }
+            return split
+        }
         return CourseResult(
             name: name,
-            points: int(o["points"]) ?? 0,
-            started: int64(o["started"]) ?? 0,
-            total: int64(o["total"]) ?? 0,
+            points: points,
+            started: started,
+            total: total,
             splits: splits
         )
     }
 
-    private static func decodeSettings(_ o: [String: Any]) -> AppSettings {
+    private static func decodeSettings(_ o: [String: Any]) throws -> AppSettings {
         var s = AppSettings()
         s.nightMode = o["nightMode"] as? Bool ?? false
         s.keepScreenOn = o["keepScreenOn"] as? Bool ?? true
@@ -346,7 +431,8 @@ public enum Backup {
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {
             s.declinationOverride = nil
         } else {
-            s.declinationOverride = double(o["declinationOverride"])
+            guard let degrees = double(o["declinationOverride"]) else { throw BackupError.notABackup("Invalid declination override") }
+            s.declinationOverride = degrees
         }
         return s
     }
@@ -387,7 +473,7 @@ public enum Backup {
         switch v {
         case let i as Int: return i
         case let i as Int64: return Int(i)
-        case let d as Double: return Int(d)
+        case let d as Double: return d.isFinite ? Int(exactly: d) : nil
         case let n as NSNumber: return n.intValue
         case let s as String: return Int(s)
         default: return nil
@@ -397,7 +483,7 @@ public enum Backup {
         switch v {
         case let i as Int64: return i
         case let i as Int: return Int64(i)
-        case let d as Double: return Int64(d)
+        case let d as Double: return d.isFinite ? Int64(exactly: d) : nil
         case let n as NSNumber: return n.int64Value
         case let s as String: return Int64(s)
         default: return nil

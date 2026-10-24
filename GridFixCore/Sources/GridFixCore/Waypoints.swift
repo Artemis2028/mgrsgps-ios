@@ -36,6 +36,8 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
     public var rotation: Double
     public var visible: Bool
     public var metadata: WaypointMetadata
+    public var sourceRouteId: String?
+    public var sourceRoutePointIndex: Int?
 
     public init(id: String = UUID().uuidString,
                 name: String,
@@ -50,7 +52,8 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
                 kind: String = KIND_WP,
                 rotation: Double = 0,
                 visible: Bool = true,
-                metadata: WaypointMetadata = WaypointMetadata()) {
+                metadata: WaypointMetadata = WaypointMetadata(),
+                sourceRouteId: String? = nil, sourceRoutePointIndex: Int? = nil) {
         self.id = id
         self.name = name
         self.lat = lat
@@ -65,6 +68,8 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
         self.rotation = rotation
         self.visible = visible
         self.metadata = metadata
+        self.sourceRouteId = sourceRouteId
+        self.sourceRoutePointIndex = sourceRoutePointIndex
     }
 }
 

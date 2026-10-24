@@ -49,7 +49,7 @@ compass artwork.
 The four tabs are Position / Navigate / Map / Waypoints (tags 0/1/2/3).
 `-startTab map` opens Map at tag **2**. Add/edit supports MGRS or WGS84 decimal
 coordinates, and visible waypoints/folders appear on the map. Tap a marker to
-navigate; use Locate or Show all waypoints for explicit camera moves.
+navigate; use Locate or Show all visible data for explicit camera moves.
 
 After `xcodegen generate`, run the scheme's UI tests with:
 
@@ -60,7 +60,8 @@ xcodebuild test -project MGRSGPS.xcodeproj -scheme MGRSGPS \
 
 Choose an installed simulator name. The UI tests use a separate Debug data
 store and cover coordinate entry/editing/persistence, marker navigation, folder
-visibility, and map-centre creation. Screenshots are attached to the test results.
+visibility, map-centre creation, route cards/waypoint ownership, GPX tracks/routes,
+and restored data after relaunch. Screenshots are attached to the test results.
 
 ## The loop
 
@@ -103,6 +104,8 @@ analytics, nothing leaves the phone.
 
 Field math is pinned to the shared golden fixture. Product surfaces are catching
 up toward `gridfix` **1.0.4** — see `docs/ios-parity-1.0.4.md` for the current
-checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline. Waypoints, folders, backup v1 and GPX import/export
-are in; terrain, tracks UI and KML/ATAK are not.
+checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline.
+Waypoints, folders, route creation/cards, saved tracks/overlays, complete backup
+v1, and GPX waypoint/route/track import/export are in. Live recording, terrain,
+practice courses, and KML/ATAK remain.
 

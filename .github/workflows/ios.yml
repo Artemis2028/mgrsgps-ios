@@ -65,7 +65,7 @@ jobs:
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
-      - name: Coordinate and waypoint UI workflows
+      - name: App integration and field UI workflows
         id: ui_tests
         run: |
           set -o pipefail

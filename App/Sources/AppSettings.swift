@@ -2,7 +2,7 @@ import Foundation
 import GridFixCore
 
 /// Position / Navigate instrument. Android `Face` ints: 0 Glance, 1 Lensatic, 2 Dial.
-/// iOS defaults to Glance so the CI Position shot stays the large-grid face.
+/// Defaults match Android; screenshot scripts choose a face explicitly.
 enum PositionFace: Int, CaseIterable, Identifiable, Codable {
     case glance = 0
     case lensatic = 1
@@ -51,15 +51,21 @@ enum NorthReference: Int, CaseIterable, Identifiable, Codable {
 @MainActor
 final class AppSettings: ObservableObject {
     @Published var nightMode: Bool = false { didSet { persist() } }
-    /// 4 / 6 / 8 / 10. Default 8 matches the Position face CI already photographs.
-    @Published var mgrsDigits: Int = 8 { didSet { persist() } }
+    /// 4 / 6 / 8 / 10, matching Android's ten-digit default.
+    @Published var mgrsDigits: Int = 10 { didSet { persist() } }
     @Published var units: DistanceUnit = .metric { didSet { persist() } }
     @Published var latLonFormat: LatLonFormat = .degreesMinutes { didSet { persist() } }
     @Published var angleUnit: AngleUnit = .degrees { didSet { persist() } }
     @Published var northRef: NorthReference = .trueNorth { didSet { persist() } }
     /// East-positive degrees. Nil follows DeclinationService (heading, then WMM).
     @Published var declinationOverride: Double? { didSet { persist() } }
-    @Published var face: PositionFace = .glance { didSet { persist() } }
+    @Published var face: PositionFace = .lensatic { didSet { persist() } }
+
+    @Published var keepScreenOn = true { didSet { persist() } }
+    @Published var pacePer100m = 65 { didSet { persist() } }
+    // Preserved for cross-platform backups; orientation UI is a later slice.
+    @Published var orientation = 0 { didSet { persist() } }
+    @Published var disclaimerAccepted = false { didSet { persist() } }
 
     private let fileURL: URL
     private var ready = false
@@ -73,6 +79,10 @@ final class AppSettings: ObservableObject {
         var northRef: Int
         var declinationOverride: Double?
         var face: Int
+        var keepScreenOn: Bool?
+        var pacePer100m: Int?
+        var orientation: Int?
+        var disclaimerAccepted: Bool?
     }
 
     init(directory: URL? = nil) {
@@ -113,7 +123,7 @@ final class AppSettings: ObservableObject {
         guard let data = try? Data(contentsOf: fileURL),
               let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
         nightMode = snap.nightMode
-        mgrsDigits = [4, 6, 8, 10].contains(snap.mgrsDigits) ? snap.mgrsDigits : 8
+        mgrsDigits = [4, 6, 8, 10].contains(snap.mgrsDigits) ? snap.mgrsDigits : 10
         units = DistanceUnit(rawValue: snap.units) ?? .metric
         latLonFormat = LatLonFormat(rawValue: snap.latLonFormat) ?? .degreesMinutes
         angleUnit = AngleUnit(rawValue: snap.angleUnit) ?? .degrees
@@ -123,7 +133,40 @@ final class AppSettings: ObservableObject {
         } else {
             declinationOverride = nil
         }
-        face = PositionFace(rawValue: snap.face) ?? .glance
+        face = PositionFace(rawValue: snap.face) ?? .lensatic
+        keepScreenOn = snap.keepScreenOn ?? true
+        pacePer100m = snap.pacePer100m ?? 65
+        orientation = snap.orientation ?? 0
+        disclaimerAccepted = snap.disclaimerAccepted ?? false
+    }
+
+    var backupSettings: Backup.AppSettings {
+        var s = Backup.AppSettings()
+        s.nightMode = nightMode; s.mgrsDigits = mgrsDigits; s.units = units.rawValue
+        s.latLonFormat = latLonFormat.rawValue; s.angleUnit = angleUnit.rawValue; s.northRef = northRef.rawValue
+        s.declinationOverride = declinationOverride; s.face = face.rawValue; s.keepScreenOn = keepScreenOn
+        s.pacePer100m = pacePer100m; s.orientation = orientation; s.disclaimerAccepted = disclaimerAccepted
+        return s
+    }
+
+    func applyBackup(_ s: Backup.AppSettings) throws {
+        var check = Backup.Document(settings: s)
+        check.hasSettings = true
+        try Backup.validate(check)
+        let snapshot = Snapshot(nightMode: s.nightMode, mgrsDigits: s.mgrsDigits, units: s.units,
+                                latLonFormat: s.latLonFormat, angleUnit: s.angleUnit, northRef: s.northRef,
+                                declinationOverride: s.declinationOverride, face: s.face,
+                                keepScreenOn: s.keepScreenOn, pacePer100m: s.pacePer100m,
+                                orientation: s.orientation, disclaimerAccepted: s.disclaimerAccepted)
+        try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
+        ready = false
+        nightMode = s.nightMode; mgrsDigits = s.mgrsDigits
+        units = DistanceUnit(rawValue: s.units)!; latLonFormat = LatLonFormat(rawValue: s.latLonFormat)!
+        angleUnit = AngleUnit(rawValue: s.angleUnit)!; northRef = NorthReference(rawValue: s.northRef)!
+        declinationOverride = s.declinationOverride; face = PositionFace(rawValue: s.face)!
+        keepScreenOn = s.keepScreenOn; pacePer100m = s.pacePer100m
+        orientation = s.orientation; disclaimerAccepted = s.disclaimerAccepted
+        ready = true
     }
 
     private func persist() {
@@ -136,7 +179,9 @@ final class AppSettings: ObservableObject {
             angleUnit: angleUnit.rawValue,
             northRef: northRef.rawValue,
             declinationOverride: declinationOverride,
-            face: face.rawValue
+            face: face.rawValue,
+            keepScreenOn: keepScreenOn, pacePer100m: pacePer100m,
+            orientation: orientation, disclaimerAccepted: disclaimerAccepted
         )
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)

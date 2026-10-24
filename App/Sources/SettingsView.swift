@@ -22,6 +22,9 @@ struct SettingsView: View {
                     section("Display")
                     faceBlock
                     nightBlock
+                    Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent)
+                    Stepper("Paces per 100 m: \(settings.pacePer100m)", value: $settings.pacePer100m, in: 1...1000)
+                        .font(.subheadline).foregroundStyle(palette.ink)
 
                     section("Grid & units")
                     digitsBlock

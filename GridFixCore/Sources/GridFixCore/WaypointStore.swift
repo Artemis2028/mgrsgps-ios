@@ -127,30 +127,68 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     /// Additive, id-keyed merge used by backup restore. Returns count added.
     @discardableResult
     public func merge(waypoints incoming: [Waypoint], folders incomingFolders: [FolderInfo]) -> Int {
+        (try? restore(waypoints: incoming, folders: incomingFolders)) ?? 0
+    }
+
+    /// Existing records and route vertices win. Publish only after the complete
+    /// merged snapshot has been written, so a failed restore remains retryable.
+    @discardableResult
+    public func restore(waypoints incoming: [Waypoint], folders incomingFolders: [FolderInfo]) throws -> Int {
         lock.lock(); defer { lock.unlock() }
-        let existing = Set(waypoints.map(\.id))
-        var added = 0
-        for var f in incomingFolders {
-            f.name = Folders.canonical(f.name)
-            if let idx = folders.firstIndex(where: {
-                $0.name.caseInsensitiveCompare(f.name) == .orderedSame
-            }) {
-                // Keep the device's own visibility.
-                _ = idx
-            } else {
-                folders.append(f)
-            }
+        var ids = Set(waypoints.map(\.id))
+        var vertices = Set(waypoints.compactMap(\.routeVertexKey))
+        var next = waypoints
+        for var waypoint in incoming {
+            guard ids.insert(waypoint.id).inserted else { continue }
+            if let vertex = waypoint.routeVertexKey, !vertices.insert(vertex).inserted { continue }
+            waypoint.folder = Folders.match(known: folders.map(\.name) + incomingFolders.map(\.name), raw: waypoint.folder)
+            next.append(waypoint)
         }
-        for var w in incoming {
-            w.folder = Folders.match(known: knownNamesLocked(), raw: w.folder)
-            if existing.contains(w.id) { continue }
-            waypoints.append(w)
-            ensureFolderLocked(w.folder, visible: nil)
-            added += 1
+        var mergedFolders = folders
+        for var folder in incomingFolders {
+            folder.name = Folders.canonical(folder.name)
+            if !mergedFolders.contains(where: { $0.name.caseInsensitiveCompare(folder.name) == .orderedSame }) { mergedFolders.append(folder) }
         }
-        refreshFoldersLocked()
-        persistLocked()
+        let nextFolders = Self.mergeFolderList(stored: mergedFolders, referenced: next.map(\.folder))
+        let snapshot = Snapshot(waypoints: next, folders: nextFolders, selectedId: selectedId)
+        try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
+        let added = next.count - waypoints.count
+        waypoints = next; folders = nextFolders
         return added
+    }
+
+    /// Port of Android replaceRouteWaypoints: owner ID/index establish identity;
+    /// names never do. Duplicate legacy owners are retained as standalone points.
+    public func replaceRouteWaypoints(routeID: String, name: String, points: [GeoPoint], folder: String,
+                                      now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) throws {
+        guard !routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              points.allSatisfy({ TrackCodec.validCoordinates($0.lat, $0.lon) }) else { throw BackupError.notABackup("Invalid route") }
+        lock.lock(); defer { lock.unlock() }
+        let storedFolder = Folders.match(known: knownNamesLocked(), raw: folder)
+        var owners: [Int: Waypoint] = [:]
+        for waypoint in waypoints where waypoint.sourceRouteId == routeID {
+            if let index = waypoint.sourceRoutePointIndex, index >= 0,
+               owners[index] == nil || waypoint.id == selectedId { owners[index] = waypoint }
+        }
+        let generated = points.enumerated().map { index, point -> Waypoint in
+            var waypoint = owners[index] ?? Waypoint(name: "", lat: point.lat, lon: point.lon, createdAt: now)
+            waypoint.name = "\(name) WP \(index + 1)"
+            waypoint.lat = point.lat; waypoint.lon = point.lon; waypoint.folder = storedFolder
+            waypoint.sourceRouteId = routeID; waypoint.sourceRoutePointIndex = index
+            return waypoint
+        }
+        let retained = waypoints.compactMap { waypoint -> Waypoint? in
+            guard waypoint.sourceRouteId == routeID else { return waypoint }
+            if let index = waypoint.sourceRoutePointIndex, owners[index]?.id == waypoint.id { return nil }
+            var standalone = waypoint
+            standalone.sourceRouteId = nil; standalone.sourceRoutePointIndex = nil
+            return standalone
+        }
+        let next = retained + generated
+        let selection = next.contains { $0.id == selectedId } ? selectedId : nil
+        let nextFolders = Self.mergeFolderList(stored: folders, referenced: next.map(\.folder))
+        try JSONEncoder().encode(Snapshot(waypoints: next, folders: nextFolders, selectedId: selection)).write(to: fileURL, options: .atomic)
+        waypoints = next; folders = nextFolders; selectedId = selection
     }
 
     public func replaceAll(waypoints: [Waypoint], folders: [FolderInfo]) {
@@ -235,5 +273,18 @@ private extension Array where Element == String {
             if seen.insert(key).inserted { out.append(s) }
         }
         return out
+    }
+}
+
+private struct RouteVertexKey: Hashable {
+    let routeID: String
+    let index: Int
+}
+
+private extension Waypoint {
+    var routeVertexKey: RouteVertexKey? {
+        guard let routeID = sourceRouteId, !routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let index = sourceRoutePointIndex, index >= 0 else { return nil }
+        return RouteVertexKey(routeID: routeID, index: index)
     }
 }

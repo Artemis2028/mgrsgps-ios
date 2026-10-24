@@ -8,8 +8,12 @@ struct MapScreen: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: WaypointStore
+    @EnvironmentObject private var fieldData: FieldDataStore
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
+    @State private var overlayRoutes = 0
+    @State private var overlayTracks = 0
+    @State private var hasFieldPoints = false
     @State private var nightMode = false
     @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
     @State private var selectedID: String?
@@ -29,6 +33,8 @@ struct MapScreen: View {
         ZStack {
             MapContainer(nightMode: chromeNight, fix: location.usableFix,
                          waypoints: visible, navigationID: store.selectedId,
+                         document: fieldData.document, folders: store.folders,
+                         onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
                          onSelect: { selectedID = $0 },
                          onChange: { label, position in
@@ -49,6 +55,10 @@ struct MapScreen: View {
                         Text("MAP CENTRE · \(intervalLabel) GRID")
                             .font(.caption2.weight(.semibold)).tracking(1)
                             .foregroundStyle(mapInkDim)
+                        if overlayRoutes > 0 || overlayTracks > 0 {
+                            Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
+                                .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
+                        }
                     }
                     .padding(14).fieldChrome()
                     Spacer(minLength: 0)
@@ -70,12 +80,12 @@ struct MapScreen: View {
                     }
                     .fieldGlassButton().disabled(location.usableFix == nil)
                     Button {
-                        cameraRequest = MapCameraRequest(action: .fitWaypoints)
+                        cameraRequest = MapCameraRequest(action: .fitData)
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton().disabled(visible.isEmpty)
-                    .accessibilityLabel("Show all waypoints")
+                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints)
+                    .accessibilityLabel("Show all visible data")
                     Spacer(minLength: 0)
                     Button {
                         editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
@@ -124,7 +134,7 @@ struct MapScreen: View {
 }
 
 private struct MapCameraRequest {
-    enum Action { case locate(Double, Double), fitWaypoints }
+    enum Action { case locate(Double, Double), fitData }
     let id = UUID()
     let action: Action
 }
@@ -134,6 +144,9 @@ private struct MapContainer: UIViewRepresentable {
     let fix: Fix?
     let waypoints: [Waypoint]
     let navigationID: String?
+    let document: Backup.Document
+    let folders: [FolderInfo]
+    let onOverlays: (Int, Int, Bool) -> Void
     let cameraRequest: MapCameraRequest?
     let onSelect: (String) -> Void
     let onChange: (String, CLLocationCoordinate2D) -> Void
@@ -158,17 +171,24 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.onChange = onChange
         coordinator.onSelect = onSelect
         coordinator.overlay.nightMode = nightMode
+        coordinator.fieldOverlay.onChange = onOverlays
+        coordinator.fieldOverlay.update(document: document, folders: folders, night: nightMode)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
             switch request.action {
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
-            case .fitWaypoints:
-                if !coordinator.annotations.isEmpty {
-                    view.showAnnotations(Array(coordinator.annotations.values),
-                                         edgePadding: UIEdgeInsets(top: 140, left: 82, bottom: 240, right: 82), animated: true,
-                                         completionHandler: nil)
+            case .fitData:
+                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points
+                if let bounds = FieldMapGeometry.bounds(points) {
+                    if bounds.south == bounds.north && bounds.west == bounds.east {
+                        view.setCenter(CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), zoomLevel: 15, animated: true)
+                    } else {
+                        view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west),
+                                                                          ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)),
+                                                        edgePadding: UIEdgeInsets(top: 140, left: 82, bottom: 240, right: 82), animated: true, completionHandler: nil)
+                    }
                 }
             }
             coordinator.hasCentred = true
@@ -181,6 +201,7 @@ private struct MapContainer: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate {
         let overlay = GridOverlay()
+        let fieldOverlay = FieldOverlay()
         var hasCentred = false
         var lastRequest: UUID?
         var annotations: [String: WaypointAnnotation] = [:]
@@ -228,6 +249,7 @@ private struct MapContainer: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             overlay.install(into: style)
+            fieldOverlay.install(into: style)
             redraw(mapView)
         }
 

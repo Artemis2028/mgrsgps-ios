@@ -7,12 +7,15 @@ struct WaypointsView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var fieldData: FieldDataStore
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     @State private var editorRequest: WaypointEditorRequest?
     var onNavigate: () -> Void = {}
     @State private var folderFilter: String?
     @State private var status: String?
+    @State private var showingLibrary = false
+    @State private var showingPaste = false
     @State private var exportDoc: BackupDocumentFile?
     @State private var exportGPX: GPXDocumentFile?
     @State private var showingImporter = false
@@ -25,8 +28,18 @@ struct WaypointsView: View {
             FieldScreenBackground()
             VStack(alignment: .leading, spacing: 0) {
                 header
+                Button { showingLibrary = true } label: {
+                    HStack {
+                        Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                        Spacer()
+                        Text("\(fieldData.document.graphics.filter { $0.type == "route" }.count) routes · \(fieldData.document.tracks.count) tracks")
+                            .font(.caption).foregroundStyle(palette.inkDim)
+                        Image(systemName: "chevron.right").font(.caption)
+                    }.padding(.horizontal, 20).frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityIdentifier("open-field-library")
                 folderPicker
-                if store.waypoints.isEmpty {
+                if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
                     empty
                 } else {
                     list
@@ -43,6 +56,14 @@ struct WaypointsView: View {
                 status = nil
             }
         }
+        .sheet(isPresented: $showingLibrary) {
+            FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() })
+        }
+        .sheet(isPresented: $showingPaste) {
+            GPXPasteImportView { document in
+                status = BackupCoordinator.restore(document, waypoints: store, fieldData: fieldData, settings: settings)
+            }
+        }
         .fileExporter(isPresented: Binding(
             get: { exportDoc != nil },
             set: { if !$0 { exportDoc = nil } }
@@ -52,11 +73,11 @@ struct WaypointsView: View {
         .fileExporter(isPresented: Binding(
             get: { exportGPX != nil },
             set: { if !$0 { exportGPX = nil } }
-        ), document: exportGPX, contentType: .xml, defaultFilename: "waypoints") { _ in
+        ), document: exportGPX, contentType: .gridFixGPX, defaultFilename: "gridfix") { _ in
             exportGPX = nil
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip] : [.xml, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .xml, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
@@ -78,6 +99,7 @@ struct WaypointsView: View {
                 Button("Export GPX") { exportGpx() }
                 Button("Import backup") { importKind = .backup; showingImporter = true }
                 Button("Import GPX") { importKind = .gpx; showingImporter = true }
+                Button("Paste GPX") { showingPaste = true }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)
             }
@@ -140,9 +162,11 @@ struct WaypointsView: View {
                     let items = store.waypoints.filter {
                         $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame
                     }
-                    if !items.isEmpty {
+                    let graphicCount = fieldData.document.graphics.filter { $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame }.count
+                    let trackCount = fieldData.document.tracks.filter { $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame }.count
+                    if !items.isEmpty || graphicCount > 0 || trackCount > 0 {
                         HStack {
-                            SectionLabel(text: "\(folder.name) · \(items.count)")
+                            SectionLabel(text: "\(folder.name) · \(items.count) WP · \(graphicCount) GFX · \(trackCount) TRK")
                             Spacer()
                             Button {
                                 store.setFolderVisible(folder.name, visible: !folder.visible)
@@ -230,10 +254,7 @@ struct WaypointsView: View {
     }
 
     private func exportBackup() {
-        let doc = Backup.Document(
-            waypoints: store.waypoints,
-            folders: store.folders
-        )
+        let doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
         do {
             let data = try Backup.exportZip(doc)
             exportDoc = BackupDocumentFile(data: data)
@@ -244,9 +265,12 @@ struct WaypointsView: View {
     }
 
     private func exportGpx() {
-        let xml = GPX.build(waypoints: store.waypoints)
-        exportGPX = GPXDocumentFile(text: xml)
-        status = "GPX ready"
+        do {
+            let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name, points: try fieldData.points(for: $0.id)) }
+            let xml = GPX.build(waypoints: store.waypoints, routes: fieldData.document.graphics, tracks: tracks)
+            exportGPX = GPXDocumentFile(text: xml)
+            status = "GPX ready"
+        } catch { status = "Export failed: \(error.localizedDescription)" }
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
@@ -258,15 +282,11 @@ struct WaypointsView: View {
             switch importKind {
             case .backup:
                 let doc = try Backup.importZip(data)
-                let r = Backup.restoreWaypoints(doc, into: store)
-                status = r.waypoints == 0
-                    ? "Nothing new to restore"
-                    : "Restored \(r.waypoints) waypoints"
+                status = BackupCoordinator.restore(doc, waypoints: store, fieldData: fieldData, settings: settings)
             case .gpx:
                 let xml = String(data: data, encoding: .utf8) ?? ""
-                let drafts = GPX.parseWaypoints(xml)
-                for d in drafts { store.add(d) }
-                status = drafts.isEmpty ? "No waypoints in GPX" : "Imported \(drafts.count) from GPX"
+                let document = try GPX.parse(xml)
+                status = BackupCoordinator.restore(document, waypoints: store, fieldData: fieldData, settings: settings)
             }
         } catch {
             status = "Import failed: \(error.localizedDescription)"
@@ -287,7 +307,7 @@ struct BackupDocumentFile: FileDocument {
 }
 
 struct GPXDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.xml] }
+    static var readableContentTypes: [UTType] { [.gridFixGPX, .xml] }
     var text: String
     init(text: String) { self.text = text }
     init(configuration: ReadConfiguration) throws {
@@ -297,4 +317,8 @@ struct GPXDocumentFile: FileDocument {
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: Data(text.utf8))
     }
+}
+
+extension UTType {
+    static let gridFixGPX = UTType(exportedAs: "app.gridfix.gpx", conformingTo: .xml)
 }
