@@ -5,8 +5,14 @@ Current work compares against Android **release/1.1.0** (`482b417`). See
 for implemented features, validation, and remaining work.
 
 Native Swift and SwiftUI. The sibling of the Android app in
-`Artemis2028/gridfix`, sharing its field math through a fixture rather than
-through a runtime, and **never** pushing to that repo.
+`Artemis2028/gridfix`, sharing its field math through fixtures rather than
+an Android application runtime.
+
+The native Apple Watch companion is in [Watch](Watch/README.md): Glance-style
+MGRS and waypoint pages, foreground watch location, phone target/settings sync,
+fix freshness/accuracy, north-reference labels and local red night mode.
+Wear OS is a separate companion in the Android project. Both watch apps are
+additional requested work; they do not replace the main iOS parity milestone.
 
 ## Getting it running
 

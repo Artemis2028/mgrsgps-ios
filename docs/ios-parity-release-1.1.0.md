@@ -34,3 +34,9 @@ See [field library workflows](field-library.md), [map measurements](map-measurem
 Core Location does not expose Android's GNSS satellite/status details. iOS also
 controls background execution and notification/haptic delivery; platform limits
 must remain visible rather than represented as complete feature parity.
+
+Separately requested watch companions are being developed alongside this port.
+The native [watchOS companion](../Watch/README.md) has grid and selected-waypoint
+pages with foreground location and latest-state phone sync. Simulator pairing,
+small-screen rendering and physical watch validation are tracked in its own
+verification notes; these are not claims that main-app parity is complete.
