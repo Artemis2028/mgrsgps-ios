@@ -8,3 +8,4 @@ DerivedData/
 screenshots/
 .DS_Store
 xcuserdata/
+App/Resources/Info.generated.plist

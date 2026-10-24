@@ -16,6 +16,7 @@ struct Fix: Equatable {
     /// Ground speed when Core Location reports a usable value; nil otherwise.
     let speedMetersPerSecond: Double?
     let timestamp: Date
+    let timestampUptime: TimeInterval
 
     /// 0 to 5, from horizontal accuracy.
     var grade: Int {
@@ -57,6 +58,8 @@ struct Fix: Equatable {
 @MainActor
 final class LocationService: NSObject, ObservableObject {
     @Published private(set) var fix: Fix?
+    /// Only a recent, precise, authorised fix may create a waypoint or drive navigation.
+    @Published private(set) var usableFix: Fix?
     /// Latest compass sample. Nil until Core Location reports one. A negative
     /// headingAccuracy means the sample is not a heading — callers must not
     /// treat 0 as "north" when this is nil or invalid.
@@ -92,6 +95,18 @@ final class LocationService: NSObject, ObservableObject {
         manager.stopUpdatingHeading()
     }
 
+    func refreshFixValidity() {
+        guard authorization == .authorizedAlways || authorization == .authorizedWhenInUse,
+              !reducedAccuracy, let fix,
+              NavigationFixPolicy.isUsable(lat: fix.lat, lon: fix.lon, accuracyMeters: fix.accuracyMeters,
+                                           timestampUptime: fix.timestampUptime,
+                                           nowUptime: ProcessInfo.processInfo.systemUptime) else {
+            if usableFix != nil { usableFix = nil }
+            return
+        }
+        if usableFix != fix { usableFix = fix }
+    }
+
     private func startHeading() {
         guard CLLocationManager.headingAvailable() else { return }
         manager.headingFilter = 1
@@ -113,9 +128,13 @@ extension LocationService: CLLocationManagerDelegate {
             accuracyMeters: l.horizontalAccuracy,
             altitudeMeters: l.verticalAccuracy >= 0 ? l.altitude : nil,
             speedMetersPerSecond: speed,
-            timestamp: l.timestamp
+            timestamp: l.timestamp,
+            timestampUptime: ProcessInfo.processInfo.systemUptime - Date().timeIntervalSince(l.timestamp)
         )
-        Task { @MainActor [weak self] in self?.fix = f }
+        Task { @MainActor [weak self] in
+            self?.fix = f
+            self?.refreshFixValidity()
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
@@ -124,6 +143,7 @@ extension LocationService: CLLocationManagerDelegate {
             guard let self else { return }
             self.authorization = status
             self.refreshAccuracyAuthorization()
+            self.refreshFixValidity()
             if status == .authorizedWhenInUse || status == .authorizedAlways {
                 m.startUpdatingLocation()
                 self.startHeading()

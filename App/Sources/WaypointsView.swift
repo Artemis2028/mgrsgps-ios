@@ -2,17 +2,16 @@ import GridFixCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Waypoint list + add/edit. First product slice toward Android 0.9.32 parity.
+/// Local waypoints with coordinate editing, folder visibility, and navigation.
 struct WaypointsView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
-    @State private var editing: Waypoint?
-    @State private var showingEditor = false
-    @State private var draftName = ""
-    @State private var draftFolder = Folders.defaultFolder
+    @State private var editorRequest: WaypointEditorRequest?
+    var onNavigate: () -> Void = {}
+    @State private var folderFilter: String?
     @State private var status: String?
     @State private var exportDoc: BackupDocumentFile?
     @State private var exportGPX: GPXDocumentFile?
@@ -23,9 +22,10 @@ struct WaypointsView: View {
 
     var body: some View {
         ZStack {
-            palette.background.ignoresSafeArea()
+            FieldScreenBackground()
             VStack(alignment: .leading, spacing: 0) {
                 header
+                folderPicker
                 if store.waypoints.isEmpty {
                     empty
                 } else {
@@ -36,7 +36,13 @@ struct WaypointsView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .sheet(isPresented: $showingEditor) { editor }
+        .sheet(item: $editorRequest) { request in
+            WaypointEditor(waypoint: request.waypoint, lat: request.lat, lon: request.lon) { draft in
+                if let editing = request.waypoint { store.update(id: editing.id, draft: draft) }
+                else { store.add(draft) }
+                status = nil
+            }
+        }
         .fileExporter(isPresented: Binding(
             get: { exportDoc != nil },
             set: { if !$0 { exportDoc = nil } }
@@ -58,23 +64,33 @@ struct WaypointsView: View {
 
     private var header: some View {
         HStack {
-            SectionLabel(text: "Waypoints")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Waypoints").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                Text("\(store.waypoints.count) saved · on this device")
+                    .font(.subheadline).foregroundStyle(palette.inkDim)
+            }
             Spacer()
             Menu {
                 Button("Add at fix") { beginAdd(atFix: true) }
-                Button("Add blank") { beginAdd(atFix: false) }
+                Button("Enter coordinates") { beginAdd(atFix: false) }
                 Divider()
                 Button("Export backup") { exportBackup() }
                 Button("Export GPX") { exportGpx() }
                 Button("Import backup") { importKind = .backup; showingImporter = true }
                 Button("Import GPX") { importKind = .gpx; showingImporter = true }
             } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(palette.accent)
+                Image(systemName: "ellipsis").frame(width: 44, height: 44)
             }
+            .fieldGlassButton()
+            .accessibilityLabel("Waypoint actions")
+            Button { beginAdd(atFix: false) } label: {
+                Image(systemName: "plus").frame(width: 44, height: 44)
+            }
+            .fieldGlassButton()
+            .accessibilityLabel("Add waypoint")
+            .accessibilityIdentifier("add-waypoint")
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 20)
         .padding(.top, 18)
         .padding(.bottom, 12)
     }
@@ -94,139 +110,123 @@ struct WaypointsView: View {
         .padding(.horizontal, 22)
     }
 
-    private var list: some View {
-        List {
-            ForEach(store.folders) { folder in
-                let items = store.waypoints.filter {
-                    $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame
+    private var folderPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                folderChip("All", selected: folderFilter == nil) { folderFilter = nil }
+                ForEach(store.folders) { folder in
+                    folderChip(folder.name, selected: folderFilter == folder.name) { folderFilter = folder.name }
                 }
-                if !items.isEmpty {
-                    Section {
-                        ForEach(items) { wp in
+            }.padding(.horizontal, 20).padding(.vertical, 8)
+        }
+    }
+
+    private func folderChip(_ name: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(name).font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .foregroundStyle(selected ? palette.accent : palette.ink)
+                .background(selected ? palette.accent.opacity(0.14) : Color.white.opacity(0.04), in: Capsule())
+                .overlay(Capsule().stroke(selected ? palette.accent.opacity(0.4) : palette.hairline))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var list: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(store.folders.filter { folderFilter == nil || $0.name == folderFilter }) { folder in
+                    let items = store.waypoints.filter {
+                        $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame
+                    }
+                    if !items.isEmpty {
+                        HStack {
+                            SectionLabel(text: "\(folder.name) · \(items.count)")
+                            Spacer()
                             Button {
-                                beginEdit(wp)
+                                store.setFolderVisible(folder.name, visible: !folder.visible)
                             } label: {
-                                row(wp)
+                                Label(folder.visible ? "Hide folder" : "Show folder",
+                                      systemImage: folder.visible ? "eye" : "eye.slash")
+                                    .font(.caption).frame(minHeight: 44)
                             }
-                            .listRowBackground(palette.background)
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    store.select(wp.id)
-                                } label: { Label("Nav", systemImage: "safari") }
-                                .tint(palette.accent)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    store.delete(ids: [wp.id])
-                                } label: { Label("Delete", systemImage: "trash") }
-                            }
+                            .buttonStyle(.plain).foregroundStyle(palette.inkDim)
+                            .accessibilityIdentifier("folder-visibility-\(folder.name)")
                         }
-                    } header: {
-                        Text(folder.name.uppercased())
-                            .font(Blackout.label(11))
-                            .tracking(1.4)
-                            .foregroundStyle(palette.accent)
+                        ForEach(items) { wp in row(wp) }
                     }
                 }
+                if let status {
+                    Text(status).font(.footnote).foregroundStyle(palette.accent).padding(.vertical, 8)
+                }
             }
-            if let status {
-                Text(status)
-                    .font(Blackout.label(12))
-                    .foregroundStyle(palette.accent)
-                    .listRowBackground(palette.background)
-            }
+            .padding(.horizontal, 20).padding(.bottom, 20)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
     }
 
     private func row(_ wp: Waypoint) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(wp.name)
-                    .font(Blackout.label(16, weight: .semibold))
-                    .foregroundStyle(wp.visible ? palette.ink : palette.inkDim)
-                Text(MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—")
-                    .font(Blackout.numerals(13))
-                    .foregroundStyle(palette.inkDim)
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: store.selectedId == wp.id ? "location.north.fill" : "flag.fill")
+                .font(.title3).foregroundStyle(palette.accent)
+                .frame(width: 44, height: 48)
+                .background(palette.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
+            Button { beginEdit(wp) } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(wp.name).font(.headline).foregroundStyle(wp.visible ? palette.ink : palette.inkDim)
+                    Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage")
+                        .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
+                    if let f = location.usableFix {
+                        let nav = Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
+                        Text(Format.distance(meters: nav.distanceMeters, unit: settings.units))
+                            .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
             }
-            Spacer(minLength: 8)
-            if store.selectedId == wp.id {
-                Text("NAV")
-                    .font(Blackout.label(10, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(palette.accent)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("edit-waypoint-\(wp.name)")
+            Menu {
+                Button("Edit", systemImage: "pencil") { beginEdit(wp) }
+                Button(wp.visible ? "Hide on map" : "Show on map", systemImage: wp.visible ? "eye.slash" : "eye") {
+                    store.setVisible(id: wp.id, visible: !wp.visible)
+                }
+                Button("Navigate", systemImage: "location.north") { navigate(to: wp) }
+                Button("Delete", systemImage: "trash", role: .destructive) { store.delete(ids: [wp.id]) }
+            } label: {
+                Image(systemName: "ellipsis").frame(width: 44, height: 44)
             }
+            .foregroundStyle(palette.inkDim)
+            .accessibilityLabel("Actions for \(wp.name)")
+            Button { navigate(to: wp) } label: {
+                Image(systemName: "arrow.up.right").frame(width: 44, height: 44)
+            }
+            .fieldGlassButton()
+            .accessibilityLabel("Navigate to \(wp.name)")
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .fieldContentSurface(night: settings.nightMode)
     }
 
-    private var editor: some View {
-        NavigationStack {
-            Form {
-                TextField("Name", text: $draftName)
-                TextField("Folder", text: $draftFolder)
-                if let hint = Folders.reservedHint(draftFolder) {
-                    Text(hint).foregroundStyle(palette.warn).font(Blackout.label(12))
-                }
-            }
-            .navigationTitle(editing == nil ? "New waypoint" : "Edit waypoint")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showingEditor = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveEditor() }
-                        .disabled(draftName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.medium])
+    private func navigate(to waypoint: Waypoint) {
+        store.select(waypoint.id)
+        onNavigate()
     }
 
     private func beginAdd(atFix: Bool) {
-        draftFolder = Folders.defaultFolder
         if atFix {
-            guard let f = location.fix else {
-                status = "No fix yet — wait for a position"
+            guard let f = location.usableFix else {
+                status = "A recent, precise position is needed. You can enter coordinates instead."
                 return
             }
-            draftName = MGRS.string(lat: f.lat, lon: f.lon, digits: settings.mgrsDigits) ?? "Waypoint"
-            // Empty id marks a new waypoint; coords come from the fix.
-            editing = Waypoint(id: "", name: draftName, lat: f.lat, lon: f.lon)
+            editorRequest = WaypointEditorRequest(lat: f.lat, lon: f.lon)
         } else {
-            draftName = ""
-            editing = nil
+            editorRequest = WaypointEditorRequest()
         }
-        showingEditor = true
     }
 
     private func beginEdit(_ wp: Waypoint) {
-        editing = wp
-        draftName = wp.name
-        draftFolder = wp.folder
-        showingEditor = true
-    }
-
-    private func saveEditor() {
-        let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        if let existing = editing, !existing.id.isEmpty {
-            store.update(id: existing.id, draft: WaypointDraft(
-                name: name, lat: existing.lat, lon: existing.lon, folder: draftFolder,
-                symbol: existing.symbol, affiliation: existing.affiliation,
-                echelon: existing.echelon, designation: existing.designation,
-                kind: existing.kind, rotation: existing.rotation,
-                metadata: existing.metadata
-            ))
-        } else {
-            let lat = editing?.lat ?? location.fix?.lat ?? 0
-            let lon = editing?.lon ?? location.fix?.lon ?? 0
-            store.add(WaypointDraft(name: name, lat: lat, lon: lon, folder: draftFolder))
-        }
-        showingEditor = false
-        status = nil
+        editorRequest = WaypointEditorRequest(waypoint: wp)
     }
 
     private func exportBackup() {

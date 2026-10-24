@@ -33,20 +33,23 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
-        # Portrait plus both landscapes: the app is used on a chest rig and on
-        # a wrist, and Android already ships worn-landscape layouts.
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
     info:
       path: App/Resources/Info.generated.plist
       properties:
         CFBundleDisplayName: MGRS GPS
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UIUserInterfaceStyle: Dark
         NSLocationWhenInUseUsageDescription: >-
           MGRS GPS reads your position to show your grid. Nothing leaves the
@@ -57,3 +60,26 @@ targets:
           screen is off. Nothing leaves the phone.
         UIBackgroundModes:
           - location
+
+  MGRSGPSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/UITests
+    dependencies:
+      - target: MGRSGPS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+
+schemes:
+  MGRSGPS:
+    build:
+      targets:
+        MGRSGPS: all
+    test:
+      targets:
+        - MGRSGPSUITests

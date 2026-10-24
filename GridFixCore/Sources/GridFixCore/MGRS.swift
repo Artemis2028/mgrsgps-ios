@@ -32,7 +32,8 @@ public enum MGRS {
 
     /// Lat/lon to MGRS at 4, 6, 8 or 10 digits. Nil outside -80...84.
     public static func parts(lat: Double, lon: Double, digits: Int) -> Parts? {
-        guard lat >= -80.0, lat <= 84.0 else { return nil }
+        guard lat.isFinite, lon.isFinite, lat >= -80.0, lat <= 84.0,
+              lon >= -180.0, lon <= 180.0 else { return nil }
         let d = [4, 6, 8, 10].contains(digits) ? digits : 10
         let z = UTM.zone(lat: lat, lon: lon)
         let north = lat >= 0

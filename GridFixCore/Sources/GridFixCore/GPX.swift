@@ -136,7 +136,8 @@ private final class GPXParser: NSObject, XMLParserDelegate {
             case "extensions":
                 inExtensions = false
             case "wpt":
-                if !wptLat.isNaN && !wptLon.isNaN {
+                if wptLat.isFinite && wptLon.isFinite,
+                   (-90...90).contains(wptLat), (-180...180).contains(wptLon) {
                     let n = name.isEmpty ? "Waypoint" : name
                     waypoints.append(WaypointDraft(
                         name: n, lat: wptLat, lon: wptLon,

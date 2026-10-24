@@ -17,20 +17,35 @@ struct NavigateView: View {
 
     var body: some View {
         ZStack {
-            palette.background.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 22) {
-                SectionLabel(text: "Navigate")
-                if let wp = target {
-                    targetBlock(wp)
-                } else {
-                    emptyPrompt
+            FieldScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    HStack {
+                        Text("Navigate").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        Spacer()
+                        Menu {
+                            ForEach(store.waypoints) { waypoint in
+                                Button(waypoint.name) { store.select(waypoint.id) }
+                            }
+                        } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
+                        .fieldGlassButton().disabled(store.waypoints.isEmpty)
+                        .accessibilityLabel("Choose navigation target")
+                    }
+                    if let wp = target {
+                        targetBlock(wp)
+                    } else {
+                        emptyPrompt
+                    }
+                    if target != nil {
+                        Button("Stop navigation") { store.select(nil) }
+                            .buttonStyle(.bordered).tint(palette.accent)
+                    }
                 }
-                Spacer(minLength: 0)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
@@ -41,7 +56,7 @@ struct NavigateView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("No target selected")
                 .font(Blackout.label(18, weight: .semibold))
-            Text("Pick a waypoint on the Waypoints tab (swipe Nav), then come back here for azimuth, distance and ETA.")
+            Text("Choose a saved waypoint using the flag above, or tap Navigate on a waypoint or map marker.")
                 .font(Blackout.label(14))
                 .foregroundStyle(palette.inkDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -52,7 +67,7 @@ struct NavigateView: View {
     private func targetBlock(_ wp: Waypoint) -> some View {
         let mgrs = MGRS.string(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits) ?? "—"
         let nav: Geodesy.NavInfo? = {
-            guard let f = location.fix else { return nil }
+            guard let f = location.usableFix else { return nil }
             return Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
         }()
         let letter = settings.northRef.letter
@@ -70,8 +85,8 @@ struct NavigateView: View {
                     .foregroundStyle(palette.inkDim)
             }
 
-            if location.fix == nil {
-                Text("Waiting for a fix…")
+            if location.usableFix == nil {
+                Text("Waiting for a recent, precise position…")
                     .font(Blackout.label(14))
                     .foregroundStyle(palette.inkDim)
             } else {
@@ -96,7 +111,7 @@ struct NavigateView: View {
     /// Azimuth in the saved north reference. Magnetic without a declination
     /// is a dash, not the true bearing labelled as magnetic and not 0.
     private func formattedAzimuth(_ nav: Geodesy.NavInfo?, offset: Double) -> String {
-        guard let nav, let f = location.fix else { return "—" }
+        guard let nav, let f = location.usableFix else { return "—" }
         let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
             .declination(lat: f.lat, lon: f.lon, heightMeters: f.altitudeMeters ?? 0,
                          heading: location.heading, isCurrentPosition: true)
@@ -124,17 +139,17 @@ struct NavigateView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(palette.hairline, lineWidth: 1)
-        )
+        .fieldContentSurface(night: settings.nightMode)
     }
 
-    /// ETA stub: HERE under 50 m, mm:ss / h:mm when speed is known, else em dash.
+    /// Arrival requires the fix's accuracy circle to fit inside the 50 m ring.
     private func etaText(nav: Geodesy.NavInfo?) -> String {
         guard let nav else { return "—" }
-        if nav.distanceMeters < 50 { return "HERE" }
-        guard let speed = location.fix?.speedMetersPerSecond, speed > 0.4 else { return "—" }
+        if let fix = location.usableFix,
+           NavigationFixPolicy.insideArrivalRadius(distanceMeters: nav.distanceMeters, accuracyMeters: fix.accuracyMeters) {
+            return "HERE"
+        }
+        guard let speed = location.usableFix?.speedMetersPerSecond, speed > 0.4 else { return "—" }
         let secs = Int(nav.distanceMeters / speed)
         if secs >= 3600 {
             return String(format: "%d:%02d h", secs / 3600, (secs % 3600) / 60)

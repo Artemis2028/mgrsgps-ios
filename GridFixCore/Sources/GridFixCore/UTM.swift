@@ -92,7 +92,8 @@ public enum UTM {
 
     /// Standard UTM for a point. Nil outside -80...84, where UTM is undefined.
     public static func coordinate(lat: Double, lon: Double) -> Coordinate? {
-        guard lat >= -80.0, lat <= 84.0 else { return nil }
+        guard lat.isFinite, lon.isFinite, lat >= -80.0, lat <= 84.0,
+              lon >= -180.0, lon <= 180.0 else { return nil }
         let z = zone(lat: lat, lon: lon)
         let p = forZone(lat: lat, lon: lon, zone: z, north: lat >= 0)
         return Coordinate(

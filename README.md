@@ -1,10 +1,16 @@
 # MGRS GPS — iOS
 
+Current work targets Android **1.0.4**. See [the current parity roadmap](docs/ios-parity-1.0.4.md)
+for implemented features, validation, and remaining work.
+
 Native Swift and SwiftUI. The sibling of the Android app in
 `Artemis2028/gridfix`, sharing its field math through a fixture rather than
 through a runtime, and **never** pushing to that repo.
 
 ## Getting it running
+
+Build with Xcode 26 or newer for the native glass APIs. The app still deploys
+to iOS 16 with material fallbacks; UI automation runs on iOS 17 or newer.
 
 ```bash
 brew install xcodegen
@@ -16,7 +22,7 @@ The `.xcodeproj` is generated and git-ignored. Everything that would live in
 it lives in `project.yml`, which is reviewable; a hand-edited pbxproj is not.
 
 ```bash
-cd GridFixCore && swift test     # the field math, 72 assertions
+cd GridFixCore && swift test     # field math, WMM, coordinates, interchange, visibility
 ```
 
 ## Layout
@@ -32,16 +38,29 @@ scripts/              simulator boot + screenshot, used by CI and by hand
 .github/workflows/    macOS runner: swift test -> build -> screenshots
 ```
 
-## Field chrome and CI shots
+## Interface and verification
 
-The bottom nav is custom blackout chrome (`FieldTabBar`) — pure black, amber
-selected, dim unselected — not the system `TabView` bar. Four tabs match Android
-(Position / Navigate / Map / Waypoints; tags 0/1/2/3); CI `-startTab map` opens
-Map at tag **2**.
+Day mode uses native tab navigation and glass buttons on iOS 26+, with system
+material fallbacks on earlier supported iOS versions. Waypoint cards remain
+readable content surfaces. Night mode keeps opaque red-on-black field chrome.
+Glance, Lensatic, and Dial remain available; this pass does not redesign the
+compass artwork.
 
-`scripts/pick-simulator.sh` prefers exact **iPhone 16**, then **15**, then **14**
-(so `iPhone 16e` cannot beat a real `iPhone 16`), then series/plain fallbacks so
-image churn does not brick the pipeline. Override with `SIMULATOR_DEVICE_NAME`.
+The four tabs are Position / Navigate / Map / Waypoints (tags 0/1/2/3).
+`-startTab map` opens Map at tag **2**. Add/edit supports MGRS or WGS84 decimal
+coordinates, and visible waypoints/folders appear on the map. Tap a marker to
+navigate; use Locate or Show all waypoints for explicit camera moves.
+
+After `xcodegen generate`, run the scheme's UI tests with:
+
+```bash
+xcodebuild test -project MGRSGPS.xcodeproj -scheme MGRSGPS \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+```
+
+Choose an installed simulator name. The UI tests use a separate Debug data
+store and cover coordinate entry/editing/persistence, marker navigation, folder
+visibility, and map-centre creation. Screenshots are attached to the test results.
 
 ## The loop
 
@@ -83,7 +102,7 @@ analytics, nothing leaves the phone.
 ## Parity with Android
 
 Field math is pinned to the shared golden fixture. Product surfaces are catching
-up toward `gridfix` **0.9.32** — see `docs/parity-with-android.md` for the
-matched / unmatched checklist. Waypoints, folders, backup v1 and GPX import/export
+up toward `gridfix` **1.0.4** — see `docs/ios-parity-1.0.4.md` for the current
+checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline. Waypoints, folders, backup v1 and GPX import/export
 are in; terrain, tracks UI and KML/ATAK are not.
 

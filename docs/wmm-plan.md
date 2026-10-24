@@ -1,5 +1,10 @@
 # Magnetic declination on iOS
 
+**Implementation status (24 October 2026):** WMM2025 coefficients and the NOAA
+validation fixture are already bundled (`5993e76`), `DeclinationService` is wired,
+and the model validation tests pass. The plan below records the original design;
+its references to missing coefficients or a blocked download are historical.
+
 *The one piece of the Android app that has no iOS equivalent, and the plan for it.*
 
 ## The problem in one line

@@ -1,12 +1,7 @@
 import SwiftUI
 
-/// Custom blackout bottom nav — replaces system `TabView` chrome so the bar
-/// matches Android GridFix: pure black, amber selected, dim unselected, labels
-/// under icons. Always visible (including on Map), like Android portrait.
-///
-/// RootView hosts this via `safeAreaInset(edge: .bottom)`, which keeps the
-/// control row above the home indicator. The black background still paints
-/// into the unsafe area with `ignoresSafeArea(edges: .bottom)`.
+/// Opaque navigation for red-on-black night mode. Day mode uses the native
+/// TabView bar. RootView reserves this control row above the home indicator.
 struct FieldTabBar: View {
     @Binding var selection: Int
     @EnvironmentObject private var settings: AppSettings

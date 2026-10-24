@@ -2,11 +2,13 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var location: LocationService
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
 
     init() {
-        // CI cannot tap a tab bar, so the screenshot run picks the tab with a
-        // launch argument instead of driving the UI. Order matches Android:
+        // The standalone screenshot script picks a tab with a launch argument;
+        // the UI workflow tests also exercise normal tab interaction. Order matches Android:
         // position=0, navigate=1, map=2, waypoints=3. Keep map=2 stable for CI.
         let args = ProcessInfo.processInfo.arguments
         let tab: Int
@@ -24,23 +26,37 @@ struct RootView: View {
     }
 
     var body: some View {
-        Group {
-            switch selection {
-            case 1:
-                NavigateView()
-            case 2:
-                MapScreen()
-            case 3:
-                WaypointsView()
-            default:
-                PositionView()
-            }
+        TabView(selection: $selection) {
+            PositionView()
+                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("Position", systemImage: "location.north.line") }.tag(0)
+            NavigateView()
+                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
+            MapScreen(onNavigate: { selection = 1 })
+                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("Map", systemImage: "map") }.tag(2)
+            WaypointsView(onNavigate: { selection = 1 })
+                .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
+        }
+        // Keep the content hierarchy alive when night mode changes, including
+        // an open Settings/editor sheet. Only the navigation chrome changes.
+        .tint(settings.nightMode ? FieldPalette(night: true).accent : Blackout.accent)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if settings.nightMode { FieldTabBar(selection: $selection) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
         .environment(\.fieldNight, settings.nightMode)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            FieldTabBar(selection: $selection)
+        .onAppear { location.start() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { location.start() }
+            else if phase == .background { location.stop() }
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            location.refreshFixValidity()
         }
     }
+
 }

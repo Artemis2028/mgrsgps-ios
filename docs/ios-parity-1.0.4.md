@@ -1,0 +1,83 @@
+# iOS parity with GridFix 1.0.4
+
+Baseline: `Artemis2028/gridfix` main `94c4cc4` (Android version 1.0.4,
+version code 65), inspected 24 October 2026. The older 0.9.32 checklist describes
+the original port; this is the current implementation roadmap. It does not
+claim that all Android features are present on iOS.
+
+## First milestone: coordinate entry, waypoint overlays, native glass
+
+Implemented:
+
+- Create and edit a waypoint by full MGRS (4/6/8/10 numeric digits) or WGS84
+  decimal latitude/longitude. Validation blocks empty, unbalanced, non-finite,
+  and out-of-range entries; explicit 0°, 0° remains a valid coordinate.
+- Typed grids resolve to cell centres. Editing a name/folder or switching the
+  display format preserves the original exact coordinate. Edited waypoints
+  retain ID, creation date, visibility, and interchange metadata.
+- Add at a recent precise fix or at the map centre. The editor captures the
+  supplied coordinate rather than looking it up again at Save time.
+- Map markers and persistent name labels follow waypoint and folder visibility.
+  A selected navigation target does not override a hidden folder.
+- MilGPS marker colours, shapes, and characters are rendered independently of
+  tactical affiliation. Unsupported symbols use the generic pin; the full NATO
+  and tactical symbol catalog remains a separate task.
+- Tap a marker for its coordinate and a Navigate action. Locate and fit-to-visible
+  waypoints are explicit camera actions; ordinary position/store updates do not
+  continuously recenter the map.
+- Folder chips, folder/waypoint visibility controls, waypoint cards with distance,
+  and direct navigation actions. Current precision/units apply to the list.
+- System TabView navigation and native glass buttons on iOS 26+. Custom floating
+  readouts use regular glass; iOS 16–25 use system material/bordered controls.
+  Content cards remain solid/readable. Native controls handle interaction motion.
+- Night mode retains opaque red-on-black navigation and controls. Custom glass
+  surfaces also become opaque with Reduce Transparency. The reference image is
+  visual direction, not a specification; compass artwork was not redesigned.
+- An authorised precise-location fix no older than 10 seconds with accuracy at
+  most 25 metres is required for Add at fix,
+  Locate, and navigation calculations. Freshness uses uptime after receipt, and
+  the entire accuracy circle must fit inside the 50 m arrival ring. These rules
+  match Android 1.0.4. Manual coordinate entry works without GPS.
+
+## Remaining feature groups
+
+| Area | Current iOS state | Remaining work |
+| --- | --- | --- |
+| Position and compass | MGRS/UTM/lat-lon, accuracy, declination, three instrument faces | Current Android fix-quality policy, orientation/landscape refinement, callouts/QR, keep-awake setting |
+| Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
+| Maps | Demo basemap, MGRS grid, waypoint markers, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
+| Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, route legs/cards |
+| Tracks and courses | Backup models only | Recording/persistence UI, track overlays, route/course creation and ownership, course history |
+| Terrain | No terrain UI/cache | DEM caching/downloads, elevation, slope/hillshade, contours, LOS, viewshed |
+| Interchange and backup | GPX waypoints including MilGPS metadata; waypoint/folder ZIP restore | GPX tracks/routes, KML/KMZ/ATAK, complete settings/graphics/tracks/course restore, Android-generated reference archives |
+| Field tools | Sun/moon, geodesy and some geometry helpers in core | Field tools UI, pace count, strip-map PDFs and sharing |
+| Distribution | Simulator builds and CI | StoreKit products/entitlements/paywall, app icon/privacy metadata, signing, device validation, TestFlight/App Store release |
+
+## Verification
+
+`cd GridFixCore && swift test` runs the golden field-math, WMM, interchange,
+coordinate-entry, and map visibility tests. The new coordinate tests include
+southern/western coordinates, poles in decimal entry, exact edit preservation,
+format switching, and stored metadata/identity preservation.
+
+Generate with `xcodegen generate`, then run the `MGRSGPS` scheme's UI tests.
+`App/UITests/WaypointWorkflowTests.swift` exercises invalid/valid entry,
+coordinate edits after relaunch, visible markers, map-to-navigation selection,
+folder hide/show, adding at the map centre, night-mode sheet continuity, and a
+landscape waypoint layout. Test data uses a separate Debug
+store and never clears normal application data. UI attachments include screenshots.
+
+Simulator validation does not verify physical compass performance, GPS behaviour
+in the field, background recording, or device signing.
+
+## Design references
+
+Use native navigation and button behaviour first. Glass belongs above content,
+not on every row; keep coordinate typography monospaced and actions comfortably
+sized. Native glass must remain responsive to system accessibility preferences.
+
+- [Apple: Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass)
+- [Apple: Applying Liquid Glass to custom views](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
+- The project chat “Review Apple Liquid Glass guidance” supplies the original
+  design intent: hierarchy, selective tint, accessible transparency/motion,
+  platform-specific layout, and readable content below floating controls.

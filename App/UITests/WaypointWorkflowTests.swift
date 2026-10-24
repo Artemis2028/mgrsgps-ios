@@ -1,0 +1,147 @@
+import XCTest
+
+final class WaypointWorkflowTests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-startTab", "waypoints"]
+        app.launch()
+        addUIInterruptionMonitor(withDescription: "Location permission") { alert in
+            if alert.buttons["Allow While Using App"].exists {
+                alert.buttons["Allow While Using App"].tap()
+                return true
+            }
+            return false
+        }
+    }
+
+    func testCoordinateEntryMapNavigationAndFolderVisibility() {
+        addWaypoint(name: "Objective", grid: "40R BN 3412 0700")
+        addWaypoint(name: "Rally point", grid: "40R BN 3450 0720")
+        capture("waypoints-glass")
+        app.tabBars.buttons["Map"].tap()
+        app.buttons["Show all waypoints"].tap()
+        let waypoint = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@", "map-waypoint-", "Objective")).firstMatch
+        XCTAssertTrue(waypoint.waitForExistence(timeout: 15), app.debugDescription)
+        capture("map-waypoint-overlays")
+        waypoint.tap()
+        XCTAssertTrue(app.buttons["map-navigate-waypoint"].waitForExistence(timeout: 5))
+        capture("map-selected-waypoint")
+        app.buttons["map-navigate-waypoint"].tap()
+        XCTAssertTrue(app.staticTexts["Objective"].waitForExistence(timeout: 5))
+        capture("navigate-glass")
+        app.tabBars.buttons["Waypoints"].tap()
+        app.buttons["folder-visibility-Base"].tap()
+        app.tabBars.buttons["Map"].tap()
+        XCTAssertFalse(app.buttons["Show all waypoints"].isEnabled)
+        capture("map-folder-hidden")
+        app.tabBars.buttons["Waypoints"].tap()
+        app.buttons["folder-visibility-Base"].tap()
+        app.tabBars.buttons["Map"].tap()
+        XCTAssertTrue(app.buttons["Show all waypoints"].isEnabled)
+    }
+
+    func testBlankInvalidAndDecimalCoordinatesThenEditAndRelaunch() {
+        app.buttons["add-waypoint"].tap()
+        let name = app.textFields["waypoint-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Southern point")
+        XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
+        app.segmentedControls.buttons["Lat / Lon"].tap()
+        let latitude = app.textFields["waypoint-latitude"]
+        latitude.tap(); latitude.typeText("-91")
+        let longitude = app.textFields["waypoint-longitude"]
+        longitude.tap(); longitude.typeText("151.2093")
+        XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
+        replace(latitude, with: "-33.8688")
+        XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
+        capture("coordinate-entry-decimal")
+        app.buttons["waypoint-save"].tap()
+        let edit = app.buttons["edit-waypoint-Southern point"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        app.segmentedControls.buttons["Lat / Lon"].tap()
+        XCTAssertEqual(app.textFields["waypoint-latitude"].value as? String, "-33.8688")
+        replace(app.textFields["waypoint-latitude"], with: "-34.0")
+        app.buttons["waypoint-save"].tap()
+        app.terminate()
+        app.launchArguments += ["-keepUITestData"]
+        app.launch()
+        XCTAssertTrue(app.buttons["edit-waypoint-Southern point"].waitForExistence(timeout: 5))
+        app.buttons["edit-waypoint-Southern point"].tap()
+        app.segmentedControls.buttons["Lat / Lon"].tap()
+        XCTAssertEqual(app.textFields["waypoint-latitude"].value as? String, "-34.0")
+    }
+
+    func testMapCentreCanCreateWaypoint() {
+        app.tabBars.buttons["Map"].tap()
+        app.buttons["Add waypoint at map centre"].tap()
+        let name = app.textFields["waypoint-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Map centre")
+        XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
+        capture("coordinate-entry-map-centre")
+        app.buttons["waypoint-save"].tap()
+        XCTAssertTrue(app.buttons["map-navigate-waypoint"].waitForExistence(timeout: 5))
+    }
+
+    func testNightModeKeepsSettingsAndWaypointEntryUsable() {
+        app.tabBars.buttons["Position"].tap()
+        app.buttons["Settings"].tap()
+        let night = app.switches["Red-on-black, to keep night vision"]
+        XCTAssertTrue(night.waitForExistence(timeout: 5))
+        night.tap()
+        XCTAssertTrue(app.buttons["Done"].exists, "Changing night mode must preserve the settings sheet")
+        app.buttons["Done"].tap()
+        XCTAssertFalse(app.tabBars.buttons["Waypoints"].exists, "Night mode uses only the opaque field bar")
+        app.buttons["Waypoints"].tap()
+        addWaypoint(name: "Night point", grid: "40R BN 3412 0700")
+        capture("waypoints-night")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        // A real interaction waits for rotation/layout to settle before the
+        // screenshot; existence alone can succeed during the transition.
+        app.buttons["All"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-Night point"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["add-waypoint"].isHittable)
+        capture("waypoints-landscape")
+        XCUIDevice.shared.orientation = .portrait
+        app.buttons["Position"].tap()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(night.waitForExistence(timeout: 5))
+        night.tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Waypoints"].waitForExistence(timeout: 5))
+    }
+
+    private func addWaypoint(name: String, grid: String) {
+        app.buttons["add-waypoint"].tap()
+        let nameField = app.textFields["waypoint-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap(); nameField.typeText(name)
+        let gridField = app.textFields["waypoint-mgrs"]
+        gridField.tap(); gridField.typeText(grid)
+        XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
+        capture("coordinate-entry-mgrs")
+        app.buttons["waypoint-save"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-\(name)"].waitForExistence(timeout: 5))
+    }
+
+    private func replace(_ field: XCUIElement, with text: String) {
+        field.tap()
+        // Right-aligned coordinate fields may place a centred tap in the
+        // middle of the text. Put the insertion point at the trailing edge.
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
+        let current = field.value as? String ?? ""
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count + 1) + text)
+        XCTAssertEqual(field.value as? String, text)
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}

@@ -51,6 +51,61 @@ extension EnvironmentValues {
     }
 }
 
+/// Glass is reserved for the control layer. Content remains opaque and legible.
+struct FieldScreenBackground: View {
+    @Environment(\.fieldNight) private var night
+    var body: some View {
+        LinearGradient(colors: night ? [.black] : [Color(red: 0.12, green: 0.15, blue: 0.19), .black],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+            .ignoresSafeArea()
+    }
+}
+
+private struct FieldChrome: ViewModifier {
+    @Environment(\.fieldNight) private var night
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var radius: CGFloat
+
+    @ViewBuilder func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if night || reduceTransparency {
+            content.background(night ? Color.black : Color(red: 0.16, green: 0.18, blue: 0.22), in: shape)
+                .overlay(shape.stroke(night ? FieldPalette(night: true).hairline : Color.white.opacity(0.18)))
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
+        }
+    }
+}
+
+private struct FieldGlassButton: ViewModifier {
+    @Environment(\.fieldNight) private var night
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if night || reduceTransparency {
+            content.buttonStyle(.bordered).tint(FieldPalette(night: night).accent)
+        } else if #available(iOS 26.0, *) {
+            content.buttonStyle(.glass)
+        } else {
+            content.buttonStyle(.bordered)
+        }
+    }
+}
+
+extension View {
+    func fieldChrome(radius: CGFloat = 20) -> some View { modifier(FieldChrome(radius: radius)) }
+    func fieldGlassButton() -> some View { modifier(FieldGlassButton()) }
+
+    func fieldContentSurface(night: Bool) -> some View {
+        background(night ? Color.black : Color.white.opacity(0.045),
+                   in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(night ? FieldPalette(night: true).hairline : Color.white.opacity(0.09)))
+    }
+}
+
 /// A section label: small, wide-tracked, amber — red when night mode is on.
 struct SectionLabel: View {
     let text: String

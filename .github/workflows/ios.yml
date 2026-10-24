@@ -3,6 +3,7 @@ name: iOS
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 # Needed only to publish the ci-status branch at the end. No other secret is
@@ -64,6 +65,29 @@ jobs:
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
+      - name: Coordinate and waypoint UI workflows
+        id: ui_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          xcodebuild test \
+            -project MGRSGPS.xcodeproj \
+            -scheme MGRSGPS \
+            -configuration Debug \
+            -destination "id=$DEST" \
+            -derivedDataPath build \
+            -resultBundlePath build/ui-tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log" | tail -n 40
+
+      - name: Export UI test screenshots
+        if: always() && steps.ui_tests.outcome != 'skipped'
+        run: |
+          if [ -d build/ui-tests.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/ui-tests.xcresult --output-path screenshots/ui-tests
+          fi
+
       - name: Upload the build and the screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,13 +97,15 @@ jobs:
             screenshots/
             build.log
             test.log
+            ui-test.log
+            build/ui-tests.xcresult/
           if-no-files-found: warn
 
       # Publish the outcome and the logs to a branch, so they can be read with
       # a plain git fetch. The Actions API needs a token; a branch does not,
       # and on a public repo that makes every run diagnosable from anywhere.
       - name: Publish the run outcome to the ci-status branch
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: |
           mkdir -p /tmp/status
           {
@@ -87,10 +113,12 @@ jobs:
             echo "sha=${GITHUB_SHA:0:7}"
             echo "tests=${{ steps.tests.outcome }}"
             echo "build=${{ steps.build.outcome }}"
+            echo "ui_tests=${{ steps.ui_tests.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/ui-test.log" /tmp/status/ui-testlog.txt 2>/dev/null || true
           # The screenshots and the app's own log go here too. They are the
           # only evidence for anything that is wrong on screen rather than in a
           # test, and downloading a run artifact needs a token where a branch

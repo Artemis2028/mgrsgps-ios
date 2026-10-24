@@ -71,7 +71,7 @@ struct PositionView: View {
 
     var body: some View {
         ZStack {
-            palette.background.ignoresSafeArea()
+            FieldScreenBackground()
             VStack(alignment: .leading, spacing: 16) {
                 header
                 if location.reducedAccuracy {
@@ -103,7 +103,7 @@ struct PositionView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            SectionLabel(text: "Position")
+            Text("Position").font(.system(.largeTitle, design: .rounded, weight: .bold))
             Spacer()
             if let f = location.fix {
                 Text(f.gradeWord)
@@ -182,27 +182,13 @@ struct PositionView: View {
     }
 
     private var precisionPicker: some View {
-        HStack(spacing: 0) {
-            ForEach([4, 6, 8, 10], id: \.self) { d in
-                let trusted = location.fix.map { d <= $0.trustedDigits } ?? true
-                Button {
-                    settings.setMgrsDigits(d)
-                } label: {
-                    Text("\(d)")
-                        .font(Blackout.numerals(15, weight: .semibold))
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .foregroundStyle(
-                            settings.mgrsDigits == d ? palette.background
-                                : trusted ? palette.ink : palette.inkDim
-                        )
-                        .background(settings.mgrsDigits == d ? palette.accent : Color.clear)
-                }
-                .buttonStyle(.plain)
+        Picker("MGRS precision", selection: Binding(get: { settings.mgrsDigits }, set: { settings.setMgrsDigits($0) })) {
+            ForEach([4, 6, 8, 10], id: \.self) { digits in
+                Text("\(digits) digits").tag(digits)
             }
         }
-        .background(Color(white: 0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.hairline))
+        .pickerStyle(.segmented)
+        .accessibilityLabel("MGRS precision")
     }
 
     private var instrument: some View {
