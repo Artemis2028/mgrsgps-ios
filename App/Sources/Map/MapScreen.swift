@@ -144,7 +144,10 @@ struct MapScreen: View {
                     .accessibilityLabel("Add waypoint at map centre")
                 }
             }
-            .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
+            .padding(.horizontal, 16).padding(.top, 8)
+            // The edge-to-edge UIKit map extends beneath the custom field bar.
+            // Reserve its control row explicitly for the overlaid map actions.
+            .padding(.bottom, 16 + (chromeNight ? FieldTabBar.controlHeight : 0))
         }
         .foregroundStyle(mapInk)
         .environment(\.colorScheme, chromeNight ? .dark : .light)

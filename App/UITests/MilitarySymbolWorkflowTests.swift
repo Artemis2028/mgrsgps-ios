@@ -41,6 +41,10 @@ final class MilitarySymbolWorkflowTests: XCTestCase {
         app.buttons["Toggle map night mode"].tap()
         XCTAssertFalse(app.tabBars.buttons["Waypoints"].exists, "The map night toggle must use the opaque red field tab bar")
         XCTAssertTrue(app.buttons["Waypoints"].exists)
+        XCTAssertTrue(app.buttons["Add waypoint at map centre"].isHittable)
+        XCTAssertTrue(app.buttons["Show all visible data"].isHittable)
+        XCTAssertTrue(app.buttons["Map layers"].isHittable)
+        XCTAssertLessThan(app.buttons["Add waypoint at map centre"].frame.maxY, app.buttons["Map"].firstMatch.frame.minY, "Map actions must stay above the field tab bar")
         let nightShot = XCTAttachment(screenshot: app.screenshot()); nightShot.name = "military-unit-map-night"; nightShot.lifetime = .keepAlways; add(nightShot)
     }
 }

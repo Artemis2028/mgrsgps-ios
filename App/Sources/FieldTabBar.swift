@@ -3,6 +3,7 @@ import SwiftUI
 /// Opaque navigation for red-on-black night mode. Day mode uses the native
 /// TabView bar. RootView reserves this control row above the home indicator.
 struct FieldTabBar: View {
+    static let controlHeight: CGFloat = 69
     @Binding var selection: Int
     @EnvironmentObject private var settings: AppSettings
 

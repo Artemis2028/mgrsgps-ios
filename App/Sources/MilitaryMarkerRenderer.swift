@@ -175,7 +175,16 @@ enum MilitaryMarkerRenderer {
         guard ok else { return nil }
         for i in stride(from: 0,to: bytes.count,by: 4) {
             if bytes[i] < 40 && bytes[i+1] < 40 && bytes[i+2] < 40 { bytes[i] = 0; bytes[i+1] = 0; bytes[i+2] = 0; bytes[i+3] = 0 }
-            else if night { bytes[i] = UInt8(min(255,0.35*Double(bytes[i])+0.5*Double(bytes[i+1])+0.15*Double(bytes[i+2])+30)); bytes[i+1] = 0; bytes[i+2] = 0 }
+            else if night {
+                // Keep the weighted terms explicit for older Swift compilers
+                // on CI while preserving Android's exact channel transform.
+                let red: Double = 0.35 * Double(bytes[i])
+                let green: Double = 0.5 * Double(bytes[i + 1])
+                let blue: Double = 0.15 * Double(bytes[i + 2])
+                let luminance: Double = red + green + blue + 30
+                bytes[i] = UInt8(min(255.0, luminance))
+                bytes[i + 1] = 0; bytes[i + 2] = 0
+            }
         }
         guard let provider = CGDataProvider(data: Data(bytes) as CFData), let output = CGImage(width: width,height: height,bitsPerComponent: 8,bitsPerPixel: 32,bytesPerRow: width*4,space: CGColorSpaceCreateDeviceRGB(),bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),provider: provider,decode: nil,shouldInterpolate: true,intent: .defaultIntent) else { return nil }
         let result = UIImage(cgImage: output); cache.setObject(result,forKey: name,cost: width*height*4); return result

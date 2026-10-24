@@ -79,13 +79,28 @@ private struct FieldChrome: ViewModifier {
     }
 }
 
+private struct OpaqueFieldButtonStyle: ButtonStyle {
+    let night: Bool
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        let palette = FieldPalette(night: night)
+        configuration.label
+            .foregroundStyle(palette.accent)
+            .frame(minWidth: 44, minHeight: 44)
+            .padding(.horizontal, 12)
+            .background(Color.black, in: Capsule())
+            .overlay(Capsule().stroke(palette.hairline, lineWidth: 1))
+            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+    }
+}
+
 private struct FieldGlassButton: ViewModifier {
     @Environment(\.fieldNight) private var night
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @ViewBuilder func body(content: Content) -> some View {
         if night || reduceTransparency {
-            content.buttonStyle(.bordered).tint(FieldPalette(night: night).accent)
+            content.buttonStyle(OpaqueFieldButtonStyle(night: night))
         } else if #available(iOS 26.0, *) {
             content.buttonStyle(.glass)
         } else {

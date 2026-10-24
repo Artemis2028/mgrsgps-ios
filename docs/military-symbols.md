@@ -14,7 +14,9 @@ through army, unit designation, waypoint/unit record type and directional task
 rotation. Changing a unit's affiliation selects the corresponding unit image.
 The library, picker preview and map use the same renderer. The map moon button
 uses the shared night setting so the tab bar also switches to the opaque red
-field controls, instead of leaving bright native navigation under a red map. Saved values survive
+field controls, instead of leaving bright native navigation under a red map.
+Night map buttons have opaque black surfaces and reserve space above the field
+tab bar, keeping their labels visible and actions reachable. Saved values survive
 relaunch and remain compatible with the Android backup contract.
 
 Imported MilGPS marker metadata retains its color, shape and character until
