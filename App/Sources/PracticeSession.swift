@@ -65,6 +65,7 @@ final class PracticeSession: ObservableObject {
                 if waypoints.practiceNavigationLocked { try waypoints.setPracticeNavigationTarget(waypoints.selectedId,locked: false) }
                 return
             }
+            if navigation.progress != nil { navigation.stop() }
             course.reconcile(availableIDs: Set(waypoints.waypoints.map(\.id)))
             if course != saved.active { try saved.save(course) }
             active = course

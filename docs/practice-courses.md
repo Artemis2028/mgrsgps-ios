@@ -66,9 +66,9 @@ boundary state/alerts are untouched by course selection or scoring.
 
 - 229 core tests pass, including 10 practice/gate/history cases based on Android
   pause/restore, identity, strict arrival, persistence failure and bounded scatter.
-- 62 app integration tests pass, including 6 practice cases: actual stores,
+- 63 app integration tests pass, including 7 practice cases: actual stores,
   target lock/route guard, freshness/foreground scoring, persisted completion,
-  missing-ID restoration, live guide shutdown and interrupted finalisation.
+  missing-ID restoration, live guide shutdown, interrupted route-to-course recovery and interrupted finalisation.
 - Four practice UI workflows pass: folder setup/end/relaunch, random setup,
   real simulator Core Location completion/history, and readable night progress.
   No application mock GPS is used. `practice-test-route.py` alternates the real

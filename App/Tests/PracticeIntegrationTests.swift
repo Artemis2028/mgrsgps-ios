@@ -104,6 +104,23 @@ final class PracticeIntegrationTests: XCTestCase {
         for _ in 0..<5 { course.reconcile() }
         XCTAssertEqual(driver.stopCount,stops,"A stable missing checkpoint must not repeatedly stop/persist the guide on every UI timer tick")
     }
+    func testRecoveredCourseClearsInterruptedRouteWithoutRestartingGPS() async throws {
+        let driver = PracticeGuideDriver(), feedback = PracticeGuideFeedback()
+        let f = try fixture(driver: driver,feedback: feedback)
+        let route = Backup.Graphic(id: "interrupted-route",name: "Patrol",type: "route",points: [.init(lat: 24,lon: 54),.init(lat: 24.01,lon: 54)])
+        try f.field.saveGraphic(route); f.navigation.follow(route)
+        let deadline = Date().addingTimeInterval(5)
+        while !f.navigation.running && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(f.navigation.running)
+        // Simulate death after course save but before the old route is cleared.
+        try PracticeCourseStore(directory: f.directory).save(PracticeCourse(name: "Drill",waypointIDs: [f.first.id,f.second.id],startedAt: 100))
+        f.navigation.pause()
+        let restoredNav = NavigationSession(directory: f.directory,store: f.waypoints,field: f.field,settings: AppSettings(directory: f.directory),driver: driver,feedback: feedback,scheduleTicks: false)
+        XCTAssertNotNil(restoredNav.progress)
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: restoredNav)
+        XCTAssertNotNil(course.active); XCTAssertNil(restoredNav.progress)
+        XCTAssertFalse(restoredNav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(f.waypoints.selectedId,f.first.id)
+    }
     func testHistoryCommittedBeforeFailedActiveClearRecoversExactlyOnce() throws {
         let f = try fixture(); var wall = 1000.0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 })
