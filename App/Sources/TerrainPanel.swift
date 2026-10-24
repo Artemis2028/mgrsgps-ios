@@ -136,7 +136,7 @@ private struct TerrainEndpoint: View {
     var body: some View {
         Picker("Position source",selection: $mode) {
             if position != nil { Text("My position").tag("me") }
-            Text("Map centre").tag("centre"); Text("Waypoint").tag("waypoint"); Text("Coordinate").tag("coordinate")
+            Text("Map centre").tag("centre"); Text("Waypoint").tag("waypoint").accessibilityIdentifier("terrain-\(prefix)-source-waypoint"); Text("Coordinate").tag("coordinate")
         }.accessibilityIdentifier("terrain-\(prefix)-source")
         if mode == "waypoint" {
             Picker("Waypoint",selection: $id) { Text("Choose waypoint").tag(""); ForEach(waypoints) { Text($0.name).tag($0.id).accessibilityIdentifier("terrain-\(prefix)-choice-\($0.name)") } }.accessibilityIdentifier("terrain-\(prefix)-waypoint")

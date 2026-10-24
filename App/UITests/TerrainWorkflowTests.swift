@@ -9,8 +9,17 @@ final class TerrainWorkflowTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Terrain visibility"].waitForExistence(timeout: 5))
     }
     private func pick(_ prefix: String,_ name: String) {
-        app.buttons["terrain-\(prefix)-source"].tap(); app.buttons["Waypoint"].tap()
-        app.buttons["terrain-\(prefix)-waypoint"].tap(); app.buttons["terrain-\(prefix)-choice-\(name)"].firstMatch.tap()
+        let source = app.buttons["terrain-\(prefix)-source"]
+        reveal(source)
+        let sourceReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"),object: source)
+        XCTAssertEqual(XCTWaiter.wait(for: [sourceReady],timeout: 5),.completed)
+        source.tap()
+        let option = app.buttons["terrain-\(prefix)-source-waypoint"]
+        XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
+        let waypoint = app.buttons["terrain-\(prefix)-waypoint"]
+        XCTAssertTrue(waypoint.waitForExistence(timeout: 5)); reveal(waypoint); waypoint.tap()
+        let choice = app.buttons["terrain-\(prefix)-choice-\(name)"].firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
     }
     private func reveal(_ element: XCUIElement) {
         for _ in 0..<8 {
