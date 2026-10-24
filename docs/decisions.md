@@ -37,7 +37,7 @@ Changing one of these is a bug even when it looks like an improvement.
 - **A grid line belongs to its zone** and stops dead at the zone meridian. Letting one run on draws a line naming a grid square that does not exist — the most common bug in MGRS overlays.
 - **Bearings come out in 0..<360**, never −180…180 and never 360.
 - **Unit raw values match the Android settings store**, so a restored preference means the same thing.
-- Night mode is red on black. No accounts, no analytics, nothing leaves the phone.
+- Night mode is red on black. No accounts or analytics. The paired watch receives selected-waypoint and display settings; the requested watch map extends that sync to visible field overlays. Watch position comes from its own GPS. Basemap requests go to the selected map provider.
 
 ## Deliberate differences from Android
 
