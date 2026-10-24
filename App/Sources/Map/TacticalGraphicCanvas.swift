@@ -160,8 +160,8 @@ enum TacticalGraphicCanvas {
         let shaft = Array(p.prefix(segment+1)) + [neck]
         let left = shaft.indices.map { i in let n = normal(shaft,i); return CGPoint(x: shaft[i].x+n.x*half,y: shaft[i].y+n.y*half) }
         let right = shaft.indices.map { i in let n = normal(shaft,i); return CGPoint(x: shaft[i].x-n.x*half,y: shaft[i].y-n.y*half) }
-        let tip = p.last!, angle = atan2(tip.y-neck.y,tip.x-neck.x), normal = CGPoint(x: -sin(angle),y: cos(angle))
-        let vertices = left + [CGPoint(x: neck.x+normal.x*width,y: neck.y+normal.y*width),tip,CGPoint(x: neck.x-normal.x*width,y: neck.y-normal.y*width)] + right.reversed()
+        let tip = p.last!, angle = atan2(tip.y-neck.y,tip.x-neck.x), headNormal = CGPoint(x: -sin(angle),y: cos(angle))
+        let vertices = left + [CGPoint(x: neck.x+headNormal.x*width,y: neck.y+headNormal.y*width),tip,CGPoint(x: neck.x-headNormal.x*width,y: neck.y-headNormal.y*width)] + right.reversed()
         let path = UIBezierPath(); path.move(to: vertices[0]); vertices.dropFirst().forEach { path.addLine(to: $0) }; return path
     }
     /// Preserve continuous Android decoration spacing but skip off-screen work.
