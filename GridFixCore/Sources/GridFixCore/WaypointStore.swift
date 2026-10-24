@@ -173,9 +173,36 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         waypoints = next; self.folders = nextFolders; selectedId = selection
     }
 
+    @Published public private(set) var practiceNavigationLocked = false
+    private var practiceSelectionNeedsSave = false
+    private var practiceTargetID: String?
+
+    /// Applies to every selection entry point, including map, imports and library.
+    public func setPracticeNavigationTarget(_ id: String?,locked: Bool) throws {
+        lock.lock(); defer { lock.unlock() }
+        let target = id.flatMap { candidate in waypoints.contains { $0.id == candidate } ? candidate : nil }
+        guard practiceSelectionNeedsSave || practiceNavigationLocked != locked || practiceTargetID != target || selectedId != target else { return }
+        // The durable course, not this preference file, owns the lock. Keep it
+        // fail-closed even if selection persistence is temporarily unavailable.
+        practiceTargetID = target; practiceNavigationLocked = locked
+        practiceSelectionNeedsSave = true
+        do { try publishLibraryLocked(waypoints,folders: folders,selection: target); practiceSelectionNeedsSave = false }
+        catch { selectedId = target; throw error }
+    }
+
+    public func addPracticePoints(folder raw: String,points: [GeoPoint]) throws -> [Waypoint] {
+        lock.lock(); defer { lock.unlock() }
+        guard points.count >= 2, waypoints.count + points.count <= 10_000,
+              points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }) else { throw PracticeCourseError.invalid("Invalid checkpoints or waypoint library limit reached.") }
+        let folder = Folders.match(known: knownNamesLocked(),raw: raw)
+        let added = points.enumerated().map { Waypoint(name: "CP \($0.offset+1)",lat: $0.element.lat,lon: $0.element.lon,folder: folder,symbol: "target") }
+        try publishLibraryLocked(waypoints+added,folders: folders,selection: selectedId)
+        return added
+    }
+
     public func select(_ id: String?) {
         lock.lock(); defer { lock.unlock() }
-        selectedId = id
+        selectedId = practiceNavigationLocked ? practiceTargetID.flatMap { target in waypoints.contains { $0.id == target } ? target : nil } : id
         persistLocked()
     }
 

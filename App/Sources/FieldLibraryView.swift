@@ -8,6 +8,7 @@ struct FieldLibraryView: View {
     @Environment(\.dismiss) private var dismiss
     var onNavigate: () -> Void = {}
     var onShowMap: () -> Void = {}
+    @State private var showingPractice = false
     @State private var routeRequest: RouteEditorRequest?
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -15,6 +16,7 @@ struct FieldLibraryView: View {
         NavigationStack {
             List {
                 if let failure = fieldData.loadError { Text(failure).foregroundStyle(palette.warn) }
+                Button("Practice course") { showingPractice = true }.accessibilityIdentifier("library-practice")
                 Section("Routes") {
                     ForEach(fieldData.document.graphics.filter { $0.type == "route" }) { route in
                         NavigationLink {
@@ -54,6 +56,7 @@ struct FieldLibraryView: View {
                 }
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
+            .sheet(isPresented: $showingPractice) { PracticeCourseView() }
             .navigationTitle("Routes & tracks")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(item: $routeRequest) { request in

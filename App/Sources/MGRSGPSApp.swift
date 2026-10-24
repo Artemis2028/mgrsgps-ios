@@ -13,6 +13,8 @@ struct MGRSGPSApp: App {
     @StateObject private var boundaries: BoundaryMonitor
     @StateObject private var navigation: NavigationSession
 
+    @StateObject private var practice: PracticeSession
+
     private let watchBridge: WatchPhoneBridge
 
     init() {
@@ -71,7 +73,18 @@ struct MGRSGPSApp: App {
         #endif
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore)
         _fieldData = StateObject(wrappedValue: fieldStore)
-        _navigation = StateObject(wrappedValue: NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore))
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPractice"), waypointStore.waypoints.isEmpty {
+            let far = ProcessInfo.processInfo.arguments.contains("-uiTestPracticeFar")
+            _ = waypointStore.add(.init(name: "Alpha checkpoint",lat: far ? 25 : 24.4539,lon: 54.3773,folder: "Drill"))
+            _ = waypointStore.add(.init(name: "Bravo checkpoint",lat: far ? 25.01 : 24.4550,lon: 54.3773,folder: "Drill"))
+            _ = waypointStore.add(.init(name: "Unrelated target",lat: 24.5,lon: 54.4))
+            if ProcessInfo.processInfo.arguments.contains("-uiTestPracticeNight") { settingsStore.nightMode = true }
+        }
+        #endif
+        let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore)
+        _navigation = StateObject(wrappedValue: navigationSession)
+        _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
         _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))
     }
 
@@ -87,6 +100,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(terrain)
                 .environmentObject(boundaries)
                 .environmentObject(navigation)
+                .environmentObject(practice)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)

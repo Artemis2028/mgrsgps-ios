@@ -126,7 +126,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         let oldKeys = Set(next.courseHistory.map { HistoryKey(started: $0.started, name: $0.name) })
         next.courseHistory = Array((next.courseHistory + incoming.courseHistory).filter {
             keys.insert(HistoryKey(started: $0.started, name: $0.name)).inserted
-        }.sorted { $0.started == $1.started ? $0.name < $1.name : $0.started < $1.started }.suffix(30))
+        }.sorted { $0.started == $1.started ? $0.name.utf16.lexicographicallyPrecedes($1.name.utf16) : $0.started < $1.started }.suffix(30))
         let courseAdded = next.courseHistory.filter { !oldKeys.contains(HistoryKey(started: $0.started, name: $0.name)) }.count
         try commit(next)
         return Backup.RestoreResult(waypoints: 0, graphics: graphics.count, tracks: tracks.count, course: courseAdded, settingsApplied: false)

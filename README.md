@@ -16,6 +16,10 @@ local 4/6/8/10-digit formatting and red night mode. See the
 Wear OS is a separate companion in the Android project. Both watch apps are
 additional requested work; they do not replace the main iOS parity milestone.
 
+Practice land-navigation courses now support random/folder setup, automatic checkpoint
+scoring, timed splits, relaunch recovery and results history. See
+[practice courses](docs/practice-courses.md) for behavior and verification.
+
 ## Getting it running
 
 Build with Xcode 26 or newer for the native glass APIs. The app still deploys

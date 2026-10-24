@@ -87,6 +87,7 @@ final class NavigationSession: ObservableObject {
     }
     private var permitted: Bool { (driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways) && driver.precise && driver.servicesEnabled }
     func follow(_ route: Backup.Graphic,startIndex: Int = 0) {
+        guard !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
         guard route.type == "route", (2...10_000).contains(route.points.count), route.points.indices.contains(startIndex) else { error = "Choose a route with 2–10,000 vertices and a valid start point."; return }
         do {
@@ -107,6 +108,7 @@ final class NavigationSession: ObservableObject {
         launch(progress: nil,haptics: true)
     }
     private func launch(progress requested: RouteFollowingProgress?,haptics enabled: Bool) {
+        guard requested == nil || !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
         guard foreground() else { error = "Open the app before starting navigation."; return }
         guard driver.servicesEnabled else { error = "Enable Location Services for navigation."; return }
@@ -169,6 +171,7 @@ final class NavigationSession: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     func movePoint(_ delta: Int) {
+        guard !store.practiceNavigationLocked else { return }
         guard var p = progress else { return }
         p.index = min(p.points.count,max(0,p.index+delta))
         do {

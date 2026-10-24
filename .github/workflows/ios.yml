@@ -81,6 +81,9 @@ jobs:
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
+      - name: Simulator location feed recovery tests
+        run: python3 -m unittest discover -s scripts -p test_simulator_location.py
+
       - name: App integration and field UI workflows
         id: ui_tests
         run: |
@@ -107,6 +110,7 @@ jobs:
             -resultBundlePath build/ui-tests.xcresult \
             -skip-testing:MGRSGPSUITests/BoundaryWorkflowTests \
             -skip-testing:MGRSGPSUITests/NavigationWorkflowTests \
+            -skip-testing:MGRSGPSUITests/PracticeWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
 
@@ -152,9 +156,33 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log"
 
+      - name: Practice course scoring with real locations
+        id: practice_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          python3 scripts/practice-test-route.py "$DEST" > /tmp/practice-route.log 2>&1 &
+          PRACTICE_ROUTE_PID=$!
+          cleanup_practice_route() {
+            kill "$PRACTICE_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_practice_route EXIT
+          xcodebuild test \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/practice-tests.xcresult \
+            -only-testing:MGRSGPSUITests/PracticeWorkflowTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/practice-test.log"
+
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
         run: |
+          if [ -d build/practice-tests.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/practice-tests.xcresult --output-path screenshots/practice-tests
+          fi
           if [ -d build/ui-tests.xcresult ]; then
             xcrun xcresulttool export attachments \
               --path build/ui-tests.xcresult --output-path screenshots/ui-tests
@@ -171,7 +199,7 @@ jobs:
       - name: Collect simulator location feed diagnostics
         if: always()
         run: |
-          for feed in recording boundary navigation; do
+          for feed in recording boundary navigation practice; do
             if [ -f "/tmp/$feed-route.log" ]; then
               cp "/tmp/$feed-route.log" "$GITHUB_WORKSPACE/$feed-route.log"
             fi
@@ -192,6 +220,9 @@ jobs:
             recording-route.log
             boundary-route.log
             navigation-route.log
+            practice-route.log
+            practice-test.log
+            build/practice-tests.xcresult/
             build/navigation-tests.xcresult/
             build/ui-tests.xcresult/
             build/boundary-tests.xcresult/
@@ -212,6 +243,7 @@ jobs:
             echo "ui_tests=${{ steps.ui_tests.outcome }}"
             echo "boundary_tests=${{ steps.boundary_tests.outcome }}"
             echo "navigation_tests=${{ steps.navigation_tests.outcome }}"
+            echo "practice_tests=${{ steps.practice_tests.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true

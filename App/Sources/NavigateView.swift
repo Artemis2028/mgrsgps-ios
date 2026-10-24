@@ -7,6 +7,8 @@ struct NavigateView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var practice: PracticeSession
+    @State private var showingPractice = false
     @EnvironmentObject private var navigation: NavigationSession
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
@@ -29,17 +31,19 @@ struct NavigateView: View {
                                 Button(waypoint.name) { store.select(waypoint.id) }
                             }
                         } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
-                        .fieldGlassButton().disabled(store.waypoints.isEmpty)
+                        .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked)
                         .accessibilityLabel("Choose navigation target")
                     }
+                    if practice.locked { Text("Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
                     if let wp = target {
                         targetBlock(wp)
                     } else {
                         emptyPrompt
                     }
-                    NavigationControlsView()
+                    Button("Practice course") { showingPractice = true }.buttonStyle(.bordered).accessibilityIdentifier("open-practice")
+                    NavigationControlsView().disabled(practice.blockedByStorage || practice.active?.paused == true)
                     if target != nil || navigation.progress != nil {
-                        Button("Stop navigation") { navigation.stop(); store.select(nil) }
+                        Button(practice.locked ? "Stop haptic guidance" : "Stop navigation") { navigation.stop(); store.select(nil) }
                             .buttonStyle(.bordered).tint(palette.accent)
                     }
                 }
@@ -51,6 +55,7 @@ struct NavigateView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
+        .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .onAppear { location.start() }
     }
 
