@@ -64,7 +64,8 @@ without changing its saved record visibility; its folder is made visible, as on
 Android. Stop viewing removes that temporary override. Show on map fits the
 track rather than fabricating a new route or starting navigation. Graphic and
 waypoint menus also offer map focus; route cards remain available directly.
-Track backtracking is a separate remaining milestone.
+Tracks can also create [reverse backtrack routes](track-backtracking.md), with
+the original point log retained and no automatic guidance startup.
 
 ## Validation and remaining work
 
@@ -78,4 +79,4 @@ The existing coordinate/route/GPX UI workflows are run as regression coverage.
 Physical field legibility and very large-library performance still need device
 validation. Finished field data currently retains the existing archive storage
 budget; this milestone does not remove that separate limitation or implement
-practice courses, additional file formats, or track backtracking.
+practice courses or additional file formats.

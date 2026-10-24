@@ -7,6 +7,7 @@ struct FieldLibraryView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     var onNavigate: () -> Void = {}
+    var onShowMap: () -> Void = {}
     @State private var routeRequest: RouteEditorRequest?
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -31,7 +32,7 @@ struct FieldLibraryView: View {
                 Section("Saved tracks") {
                     HStack { Text("Track recording"); Spacer(); RecordingButton() }
                     ForEach(fieldData.document.tracks.sorted { $0.startedAt > $1.startedAt }) { track in
-                        NavigationLink { TrackDetailView(trackID: track.id) } label: {
+                        NavigationLink { TrackDetailView(trackID: track.id,onShowMap: onShowMap) } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(track.name).font(.headline)
                                 Text("\(track.pointCount) points · \(Format.distance(meters: track.distanceM, unit: settings.units))")
@@ -222,12 +223,17 @@ struct RouteDetailView: View {
 
 struct TrackDetailView: View {
     let trackID: String
+    var onShowMap: () -> Void = {}
     @EnvironmentObject private var fieldData: FieldDataStore
+    @EnvironmentObject private var waypoints: WaypointStore
+    @EnvironmentObject private var maps: MapLayerStore
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @State private var status: String?
     @State private var export: GPXDocumentFile?
     @State private var confirmingDelete = false
+    @State private var backtracking = false
+    @State private var backtrackWork: Task<Void,Never>?
     private var track: Backup.TrackMeta? { fieldData.document.tracks.first { $0.id == trackID } }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     var body: some View {
@@ -242,6 +248,20 @@ struct TrackDetailView: View {
                 Button("Export GPX") {
                     perform { export = GPXDocumentFile(text: GPX.build(waypoints: [], tracks: [.init(name: track.name, points: try fieldData.points(for: trackID))])) }
                 }
+                Button(backtracking ? "Building backtrack…" : "Create backtrack route") {
+                    backtracking = true
+                    backtrackWork = Task {
+                        do {
+                            let route = try await TrackBacktrackAction.create(track: track,field: fieldData,waypoints: waypoints)
+                            backtracking = false; backtrackWork = nil
+                            maps.focusRequest = MapCameraRequest(action: .showBoundary(route.mapExtentPoints)); onShowMap()
+                        } catch {
+                            backtracking = false; backtrackWork = nil
+                            if !(error is CancellationError) { status = error.localizedDescription }
+                        }
+                    }
+                }.disabled(backtracking || track.pointCount < 2).accessibilityIdentifier("track-create-backtrack")
+                Text("Backtracking creates a reversed route, targeting 20 m shape detail and at most 64 vertices. Review it before following; navigation and haptics do not start automatically.").font(.footnote)
                 Button("Delete track", role: .destructive) { confirmingDelete = true }
             }
             if let status { Text(status).foregroundStyle(.red) }
@@ -249,6 +269,7 @@ struct TrackDetailView: View {
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(track?.name ?? "Track")
+        .onDisappear { backtrackWork?.cancel(); backtrackWork = nil; backtracking = false }
         .alert("Delete \(track?.name ?? "track")?",isPresented: $confirmingDelete) {
             Button("Delete",role: .destructive) { perform { try fieldData.deleteTrack(trackID); dismiss() } }
             Button("Cancel",role: .cancel) {}

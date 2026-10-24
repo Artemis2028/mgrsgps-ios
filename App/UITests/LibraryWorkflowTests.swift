@@ -97,4 +97,26 @@ final class LibraryWorkflowTests: XCTestCase {
         XCTAssertTrue(app.textFields["library-folder-name"].waitForExistence(timeout: 5)); capture("library-night-folder-form")
         app.buttons["Cancel"].tap()
     }
+    func testBacktrackFromMixedLibraryShowsSavedRouteAndLeavesNavigationIdle() {
+        folder("Recon")
+        let actions = app.buttons["Actions for track Recon track"]; reveal(actions); actions.tap()
+        app.buttons["backtrack-track-Recon track"].tap()
+        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["navigation-session-banner"].exists); XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
+        capture("track-backtrack-map")
+        app.tabBars.buttons["Waypoints"].tap()
+        let route = app.buttons["library-graphic-Back Recon track"]; reveal(route); XCTAssertTrue(route.waitForExistence(timeout: 5))
+        let routeActions = app.buttons["Actions for graphic Back Recon track"]; reveal(routeActions); routeActions.tap(); app.buttons["Route card"].tap()
+        XCTAssertTrue(app.buttons["follow-route"].waitForExistence(timeout: 5)); capture("track-backtrack-route-card")
+        app.buttons["Done"].tap()
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch(); folder("Recon")
+        reveal(route); XCTAssertTrue(route.exists)
+        let original = app.buttons["library-track-Recon track"]; reveal(original); XCTAssertTrue(original.exists)
+    }
+    func testBacktrackFromTrackDetailsReturnsToMapWithoutStartingGuide() {
+        app.buttons["open-field-library"].tap(); app.buttons["track-Recon track"].tap()
+        let create = app.buttons["track-create-backtrack"]; XCTAssertTrue(create.waitForExistence(timeout: 5)); create.tap()
+        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["navigation-session-banner"].exists)
+    }
 }

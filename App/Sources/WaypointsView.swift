@@ -30,6 +30,8 @@ struct WaypointsView: View {
     @State private var movingTrack: Backup.TrackMeta?
     @State private var routeDetail: Backup.Graphic?
     @State private var trackDetail: Backup.TrackMeta?
+    @State private var backtrackingID: String?
+    @State private var backtrackWork: Task<Void,Never>?
 
     private var libraryFolders: [FolderInfo] {
         var folders = store.folders
@@ -80,6 +82,7 @@ struct WaypointsView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
+        .onDisappear { backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil }
         .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
@@ -97,7 +100,7 @@ struct WaypointsView: View {
         }
         .sheet(item: $trackDetail) { track in
             NavigationStack {
-                TrackDetailView(trackID: track.id)
+                TrackDetailView(trackID: track.id,onShowMap: { trackDetail = nil; onShowMap() })
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { trackDetail = nil } } }
             }.fieldSheetAppearance()
         }
@@ -118,7 +121,7 @@ struct WaypointsView: View {
             }
         }
         .sheet(isPresented: $showingLibrary) {
-            FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() })
+            FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() },onShowMap: { showingLibrary = false; onShowMap() })
         }
         .sheet(isPresented: $showingPaste) {
             GPXPasteImportView { document in
@@ -360,6 +363,8 @@ struct WaypointsView: View {
                 Button("Details") { trackDetail = track }
                 if maps.viewedTrackID == track.id { Button("Stop viewing") { maps.viewedTrackID = nil } }
                 Button("Move to folder") { movingTrack = track }
+                Button(backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route") { backtrack(track) }
+                    .disabled(backtrackingID != nil || track.pointCount < 2).accessibilityIdentifier("backtrack-track-\(track.name)")
                 Button(track.visible ? "Hide on map" : "Make visible on map") { perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) } }
                 Button("Export GPX") { perform { exportGPX = GPXDocumentFile(text: GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])) } }
                 Button("Delete",role: .destructive) { selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true }
@@ -478,6 +483,21 @@ struct WaypointsView: View {
             guard !points.isEmpty else { throw LibraryActionError.partial("This track has no saved points to show.") }
             if libraryFolders.first(where: { $0.name == track.folder })?.visible == false { try store.setLibraryFolderVisible(track.folder,visible: true) }
             maps.viewedTrackID = track.id; maps.focusRequest = MapCameraRequest(action: .showBoundary(points)); onShowMap()
+        }
+    }
+    private func backtrack(_ track: Backup.TrackMeta) {
+        guard backtrackingID == nil else { return }
+        backtrackingID = track.id; status = "Building backtrack route…"
+        backtrackWork = Task {
+            do {
+                let route = try await TrackBacktrackAction.create(track: track,field: fieldData,waypoints: store)
+                backtrackingID = nil; backtrackWork = nil
+                status = "Backtrack saved with \(route.points.count) vertices. Review the simplified route before following it."
+                maps.focusRequest = MapCameraRequest(action: .showBoundary(route.mapExtentPoints)); onShowMap()
+            } catch {
+                backtrackingID = nil; backtrackWork = nil
+                if !(error is CancellationError) { status = "Backtrack failed: \(error.localizedDescription)" }
+            }
         }
     }
     private func perform(_ action: () throws -> Void) { do { try action(); status = nil } catch { status = error.localizedDescription } }
