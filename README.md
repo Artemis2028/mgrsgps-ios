@@ -9,8 +9,10 @@ Native Swift and SwiftUI. The sibling of the Android app in
 an Android application runtime.
 
 The native Apple Watch companion is in [Watch](Watch/README.md): Glance-style
-MGRS and waypoint pages, foreground watch location, phone target/settings sync,
-fix freshness/accuracy, north-reference labels and local red night mode.
+large MGRS and waypoint pages, an interactive map with synced visible field
+overlays, foreground watch location, fix quality, phone target/settings sync,
+local 4/6/8/10-digit formatting and red night mode. See the
+[shared watch feature contract](docs/watch-companion-parity.md) for platform differences.
 Wear OS is a separate companion in the Android project. Both watch apps are
 additional requested work; they do not replace the main iOS parity milestone.
 

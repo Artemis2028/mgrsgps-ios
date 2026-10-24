@@ -36,7 +36,9 @@ controls background execution and notification/haptic delivery; platform limits
 must remain visible rather than represented as complete feature parity.
 
 Separately requested watch companions are being developed alongside this port.
-The native [watchOS companion](../Watch/README.md) has grid and selected-waypoint
-pages with foreground location and latest-state phone sync. Simulator pairing,
+The native [watchOS companion](../Watch/README.md) has large grid and selected-waypoint
+pages plus a full-screen interactive map, with foreground watch location and
+latest-state visible-field overlay sync. The [shared watch contract](watch-companion-parity.md)
+records the rendering, map-source and offline differences. Simulator pairing,
 small-screen rendering and physical watch validation are tracked in its own
 verification notes; these are not claims that main-app parity is complete.
