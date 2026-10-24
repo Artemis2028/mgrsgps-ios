@@ -39,14 +39,14 @@ public enum GPX {
         return xml + "</gpx>\n"
     }
 
-    public struct Track {
+    public struct Track: Sendable {
         public let name: String
         public let points: [TrackPoint]
         public init(name: String, points: [TrackPoint]) { self.name = name; self.points = points }
     }
 
     public static func parse(_ xml: String, defaultFolder: String = "Imported",
-                              now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) throws -> Backup.Document {
+                              now: Int64 = Int64(Date().timeIntervalSince1970 * 1000),knownFolders: [String] = []) throws -> Backup.Document {
         guard xml.utf8.count <= ZipArchive.totalLimit else { throw BackupError.notABackup("GPX exceeds 32 MB") }
         let reader = GPXReader(folder: defaultFolder)
         let parser = XMLParser(data: Data(xml.utf8))
@@ -54,14 +54,13 @@ public enum GPX {
         parser.shouldResolveExternalEntities = false
         parser.delegate = reader
         guard parser.parse(), reader.hasRoot, !reader.exceededLimit else { throw BackupError.notABackup("Malformed or oversized GPX") }
-        var result = Backup.Document(waypoints: reader.waypoints, graphics: reader.routes)
-        result.hasSettings = false
-        for track in reader.tracks {
-            let (metadata, file) = try TrackCodec.imported(name: track.name, points: track.points, now: now, folder: defaultFolder)
-            result.tracks.append(metadata); result.trackFiles[metadata.id] = file
-        }
-        try Backup.validate(result)
-        return result
+        var content = InterchangeContents()
+        content.waypoints = reader.waypoints.map { WaypointDraft(name: $0.name,lat: $0.lat,lon: $0.lon,folder: $0.folder,symbol: $0.symbol,
+                                                               affiliation: $0.affiliation,echelon: $0.echelon,designation: $0.designation,
+                                                               kind: $0.kind,rotation: $0.rotation,metadata: $0.metadata) }
+        content.lines = reader.routes.map { .init(name: $0.name,folder: $0.folder,points: $0.points.map { .init(lat: $0.lat,lon: $0.lon) }) }
+        content.tracks = reader.tracks
+        return try content.document(now: now,knownFolders: knownFolders)
     }
 
     public static func parseWaypoints(_ xml: String, defaultFolder: String = "Imported") -> [WaypointDraft] {
@@ -142,7 +141,7 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         if depth == 4, parent == "extensions", stack[1].name == "wpt", gpx(stack[1].namespace), gpx(stack[2].namespace),
            [GPX.milgpsNamespace, "http://www.milgps.com"].contains(element.namespace) {
             if name == "color" { pendingWaypoint?.metadata.color = text.isEmpty ? nil : text.lowercased() }
-            if name == "symbolcode" { pendingWaypoint?.metadata.milgpsSymbolCode = Int(text) }
+            if name == "symbolcode" { pendingWaypoint?.metadata.milgpsSymbolCode = Int32(text).map(Int.init) }
         }
         guard gpx(element.namespace), stack.dropLast().allSatisfy({ gpx($0.namespace) }) else { return }
         func time() -> Int64? {
@@ -160,7 +159,7 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         case ("ele", 5) where parent == "trkpt":
             if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: p.time, altitudeMeters: Double(text).flatMap { $0.isFinite ? $0 : nil }) }
         case ("time", 5) where parent == "trkpt":
-            if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: max(0, time() ?? 0), altitudeMeters: p.altitudeMeters) }
+            if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: time() ?? 0, altitudeMeters: p.altitudeMeters) }
         case ("trkpt", 4): if let point = pendingTrackPoint { segment.append(point); pointCount += 1 }; pendingTrackPoint = nil
         case ("trkseg", 3): finishSegment()
         case ("wpt", 2):

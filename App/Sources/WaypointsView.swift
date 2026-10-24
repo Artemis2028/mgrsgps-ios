@@ -20,7 +20,8 @@ struct WaypointsView: View {
     @State private var waypointSort: WaypointSort = .distance
     @State private var status: String?
     @State private var showingLibrary = false
-    @State private var showingPaste = false
+    @State private var textImport: TextImportRequest?
+    @State private var exportText: TextDocumentFile?
     @State private var exportDoc: BackupDocumentFile?
     @State private var exportGPX: GPXDocumentFile?
     @State private var showingImporter = false
@@ -57,7 +58,7 @@ struct WaypointsView: View {
         var ids = LibrarySelection(); ids.waypoints = Set(listedWaypoints.map(\.id)); ids.graphics = Set(listedGraphics.map(\.id)); ids.tracks = Set(listedTracks.map(\.id)); return ids
     }
 
-    private enum ImportKind { case backup, gpx }
+    private enum ImportKind { case backup, text }
 
     var body: some View {
         ZStack {
@@ -130,10 +131,18 @@ struct WaypointsView: View {
         .sheet(isPresented: $showingLibrary) {
             FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() },onShowMap: { showingLibrary = false; onShowMap() })
         }
-        .sheet(isPresented: $showingPaste) {
-            GPXPasteImportView { document in
-                status = BackupCoordinator.restore(document, waypoints: store, fieldData: fieldData, settings: settings)
+        .sheet(item: $textImport) { request in
+            InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name)) { document in
+                let result = InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
+                status = result.message
+                return result
             }
+        }
+        .fileExporter(isPresented: Binding(
+            get: { exportText != nil },
+            set: { if !$0 { exportText = nil } }
+        ), document: exportText, contentType: exportText?.contentType ?? .commaSeparatedText, defaultFilename: "gridfix") { _ in
+            exportText = nil
         }
         .fileExporter(isPresented: Binding(
             get: { exportDoc != nil },
@@ -148,7 +157,7 @@ struct WaypointsView: View {
             exportGPX = nil
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .xml, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .gridFixGeoJSON, .commaSeparatedText, .xml, .json, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
@@ -168,11 +177,19 @@ struct WaypointsView: View {
                 Button("Select items") { selecting = true; selection = LibrarySelection() }.accessibilityIdentifier("library-select")
                 Button("New folder") { folderRequest = LibraryFolderRequest() }
                 Divider()
-                Button("Export backup") { exportBackup() }
-                Button("Export GPX") { exportGpx() }
+                Menu("Export") {
+                    Button("Export backup") { exportBackup() }
+                    Button("Export GPX") { exportGpx() }
+                    Button("Export CSV") { exportOther(.csv) }
+                    Button("Export GeoJSON") { exportOther(.geojson) }
+                }
                 Button("Import backup") { importKind = .backup; showingImporter = true }
-                Button("Import GPX") { importKind = .gpx; showingImporter = true }
-                Button("Paste GPX") { showingPaste = true }
+                Button("Import GPX / CSV / GeoJSON") { importKind = .text; showingImporter = true }
+                Menu("Paste text") {
+                    ForEach(TextInterchangeFormat.allCases,id: \.self) { format in
+                        Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
+                    }
+                }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)
             }
@@ -194,7 +211,7 @@ struct WaypointsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("No waypoints yet")
                 .font(Blackout.label(18, weight: .semibold))
-            Text("Add one at your current fix, or import a GridFix backup / GPX.")
+            Text("Add one at your current fix, or import a backup, GPX, CSV or GeoJSON file.")
                 .font(Blackout.label(14))
                 .foregroundStyle(palette.inkDim)
             if let status {
@@ -551,25 +568,30 @@ struct WaypointsView: View {
         } catch { status = "Export failed: \(error.localizedDescription)" }
     }
 
+    private func exportOther(_ format: TextInterchangeFormat) {
+        do {
+            let text: String
+            if format == .csv { text = CSV.build(store.waypoints) }
+            else {
+                let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name,points: try fieldData.points(for: $0.id)) }
+                text = try GeoJSON.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks)
+            }
+            exportText = TextDocumentFile(text: text,contentType: format == .csv ? .commaSeparatedText : .gridFixGeoJSON)
+            status = format.label + " ready"
+        } catch { status = "Export failed: \(error.localizedDescription)" }
+    }
+
     private func handleImport(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
+            if importKind == .text { textImport = TextImportRequest(url: url); return }
             let unlocked = url.startAccessingSecurityScopedResource()
             defer { if unlocked { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
-            switch importKind {
-            case .backup:
-                let doc = try Backup.importZip(data)
-                status = BackupCoordinator.restore(doc, waypoints: store, fieldData: fieldData, settings: settings)
-            case .gpx:
-                let xml = String(data: data, encoding: .utf8) ?? ""
-                let document = try GPX.parse(xml)
-                status = BackupCoordinator.restore(document, waypoints: store, fieldData: fieldData, settings: settings)
-            }
-        } catch {
-            status = "Import failed: \(error.localizedDescription)"
-        }
+            let doc = try Backup.importZip(Data(contentsOf: url))
+            status = BackupCoordinator.restore(doc,waypoints: store,fieldData: fieldData,settings: settings)
+        } catch { status = "Import failed: \(error.localizedDescription)" }
     }
+
 }
 
 struct BackupDocumentFile: FileDocument {
@@ -604,4 +626,20 @@ extension UTType {
 private enum LibraryActionError: LocalizedError {
     case partial(String)
     var errorDescription: String? { if case let .partial(message) = self { return message }; return nil }
+}
+
+struct TextDocumentFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.commaSeparatedText,.gridFixGeoJSON,.json] }
+    var text: String
+    var contentType: UTType
+    init(text: String,contentType: UTType) { self.text = text; self.contentType = contentType }
+    init(configuration: ReadConfiguration) throws {
+        text = String(decoding: configuration.file.regularFileContents ?? Data(),as: UTF8.self)
+        contentType = configuration.contentType
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: Data(text.utf8)) }
+}
+
+extension UTType {
+    static let gridFixGeoJSON = UTType(exportedAs: "app.gridfix.geojson",conformingTo: .json)
 }

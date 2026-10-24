@@ -61,6 +61,24 @@ targets:
               public.filename-extension:
                 - gpx
               public.mime-type: application/gpx+xml
+          - UTTypeIdentifier: app.gridfix.geojson
+            UTTypeDescription: GeoJSON geographic data
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - geojson
+              public.mime-type: application/geo+json
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Geographic files
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - app.gridfix.gpx
+              - app.gridfix.geojson
+              - public.comma-separated-values-text
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

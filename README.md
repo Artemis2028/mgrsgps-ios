@@ -16,6 +16,10 @@ local 4/6/8/10-digit formatting and red night mode. See the
 Wear OS is a separate companion in the Android project. Both watch apps are
 additional requested work; they do not replace the main iOS parity milestone.
 
+GPX, CSV and GeoJSON now support review-before-import, safe unchanged-content retry,
+native Files export and file-opening associations. See [text interchange](docs/text-interchange.md)
+for format losses and validation limits.
+
 The mixed field library supports cross-section search, persisted favourites and
 distance/name/newest waypoint sorting, including legacy-file migration. See
 [field library workflows](docs/field-library.md).

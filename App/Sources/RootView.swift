@@ -1,6 +1,9 @@
 import SwiftUI
+import GridFixCore
 
 struct RootView: View {
+    @EnvironmentObject private var waypointStore: WaypointStore
+    @EnvironmentObject private var fieldStore: FieldDataStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var maps: MapLayerStore
@@ -11,6 +14,9 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
     @State private var showingRecorder = false
+    @State private var incomingFile: URL?
+    @State private var importRequest: TextImportRequest?
+    @State private var importStatus: String?
     @State private var showingPractice = false
 
     init() {
@@ -39,6 +45,16 @@ struct RootView: View {
                     HStack { Image(systemName: "timer"); Text(practice.damaged ? "Saved course needs attention" : practice.summary != nil ? "Course complete · view results" : practice.active?.paused == true ? "Course paused · missing checkpoint" : "Practice course · CP \(min((practice.active?.nextIndex ?? 0)+1,practice.active?.waypointIDs.count ?? 0))"); Spacer(); Image(systemName: "chevron.right") }
                         .font(.caption).padding(.horizontal,16).frame(minHeight: 44)
                 }.accessibilityIdentifier("practice-banner")
+            }
+            if let url = incomingFile {
+                HStack {
+                    Button { importRequest = TextImportRequest(url: url) } label: { Label("Review " + url.lastPathComponent,systemImage: "doc.badge.plus").lineLimit(1).frame(minHeight: 44) }
+                    Spacer()
+                    Button("Dismiss") { incomingFile = nil }.font(.caption)
+                }.padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner")
+            }
+            if let importStatus {
+                HStack { Text(importStatus).font(.caption); Spacer(); Button("Done") { self.importStatus = nil } }.padding(.horizontal,16)
             }
             RecordingBanner(onOpen: { showingRecorder = true }).zIndex(1)
             if boundaries.running {
@@ -85,6 +101,17 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
+        .onOpenURL { url in
+            if url.isFileURL { incomingFile = url; importStatus = nil }
+        }
+        .sheet(item: $importRequest) { request in
+            InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name)) { document in
+                let result = InterchangeCoordinator.apply(document,waypoints: waypointStore,field: fieldStore)
+                importStatus = result.message
+                if result.completed && incomingFile == request.url { incomingFile = nil }
+                return result
+            }
+        }
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)

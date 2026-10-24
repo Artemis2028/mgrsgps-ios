@@ -108,7 +108,13 @@ public enum MGRS {
     }
 
     static func decode(_ text: String) -> Decoded? {
-        let s = text.uppercased().filter { !$0.isWhitespace }
+        let digits = text.unicodeScalars.map { scalar -> String in
+            if scalar.properties.generalCategory == .decimalNumber, let digit = Character(String(scalar)).wholeNumberValue { return String(digit) }
+            return String(scalar)
+        }.joined()
+        let labelled = digits.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            .replacingOccurrences(of: "^(MGRS|USNG)[:\\s]*",with: "",options: .regularExpression)
+        let s = labelled.filter { !$0.isWhitespace && $0 != "-" }
         guard !s.isEmpty else { return nil }
         let chars = Array(s)
         var i = 0

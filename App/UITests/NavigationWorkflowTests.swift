@@ -9,10 +9,13 @@ final class NavigationWorkflowTests: XCTestCase {
         app.launch()
         let actions = app.buttons["Waypoint actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
+        app.buttons["Paste text"].tap()
         app.buttons["Paste GPX"].tap()
         let text = app.textViews["gpx-import-text"]
         XCTAssertTrue(text.waitForExistence(timeout: 5)); text.tap()
         text.typeText("<gpx version=\"1.1\" creator=\"UI\"><rte><name>Navigation patrol</name><rtept lat=\"24.4539\" lon=\"54.3773\"/><rtept lat=\"24.4549\" lon=\"54.3773\"/><rtept lat=\"24.4559\" lon=\"54.3773\"/></rte></gpx>")
+        app.buttons["preview-interchange"].tap()
+        XCTAssertTrue(app.buttons["confirm-gpx-import"].waitForExistence(timeout: 10))
         app.buttons["confirm-gpx-import"].tap()
         app.buttons["open-field-library"].tap()
         let route = app.buttons["route-Navigation patrol"]
