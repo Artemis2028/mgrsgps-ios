@@ -108,7 +108,7 @@ jobs:
             -skip-testing:MGRSGPSUITests/BoundaryWorkflowTests \
             -skip-testing:MGRSGPSUITests/NavigationWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log" | tail -n 40
+            2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
 
       - name: Boundary drawing and real background crossing
         id: boundary_tests
@@ -130,7 +130,7 @@ jobs:
             -resultBundlePath build/boundary-tests.xcresult \
             -only-testing:MGRSGPSUITests/BoundaryWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log" | tail -n 40
+            2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log"
 
       - name: Automatic route following with real background locations
         id: navigation_tests
@@ -150,7 +150,7 @@ jobs:
             -resultBundlePath build/navigation-tests.xcresult \
             -only-testing:MGRSGPSUITests/NavigationWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log" | tail -n 40
+            2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log"
 
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
@@ -168,6 +168,15 @@ jobs:
               --path build/boundary-tests.xcresult --output-path screenshots/boundary-tests
           fi
 
+      - name: Collect simulator location feed diagnostics
+        if: always()
+        run: |
+          for feed in recording boundary navigation; do
+            if [ -f "/tmp/$feed-route.log" ]; then
+              cp "/tmp/$feed-route.log" "$GITHUB_WORKSPACE/$feed-route.log"
+            fi
+          done
+
       - name: Upload the build and the screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -180,6 +189,9 @@ jobs:
             ui-test.log
             boundary-test.log
             navigation-test.log
+            recording-route.log
+            boundary-route.log
+            navigation-route.log
             build/navigation-tests.xcresult/
             build/ui-tests.xcresult/
             build/boundary-tests.xcresult/
