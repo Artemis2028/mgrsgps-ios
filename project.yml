@@ -90,6 +90,9 @@ targets:
       - path: Watch/Sources
       - path: Watch/Resources
         buildPhase: resources
+      - path: App/Resources/MilitarySymbols
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: GridFixCore
         product: GridFixCore

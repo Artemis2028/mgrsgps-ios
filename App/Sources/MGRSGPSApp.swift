@@ -33,13 +33,13 @@ struct MGRSGPSApp: App {
         #if DEBUG
         WatchPhoneBridge.seedUITest(store: waypointStore, settings: settingsStore)
         #endif
-        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore)
         _waypoints = StateObject(wrappedValue: waypointStore)
         _settings = StateObject(wrappedValue: settingsStore)
         let mapStore = MapLayerStore(directory: directory)
         _maps = StateObject(wrappedValue: mapStore)
         _terrain = StateObject(wrappedValue: TerrainSession(sampler: mapStore.terrainSampler))
-        _boundaries = StateObject(wrappedValue: BoundaryMonitor(directory: directory))
+        let boundaryStore = BoundaryMonitor(directory: directory)
+        _boundaries = StateObject(wrappedValue: boundaryStore)
         let fieldStore = FieldDataStore(directory: directory)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
@@ -66,6 +66,10 @@ struct MGRSGPSApp: App {
             try? fieldStore.saveGraphic(.init(id: "terrain-ui-route",name: "Terrain patrol",type: "route",points: [.init(lat: 24.4539,lon: 54.3773),.init(lat: 24.4539,lon: 54.3923)]))
         }
         #endif
+        #if DEBUG
+        WatchPhoneBridge.seedMapUITest(store: waypointStore, field: fieldStore, boundaries: boundaryStore)
+        #endif
+        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore)
         _fieldData = StateObject(wrappedValue: fieldStore)
         _navigation = StateObject(wrappedValue: NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore))
         _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))

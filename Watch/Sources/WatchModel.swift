@@ -6,6 +6,8 @@ import WatchConnectivity
 @MainActor
 final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, WCSessionDelegate {
     @Published private(set) var snapshot = WatchSnapshot()
+    @Published private(set) var mapSnapshot: WatchMapSnapshot?
+    @Published private(set) var mapSyncStatus = "No phone map sync yet"
     @Published private(set) var fix: CLLocation?
     @Published private(set) var reachable = false
     @Published private(set) var hasSync = false
@@ -20,6 +22,9 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         super.init()
         if let data = UserDefaults.standard.data(forKey: cacheKey), let saved = WatchSnapshot.decode(data) {
             snapshot = saved; hasSync = true
+        }
+        if let data = UserDefaults.standard.data(forKey: WatchMapSnapshot.contextKey), let saved = WatchMapSnapshot.decode(data) {
+            mapSnapshot = saved; mapSyncStatus = "Cached phone overlay"
         }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
@@ -90,20 +95,36 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     private func apply(_ context: [String: Any]) {
         guard let data = context[WatchSnapshot.contextKey] as? Data,
               let incoming = WatchSnapshot.decode(data) else { return }
-        // WC application context is the authoritative latest state, including nil target.
+        // The map revision belongs to this complete context generation. Reject an old
+        // generation before applying its target/settings, so a delayed clear cannot be undone.
+        if let mapData = context[WatchMapSnapshot.contextKey] as? Data,
+           let map = WatchMapSnapshot.decode(mapData), !map.shouldApply(over: mapSnapshot) {
+            mapSyncStatus = "Older context ignored · cached overlay"
+            return
+        }
         snapshot = incoming; hasSync = true
         UserDefaults.standard.set(data, forKey: cacheKey)
+        if let mapData = context[WatchMapSnapshot.contextKey] as? Data {
+            if let map = WatchMapSnapshot.decode(mapData) {
+                if map.shouldApply(over: mapSnapshot) {
+                    mapSnapshot = map; mapSyncStatus = "Cached phone overlay"
+                    UserDefaults.standard.set(mapData, forKey: WatchMapSnapshot.contextKey)
+                } else { mapSyncStatus = "Older map update ignored · cached overlay" }
+            } else { mapSyncStatus = "Rejected map update · cached overlay" }
+        } else if context["gridfix.map.error"] != nil {
+            mapSyncStatus = "Phone map unavailable · cached overlay"
+        } else {
+            mapSnapshot = nil; mapSyncStatus = "Phone map sync unsupported"
+            UserDefaults.standard.removeObject(forKey: WatchMapSnapshot.contextKey)
+        }
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        let context = session.receivedApplicationContext
-        let connected = session.isReachable
-        Task { @MainActor in self.reachable = connected; self.apply(context) }
+        Task { @MainActor in self.reachable = session.isReachable; self.apply(session.receivedApplicationContext) }
     }
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        let connected = session.isReachable
-        Task { @MainActor in self.reachable = connected }
+        Task { @MainActor in self.reachable = session.isReachable }
     }
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
-        Task { @MainActor in self.apply(applicationContext) }
+        Task { @MainActor in self.apply(session.receivedApplicationContext) }
     }
 }

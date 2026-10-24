@@ -25,6 +25,7 @@ struct WatchGlanceView: View {
     @ObservedObject var model: WatchModel
     @State private var selection = 0
     @State private var showDetails = false
+    @State private var showMap = false
     @ScaledMetric(relativeTo: .caption) private var headerHeight: CGFloat = 13
     @AppStorage("watch.mgrs.digits") private var precisionOverride = 0
     private var digits: Int { [4, 6, 8, 10].contains(precisionOverride) ? precisionOverride : model.snapshot.mgrsDigits }
@@ -40,11 +41,17 @@ struct WatchGlanceView: View {
             TabView(selection: $selection) {
                 positionPage(date: timeline.date).tag(0)
                 page(date: timeline.date, navigation: true).tag(1)
+                mapLauncher(date: timeline.date).tag(2)
             }
             .tabViewStyle(.page)
             .background(Color.black)
             .foregroundStyle(ink)
             .tint(accent)
+        }
+        .onChange(of: selection) { _, value in if value == 2 { showMap = true } }
+        .fullScreenCover(isPresented: $showMap) {
+            WatchMapView(model: model, night: night, showPosition: { showMap = false; selection = 0 }, closeMap: { showMap = false })
+                .interactiveDismissDisabled(true)
         }
         .sheet(isPresented: $showDetails) {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
@@ -63,6 +70,7 @@ struct WatchGlanceView: View {
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
             if args.contains("-watchNavigate") { selection = 1 }
+            if args.contains("-watchMap") { selection = 2 }
             if args.contains("-watchUITesting") {
                 if let i = args.firstIndex(of: "-watchPrecision"), i + 1 < args.count {
                     let value = args[i + 1]
@@ -109,6 +117,18 @@ struct WatchGlanceView: View {
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private func mapLauncher(date: Date) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("MAP")
+            if let map = model.mapSnapshot {
+                Text("\(map.waypoints.count) waypoints · \(map.features.count) field items").font(.caption)
+                label("CACHED · " + age(date.timeIntervalSince(map.updatedAt)))
+            } else { Text(model.mapSyncStatus).font(.caption) }
+            Button("Open map") { showMap = true }.frame(minHeight: 44)
+            label("FULL SCREEN · PAN / ZOOM")
+        }.padding(.horizontal, 8)
     }
 
     private func connectionStatus(date: Date) -> some View {
