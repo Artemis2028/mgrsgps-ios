@@ -62,13 +62,14 @@ public enum UTM {
     /// overlay needs, because grid lines continue past the zone boundary.
     public static func forZone(lat: Double, lon: Double, zone: Int, north: Bool) -> (easting: Double, northing: Double) {
         let latRad = lat * .pi / 180.0
-        let lonRad = lon * .pi / 180.0
         let lonOrigin = centralMeridian(zone: zone) * .pi / 180.0
+        // A point across ±180° is still near zone 1/60's central meridian.
+        let delta = ((lon * .pi / 180.0 - lonOrigin + .pi).truncatingRemainder(dividingBy: 2 * .pi) + 2 * .pi).truncatingRemainder(dividingBy: 2 * .pi) - .pi
 
         let n = a / (1.0 - e2 * pow(sin(latRad), 2)).squareRoot()
         let t = pow(tan(latRad), 2)
         let c = ep2 * pow(cos(latRad), 2)
-        let bigA = cos(latRad) * (lonRad - lonOrigin)
+        let bigA = cos(latRad) * delta
         let m = a * (
             (1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2 * e2 * e2 / 256.0) * latRad
             - (3.0 * e2 / 8.0 + 3.0 * e2 * e2 / 32.0 + 45.0 * e2 * e2 * e2 / 1024.0) * sin(2.0 * latRad)

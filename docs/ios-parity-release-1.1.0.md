@@ -12,7 +12,7 @@ It is not a claim of full Android parity.
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX and automatic following | Remaining bulk library/interchange actions tracked below |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications | Physical direction-pattern validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
-| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours | Ruler/area measure; physical offline/storage-pressure validation |
+| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, folders, visibility, navigation, local persistence | Favorites, search/sort and batch tools from 1.1.0, field geometry workflows |
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, GPX, restored practice history | Track rename/move, larger-library storage, creating/running practice courses and scoring/results UI |
@@ -26,7 +26,7 @@ dark controls and rows to match the light text, including recording, coordinates
 map layers, boundaries and GPX import. Military symbols now have their own
 validated port, followed by tactical graphics and route drawing. Terrain visibility tools are now ported too; the remaining gaps are recorded above.
 
-See [terrain visibility and profiles](terrain-visibility.md),
+See [map measurements](map-measurement.md), [terrain visibility and profiles](terrain-visibility.md),
 [map graphics and route drawing](tactical-graphics.md),
 [military symbol catalog and provenance](military-symbols.md),
 [navigation behavior and limitations](navigation-guide.md),

@@ -15,8 +15,11 @@ actor TerrainSampler {
                 c.draw(image,in: CGRect(x: 0,y: 0,width: 256,height: 256)); return true
             }
             guard success else { throw URLError(.cannotDecodeContentData) }
-            let values = stride(from: 0,to: pixels.count,by: 4).map { i in
-                pixels[i+3] == 0 ? Double.nan : (TerrainContours.elevation(red: pixels[i],green: pixels[i+1],blue: pixels[i+2]) ?? .nan)
+            var values = [Double](); values.reserveCapacity(256*256)
+            for i in stride(from: 0,to: pixels.count,by: 4) {
+                let elevation: Double? = TerrainContours.elevation(red: pixels[i],green: pixels[i+1],blue: pixels[i+2])
+                let value: Double = pixels[i+3] == 0 ? .nan : (elevation ?? .nan)
+                values.append(value)
             }
             return Raster(heights: values)
         }

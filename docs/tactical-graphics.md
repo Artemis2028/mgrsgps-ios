@@ -4,9 +4,11 @@ Reference: Android `release/1.1.0`, commit `482b417`, specifically
 `GraphicsRepository.kt`, `ControlMeasuresOverlay.kt` and `ui/screens/MapScreen.kt`.
 
 Open the map's pencil button, choose a graphic type and tap to place vertices.
-The map draws straight segments. Long-press and drag a numbered point to move
-it, or drag a small + handle along a segment to add a new point and bend the
-line. Tapping a + handle inserts a point there. Select a point for the crosshair
+The map draws straight segments. Long-press a segment and drag to create a bend;
+hold and drag a numbered point to move it. Small + handles make point insertion
+discoverable and also work by dragging or tapping. A cancelled line gesture
+removes its provisional point. Ordinary pans away from the line stay available.
+Select a point for the crosshair
 Move here, Add point and remove actions; Add point inserts after the selection. Save commits the drawing
 atomically; Cancel restores the saved version. Name, folder, affiliation and
 record visibility live in Details, with echelon selection for tactical boundaries.

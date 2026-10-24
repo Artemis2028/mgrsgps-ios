@@ -38,8 +38,9 @@ order around the area you want to stay inside. Each pair is joined by a straight
 line, and the final point joins the first to form the closing backstop. A light
 fill shows the permitted interior once the perimeter is valid.
 
-Long-press and drag a numbered point to move it. Drag a small **+** handle to
-add a new point along a side, including the closing backstop. Tapping **+** inserts
+Long-press a side and drag to create a bend, including on the closing backstop.
+Long-press and drag a numbered point to move it. A cancelled line gesture removes
+its provisional point. Drag a small **+** handle to add a point; tapping **+** inserts
 a point there too. For an accessible alternative, select a point, pan the
 crosshair and choose **Move here** or **Add point**; Add point inserts after the
 selection. The trash button removes the selected point. Pinch and pan remain available while drawing; double-tap

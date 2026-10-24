@@ -9,15 +9,17 @@ final class TacticalMapOverlay: UIView {
     var night = false
     var lightLines = false
     var viewshed: TerrainAnalysis.Viewshed?
+    var rulerAnchor: GeoPoint?
     private var shade: UIImage?
     private var shadeKey = ""
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isOpaque = false; isUserInteractionEnabled = false; accessibilityElementsHidden = true; contentMode = .redraw }
     required init?(coder: NSCoder) { fatalError("Created by map") }
-    func update(document: Backup.Document, folders: [FolderInfo], draft: Backup.Graphic?, night: Bool, light: Bool, viewshed: TerrainAnalysis.Viewshed?) {
+    func update(document: Backup.Document, folders: [FolderInfo], draft: Backup.Graphic?, night: Bool, light: Bool, viewshed: TerrainAnalysis.Viewshed?,rulerAnchor: GeoPoint? = nil) {
         let hidden = Set(folders.filter { !$0.visible }.map { $0.name.lowercased() })
         graphics = document.graphics.filter { $0.visible && !hidden.contains($0.folder.lowercased()) && $0.id != draft?.id }
         self.draft = draft; self.night = night; lightLines = light
         self.viewshed = viewshed
+        self.rulerAnchor = rulerAnchor
         let key = "\(viewshed?.id.uuidString ?? "")|\(night)"
         if key != shadeKey { shadeKey = key; shade = viewshed.flatMap { TerrainViewshedRenderer.image($0,night: night) } }
         setNeedsDisplay()
@@ -72,5 +74,14 @@ final class TacticalMapOverlay: UIView {
         }
         for graphic in graphics { TacticalGraphicCanvas.draw(graphic,points: projected(graphic),in: c,night: night,lightLines: lightLines) }
         if let draft { TacticalGraphicCanvas.draw(draft,points: projected(draft),in: c,night: night,lightLines: lightLines,selected: true,draft: true) }
+        if let anchor = rulerAnchor, let map {
+            let lon = map.centerCoordinate.longitude+TerrainGeometry.wrap(anchor.lon-map.centerCoordinate.longitude)
+            let a = map.convert(CLLocationCoordinate2D(latitude: anchor.lat,longitude: lon),toPointTo: self)
+            let b = map.convert(map.centerCoordinate,toPointTo: self)
+            c.setStrokeColor((night ? UIColor.systemRed : UIColor.systemOrange).cgColor); c.setLineWidth(2.5)
+            c.move(to: a); c.addLine(to: b); c.strokePath()
+            c.setFillColor((night ? UIColor.systemRed : UIColor.systemOrange).cgColor)
+            c.fillEllipse(in: CGRect(x: a.x-5,y: a.y-5,width: 10,height: 10))
+        }
     }
 }

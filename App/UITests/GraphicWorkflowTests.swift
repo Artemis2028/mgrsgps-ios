@@ -65,6 +65,17 @@ final class GraphicWorkflowTests: XCTestCase {
         app.buttons["route-Route"].tap()
         XCTAssertTrue(app.buttons["follow-route"].waitForExistence(timeout: 5))
     }
+    func testLongPressOnRouteSegmentCreatesAndDragsBendDirectly() {
+        choose("route"); point(0.25,0.40,1); point(0.65,0.40,2)
+        // Away from both numbered endpoints and the midpoint + handle.
+        app.coordinate(withNormalizedOffset: .init(dx: 0.34,dy: 0.40)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: .init(dx: 0.34,dy: 0.49)))
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","3 points"),object: app.staticTexts["graphic-point-count"])
+        XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 5),.completed)
+        capture("route-direct-line-drag")
+        app.buttons["save-graphic"].tap(); app.buttons["Not now"].tap()
+        app.buttons["map-graphics"].tap()
+        XCTAssertTrue(app.staticTexts["Route · 3 points · Base"].waitForExistence(timeout: 5))
+    }
     func testFixedRingAndSectorPlacementAndNightControls() {
         choose("ring"); point(0.40,0.40,1)
         app.coordinate(withNormalizedOffset: .init(dx: 0.65,dy: 0.48)).tap()

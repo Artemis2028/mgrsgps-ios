@@ -87,7 +87,7 @@ struct BoundaryDrawingControls: View {
                 Button("Cancel",action: cancel).accessibilityIdentifier("cancel-boundary")
                 Button("Save",action: save).disabled(draft.vertices.count < 3).accessibilityIdentifier("save-boundary")
             }
-            Text("Tap to draw. Hold and drag a point to move it, or + to add a point.")
+            Text("Tap to draw. Hold and drag a point or line to reshape it.")
                 .font(.caption)
             HStack {
                 Button("Add point") {

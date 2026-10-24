@@ -84,4 +84,12 @@ final class BoundaryWorkflowTests: XCTestCase {
         XCTAssertFalse(app.buttons["stop-boundary"].exists)
         XCTAssertTrue(app.buttons["monitor-boundary-Boundary"].exists)
     }
+    func testLongPressOnBoundarySideAddsBendWithoutMonitoring() {
+        draw()
+        app.coordinate(withNormalizedOffset: .init(dx: 0.35,dy: 0.38)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: .init(dx: 0.35,dy: 0.46)))
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","5 points"),object: app.staticTexts["boundary-point-count"])
+        XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 5),.completed)
+        capture("boundary-direct-line-drag"); save()
+        XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
+    }
 }

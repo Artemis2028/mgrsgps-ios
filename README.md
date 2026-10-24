@@ -52,6 +52,12 @@ The four tabs are Position / Navigate / Map / Waypoints (tags 0/1/2/3).
 coordinates, and visible waypoints/folders appear on the map. Tap a marker to
 navigate; use Locate or Show all visible data for explicit camera moves.
 
+The map ruler menu measures anchor-to-crosshair distance and azimuth or a drawn
+area/perimeter. Hold and drag a line to create a bend; drag numbered points to
+adjust it. Area results can become a saved graphic. Measurements and tactical
+graphics remain separate from quiet-inside monitoring. See
+[map measurements](docs/map-measurement.md).
+
 After `xcodegen generate`, run the scheme's UI tests with:
 
 ```bash

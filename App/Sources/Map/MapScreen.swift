@@ -13,6 +13,7 @@ struct MapScreen: View {
     @EnvironmentObject private var maps: MapLayerStore
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var terrain: TerrainSession
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     var onNavigate: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
@@ -31,12 +32,17 @@ struct MapScreen: View {
     @State private var boundaryDraft: BoundaryDraft?
     @State private var showingGraphics = false
     @State private var graphicDraft: GraphicDraft?
+    @State private var measuringArea = false
+    @State private var rulerAnchor: GeoPoint?
+    @State private var rulerTarget = GeoPoint(lat: 24.4539,lon: 54.3773)
     @State private var graphicError: String?
     @State private var routeWaypointOffer: Backup.Graphic?
     @State private var showingRouteWaypointOffer = false
     @State private var routeWaypointError: String?
 
     private var chromeNight: Bool { settings.nightMode }
+    private var compactMap: Bool { verticalSizeClass == .compact }
+    private var toolLayout: AnyLayout { compactMap ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(spacing: 8)) }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
     private var mapInk: Color { chromeNight ? palette.ink : .black }
     private var mapInkDim: Color { chromeNight ? palette.inkDim : .black.opacity(0.65) }
@@ -61,6 +67,9 @@ struct MapScreen: View {
                          document: fieldData.document, folders: store.folders,
                          recordingPoints: recorder.active?.livePoints ?? [],
                          viewshed: terrain.viewshed,
+                         rulerAnchor: rulerAnchor,
+                         onRulerAnchor: { rulerAnchor = $0; selectedID = nil },
+                         onRulerTarget: { if rulerTarget != $0 { rulerTarget = $0 } },
                          boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],
                          boundaryEditing: boundaryDraft != nil, boundarySelection: boundaryDraft?.selected,
                          onBoundaryPoint: { point in
@@ -76,18 +85,23 @@ struct MapScreen: View {
                          onBoundaryMove: { index, point in
                              if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
                          },
+                         onBoundaryRemove: { index in
+                             if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
+                         },
                          graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
                          onGraphicPoint: { graphicDraft?.append($0) },
                          onGraphicSelect: { graphicDraft?.selected = $0 },
                          onGraphicInsert: { index, point in graphicDraft?.selected = index; graphicDraft?.insert(point) },
                          onGraphicMove: { graphicDraft?.move($0,to: $1) },
-                         onGraphicPick: { selectedID = nil; graphicError = nil; graphicDraft = GraphicDraft($0) },
+                         onGraphicRemove: { index in graphicDraft?.selected = index; graphicDraft?.removeSelected() },
+                         onGraphicPick: { selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
                          onSelect: { if boundaryDraft == nil && graphicDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
                              intervalLabel = label; centre = position; viewport = bounds; zoom = level
+                             rulerTarget = GeoPoint(lat: position.latitude,lon: position.longitude)
                              terrain.updateCentre(GeoPoint(lat: position.latitude,lon: position.longitude))
                              maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
                          })
@@ -102,22 +116,22 @@ struct MapScreen: View {
                         Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                             .font(.caption2.weight(.semibold)).tracking(1)
                             .foregroundStyle(mapInkDim)
-                        if let readout = terrain.readout {
+                        if !compactMap, let readout = terrain.readout {
                             Text(readout.elevation.map { String(format: "ELEV %.0f m",$0) } ?? "ELEV unavailable")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-elevation")
                             if let slope = readout.slope { Text(String(format: "SLOPE %.1f° · DEM estimate",slope)).font(.caption2).foregroundStyle(mapInkDim) }
                         }
-                        if !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
+                        if !compactMap && !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
                         Text((maps.preferences.offlineOnly ? "OFFLINE ONLY · " : "") + maps.layerName)
                             .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-layer-name")
-                        if overlayRoutes > 0 || overlayTracks > 0 {
+                        if !compactMap && (overlayRoutes > 0 || overlayTracks > 0) {
                             Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
                         }
                     }
-                    .padding(14).fieldChrome()
+                    .padding(compactMap ? 8 : 14).fieldChrome()
                     Spacer(minLength: 0)
-                    VStack(spacing: 8) {
+                    toolLayout {
                         Button { showingGraphics = true } label: {
                             Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
                         }.fieldGlassButton().accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
@@ -130,6 +144,16 @@ struct MapScreen: View {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
                         if boundaryDraft == nil && graphicDraft == nil {
+                            Menu {
+                                Button("Distance ruler") {
+                                    rulerAnchor = GeoPoint(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil
+                                }.accessibilityIdentifier("measure-distance")
+                                Button("Measure area") {
+                                    rulerAnchor = nil; selectedID = nil; graphicError = nil
+                                    graphicDraft = GraphicDraft(type: "area"); measuringArea = true
+                                }.accessibilityIdentifier("measure-area")
+                            } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
+                                .fieldGlassButton().accessibilityLabel("Map measurements").accessibilityIdentifier("map-measure")
                             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain")
                         }
@@ -140,24 +164,27 @@ struct MapScreen: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if let anchor = rulerAnchor {
+                    MapRulerCard(anchor: anchor,target: rulerTarget,reset: { rulerAnchor = rulerTarget },close: { rulerAnchor = nil })
+                }
                 if let draft = boundaryDraft {
                     BoundaryDrawingControls(draft: Binding(get: { boundaryDraft ?? draft },set: { boundaryDraft = $0 }),
                         centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaries.error,
                         save: { if let area = boundaryDraft?.area, boundaries.save(area) { boundaryDraft = nil } },cancel: { boundaryDraft = nil; boundaries.clearError() })
                 }
                 if let draft = graphicDraft {
-                    GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),
+                    GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),measuringArea: $measuringArea,
                         centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError,
                         save: {
                             guard let draft = graphicDraft, draft.validationMessage == nil else { return }
                             do {
                                 let isNew = !fieldData.document.graphics.contains { $0.id == draft.graphic.id }
                                 try fieldData.saveGraphic(draft.saved); store.addFolder(draft.saved.folder)
-                                graphicDraft = nil; graphicError = nil
+                                graphicDraft = nil; graphicError = nil; measuringArea = false
                                 if isNew && draft.graphic.type == "route" { routeWaypointOffer = draft.saved; showingRouteWaypointOffer = true }
                             }
                             catch { graphicError = error.localizedDescription }
-                        },cancel: { graphicDraft = nil; graphicError = nil })
+                        },cancel: { graphicDraft = nil; graphicError = nil; measuringArea = false })
                 }
                 if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil {
                     selectedCard(waypoint)
@@ -175,7 +202,7 @@ struct MapScreen: View {
                     .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
                     .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.8), in: Capsule())
                     .accessibilityIdentifier("map-attribution")
-                HStack(spacing: 12) {
+                if !compactMap || (boundaryDraft == nil && graphicDraft == nil) { HStack(spacing: 12) {
                     Button {
                         guard let fix = location.usableFix else { return }
                         cameraRequest = MapCameraRequest(action: .locate(fix.lat, fix.lon))
@@ -199,7 +226,7 @@ struct MapScreen: View {
                     }
                     .fieldGlassButton().tint(palette.accent)
                     .accessibilityLabel("Add waypoint at map centre")
-                }
+                } }
             }
             .padding(.horizontal, 16).padding(.top, 8)
             // The edge-to-edge UIKit map extends beneath the custom field bar.
@@ -238,13 +265,13 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showingGraphics) {
             GraphicPanel(onDraw: { draft in
-                selectedID = nil; graphicError = nil; graphicDraft = draft
+                selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = draft
                 if !draft.vertices.isEmpty { cameraRequest = MapCameraRequest(action: .showBoundary(draft.graphic.mapExtentPoints)) }
             },onShow: { graphic in cameraRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)) },onNavigate: onNavigate)
         }
         .sheet(isPresented: $showingBoundaries) {
             BoundaryPanel(onDraw: { area in
-                selectedID = nil; boundaries.clearError()
+                selectedID = nil; rulerAnchor = nil; boundaries.clearError()
                 boundaryDraft = area.map(BoundaryDraft.init) ?? BoundaryDraft()
                 if let area { cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) }
             },onShow: { area in boundaries.displayedID = area.id; cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) })
@@ -299,6 +326,9 @@ private struct MapContainer: UIViewRepresentable {
     let folders: [FolderInfo]
     let recordingPoints: [GeoPoint]
     let viewshed: TerrainAnalysis.Viewshed?
+    let rulerAnchor: GeoPoint?
+    let onRulerAnchor: (GeoPoint) -> Void
+    let onRulerTarget: (GeoPoint) -> Void
     let boundaryPoints: [GeoPoint]
     let boundaryEditing: Bool
     let boundarySelection: Int?
@@ -306,12 +336,14 @@ private struct MapContainer: UIViewRepresentable {
     let onBoundarySelect: (Int) -> Void
     let onBoundaryInsert: (Int,GeoPoint) -> Void
     let onBoundaryMove: (Int,GeoPoint) -> Void
+    let onBoundaryRemove: (Int) -> Void
     let graphicDraft: Backup.Graphic?
     let graphicSelection: Int?
     let onGraphicPoint: (GeoPoint) -> Void
     let onGraphicSelect: (Int) -> Void
     let onGraphicInsert: (Int,GeoPoint) -> Void
     let onGraphicMove: (Int,GeoPoint) -> Void
+    let onGraphicRemove: (Int) -> Void
     let onGraphicPick: (Backup.Graphic) -> Void
     let onContour: (String) -> Void
     let onOverlays: (Int, Int, Bool) -> Void
@@ -338,6 +370,9 @@ private struct MapContainer: UIViewRepresentable {
             if let doubleTap = other as? UITapGestureRecognizer, doubleTap.numberOfTapsRequired == 2 { tap.require(toFail: doubleTap) }
         }
         view.addGestureRecognizer(tap)
+        let lineHold = UILongPressGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.bendLine(_:)))
+        lineHold.minimumPressDuration = 0.45; lineHold.delegate = context.coordinator
+        context.coordinator.lineHold = lineHold; view.addGestureRecognizer(lineHold)
         let tactical = context.coordinator.tactical
         tactical.map = view; tactical.frame = view.bounds; tactical.autoresizingMask = [.flexibleWidth,.flexibleHeight]
         view.addSubview(tactical)
@@ -364,8 +399,12 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.contours.onInterval = { text in DispatchQueue.main.async { onContour(text) } }
         coordinator.onChange = onChange
         coordinator.onSelect = onSelect
+        coordinator.rulerActive = rulerAnchor != nil
+        coordinator.onRulerAnchor = onRulerAnchor; coordinator.onRulerTarget = onRulerTarget
         coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryEditing = boundaryEditing
         coordinator.graphicEditing = graphicDraft != nil; coordinator.graphicSelection = graphicSelection; coordinator.graphicType = graphicDraft?.type
+        coordinator.graphicPoints = graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? []
+        coordinator.onGraphicRemove = onGraphicRemove; coordinator.onBoundaryRemove = onBoundaryRemove
         coordinator.onGraphicPoint = onGraphicPoint; coordinator.onGraphicSelect = onGraphicSelect; coordinator.onGraphicMove = onGraphicMove; coordinator.onGraphicPick = onGraphicPick; coordinator.onGraphicInsert = onGraphicInsert
         coordinator.boundarySelection = boundarySelection
         // A quick pair of drawing taps must add vertices, not zoom the map.
@@ -376,7 +415,7 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
         coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
-        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed)
+        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
@@ -431,7 +470,15 @@ private struct MapContainer: UIViewRepresentable {
         let graphicHandles = BoundaryMapOverlay(identifier: "graphic",drawArea: false)
         let tactical = TacticalMapOverlay(frame: .zero)
         var graphicEditing = false
+        var rulerActive = false
+        var onRulerAnchor: ((GeoPoint) -> Void)?
+        var onRulerTarget: ((GeoPoint) -> Void)?
         var graphicType: String?
+        var graphicPoints: [GeoPoint] = []
+        weak var lineHold: UILongPressGestureRecognizer?
+        private var lineDrag: (owner: String,index: Int)?
+        var onGraphicRemove: ((Int) -> Void)?
+        var onBoundaryRemove: ((Int) -> Void)?
         var graphicSelection: Int?
         var onGraphicPoint: ((GeoPoint) -> Void)?
         var onGraphicSelect: ((Int) -> Void)?
@@ -447,6 +494,10 @@ private struct MapContainer: UIViewRepresentable {
         var onBoundaryMove: ((Int,GeoPoint) -> Void)?
         @objc func boundaryTap(_ gesture: UITapGestureRecognizer) {
             guard gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            if rulerActive {
+                let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
+                onRulerAnchor?(.init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude))); return
+            }
             if !boundaryEditing && !graphicEditing {
                 if let graphic = tactical.graphic(at: gesture.location(in: tactical)) { onGraphicPick?(graphic) }
                 return
@@ -463,7 +514,57 @@ private struct MapContainer: UIViewRepresentable {
                 else { onGraphicPoint?(location) }
             } else { onBoundaryPoint?(location) }
         }
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
+        private func lineSegment(at touch: CGPoint,in map: MLNMapView) -> (owner: String,index: Int)? {
+            let points: [GeoPoint], owner: String, closed: Bool
+            if boundaryEditing { points = boundaryPoints; owner = "boundary"; closed = points.count >= 3 }
+            else if graphicEditing, let type = graphicType, GraphicTypes.fixedPoints(type) == nil {
+                points = graphicPoints; owner = "graphic"; closed = GraphicTypes.isArea(type) && points.count >= 3
+            } else { return nil }
+            guard points.count >= 2, points.count < (owner == "boundary" ? 256 : 4096) else { return nil }
+            var best = CGFloat(22), result: Int?
+            for i in 0..<(closed ? points.count : points.count-1) {
+                let a = points[i], b = points[(i+1)%points.count]
+                let lon = map.centerCoordinate.longitude+TerrainGeometry.wrap(a.lon-map.centerCoordinate.longitude)
+                let p = map.convert(CLLocationCoordinate2D(latitude: a.lat,longitude: lon),toPointTo: map)
+                let q = map.convert(CLLocationCoordinate2D(latitude: b.lat,longitude: lon+TerrainGeometry.wrap(b.lon-a.lon)),toPointTo: map)
+                let dx = q.x-p.x, dy = q.y-p.y, length = dx*dx+dy*dy
+                guard length > 0 else { continue }
+                let t = min(1,max(0,((touch.x-p.x)*dx+(touch.y-p.y)*dy)/length))
+                let distance = hypot(touch.x-p.x-t*dx,touch.y-p.y-t*dy)
+                if distance < best { best = distance; result = i }
+            }
+            return result.map { (owner,$0) }
+        }
+        @objc func bendLine(_ gesture: UILongPressGestureRecognizer) {
+            guard let map = gesture.view as? MLNMapView else { return }
+            let touch = gesture.location(in: map), coordinate = map.convert(touch,toCoordinateFrom: map)
+            let point = GeoPoint(lat: coordinate.latitude,lon: TerrainGeometry.wrap(coordinate.longitude))
+            switch gesture.state {
+            case .began:
+                guard let segment = lineSegment(at: touch,in: map) else { return }
+                lineDrag = (segment.owner,segment.index+1)
+                if segment.owner == "graphic" { onGraphicInsert?(segment.index,point) } else { onBoundaryInsert?(segment.index,point) }
+            case .changed, .ended:
+                if let drag = lineDrag {
+                    if drag.owner == "graphic" { onGraphicMove?(drag.index,point) } else { onBoundaryMove?(drag.index,point) }
+                }
+                if gesture.state == .ended { lineDrag = nil }
+            case .cancelled, .failed:
+                if let drag = lineDrag {
+                    if drag.owner == "graphic" { onGraphicRemove?(drag.index) } else { onBoundaryRemove?(drag.index) }
+                }
+                lineDrag = nil
+            default: break
+            }
+        }
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard gestureRecognizer === lineHold, let map = gestureRecognizer.view as? MLNMapView else { return true }
+            return lineSegment(at: gestureRecognizer.location(in: map),in: map) != nil
+        }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            if gestureRecognizer === lineHold || otherGestureRecognizer === lineHold { return false }
+            return true
+        }
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldReceive touch: UITouch) -> Bool {
             var view = touch.view
             while let current = view {
@@ -531,6 +632,11 @@ private struct MapContainer: UIViewRepresentable {
             if let vertex = annotation as? BoundaryVertexAnnotation {
                 selectVertex(vertex); mapView.deselectAnnotation(vertex,animated: false); return
             }
+            if rulerActive {
+                let point = annotation.coordinate
+                if CLLocationCoordinate2DIsValid(point) { onRulerAnchor?(.init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude))) }
+                mapView.deselectAnnotation(annotation,animated: false); return
+            }
             guard let annotation = annotation as? WaypointAnnotation else { return }
             if graphicEditing && graphicType == "route" {
                 onGraphicPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
@@ -574,7 +680,13 @@ private struct MapContainer: UIViewRepresentable {
             }
             map.bringSubviewToFront(crosshair)
         }
-        func mapViewRegionIsChanging(_ mapView: MLNMapView) { tactical.setNeedsDisplay() }
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            tactical.setNeedsDisplay()
+            if rulerActive {
+                let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
+                DispatchQueue.main.async { [weak self] in if self?.rulerActive == true { self?.onRulerTarget?(point) } }
+            }
+        }
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
 
         private func redraw(_ map: MLNMapView) {

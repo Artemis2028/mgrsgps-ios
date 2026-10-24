@@ -51,7 +51,7 @@ public extension GraphicTypes {
         case "flot": return "Trace the forward line. Scallops face left of the drawing direction, toward the enemy."
         case "lane": return "Trace the cleared lane’s centreline."
         case "boundary": return "Draw an open tactical boundary line. This graphic does not monitor crossings."
-        default: return fixedPoints(type) == 1 ? "Tap the map to place the graphic." : "Tap to draw. Hold and drag a point to move it, or + to add a point."
+        default: return fixedPoints(type) == 1 ? "Tap the map to place the graphic." : "Tap to draw. Hold and drag a point or line to reshape it."
         }
     }
 }
