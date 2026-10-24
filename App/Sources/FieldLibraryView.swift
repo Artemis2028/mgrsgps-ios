@@ -114,7 +114,7 @@ struct RouteEditor: View {
                     }.onDelete { points.remove(atOffsets: $0) }
                     Menu {
                         ForEach(waypoints.waypoints) { point in
-                            Button(point.name) { points.append(Backup.GraphicPoint(lat: point.lat, lon: point.lon)) }
+                            Button(point.name) { points.append(Backup.GraphicPoint(lat: point.lat, lon: point.lon)) }.accessibilityIdentifier("route-append-choice-" + point.name)
                         }
                     } label: { Label("Append waypoint", systemImage: "plus") }
                         .disabled(waypoints.waypoints.isEmpty)

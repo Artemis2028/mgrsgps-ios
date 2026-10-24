@@ -25,7 +25,7 @@ final class TerrainWorkflowTests: XCTestCase {
         for _ in 0..<8 {
             // Canvas has no tappable activation point on some runtimes. Its
             // visible frame, rather than button hittability, controls scrolling.
-            if element.exists && !element.frame.isEmpty && element.frame.midY > 150 && element.frame.midY < 720 { return }
+            if element.exists && !element.frame.isEmpty && element.frame.midY > 150 && element.frame.midY < 720 && (element.elementType != .button || element.isHittable) { return }
             if element.exists && element.frame.midY < 150 { app.swipeDown() } else { app.swipeUp() }
         }
     }
