@@ -13,6 +13,8 @@ struct MGRSGPSApp: App {
     @StateObject private var boundaries: BoundaryMonitor
     @StateObject private var navigation: NavigationSession
 
+    private let watchBridge: WatchPhoneBridge
+
     init() {
         var directory: URL?
         #if DEBUG
@@ -28,6 +30,7 @@ struct MGRSGPSApp: App {
         #endif
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
+        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore)
         _waypoints = StateObject(wrappedValue: waypointStore)
         _settings = StateObject(wrappedValue: settingsStore)
         let mapStore = MapLayerStore(directory: directory)

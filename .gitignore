@@ -16,3 +16,5 @@ App/Resources/Info.generated.plist
 
 # Python helpers for simulator routes.
 __pycache__/
+
+Watch/Info.generated.plist

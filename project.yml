@@ -29,6 +29,8 @@ targets:
         type: folder
         buildPhase: resources
     dependencies:
+      - target: GridFixWatch
+        embed: true
       - package: GridFixCore
         product: GridFixCore
       - package: MapLibre
@@ -80,6 +82,37 @@ targets:
         UIBackgroundModes:
           - location
 
+  GridFixWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: Watch/Sources
+      - path: Watch/Resources
+        buildPhase: resources
+    dependencies:
+      - package: GridFixCore
+        product: GridFixCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.watchkitapp
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        SDKROOT: watchos
+        TARGETED_DEVICE_FAMILY: "4"
+    info:
+      path: Watch/Info.generated.plist
+      properties:
+        CFBundleDisplayName: GridFix
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: app.gridfix.ios
+        WKRunsIndependentlyOfCompanionApp: true
+        NSLocationWhenInUseUsageDescription: GridFix uses your location while open to show your current grid and bearing to your selected waypoint.
+        UIAppFonts:
+          - antonio.ttf
+          - fira_mono_regular.ttf
+
   MGRSGPSTests:
     type: bundle.unit-test
     platform: iOS
@@ -121,3 +154,7 @@ schemes:
       targets:
         - MGRSGPSTests
         - MGRSGPSUITests
+  GridFixWatch:
+    build:
+      targets:
+        GridFixWatch: all
