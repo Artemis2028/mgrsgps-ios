@@ -15,13 +15,13 @@ final class LibraryWorkflowTests: XCTestCase {
         doc.tracks = [meta]; doc.trackFiles[meta.id] = bytes
         _ = try store.restore(doc); return store
     }
-    func testDistanceBucketsUseNameTiesAcrossFoldersAndKeepInsertionWithoutGPS() {
+    func testDistanceBucketsUseNameTiesAcrossFoldersAndNameFallbackWithoutGPS() {
         let z = Waypoint(id: "z",name: "Zulu",lat: 0,lon: 0.00009,folder: "Recon")
         let a = Waypoint(id: "a",name: "Alpha",lat: 0,lon: 0.00018,folder: "Base")
         let near = Waypoint(id: "n",name: "Near",lat: 0,lon: 0.00027,folder: "Base")
-        XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: nil,origin: nil).map(\.id),["z","n","a"])
+        XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: nil,origin: nil).map(\.id),["a","n","z"])
         XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: nil,origin: .init(lat: 0,lon: 0)).map(\.id),["a","z","n"])
-        XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: "BASE",origin: nil).map(\.id),["n","a"])
+        XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: "BASE",origin: nil).map(\.id),["a","n"])
         XCTAssertEqual(LibraryListing.waypoints([z,near,a],folder: nil,origin: .init(lat: 0,lon: 0.000001)).map(\.id),["a","z","n"])
     }
     func testMixedWaypointVisibilitySwapsEachStateAndDeletionClearsOnlySelectedTarget() throws {

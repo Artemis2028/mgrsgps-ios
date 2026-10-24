@@ -173,7 +173,7 @@ public enum Backup {
                 "symbol": w.symbol, "affiliation": w.affiliation,
                 "echelon": w.echelon, "designation": w.designation,
                 "kind": w.kind, "rotation": w.rotation,
-                "visible": w.visible,
+                "visible": w.visible, "favorite": w.favorite,
             ]
             d["metadata"] = metadataJSON(w.metadata)
             d["sourceRouteId"] = w.sourceRouteId
@@ -372,7 +372,8 @@ public enum Backup {
             visible: o["visible"] as? Bool ?? true,
             metadata: decodeMetadata(metaObj),
             sourceRouteId: o["sourceRouteId"] as? String,
-            sourceRoutePointIndex: int(o["sourceRoutePointIndex"])
+            sourceRoutePointIndex: int(o["sourceRoutePointIndex"]),
+            favorite: o["favorite"] as? Bool ?? false
         )
     }
 

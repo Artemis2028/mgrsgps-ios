@@ -94,6 +94,13 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         persistLocked()
     }
 
+    public func setFavorite(id: String,favorite: Bool) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard let index = waypoints.firstIndex(where: { $0.id == id }) else { return }
+        var next = waypoints; next[index].favorite = favorite
+        try publishLibraryLocked(next,folders: folders,selection: selectedId)
+    }
+
     public func setVisible(id: String, visible: Bool) {
         lock.lock(); defer { lock.unlock() }
         guard let idx = waypoints.firstIndex(where: { $0.id == id }) else { return }

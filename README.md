@@ -16,6 +16,10 @@ local 4/6/8/10-digit formatting and red night mode. See the
 Wear OS is a separate companion in the Android project. Both watch apps are
 additional requested work; they do not replace the main iOS parity milestone.
 
+The mixed field library supports cross-section search, persisted favourites and
+distance/name/newest waypoint sorting, including legacy-file migration. See
+[field library workflows](docs/field-library.md).
+
 Practice land-navigation courses now support random/folder setup, automatic checkpoint
 scoring, timed splits, relaunch recovery and results history. See
 [practice courses](docs/practice-courses.md) for behavior and verification.

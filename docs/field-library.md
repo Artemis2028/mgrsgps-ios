@@ -10,13 +10,23 @@ remain visible in All; dimmed cards and an eye-slash distinguish hidden records.
 The existing Routes & tracks entry also retains route editing/navigation,
 track details and practice-history access.
 
-With a usable position, waypoints sort by distance in **25 m buckets**, then
-Android's name ordering. Small GPS changes within a bucket do not rearrange
-the list continuously. Without a usable fix, repository insertion order stays
-intact. Ordering applies across folders when All is selected. Android 1.1.0 has
-no waypoint search, favorites or user-selectable sort picker; those were
-incorrectly listed as missing parity in an earlier inventory. Military-symbol
-search is a separate, implemented picker.
+Search narrows every section. Waypoints match name, folder, unit designation or
+the full ten-digit MGRS grid, with or without spaces (at least three compact grid
+characters). Graphics and tracks match their names. Folder filtering still applies.
+The clear control resets the query; submitting Search dismisses the keyboard.
+
+Favourites lead every ordering. **Distance**, **Name** and **Newest** match
+Android's `WaypointListing.kt`: distance uses **25 m buckets** then case-insensitive
+name; without a fix it falls back to name. Newest uses descending creation time,
+then name. Equal keys retain repository order. Ordering applies across folders
+when All is selected. Unicode simple casing/order is checked against an actual
+JVM `String.CASE_INSENSITIVE_ORDER` fixture rather than locale collation.
+
+Use a waypoint's action menu to add/remove its favourite star. This flag is
+independent of map visibility, selection, course/route ownership and metadata.
+Old iOS waypoint files without the field decode as false; new local files and
+Android-compatible v1 backups preserve it. A failed flag write does not publish
+an unsaved change. Military-symbol search remains a separate picker.
 
 ## Mixed selection
 
@@ -74,9 +84,14 @@ namespaces, folder visibility merges, Base protection, empty-folder persistence,
 track-log preservation/deletion, failed writes and partial-batch retry. Native UI
 workflows cover selection/filter changes, deletion/relaunch, visibility swaps,
 rename/remove/clear, track moves/viewing, empty folders and red night forms.
-The existing coordinate/route/GPX UI workflows are run as regression coverage.
+Search/favourite tests additionally cover old local-file migration, Android backup
+round trips, stable Unicode case ties, all sort modes, compact-grid queries and
+failed favourite writes. The new UI checks cover cross-section queries, selection
+of only visible results, favourite relaunch/removal and night search. Coordinate/route/GPX
+workflows remain regression coverage.
 
 Physical field legibility and very large-library performance still need device
 validation. Finished field data currently retains the existing archive storage
-budget; this milestone does not remove that separate limitation or implement
-practice courses or additional file formats.
+budget; this milestone does not remove that separate limitation.
+[Practice courses](practice-courses.md) are implemented separately; additional
+interchange formats remain on the parity checklist.

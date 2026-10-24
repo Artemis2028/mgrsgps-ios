@@ -15,6 +15,9 @@ struct WaypointsView: View {
     var onNavigate: () -> Void = {}
     var onShowMap: () -> Void = {}
     @State private var folderFilter: String?
+    @FocusState private var searchFocused: Bool
+    @State private var searchQuery = ""
+    @State private var waypointSort: WaypointSort = .distance
     @State private var status: String?
     @State private var showingLibrary = false
     @State private var showingPaste = false
@@ -45,10 +48,11 @@ struct WaypointsView: View {
         }
     }
     private var listedWaypoints: [Waypoint] {
-        LibraryListing.waypoints(store.waypoints,folder: folderFilter,origin: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
+        LibraryListing.waypoints(store.waypoints,folder: folderFilter,origin: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) },query: searchQuery,sort: waypointSort)
     }
-    private var listedGraphics: [Backup.Graphic] { fieldData.document.graphics.filter { folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame } }
-    private var listedTracks: [Backup.TrackMeta] { fieldData.document.tracks.filter { folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame } }
+    private var query: String { searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    private var listedGraphics: [Backup.Graphic] { fieldData.document.graphics.filter { (folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame) && (query.isEmpty || $0.name.lowercased().contains(query)) } }
+    private var listedTracks: [Backup.TrackMeta] { fieldData.document.tracks.filter { (folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame) && (query.isEmpty || $0.name.lowercased().contains(query)) } }
     private var listedSelection: LibrarySelection {
         var ids = LibrarySelection(); ids.waypoints = Set(listedWaypoints.map(\.id)); ids.graphics = Set(listedGraphics.map(\.id)); ids.tracks = Set(listedTracks.map(\.id)); return ids
     }
@@ -71,8 +75,11 @@ struct WaypointsView: View {
                         .contentShape(Rectangle())
                 }.buttonStyle(.plain).accessibilityIdentifier("open-field-library")
                 folderPicker
+                searchControls
                 libraryCaption
-                if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
+                if !query.isEmpty && listedSelection.count == 0 {
+                    Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
+                } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
                     empty
                 } else {
                     list
@@ -82,7 +89,7 @@ struct WaypointsView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .onDisappear { backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil }
+        .onDisappear { searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil }
         .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
@@ -229,6 +236,27 @@ struct WaypointsView: View {
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
+    private var searchControls: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(palette.inkDim)
+            TextField("Search name, folder or grid",text: $searchQuery)
+                .textInputAutocapitalization(.never).autocorrectionDisabled().focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
+                .accessibilityIdentifier("library-search")
+                .onChange(of: searchQuery) { value in if value.count > 60 { searchQuery = String(value.prefix(60)) } }
+            if !searchQuery.isEmpty {
+                Button { searchQuery = "" } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44,minHeight: 44) }
+                    .accessibilityLabel("Clear library search").accessibilityIdentifier("library-search-clear")
+            }
+            Menu {
+                ForEach(WaypointSort.allCases,id: \.self) { order in
+                    Button(order.label,systemImage: waypointSort == order ? "checkmark" : "arrow.up.arrow.down") { waypointSort = order; searchFocused = false }
+                }
+            } label: { Image(systemName: "arrow.up.arrow.down").frame(width: 44,height: 44) }
+                .accessibilityLabel("Sort waypoints, \(waypointSort.label)").accessibilityIdentifier("library-sort")
+        }.padding(.horizontal,12).frame(minHeight: 44)
+            .fieldContentSurface(night: settings.nightMode).padding(.horizontal,20).padding(.vertical,4)
+    }
+
     private var libraryCaption: some View {
         HStack(spacing: 10) {
             if selecting {
@@ -245,7 +273,7 @@ struct WaypointsView: View {
                     .disabled(selection.count == 0).accessibilityLabel("Selected item actions")
                 Button("Done") { selecting = false; selection = LibrarySelection() }.accessibilityIdentifier("library-selection-done")
             } else {
-                Text("\(location.usableFix == nil ? "" : "By distance · ")\(listedWaypoints.count) waypoints · \(listedGraphics.count) graphics · \(listedTracks.count) tracks")
+                Text("\(waypointSort.label) · \(listedWaypoints.count) waypoints · \(listedGraphics.count) graphics · \(listedTracks.count) tracks")
                     .font(.caption).foregroundStyle(palette.inkDim).accessibilityIdentifier("library-listed-count")
                 Spacer(minLength: 0)
                 if let folder = libraryFolders.first(where: { $0.name == folderFilter }) ?? (libraryFolders.count == 1 ? libraryFolders.first : nil) {
@@ -325,7 +353,7 @@ struct WaypointsView: View {
     }
     private func waypointSummary(_ point: Waypoint) -> some View {
         VStack(alignment: .leading,spacing: 5) {
-            Text(point.name).font(.headline)
+            HStack { Text(point.name).font(.headline); if point.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite") } }
             Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage").font(.system(.caption,design: .monospaced))
             if folderFilter == nil { Text(point.folder).font(.caption).foregroundStyle(palette.inkDim) }
         }
@@ -380,7 +408,7 @@ struct WaypointsView: View {
                 .accessibilityHidden(true)
             Button { beginEdit(wp) } label: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(wp.name).font(.headline).foregroundStyle(wp.visible ? palette.ink : palette.inkDim)
+                    HStack { Text(wp.name).font(.headline).foregroundStyle(wp.visible ? palette.ink : palette.inkDim); if wp.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") } }
                     Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage")
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
                     if folderFilter == nil { Text(wp.folder).font(.caption).foregroundStyle(palette.inkDim) }
@@ -395,6 +423,7 @@ struct WaypointsView: View {
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
             Menu {
                 Button("Edit", systemImage: "pencil") { beginEdit(wp) }
+                Button(wp.favorite ? "Remove favourite" : "Favourite",systemImage: wp.favorite ? "star.slash" : "star") { perform { try store.setFavorite(id: wp.id,favorite: !wp.favorite) } }.accessibilityIdentifier("toggle-favorite-\(wp.name)")
                 Button(wp.visible ? "Hide on map" : "Make visible on map", systemImage: wp.visible ? "eye.slash" : "eye") {
                     perform { try store.applyLibraryBatch(ids: [wp.id],action: .swapVisibility) }
                 }

@@ -35,6 +35,7 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
     public var kind: String
     public var rotation: Double
     public var visible: Bool
+    public var favorite: Bool
     public var metadata: WaypointMetadata
     public var sourceRouteId: String?
     public var sourceRoutePointIndex: Int?
@@ -53,7 +54,7 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
                 rotation: Double = 0,
                 visible: Bool = true,
                 metadata: WaypointMetadata = WaypointMetadata(),
-                sourceRouteId: String? = nil, sourceRoutePointIndex: Int? = nil) {
+                sourceRouteId: String? = nil, sourceRoutePointIndex: Int? = nil,favorite: Bool = false) {
         self.id = id
         self.name = name
         self.lat = lat
@@ -67,9 +68,29 @@ public struct Waypoint: Equatable, Sendable, Identifiable, Codable {
         self.kind = kind
         self.rotation = rotation
         self.visible = visible
+        self.favorite = favorite
         self.metadata = metadata
         self.sourceRouteId = sourceRouteId
         self.sourceRoutePointIndex = sourceRoutePointIndex
+    }
+
+    private enum CodingKeys: String,CodingKey {
+        case id,name,lat,lon,createdAt,folder,symbol,affiliation,echelon,designation,kind,rotation,visible,favorite,metadata,sourceRouteId,sourceRoutePointIndex
+    }
+    /// The optional favourite field was added after existing iOS stores shipped.
+    /// Retain strict decoding of the old required fields, default only this addition.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try c.decode(String.self,forKey: .id),name: try c.decode(String.self,forKey: .name),
+                  lat: try c.decode(Double.self,forKey: .lat),lon: try c.decode(Double.self,forKey: .lon),
+                  createdAt: try c.decode(Int64.self,forKey: .createdAt),folder: try c.decode(String.self,forKey: .folder),
+                  symbol: try c.decode(String.self,forKey: .symbol),affiliation: try c.decode(String.self,forKey: .affiliation),
+                  echelon: try c.decode(String.self,forKey: .echelon),designation: try c.decode(String.self,forKey: .designation),
+                  kind: try c.decode(String.self,forKey: .kind),rotation: try c.decode(Double.self,forKey: .rotation),
+                  visible: try c.decode(Bool.self,forKey: .visible),metadata: try c.decode(WaypointMetadata.self,forKey: .metadata),
+                  sourceRouteId: try c.decodeIfPresent(String.self,forKey: .sourceRouteId),
+                  sourceRoutePointIndex: try c.decodeIfPresent(Int.self,forKey: .sourceRoutePointIndex),
+                  favorite: try c.decodeIfPresent(Bool.self,forKey: .favorite) ?? false)
     }
 }
 
