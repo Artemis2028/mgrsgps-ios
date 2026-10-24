@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 import GridFixCore
 
 @main
@@ -121,8 +122,12 @@ struct WatchGlanceView: View {
     /// The primary position instrument never scrolls. Only diagnostics/settings use the sheet.
     private func positionPage(date: Date) -> some View {
         GeometryReader { geometry in
-            let numeralSize = min(38, max(32, (geometry.size.height - headerHeight - 30) / 2.6))
-            VStack(alignment: .leading, spacing: 3) {
+            let width = max(0, geometry.size.width - 4)
+            let columnWidth = max(0, width - 47)
+            let heightLimit = max(36, ((geometry.size.height - headerHeight - 24) / 2 - 2) / WatchDigitMetrics.inkHeight)
+            let widthLimit = columnWidth / (WatchDigitMetrics.advance * CGFloat(digits / 2))
+            let numeralSize = min(52, heightLimit, widthLimit)
+            VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     label("WATCH")
                     Spacer(minLength: 0)
@@ -131,16 +136,24 @@ struct WatchGlanceView: View {
                               color: model.usable(at: date) ? good : accent)
                     } else { label("NO FIX") }
                 }
-                gridContent(date: date, size: numeralSize, width: max(0, geometry.size.width - 16))
+                gridContent(date: date, size: numeralSize, width: width)
             }
-            .frame(width: max(0, geometry.size.width - 16), alignment: .topLeading)
-            .padding(.horizontal, 8)
+            .frame(width: width, alignment: .topLeading)
+            .padding(.horizontal, 2)
         }
     }
 
     private func gridNumeral(_ text: String, size: CGFloat, width: CGFloat) -> some View {
+        // Antonio has substantial blank ascender/descender space. Retain every digit's
+        // ink bounds, but remove that blank line-box space so two large rows fit.
         Text(text).font(.custom("Antonio-Bold", fixedSize: size)).monospacedDigit()
-            .lineLimit(1).minimumScaleFactor(0.55).frame(width: width, alignment: .leading)
+            .lineLimit(1).minimumScaleFactor(0.95)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(width: width, alignment: .leading)
+            .drawingGroup()
+            .offset(y: 1 - size * WatchDigitMetrics.topBlank)
+            .frame(height: ceil(size * WatchDigitMetrics.inkHeight) + 2, alignment: .top)
+            .clipped()
     }
 
     @ViewBuilder private func gridContent(date: Date, size: CGFloat, width: CGFloat) -> some View {
@@ -152,21 +165,23 @@ struct WatchGlanceView: View {
                     .font(.custom("FiraMono-Regular", fixedSize: 12))
                 Spacer()
                 Image(systemName: "info.circle").font(.system(size: 13))
-            }.foregroundStyle(accent).frame(width: width, height: 24)
+            }.foregroundStyle(accent).frame(width: width, height: 18)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(parts.map { $0.gzd + " " + $0.square } ?? "MGRS"). Location details and night mode")
-        HStack(alignment: .center, spacing: 5) {
-            VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 if let parts {
-                    gridNumeral(parts.easting, size: size, width: max(0, width - 49)).accessibilityLabel("Easting \(parts.easting)")
-                    gridNumeral(parts.northing, size: size, width: max(0, width - 49)).accessibilityLabel("Northing \(parts.northing)")
+                    gridNumeral(parts.easting, size: size, width: max(0, width - 47)).accessibilityLabel("Easting \(parts.easting)")
+                    gridNumeral(parts.northing, size: size, width: max(0, width - 47)).accessibilityLabel("Northing \(parts.northing)")
                 } else {
-                    gridNumeral("— —", size: size, width: max(0, width - 49))
+                    Text("— —").font(.custom("Antonio-Bold", fixedSize: min(size, 38)))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(width: max(0, width - 47), alignment: .leading)
                     label(usable ? "OUTSIDE MGRS COVERAGE" : unavailableReason)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }.frame(width: max(0, width - 49), alignment: .leading)
+            }.frame(width: max(0, width - 47), alignment: .leading)
             precisionControl.frame(width: 44).fixedSize(horizontal: true, vertical: true)
         }.frame(width: width, alignment: .leading)
     }
@@ -251,4 +266,24 @@ struct WatchGlanceView: View {
     }
 
     private func age(_ seconds: TimeInterval) -> String { WatchFixPolicy.ageLabel(seconds) }
+}
+
+/// Normalize the bundled Antonio digit metrics once; this is layout, not a drawn font substitute.
+/// Measuring all digits preserves rounded tops/bottoms and tabular advance when trimming blank leading.
+private enum WatchDigitMetrics {
+    private static let values: (height: CGFloat, top: CGFloat, advance: CGFloat) = {
+        let size: CGFloat = 48
+        let font = CTFontCreateWithName("Antonio-Bold" as CFString, size, nil)
+        var characters = Array("0123456789".utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: characters.count)
+        CTFontGetGlyphsForCharacters(font, &characters, &glyphs, characters.count)
+        let ink = CTFontGetBoundingRectsForGlyphs(font, .horizontal, &glyphs, nil, glyphs.count)
+        var advances = [CGSize](repeating: .zero, count: glyphs.count)
+        CTFontGetAdvancesForGlyphs(font, .horizontal, &glyphs, &advances, glyphs.count)
+        return (ink.height / size, (CTFontGetAscent(font) - ink.maxY) / size,
+                (advances.map(\.width).max() ?? size / 2) / size)
+    }()
+    static var inkHeight: CGFloat { values.height }
+    static var topBlank: CGFloat { values.top }
+    static var advance: CGFloat { values.advance }
 }
