@@ -17,7 +17,7 @@ Digit count describes coordinate formatting, not GPS accuracy. Both platforms di
 
 Small-screen simulator checks cover a 40 mm Apple Watch and a 192 dp round Wear OS device. Apple phone/watch application-context delivery has been exercised with a paired simulator. Wear OS rendering and freshness checks use an emulator; paired physical Data Layer delivery remains to be verified. Simulator evidence does not replace field, battery, permission or radio testing.
 
-Map platform differences:
+Current map implementation differences:
 
 - watchOS uses Apple Maps and opens its interactive map full-screen from the third Map page. Wear OS uses OSM browse tiles with attribution and an MGRS grid toggle. Neither transfers phone MBTiles, downloaded map areas, contours, DEMs or viewsheds.
 - Both retain a bounded copy of field overlays. Basemap caches are controlled separately and do not guarantee offline coverage.
