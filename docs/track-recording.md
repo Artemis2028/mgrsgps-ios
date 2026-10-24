@@ -82,6 +82,12 @@ append stops queued writes and preserves earlier rows. Recovery drops only an
 incomplete final row; a malformed complete row or metadata file is preserved
 and reported, with explicit discard available.
 
+Final publication must also fit the current finished-data archive's combined
+32 MB / 250,000 track-point budget. If a large existing library prevents saving,
+export/delete finished tracks and retry; the recording journal is retained. This
+archive-based library limit is an iOS storage constraint beyond Android's per-export
+backup limits.
+
 ## Verification
 
 Core tests cover thresholds, monotonic ordering, clock changes, rejected-fix
@@ -100,7 +106,8 @@ protection attributes; Simulator does not implement Data Protection classes.
 simulator location feed supplied by `scripts/recording-test-route.py`, outside
 the app. It checks background point growth, save/library/map, confirmed discard,
 and process termination/relaunch recovery. CI feeds locations across test app
-reinstalls and relaunches.
+reinstalls and relaunches, revokes the screenshot step's Always grant, and verifies
+that the real manager has only While Using authorization.
 
 A physical locked-screen walk remains required before release: with While Using
 and Precise Location, start a track, walk with the phone locked for at least ten

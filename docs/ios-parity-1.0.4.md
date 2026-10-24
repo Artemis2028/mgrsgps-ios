@@ -86,7 +86,7 @@ for the exact contract and physical-device verification still required.
 | Waypoints | Coordinates, folders, visibility, basic navigation, local persistence | Projection/resection/intersection workflows, symbol editor/catalog, search/sort, batch operations |
 | Maps | Demo basemap, MGRS grid, waypoint/route/track overlays, camera controls, map-centre add | Production basemap catalog, offline region download, MBTiles/user maps, ruler, full tactical graphic editor/overlays |
 | Navigation | Target selection, bearings, back azimuth, distance, ETA | Relative-heading guidance, haptic guide and arrival state, background behaviour, automatic route following |
-| Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, track rename/move, practice course creation/running |
+| Tracks and courses | Routes/editor/cards/owned waypoints, saved-track persistence/overlays/export, live recording/background configuration/recovery, restored course history | Physical locked-screen validation, larger libraries beyond archive limits, track rename/move, practice course creation/running |
 | Terrain | No terrain UI/cache | DEM caching/downloads, elevation, slope/hillshade, contours, LOS, viewshed |
 | Interchange and backup | GPX waypoints/routes/tracks, full backup/restore, Android streaming ZIP contract fixture | KML/KMZ/ATAK, backup captured from a physical Android device |
 | Field tools | Sun/moon, geodesy and some geometry helpers in core | Field tools UI, pace count, strip-map PDFs and sharing |

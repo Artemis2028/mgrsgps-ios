@@ -167,6 +167,9 @@ final class TrackRecorderIntegrationTests: XCTestCase {
     func testRealDriverAndJournalAreConfiguredForLockedScreenRecording() throws {
         XCTAssertTrue((Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("location") == true)
         let driver = CoreLocationRecordingDriver()
+        #if targetEnvironment(simulator)
+        XCTAssertEqual(driver.authorization, .authorizedWhenInUse, "Recording tests must exercise While Using permission, not an earlier Always grant")
+        #endif
         guard driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways else {
             throw XCTSkip("Simulator needs Location permission for the real-driver configuration check")
         }

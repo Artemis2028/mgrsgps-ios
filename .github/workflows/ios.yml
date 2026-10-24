@@ -71,6 +71,9 @@ jobs:
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
           # Actual Core Location updates for recording/background workflow tests.
+          # The screenshot step grants Always; verify recording needs only While Using.
+          xcrun simctl privacy "$DEST" revoke location-always app.gridfix.ios
+          xcrun simctl privacy "$DEST" grant location app.gridfix.ios
           # Keep feeding across app reinstalls/relaunches by the test runner.
           python3 scripts/recording-test-route.py "$DEST" > /tmp/recording-route.log 2>&1 &
           ROUTE_PID=$!
