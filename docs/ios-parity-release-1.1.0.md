@@ -8,11 +8,11 @@ It is not a claim of full Android parity.
 | --- | --- | --- |
 | Coordinates/position | Validated MGRS/UTM/decimal entry, units, north reference, WMM, precision/accuracy gates | USNG naming option, projection/resection/intersection UI, callouts/QR and orientation refinements |
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
-| Tactical graphics | Basic imported geometry overlays and record/folder visibility | Full graphic controls, creation/editor, control measures and doctrine-specific rendering |
-| Routes | Ordered waypoint-based route editor, route cards, generated waypoint ownership, GPX and automatic following | Drawing/editing routes directly on the map, richer route-management actions |
+| Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels | Physical field readability and very large-library performance |
+| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX and automatic following | Remaining bulk library/interchange actions tracked below |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications | Physical direction-pattern validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
-| Boundaries | Editable perimeter/kinks, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
-| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours | Ruler and remaining map drawing/control tools; physical offline/storage-pressure validation |
+| Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
+| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours | Ruler/area measure; physical offline/storage-pressure validation |
 | Terrain visibility | Elevation tiles and contours only | Elevation/slope readout UI, point-to-point line-of-sight/profile calculations, viewshed calculation and overlays. Waypoint visibility filtering is not terrain visibility. |
 | Waypoint library | Coordinates, folders, visibility, navigation, local persistence | Favorites, search/sort and batch tools from 1.1.0, field geometry workflows |
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, GPX, restored practice history | Track rename/move, larger-library storage, creating/running practice courses and scoring/results UI |
@@ -24,9 +24,11 @@ The recording-sheet contrast regression came from the map's light colour scheme
 leaking into dark field forms. Field-sheet presentation now explicitly selects
 dark controls and rows to match the light text, including recording, coordinates,
 map layers, boundaries and GPX import. Military symbols now have their own
-validated port; graphics, route-drawing and visibility gaps remain above.
+validated port, followed by tactical graphics and route drawing. Terrain
+visibility and the other gaps remain above.
 
-See [military symbol catalog and provenance](military-symbols.md),
+See [map graphics and route drawing](tactical-graphics.md),
+[military symbol catalog and provenance](military-symbols.md),
 [navigation behavior and limitations](navigation-guide.md),
 [boundary monitoring](backstops-handrails.md), and [offline maps](offline-maps.md).
 Core Location does not expose Android's GNSS satellite/status details. iOS also

@@ -43,8 +43,11 @@ final class FieldOverlay {
             previous = document; previousFolders = folders
             do {
                 let snapshot = try FieldMapGeometry.geoJSON(document: document, folders: folders)
-                shape = try MLNShape(data: snapshot.data, encoding: String.Encoding.utf8.rawValue)
-                points = snapshot.points
+                var tracks = document; tracks.graphics = []
+                let trackSnapshot = try FieldMapGeometry.geoJSON(document: tracks, folders: folders)
+                shape = try MLNShape(data: trackSnapshot.data, encoding: String.Encoding.utf8.rawValue)
+                let hidden = Set(folders.filter { !$0.visible }.map { $0.name.lowercased() })
+                points = snapshot.points + document.graphics.filter { $0.visible && !hidden.contains($0.folder.lowercased()) }.flatMap(\.mapExtentPoints)
                 source?.shape = shape
                 DispatchQueue.main.async { [weak self] in self?.onChange?(snapshot.routes, snapshot.tracks, !snapshot.points.isEmpty) }
             } catch { NSLog("[field-overlay] \(error)") }

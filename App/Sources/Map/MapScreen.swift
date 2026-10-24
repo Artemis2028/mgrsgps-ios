@@ -27,6 +27,12 @@ struct MapScreen: View {
     @State private var contourLabel = ""
     @State private var showingBoundaries = false
     @State private var boundaryDraft: BoundaryDraft?
+    @State private var showingGraphics = false
+    @State private var graphicDraft: GraphicDraft?
+    @State private var graphicError: String?
+    @State private var routeWaypointOffer: Backup.Graphic?
+    @State private var showingRouteWaypointOffer = false
+    @State private var routeWaypointError: String?
 
     private var chromeNight: Bool { settings.nightMode }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
@@ -59,13 +65,24 @@ struct MapScreen: View {
                              boundaryDraft!.vertices.append(point); boundaryDraft!.selected = boundaryDraft!.vertices.count-1
                          },
                          onBoundarySelect: { boundaryDraft?.selected = $0 },
+                         onBoundaryInsert: { index, point in
+                             guard boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             let position = min(index+1,boundaryDraft!.vertices.count)
+                             boundaryDraft!.vertices.insert(point,at: position); boundaryDraft!.selected = position
+                         },
                          onBoundaryMove: { index, point in
                              if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
                          },
+                         graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
+                         onGraphicPoint: { graphicDraft?.append($0) },
+                         onGraphicSelect: { graphicDraft?.selected = $0 },
+                         onGraphicInsert: { index, point in graphicDraft?.selected = index; graphicDraft?.insert(point) },
+                         onGraphicMove: { graphicDraft?.move($0,to: $1) },
+                         onGraphicPick: { selectedID = nil; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
-                         onSelect: { if boundaryDraft == nil { selectedID = $0 } },
+                         onSelect: { if boundaryDraft == nil && graphicDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
                              intervalLabel = label; centre = position; viewport = bounds; zoom = level
                              maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
@@ -92,10 +109,14 @@ struct MapScreen: View {
                     .padding(14).fieldChrome()
                     Spacer(minLength: 0)
                     VStack(spacing: 8) {
+                        Button { showingGraphics = true } label: {
+                            Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
+                        }.fieldGlassButton().accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
+                            .disabled(boundaryDraft != nil || graphicDraft != nil)
                         Button { showingBoundaries = true } label: {
                             Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
                         }.fieldGlassButton().accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
-                            .disabled(boundaryDraft != nil)
+                            .disabled(boundaryDraft != nil || graphicDraft != nil)
                         Button { showingLayers = true } label: {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
@@ -111,7 +132,21 @@ struct MapScreen: View {
                         centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaries.error,
                         save: { if let area = boundaryDraft?.area, boundaries.save(area) { boundaryDraft = nil } },cancel: { boundaryDraft = nil; boundaries.clearError() })
                 }
-                if let waypoint = selected, boundaryDraft == nil {
+                if let draft = graphicDraft {
+                    GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError,
+                        save: {
+                            guard let draft = graphicDraft, draft.validationMessage == nil else { return }
+                            do {
+                                let isNew = !fieldData.document.graphics.contains { $0.id == draft.graphic.id }
+                                try fieldData.saveGraphic(draft.saved); store.addFolder(draft.saved.folder)
+                                graphicDraft = nil; graphicError = nil
+                                if isNew && draft.graphic.type == "route" { routeWaypointOffer = draft.saved; showingRouteWaypointOffer = true }
+                            }
+                            catch { graphicError = error.localizedDescription }
+                        },cancel: { graphicDraft = nil; graphicError = nil })
+                }
+                if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil {
                     selectedCard(waypoint)
                 }
                 Text(mapAttribution)
@@ -155,6 +190,23 @@ struct MapScreen: View {
         .environment(\.fieldNight, chromeNight)
         .onChange(of: maps.preferences.baseLayer) { _ in
             if let map = maps.selectedMap { cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
+        .confirmationDialog("Create navigation waypoints for this route?", isPresented: $showingRouteWaypointOffer,titleVisibility: .visible,presenting: routeWaypointOffer) { route in
+            Button("Generate waypoints") {
+                do { try store.replaceRouteWaypoints(routeID: route.id,name: route.name,points: route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) },folder: route.folder) }
+                catch { routeWaypointError = error.localizedDescription }
+                routeWaypointOffer = nil
+            }
+            Button("Not now") { showingRouteWaypointOffer = false; routeWaypointOffer = nil }
+        } message: { _ in Text("The route is saved. You can also generate waypoints or follow the route later from its route card.") }
+        .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
+            Button("OK") { routeWaypointError = nil }
+        } message: { Text(routeWaypointError ?? "") }
+        .sheet(isPresented: $showingGraphics) {
+            GraphicPanel(onDraw: { draft in
+                selectedID = nil; graphicError = nil; graphicDraft = draft
+                if !draft.vertices.isEmpty { cameraRequest = MapCameraRequest(action: .showBoundary(draft.graphic.mapExtentPoints)) }
+            },onShow: { graphic in cameraRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)) },onNavigate: onNavigate)
         }
         .sheet(isPresented: $showingBoundaries) {
             BoundaryPanel(onDraw: { area in
@@ -217,7 +269,15 @@ private struct MapContainer: UIViewRepresentable {
     let boundarySelection: Int?
     let onBoundaryPoint: (GeoPoint) -> Void
     let onBoundarySelect: (Int) -> Void
+    let onBoundaryInsert: (Int,GeoPoint) -> Void
     let onBoundaryMove: (Int,GeoPoint) -> Void
+    let graphicDraft: Backup.Graphic?
+    let graphicSelection: Int?
+    let onGraphicPoint: (GeoPoint) -> Void
+    let onGraphicSelect: (Int) -> Void
+    let onGraphicInsert: (Int,GeoPoint) -> Void
+    let onGraphicMove: (Int,GeoPoint) -> Void
+    let onGraphicPick: (Backup.Graphic) -> Void
     let onContour: (String) -> Void
     let onOverlays: (Int, Int, Bool) -> Void
     let cameraRequest: MapCameraRequest?
@@ -229,6 +289,7 @@ private struct MapContainer: UIViewRepresentable {
     func makeUIView(context: Context) -> MLNMapView {
         let view = MLNMapView(frame: .zero)
         view.delegate = context.coordinator
+        view.isPitchEnabled = false
         view.styleURL = mapStore.styleURL
         context.coordinator.maps = mapStore
         context.coordinator.hasCentred = mapStore.preferences.hasCamera
@@ -242,6 +303,9 @@ private struct MapContainer: UIViewRepresentable {
             if let doubleTap = other as? UITapGestureRecognizer, doubleTap.numberOfTapsRequired == 2 { tap.require(toFail: doubleTap) }
         }
         view.addGestureRecognizer(tap)
+        let tactical = context.coordinator.tactical
+        tactical.map = view; tactical.frame = view.bounds; tactical.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(tactical)
         let crosshair = context.coordinator.crosshair
         crosshair.translatesAutoresizingMaskIntoConstraints = false
         crosshair.isUserInteractionEnabled = false; crosshair.accessibilityElementsHidden = true
@@ -258,21 +322,26 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.maps = mapStore
         // Keep a new vertex at the crosshair draggable even when it is exactly
         // at the GPS fix. The position marker returns when editing ends.
-        if view.showsUserLocation == boundaryEditing { view.showsUserLocation = !boundaryEditing }
+        let editing = boundaryEditing || graphicDraft != nil
+        if view.showsUserLocation == editing { view.showsUserLocation = !editing }
         coordinator.crosshair.tintColor = nightMode ? .systemRed : UIColor(Blackout.accent)
         view.bringSubviewToFront(coordinator.crosshair)
         coordinator.contours.onInterval = { text in DispatchQueue.main.async { onContour(text) } }
         coordinator.onChange = onChange
         coordinator.onSelect = onSelect
         coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryEditing = boundaryEditing
+        coordinator.graphicEditing = graphicDraft != nil; coordinator.graphicSelection = graphicSelection; coordinator.graphicType = graphicDraft?.type
+        coordinator.onGraphicPoint = onGraphicPoint; coordinator.onGraphicSelect = onGraphicSelect; coordinator.onGraphicMove = onGraphicMove; coordinator.onGraphicPick = onGraphicPick; coordinator.onGraphicInsert = onGraphicInsert
         coordinator.boundarySelection = boundarySelection
         // A quick pair of drawing taps must add vertices, not zoom the map.
         // Pinch/pan remain available while drawing.
         for gesture in view.gestureRecognizers ?? [] {
-            if let tap = gesture as? UITapGestureRecognizer, tap.numberOfTapsRequired == 2 { tap.isEnabled = !boundaryEditing }
+            if let tap = gesture as? UITapGestureRecognizer, tap.numberOfTapsRequired == 2 { tap.isEnabled = !editing }
         }
-        coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove
+        coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
+        coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
+        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer))
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
@@ -282,12 +351,15 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.fieldOverlay.update(document: document, folders: folders, night: nightMode)
         coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
+        coordinator.raiseAnnotations(in: view)
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
             switch request.action {
             case let .showBoundary(points):
-                if let bounds = FieldMapGeometry.bounds(points) {
-                    view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 210,left: 65,bottom: 350,right: 65),animated: true,completionHandler: nil)
+                if let bounds = FieldMapGeometry.bounds(points), let first = points.first {
+                    if bounds.south == bounds.north && bounds.west == bounds.east {
+                        view.setCenter(CLLocationCoordinate2D(latitude: first.lat,longitude: first.lon),zoomLevel: 16,animated: true)
+                    } else { view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 210,left: 65,bottom: 350,right: 65),animated: true,completionHandler: nil) }
                 }
             case let .showBounds(bounds):
                 view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: UIEdgeInsets(top: 180, left: 30, bottom: 220, right: 30), animated: true, completionHandler: nil)
@@ -321,20 +393,43 @@ private struct MapContainer: UIViewRepresentable {
         let rasterLayers = RasterMapLayers()
         let contours = ContourMapOverlay()
         let boundaryOverlay = BoundaryMapOverlay()
+        let graphicHandles = BoundaryMapOverlay(identifier: "graphic",drawArea: false)
+        let tactical = TacticalMapOverlay(frame: .zero)
+        var graphicEditing = false
+        var graphicType: String?
+        var graphicSelection: Int?
+        var onGraphicPoint: ((GeoPoint) -> Void)?
+        var onGraphicSelect: ((Int) -> Void)?
+        var onGraphicInsert: ((Int,GeoPoint) -> Void)?
+        var onGraphicMove: ((Int,GeoPoint) -> Void)?
+        var onGraphicPick: ((Backup.Graphic) -> Void)?
         var boundaryPoints: [GeoPoint] = []
         var boundaryEditing = false
         var boundarySelection: Int?
         var onBoundaryPoint: ((GeoPoint) -> Void)?
         var onBoundarySelect: ((Int) -> Void)?
+        var onBoundaryInsert: ((Int,GeoPoint) -> Void)?
         var onBoundaryMove: ((Int,GeoPoint) -> Void)?
         @objc func boundaryTap(_ gesture: UITapGestureRecognizer) {
-            guard boundaryEditing, gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            guard gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            if !boundaryEditing && !graphicEditing {
+                if let graphic = tactical.graphic(at: gesture.location(in: tactical)) { onGraphicPick?(graphic) }
+                return
+            }
             let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
-            onBoundaryPoint?(GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180))
+            let location = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+            if graphicEditing {
+                let tap = gesture.location(in: map)
+                let nearest = previous.map { waypoint -> (Waypoint,CGFloat) in
+                    let position = map.convert(CLLocationCoordinate2D(latitude: waypoint.lat,longitude: waypoint.lon),toPointTo: map)
+                    return (waypoint,hypot(position.x-tap.x,position.y-tap.y))
+                }.filter { $0.1 < 30 }.min { $0.1 < $1.1 }
+                if graphicType == "route", let waypoint = nearest?.0 { onGraphicPoint?(GeoPoint(lat: waypoint.lat,lon: waypoint.lon)) }
+                else { onGraphicPoint?(location) }
+            } else { onBoundaryPoint?(location) }
         }
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { boundaryEditing }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldReceive touch: UITouch) -> Bool {
-            guard boundaryEditing else { return false }
             var view = touch.view
             while let current = view {
                 if current is MLNAnnotationView || current is UIControl { return false }
@@ -377,11 +472,16 @@ private struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
             if let vertex = annotation as? BoundaryVertexAnnotation {
                 let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "boundary-vertex") as? BoundaryVertexView) ?? BoundaryVertexView(reuseIdentifier: "boundary-vertex")
-                view.configure(index: vertex.index,selected: boundarySelection == vertex.index,night: nightMode)
-                view.onSelect = { [weak self] in self?.onBoundarySelect?(vertex.index) }
-                view.onDragStart = { [weak self] in self?.onBoundarySelect?(vertex.index) }
+                view.configure(index: vertex.index,selected: !vertex.isMidpoint && (vertex.owner == "graphic" ? graphicSelection : boundarySelection) == vertex.index,night: nightMode,owner: vertex.owner,isMidpoint: vertex.isMidpoint)
+                view.onSelect = { [weak self] in
+                    if vertex.isMidpoint { self?.insertVertex(vertex,at: vertex.coordinate) }
+                    else { self?.selectVertex(vertex) }
+                }
+                view.onDragStart = { [weak self] in self?.selectVertex(vertex) }
                 view.onDragEnd = { [weak self] point in
-                    self?.onBoundaryMove?(vertex.index,GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180))
+                    if vertex.isMidpoint { self?.insertVertex(vertex,at: point); return }
+                    let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+                    if vertex.owner == "graphic" { self?.onGraphicMove?(vertex.index,p) } else { self?.onBoundaryMove?(vertex.index,p) }
                 }
                 return view
             }
@@ -394,10 +494,12 @@ private struct MapContainer: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
             if let vertex = annotation as? BoundaryVertexAnnotation {
-                onBoundarySelect?(vertex.index); mapView.deselectAnnotation(vertex,animated: false); return
+                selectVertex(vertex); mapView.deselectAnnotation(vertex,animated: false); return
             }
             guard let annotation = annotation as? WaypointAnnotation else { return }
-            onSelect?(annotation.waypoint.id)
+            if graphicEditing && graphicType == "route" {
+                onGraphicPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
+            } else { onSelect?(annotation.waypoint.id) }
             // Deselect immediately so the same marker can reopen a dismissed card.
             mapView.deselectAnnotation(annotation, animated: false)
         }
@@ -409,13 +511,39 @@ private struct MapContainer: UIViewRepresentable {
             liveOverlay.install(into: style)
             contours.install(style: style)
             boundaryOverlay.install(style: style)
+            graphicHandles.install(style: style)
             boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: mapView)
             redraw(mapView)
         }
 
+        func insertVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
+            let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+            if vertex.owner == "graphic" { onGraphicInsert?(vertex.index,p) } else { onBoundaryInsert?(vertex.index,p) }
+        }
+        func selectVertex(_ vertex: BoundaryVertexAnnotation) {
+            guard !vertex.isMidpoint else { return }
+            if vertex.owner == "graphic" { onGraphicSelect?(vertex.index) } else { onBoundarySelect?(vertex.index) }
+        }
+        func raiseAnnotations(in map: MLNMapView) {
+            // Place the canvas immediately below native annotations, inside
+            // their hosting view. Raising their outer ancestor can raise the
+            // Metal basemap over the tactical canvas as well.
+            if let marker = (map.annotations ?? []).compactMap({ map.view(for: $0) }).first,
+               let container = marker.superview {
+                let host = container === map ? map : container.superview
+                let sibling = container === map ? marker : container
+                if let host {
+                    if tactical.superview !== host { tactical.removeFromSuperview(); tactical.frame = host.bounds }
+                    host.insertSubview(tactical,belowSubview: sibling)
+                }
+            }
+            map.bringSubviewToFront(crosshair)
+        }
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) { tactical.setNeedsDisplay() }
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
 
         private func redraw(_ map: MLNMapView) {
+            tactical.setNeedsDisplay(); raiseAnnotations(in: map)
             if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
             if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }
             overlay.refresh(bounds: map.visibleCoordinateBounds,

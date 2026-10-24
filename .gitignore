@@ -12,3 +12,6 @@ App/Resources/Info.generated.plist
 
 # Optional local map-key configuration (never commit provider credentials).
 *.local.xcconfig
+
+# Python helpers for simulator routes.
+__pycache__/

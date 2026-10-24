@@ -38,11 +38,11 @@ order around the area you want to stay inside. Each pair is joined by a straight
 line, and the final point joins the first to form the closing backstop. A light
 fill shows the permitted interior once the perimeter is valid.
 
-Tap a numbered point to select it. Drag to move it, or pan the crosshair to a
-new location and choose **Move here**. To add a bend, select the point before the
-segment, pan to the desired kink, and choose **Insert kink**. This works on the
-closing segment too. **Add point** adds at the crosshair; the trash button removes
-the selected point. Pinch and pan remain available while drawing; double-tap
+Long-press and drag a numbered point to move it. Drag a small **+** handle to
+add a new point along a side, including the closing backstop. Tapping **+** inserts
+a point there too. For an accessible alternative, select a point, pan the
+crosshair and choose **Move here** or **Add point**; Add point inserts after the
+selection. The trash button removes the selected point. Pinch and pan remain available while drawing; double-tap
 zoom is disabled so rapid drawing taps cannot unexpectedly zoom.
 
 The GPS marker is hidden while editing so it cannot intercept vertex drags;

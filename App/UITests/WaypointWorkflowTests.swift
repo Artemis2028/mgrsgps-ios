@@ -148,7 +148,8 @@ final class WaypointWorkflowTests: XCTestCase {
         let visibility = app.switches["Visible on map"]
         XCTAssertEqual(visibility.value as? String, "1")
         visibility.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        XCTAssertEqual(visibility.value as? String, "0")
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","0"),object: visibility)
+        XCTAssertEqual(XCTWaiter.wait(for: [hidden],timeout: 5),.completed,visibility.debugDescription)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["Done"].tap()
         app.tabBars.buttons["Map"].tap()

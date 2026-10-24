@@ -87,16 +87,14 @@ struct BoundaryDrawingControls: View {
                 Button("Cancel",action: cancel).accessibilityIdentifier("cancel-boundary")
                 Button("Save",action: save).disabled(draft.vertices.count < 3).accessibilityIdentifier("save-boundary")
             }
-            Text("Tap map to add points. Tap a numbered point to select; drag it to move. The closing edge forms the final backstop.")
+            Text("Tap to draw. Hold and drag a point to move it, or + to add a point.")
                 .font(.caption)
             HStack {
-                Button("Add point") { guard draft.vertices.count < 256 else { return }; draft.vertices.append(normal(centre)); draft.selected = draft.vertices.count-1 }
-                    .accessibilityIdentifier("boundary-add-centre")
-                Button("Insert kink") {
-                    guard let i = draft.selected, draft.vertices.indices.contains(i), draft.vertices.count < 256 else { return }
-                    // Insert at the crosshair on the segment following selection.
-                    draft.vertices.insert(normal(centre),at: i+1); draft.selected = i+1
-                }.disabled(draft.selected == nil || draft.vertices.count < 2).accessibilityIdentifier("boundary-insert-kink")
+                Button("Add point") {
+                    guard draft.vertices.count < 256 else { return }
+                    let index = draft.selected.map { min($0+1,draft.vertices.count) } ?? draft.vertices.count
+                    draft.vertices.insert(normal(centre),at: index); draft.selected = index
+                }.accessibilityIdentifier("boundary-add-centre")
                 Button("Move here") { if let i = draft.selected, draft.vertices.indices.contains(i) { draft.vertices[i] = normal(centre) } }
                     .disabled(draft.selected == nil).accessibilityIdentifier("boundary-move-centre")
                 Button { if let i = draft.selected, draft.vertices.indices.contains(i) { draft.vertices.remove(at: i); draft.selected = nil } }

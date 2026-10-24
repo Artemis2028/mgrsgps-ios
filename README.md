@@ -125,3 +125,9 @@ Terrain field tools, practice courses, and KML/ATAK remain.
 Automatic route following and haptic navigation now follow the release/1.1.0
 guide policy and course checkpoint thresholds; see [navigation](docs/navigation-guide.md)
 for foreground patterns, background milestones and the separation from boundaries.
+
+Map graphics now include the complete 30-type Android control-measure set,
+native drawing/editing with draggable segment handles, and waypoint-snapped
+route drawing tied to route cards and automatic navigation. See
+[graphics and route drawing](docs/tactical-graphics.md). Quiet-inside boundary
+monitoring remains a separate mode.

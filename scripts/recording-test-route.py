@@ -4,15 +4,12 @@
 Runs outside the app: tests still exercise real Core Location/background delivery.
 The parent test runner must terminate this process and clear simulated location.
 """
-import subprocess
+from simulator_location import set_location
 import sys
 import time
 
 simulator = sys.argv[1]
 for index in range(900):
     latitude = 24.4539 + index * 0.00009
-    subprocess.run(
-        ["xcrun", "simctl", "location", simulator, "set", f"{latitude:.7f},54.3773000"],
-        check=True,
-    )
-    time.sleep(3)
+    delivered = set_location(simulator, latitude, 54.3773)
+    time.sleep(3 if delivered else 1)
