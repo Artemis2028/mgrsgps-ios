@@ -113,6 +113,7 @@ jobs:
             -skip-testing:MGRSGPSUITests/NavigationWorkflowTests \
             -skip-testing:MGRSGPSUITests/PracticeWorkflowTests \
             -skip-testing:MGRSGPSUITests/PositionFixWorkflowTests \
+            -skip-testing:MGRSGPSUITests/MovementWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
 
@@ -136,6 +137,27 @@ jobs:
             -only-testing:MGRSGPSUITests/PositionFixWorkflowTests \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee "$GITHUB_WORKSPACE/fix-freshness-test.log"
+
+      - name: Real GPS course and speed
+        id: movement_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          : > "$GITHUB_WORKSPACE/movement-test.log"
+          python3 scripts/movement-test-route.py "$DEST" "$GITHUB_WORKSPACE/movement-test.log" > /tmp/movement-route.log 2>&1 &
+          MOVEMENT_FEED_PID=$!
+          cleanup_movement_feed() {
+            kill "$MOVEMENT_FEED_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_movement_feed EXIT
+          xcodebuild test \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS \
+            -configuration Debug -destination "id=$DEST" \
+            -derivedDataPath build -resultBundlePath build/movement-tests.xcresult \
+            -only-testing:MGRSGPSUITests/MovementWorkflowTests \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$GITHUB_WORKSPACE/movement-test.log"
 
       - name: Boundary drawing and real background crossing
         id: boundary_tests
@@ -202,6 +224,10 @@ jobs:
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
         run: |
+          if [ -d build/movement-tests.xcresult ]; then
+            xcrun xcresulttool export attachments \
+              --path build/movement-tests.xcresult --output-path screenshots/movement-tests
+          fi
           if [ -d build/fix-freshness-tests.xcresult ]; then
             xcrun xcresulttool export attachments \
               --path build/fix-freshness-tests.xcresult --output-path screenshots/fix-freshness-tests
@@ -226,7 +252,7 @@ jobs:
       - name: Collect simulator location feed diagnostics
         if: always()
         run: |
-          for feed in recording boundary navigation practice fix-freshness; do
+          for feed in recording boundary navigation practice fix-freshness movement; do
             if [ -f "/tmp/$feed-route.log" ]; then
               cp "/tmp/$feed-route.log" "$GITHUB_WORKSPACE/$feed-route.log"
             fi
@@ -251,6 +277,9 @@ jobs:
             practice-test.log
             fix-freshness-test.log
             fix-freshness-route.log
+            movement-test.log
+            movement-route.log
+            build/movement-tests.xcresult/
             build/fix-freshness-tests.xcresult/
             build/practice-tests.xcresult/
             build/navigation-tests.xcresult/

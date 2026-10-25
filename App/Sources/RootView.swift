@@ -40,6 +40,8 @@ struct RootView: View {
         _selection = State(initialValue: tab)
     }
 
+    private func updateCompassDemand() { location.setCompassEnabled(selection == 1 || (selection == 0 && settings.face != .glance)) }
+
     var body: some View {
         VStack(spacing: 0) {
             if practice.locked || practice.summary != nil {
@@ -125,7 +127,9 @@ struct RootView: View {
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)
-        .onAppear { practice.setForeground(scenePhase == .active); location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
+        .onAppear { updateCompassDemand(); practice.setForeground(scenePhase == .active); location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
+        .onChange(of: selection) { _ in updateCompassDemand() }
+        .onChange(of: settings.face) { _ in updateCompassDemand() }
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
             practice.setForeground(phase == .active)

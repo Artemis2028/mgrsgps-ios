@@ -18,6 +18,23 @@ struct Fix: Equatable {
     let speedMetersPerSecond: Double?
     let timestamp: Date
     let timestampUptime: TimeInterval
+    let courseDegrees: Double?
+
+    init(lat: Double, lon: Double, accuracyMeters: Double, altitudeMeters: Double?,
+         speedMetersPerSecond: Double?, timestamp: Date, timestampUptime: TimeInterval, courseDegrees: Double? = nil) {
+        self.lat = lat; self.lon = lon; self.accuracyMeters = accuracyMeters
+        self.altitudeMeters = altitudeMeters; self.speedMetersPerSecond = speedMetersPerSecond
+        self.timestamp = timestamp; self.timestampUptime = timestampUptime; self.courseDegrees = courseDegrees
+    }
+
+    init(location: CLLocation, now: Date = Date(), uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        lat = location.coordinate.latitude; lon = location.coordinate.longitude
+        accuracyMeters = location.horizontalAccuracy
+        altitudeMeters = location.verticalAccuracy >= 0 && location.altitude.isFinite ? location.altitude : nil
+        speedMetersPerSecond = location.speed.isFinite && location.speed >= 0 ? location.speed : nil
+        courseDegrees = location.course.isFinite && (0..<360).contains(location.course) ? location.course : nil
+        timestamp = location.timestamp; timestampUptime = uptime - now.timeIntervalSince(location.timestamp)
+    }
 
     /// 0 to 5, from horizontal accuracy.
     var grade: Int {
@@ -78,6 +95,8 @@ final class LocationService: NSObject, ObservableObject {
     private var minimumHeadingUptime: TimeInterval = 0
     private var headingActive = false
     private var active = false
+    private var compassEnabled = false
+    var hasCompass: Bool { CLLocationManager.headingAvailable() }
 
     override convenience init() { self.init(manager: CLLocationManager()) }
     init(manager: CLLocationManager) {
@@ -137,10 +156,21 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     private func startHeading() {
-        guard CLLocationManager.headingAvailable() else { return }
+        guard active, compassEnabled, hasCompass else { return }
+        if !headingActive { minimumHeadingUptime = ProcessInfo.processInfo.systemUptime }
         headingActive = true
         manager.headingFilter = 1
         manager.startUpdatingHeading()
+    }
+
+    func setCompassEnabled(_ enabled: Bool) {
+        guard compassEnabled != enabled else { return }
+        compassEnabled = enabled
+        if enabled { startHeading() }
+        else {
+            manager.stopUpdatingHeading(); headingActive = false
+            heading = nil; usableHeading = nil; headingUptime = nil
+        }
     }
 
     private func refreshAccuracyAuthorization() {
@@ -151,16 +181,7 @@ final class LocationService: NSObject, ObservableObject {
 extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let l = locations.last else { return }
-        let speed: Double? = l.speed >= 0 ? l.speed : nil
-        let f = Fix(
-            lat: l.coordinate.latitude,
-            lon: l.coordinate.longitude,
-            accuracyMeters: l.horizontalAccuracy,
-            altitudeMeters: l.verticalAccuracy >= 0 ? l.altitude : nil,
-            speedMetersPerSecond: speed,
-            timestamp: l.timestamp,
-            timestampUptime: ProcessInfo.processInfo.systemUptime - Date().timeIntervalSince(l.timestamp)
-        )
+        let f = Fix(location: l)
         Task { @MainActor [weak self] in
             guard let self, self.active, self.authorization == .authorizedAlways || self.authorization == .authorizedWhenInUse else { return }
             self.fix = f

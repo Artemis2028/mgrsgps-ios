@@ -38,39 +38,43 @@ struct PositionView: View {
     /// CI has no magnetometer. `-startHeading 47` paints a real reading
     /// so Lensatic and Dial are instruments, not an empty dash.
     private var injectedHeading: Double? {
+        #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         guard let idx = args.firstIndex(of: "-startHeading"),
               args.index(after: idx) < args.endIndex,
               let v = Double(args[args.index(after: idx)]),
               v >= 0, v < 360 else { return nil }
         return v
+        #else
+        return nil
+        #endif
     }
 
+    private var movementHeading: MovementHeading? {
+        if let injected = injectedHeading { return .init(degreesTrue: injected,source: .compass) }
+        let h = location.usableHeading
+        let compass = FieldMath.heading(
+            trueHeading: settings.declinationOverride == nil && (h?.trueHeading ?? -1) >= 0 ? h?.trueHeading : nil,
+            magneticHeading: h?.magneticHeading, north: .trueNorth,
+            declinationEast: reading.degreesEast, convergence: nil)
+        return MovementHeading.position(face: settings.face,compassTrue: compass,fix: location.fix)
+    }
     private var headingDegrees: Double? {
         if let injected = injectedHeading { return injected }
-        let h = location.usableHeading
-        let trueH: Double? = {
-            guard let h, h.headingAccuracy >= 0, h.trueHeading >= 0 else { return nil }
-            return h.trueHeading
-        }()
-        let magH: Double? = {
-            guard let h, h.headingAccuracy >= 0, h.magneticHeading >= 0 else { return nil }
-            return h.magneticHeading
-        }()
-        let conv: Double? = location.fix.map { UTM.gridConvergence(lat: $0.lat, lon: $0.lon) }
-        return FieldMath.heading(
-            trueHeading: settings.declinationOverride == nil ? trueH : nil,
-            magneticHeading: magH,
-            north: settings.northRef,
-            declinationEast: reading.degreesEast,
-            convergence: conv
-        )
+        guard let heading = movementHeading, settings.northRef != .grid || location.fix != nil else { return nil }
+        return FieldMath.toNorthRef(angleTrue: heading.degreesTrue,north: settings.northRef,
+                                   declinationEast: reading.degreesEast,
+                                   convergence: location.fix.map { UTM.gridConvergence(lat: $0.lat,lon: $0.lon) } ?? 0)
     }
-
+    private var headingLabel: String {
+        if movementHeading?.source == .course { return location.quality?.stale == true ? "LAST CRS" : "COURSE" }
+        return "HEADING"
+    }
     private var headingLine: String {
         let letter = settings.northRef.letter
-        guard let h = headingDegrees else { return "HDG — \(letter)" }
-        return "HDG \(Format.angle(degrees: h, unit: settings.angleUnit)) \(letter)"
+        let label = movementHeading?.source == .course ? "CRS" : "HDG"
+        guard let h = headingDegrees else { return "\(label) — \(letter)" }
+        return "\(label) \(Format.angle(degrees: h, unit: settings.angleUnit)) \(letter)"
     }
 
     var body: some View {
@@ -259,10 +263,13 @@ struct PositionView: View {
                             .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("position-fix-age")
                     }
                 }
-                row("HEADING", headingLine)
+                row(headingLabel, headingLine).accessibilityElement(children: .combine).accessibilityIdentifier("position-heading-readout")
                 row("DECL", reading.display + " · " + reading.source.rawValue,
                     tint: reading.degreesEast == nil ? palette.warn : palette.ink)
                 row("ACCURACY", Format.accuracy(meters: f.accuracyMeters, unit: settings.units))
+                row(location.quality?.stale == true ? "LAST SPEED" : "SPEED",
+                    f.speedMetersPerSecond.flatMap { $0.isFinite && $0 >= 0 ? Format.speed(metersPerSecond: $0,unit: settings.units) : nil } ?? "—")
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("position-speed-readout")
                 if let quality = location.quality, settings.mgrsDigits > quality.trustDigits {
                     row("TRUST", quality.stale ? "\(quality.trustDigits)-digit · stale position" : "\(quality.trustDigits)-digit at this accuracy", tint: palette.warn)
                 }
@@ -274,7 +281,7 @@ struct PositionView: View {
                 row("DTG", Format.dtg(f.timestamp))
             }
         } else {
-            row("HEADING", headingLine)
+            row(headingLabel, headingLine).accessibilityElement(children: .combine).accessibilityIdentifier("position-heading-readout")
             row("DECL", reading.display + " · " + reading.source.rawValue)
         }
     }

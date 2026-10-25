@@ -85,7 +85,7 @@ struct NavigateView: View {
         let back = formattedAzimuth(nav, offset: 180)
         let distance = nav.map { Format.distance(meters: $0.distanceMeters, unit: settings.units) } ?? "—"
         let eta = etaText(nav: nav)
-        let heading = screenHeading()
+        let heading = navigationHeading()
 
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
@@ -117,12 +117,12 @@ struct NavigateView: View {
                 cell(title: "Time to go", value: eta)
             }
             if let heading, let nav {
-                let deviation = FieldMath.normalize(nav.bearingTrue - heading + 180) - 180
+                let deviation = FieldMath.normalize(nav.bearingTrue - heading.degreesTrue + 180) - 180
                 HStack(spacing: 12) {
                     Image(systemName: "arrow.up").font(.system(size: 32,weight: .semibold))
                         .rotationEffect(.degrees(deviation)).frame(width: 56,height: 56)
                     VStack(alignment: .leading,spacing: 4) {
-                        Text("Screen top · \(formattedHeading(heading)) \(letter)")
+                        Text("\(heading.label) · \(formattedHeading(heading.degreesTrue)) \(letter)")
                         Text(abs(deviation) < 0.5 ? "On bearing" : "\(deviation > 0 ? "Right" : "Left") \(Format.angle(degrees: abs(deviation),unit: settings.angleUnit))")
                     }.font(Blackout.label(14))
                 }.foregroundStyle(palette.accent).accessibilityElement(children: .combine)
@@ -134,16 +134,18 @@ struct NavigateView: View {
         }
     }
 
-    /// The visible arrow follows the screen; pocket cues use the separate
-    /// portrait/top-edge driver even when this screen was last in landscape.
-    private func screenHeading() -> Double? {
-        guard let fix = location.usableFix, let heading = location.usableHeading else { return nil }
+    /// Compass steering follows the screen; GPS course follows travel. Pocket
+    /// cues use the separate portrait/top-edge driver regardless of this view.
+    private func navigationHeading() -> MovementHeading? {
+        guard let fix = location.usableFix else { return nil }
+        let heading = location.usableHeading
         let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
             .declination(lat: fix.lat,lon: fix.lon,heightMeters: fix.altitudeMeters ?? 0,
                          heading: heading,isCurrentPosition: true)
-        return FieldMath.heading(trueHeading: settings.declinationOverride == nil && heading.trueHeading >= 0 ? heading.trueHeading : nil,
-                                 magneticHeading: heading.magneticHeading >= 0 ? heading.magneticHeading : nil,
-                                 north: .trueNorth,declinationEast: decl.degreesEast,convergence: nil)
+        let compass = FieldMath.heading(trueHeading: settings.declinationOverride == nil && (heading?.trueHeading ?? -1) >= 0 ? heading?.trueHeading : nil,
+                                        magneticHeading: heading?.magneticHeading,
+                                        north: .trueNorth,declinationEast: decl.degreesEast,convergence: nil)
+        return MovementHeading.navigation(hasCompass: location.hasCompass,compassTrue: compass,fix: fix)
     }
     private func formattedHeading(_ value: Double) -> String {
         guard let fix = location.usableFix else { return "—" }
