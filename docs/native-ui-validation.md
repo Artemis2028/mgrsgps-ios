@@ -283,3 +283,30 @@ an investigation item, not an asserted iOS limitation. Physical Android/iPhone
 provider transfers and storage-pressure checks remain open. See
 [protected backups](protected-backups.md) for format, cancellation and fixture
 scope. This does not complete the broader parity/release goal.
+
+## Map-button preference milestone
+
+All 355 core tests and 149 app integration cases pass locally. The latter
+include preference reopen/reset, Android-compatible backup restore and rejection
+of a prepared settings publication after a concurrent map-tool edit. The first
+native preference attempts did not activate the full-row switches; the helper
+now taps the actual knob and verifies each resulting value before continuing.
+Existing measurement cases passed in that initial run.
+
+The closed `gridfix-map-tools-native-final.xcresult` passes eight native cases
+with zero failures/skips: three new map-tool workflows, the existing route
+bend/drag/save/edit/relaunch workflow and all four measurement workflows.
+These verify hiding all seven groups, relaunch/reset, grid Go to, keeping hidden
+active ruler/drawing finish controls reachable, and keeping Stop accessible
+when Record is hidden during actual recording. Day/night settings and maps,
+active recording and compact landscape measurement screenshots were inspected.
+
+The subsequent clean `gridfix-map-goto-decimal.xcresult` passes both settings
+integration cases and the expanded native preference/Go to case (three passes).
+It additionally rejects decimal positions outside the existing Web Mercator map
+coverage and accepts a normal decimal position, with a corresponding camera
+move. The decimal-entry night screenshot was inspected. The final unsigned
+phone/embedded-watch Release build passes. The source-less invalid-frame runtime
+warning recorded during protected-backup validation is still present; no new
+platform limitation is inferred. Physical small-screen/dynamic-text/touch and
+full hosted CI remain separate gates. See [map-button behavior](map-tool-visibility.md).

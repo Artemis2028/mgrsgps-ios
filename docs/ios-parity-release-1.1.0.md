@@ -20,7 +20,7 @@ watch overlays/status and later Android cue switches remain implementation gaps.
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Watch lane sync and later Android cue switches; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
-| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
+| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; persistent map-button visibility with active escape controls and coordinate Go to | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection | Synchronous-edit and dense-map rendering/accessibility performance work; physical large-library storage checks; physical field validation and storage/interchange limits below |
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history | Larger-library storage and physical course/guide validation |
@@ -57,5 +57,7 @@ Optional [password-protected backups](protected-backups.md) now use Android's
 `MGRSGPS-ENC1` envelope, with native export confirmation and restore password
 prompts. Independent JCA vectors and reverse-direction Swift exports verify
 Unicode and byte-level compatibility. Physical Android/iPhone provider checks
-remain required. Map-tool preferences and watch lane synchronization remain
-post-release implementation gaps.
+remain required. Map-tool preferences now persist locally and through backups;
+[map-button behavior](map-tool-visibility.md) covers active-control protection,
+reset, direct ruler and Go to. Watch lane synchronization remains a post-release
+implementation gap.

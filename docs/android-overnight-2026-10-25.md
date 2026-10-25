@@ -147,3 +147,11 @@ JCA fixtures match deterministic Swift ciphertext; fresh Swift exports also
 authenticate/decrypt in Java. Ordinary ZIP backup support is retained. See
 [protected backups](protected-backups.md) for source references, limits and
 validation scope. Physical cross-device/provider checks are still required.
+
+Map-tool preferences now use the Android key/string contract in local settings
+and backups. iOS groups its draw libraries and terrain controls under the
+matching keys, retains active finish/recording access and exposes an always-
+reachable reset. Direct ruler and coordinate Go to controls complete the seven
+settings. See [map-button preferences](map-tool-visibility.md) for grouping and
+validation. Watch lanes, later cue switches and the remaining polish/TAK work
+remain separate tasks.

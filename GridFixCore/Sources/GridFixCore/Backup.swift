@@ -26,6 +26,7 @@ public enum Backup {
         public var guideMode = 0
         public var guideCorridorM = 0
         public var laneWarningM = 0
+        public var hiddenMapTools: Set<String> = []
         public var orientation: Int = 0
         public var disclaimerAccepted: Bool = false
         /// Nil means unset — never conflate with 0.0° (a real meridian value).
@@ -213,6 +214,7 @@ public enum Backup {
             "guideMode": doc.settings.guideMode,
             "guideCorridorM": doc.settings.guideCorridorM,
             "laneWarningM": doc.settings.laneWarningM,
+            "hiddenMapTools": MapTools.encode(doc.settings.hiddenMapTools),
             "disclaimerAccepted": doc.settings.disclaimerAccepted,
         ]
         if let d = doc.settings.declinationOverride {
@@ -470,6 +472,7 @@ public enum Backup {
         s.guideMode = int(o["guideMode"]) ?? 0
         s.guideCorridorM = int(o["guideCorridorM"]) ?? 0
         s.laneWarningM = int(o["laneWarningM"]) ?? 0
+        s.hiddenMapTools = MapTools.decode(o["hiddenMapTools"] as? String)
         s.disclaimerAccepted = o["disclaimerAccepted"] as? Bool ?? false
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {
             s.declinationOverride = nil

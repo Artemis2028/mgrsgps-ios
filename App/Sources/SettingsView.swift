@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     @ObservedObject private var orientationState = OrientationState.shared
     @State private var showingGuide = false
+    @State private var showingMapTools = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
     @State private var east = true
@@ -40,6 +41,7 @@ struct SettingsView: View {
 
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
+                    Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
                     section("Grid & units")
                     Picker("Grid name", selection: $settings.gridSystem) {
                         Text("MGRS").tag(0); Text("USNG").tag(1)
@@ -74,6 +76,7 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }
         .sheet(isPresented: $showingGuide) { GuideSettingsView() }
+        .sheet(isPresented: $showingMapTools) { MapToolSettingsView() }
     }
 
     private func section(_ title: String) -> some View {

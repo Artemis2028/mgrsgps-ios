@@ -123,3 +123,8 @@ are not restored or started by importing a backup.
 Optional password-protected `.mgrsgps` files wrap this unchanged ZIP in the
 Android `MGRSGPS-ENC1` envelope. See [protected backups](protected-backups.md)
 for the exact layout, work factors, limits and independent JCA fixtures.
+
+The post-release `hiddenMapTools` setting is an optional comma-separated string
+in Android deck order: `layers,locate,ruler,draw,goto,tools,record`. Only hidden
+keys are included. Missing/unknown keys default to shown; decode ignores unknown
+keys. See [map-button preferences](map-tool-visibility.md).
