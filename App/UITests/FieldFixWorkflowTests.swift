@@ -18,14 +18,16 @@ final class FieldFixWorkflowTests: XCTestCase {
     }
     private func choose(_ index: Int,_ name: String) {
         let picker = app.buttons["field-fix-point-\(index)"]; reveal(picker); tapNativeMenuItem(picker)
-        tapNativeMenuItem(app.buttons["field-fix-choice-\(index)-\(name)"].firstMatch)
+        let choice = app.buttons["field-fix-choice-\(index)-\(name)"].firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
         let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@",name),object: picker)
         XCTAssertEqual(XCTWaiter.wait(for: [selected],timeout: 5),.completed,app.debugDescription)
     }
     private func angle(_ index: Int,_ text: String) {
         let field = app.textFields["field-fix-azimuth-\(index)"]; reveal(field); field.tap()
-        let previous = field.value as? String ?? ""
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: previous == field.placeholderValue ? 0 : previous.count)+text)
+        field.typeKey("a",modifierFlags: .command)
+        field.typeText(text)
+        XCTAssertEqual(field.value as? String,text)
         let done = app.buttons["Done"]; XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }

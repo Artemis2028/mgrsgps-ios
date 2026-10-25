@@ -172,3 +172,5 @@ cached/downloaded DEM data as contours. Missing data stays unknown. See
 Route cards include a complete leg table and a native, multi-page A4 strip-map PDF preview with Files save and system sharing. See [route-card export behavior and verification](docs/route-card-pdf.md).
 
 The map field-tools menu also includes [resection and intersection worksheets](docs/field-fixes.md), with per-point north-reference conversion, geometry warnings and show/save actions.
+
+[Field planning](docs/field-planning.md) includes waypoint projection (up to 200 km), local/Zulu sun and moon tables with date navigation, and the map-centre true/grid/magnetic north diagram. The map tools menu also opens practice courses and terrain line of sight.

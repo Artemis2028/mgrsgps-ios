@@ -85,7 +85,7 @@ struct RootView: View {
                 NavigateView()
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
-                MapScreen(onNavigate: { selection = 1 })
+                MapScreen(onNavigate: { selection = 1 },onOpenCourse: { showingPractice = true })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Map", systemImage: "map") }.tag(2)
                 WaypointsView(onNavigate: { selection = 1 },onShowMap: { selection = 2 })

@@ -6,7 +6,7 @@ It is not a claim of full Android parity.
 
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
-| Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates | USNG naming option, waypoint projection UI, callouts/QR and orientation refinements |
+| Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases | USNG naming option, callouts/QR and orientation refinements |
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
@@ -17,7 +17,7 @@ It is not a claim of full Android parity.
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence | Field geometry workflows; physical large-library validation |
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history | Larger-library storage and physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract, guide preferences in backup | Physical provider/Open In and ATAK client validation, ZIP64, large-container validation, physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
-| Field tools | Native resection/intersection worksheets, degrees/mils and per-point north-reference conversion, safe ray solver, angle-of-cut warnings, show/save with durable waypoint persistence | Waypoint projection, sun/moon planning, declination diagram, callouts/QR and remaining field-tool refinements |
+| Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Callouts/QR workflows and physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Release | Unsigned simulator/device builds, automated tests and draft PR | App icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
 The recording-sheet contrast regression came from the map's light colour scheme
@@ -26,7 +26,7 @@ dark controls and rows to match the light text, including recording, coordinates
 map layers, boundaries and GPX import. Military symbols now have their own
 validated port, followed by tactical graphics and route drawing. Terrain visibility tools are now ported too; the remaining gaps are recorded above.
 
-See [resection and intersection](field-fixes.md), [route cards and strip-map PDFs](route-card-pdf.md), [KML/ATAK interchange](kml-atak-interchange.md), [text interchange](text-interchange.md), [practice courses](practice-courses.md), [field library workflows](field-library.md), [map measurements](map-measurement.md), [terrain visibility and profiles](terrain-visibility.md),
+See [projection and field planning](field-planning.md), [resection and intersection](field-fixes.md), [route cards and strip-map PDFs](route-card-pdf.md), [KML/ATAK interchange](kml-atak-interchange.md), [text interchange](text-interchange.md), [practice courses](practice-courses.md), [field library workflows](field-library.md), [map measurements](map-measurement.md), [terrain visibility and profiles](terrain-visibility.md),
 [map graphics and route drawing](tactical-graphics.md),
 [military symbol catalog and provenance](military-symbols.md),
 [navigation behavior and limitations](navigation-guide.md),

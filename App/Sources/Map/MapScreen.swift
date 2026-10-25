@@ -15,6 +15,7 @@ struct MapScreen: View {
     @EnvironmentObject private var terrain: TerrainSession
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     var onNavigate: () -> Void = {}
+    var onOpenCourse: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
     @State private var overlayTracks = 0
@@ -26,6 +27,7 @@ struct MapScreen: View {
     @State private var showingLayers = false
     @State private var showingTerrain = false
     @State private var fieldFixRequest: FieldFixRequest?
+    @State private var planningRequest: FieldPlanningRequest?
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
     @State private var zoom = 6.5
     @State private var contourLabel = ""
@@ -156,7 +158,12 @@ struct MapScreen: View {
                                 Divider()
                                 Button("Resection") { openFieldFix(.resection) }.accessibilityIdentifier("field-resection")
                                 Button("Intersection") { openFieldFix(.intersection) }.accessibilityIdentifier("field-intersection")
-                            } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
+                                Divider()
+                                Button("Sun & moon") { openPlanning(.sunMoon) }.accessibilityIdentifier("field-sunmoon")
+                                Button("Declination diagram") { openPlanning(.declination) }.accessibilityIdentifier("field-declination")
+                                Button("Line of sight") { showingTerrain = true }.accessibilityIdentifier("field-los")
+                                Button("Practice course",action: onOpenCourse).accessibilityIdentifier("field-course")
+                            } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
                             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain")
@@ -266,6 +273,12 @@ struct MapScreen: View {
         .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
             Button("OK") { routeWaypointError = nil }
         } message: { Text(routeWaypointError ?? "") }
+        .sheet(item: $planningRequest) { request in
+            switch request.kind {
+            case .sunMoon: SunMoonPlanningView(request: request)
+            case .declination: DeclinationPlanningView(request: request)
+            }
+        }
         .sheet(item: $fieldFixRequest) { request in
             FieldFixPanel(request: request) { point in
                 selectedID = nil; cameraRequest = MapCameraRequest(action: .locate(point.lat,point.lon))
@@ -296,6 +309,11 @@ struct MapScreen: View {
                 selectedID = waypoint.id
             }
         }
+    }
+
+    private func openPlanning(_ kind: FieldPlanningRequest.Kind) {
+        rulerAnchor = nil; selectedID = nil
+        planningRequest = .init(kind: kind,centre: .init(lat: centre.latitude,lon: centre.longitude))
     }
 
     private func openFieldFix(_ mode: FieldFix.Mode) {

@@ -57,13 +57,17 @@ struct FieldFixPanel: View {
                 }.listRowBackground(rowBackground)
                 Section(request.mode == .resection ? "Known point 1" : "Observer 1") {
                     pointPicker(selection: $first,index: 1)
-                    TextField("Azimuth (\(angleLabel) \(settings.northRef.letter))",text: $azimuth1)
-                        .keyboardType(.numbersAndPunctuation).focused($focused,equals: 1).accessibilityIdentifier("field-fix-azimuth-1")
+                    LabeledContent("Azimuth (\(angleLabel) \(settings.northRef.letter))") {
+                        TextField("0",text: $azimuth1).keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
+                            .focused($focused,equals: 1).accessibilityIdentifier("field-fix-azimuth-1")
+                    }
                 }.listRowBackground(rowBackground)
                 Section(request.mode == .resection ? "Known point 2" : "Observer 2") {
                     pointPicker(selection: $second,index: 2)
-                    TextField("Azimuth (\(angleLabel) \(settings.northRef.letter))",text: $azimuth2)
-                        .keyboardType(.numbersAndPunctuation).focused($focused,equals: 2).accessibilityIdentifier("field-fix-azimuth-2")
+                    LabeledContent("Azimuth (\(angleLabel) \(settings.northRef.letter))") {
+                        TextField("0",text: $azimuth2).keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
+                            .focused($focused,equals: 2).accessibilityIdentifier("field-fix-azimuth-2")
+                    }
                 }.listRowBackground(rowBackground)
                 Section("Calculated fix") {
                     if let fix = result.solution {
