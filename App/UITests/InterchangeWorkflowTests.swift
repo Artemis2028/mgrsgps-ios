@@ -51,7 +51,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         filename.tap(); filename.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: 7) + name)
         app.buttons["DOCPicker.actionButton"].tap()
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
-        app.buttons["Waypoint actions"].tap(); app.buttons["Import GPX / CSV / GeoJSON"].tap()
+        app.buttons["Waypoint actions"].tap(); app.buttons["import-field-file"].tap()
         let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",String(name))).firstMatch
         XCTAssertTrue(file.waitForExistence(timeout: 15),app.debugDescription); file.tap()
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)

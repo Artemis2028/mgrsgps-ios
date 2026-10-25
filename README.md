@@ -16,9 +16,10 @@ local 4/6/8/10-digit formatting and red night mode. See the
 Wear OS is a separate companion in the Android project. Both watch apps are
 additional requested work; they do not replace the main iOS parity milestone.
 
-GPX, CSV and GeoJSON now support review-before-import, safe unchanged-content retry,
+GPX, KML/KMZ, CSV, GeoJSON and ATAK packages now support review-before-import, safe unchanged-content retry,
 native Files export and file-opening associations. See [text interchange](docs/text-interchange.md)
-for format losses and validation limits.
+for format losses and validation limits, and [KML/ATAK details](docs/kml-atak-interchange.md)
+for geometry, archive budgets and interoperability checks.
 
 The mixed field library supports cross-section search, persisted favourites and
 distance/name/newest waypoint sorting, including legacy-file migration. See

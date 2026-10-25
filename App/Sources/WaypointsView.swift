@@ -22,6 +22,7 @@ struct WaypointsView: View {
     @State private var showingLibrary = false
     @State private var textImport: TextImportRequest?
     @State private var exportText: TextDocumentFile?
+    @State private var exportBinary: BinaryInterchangeDocumentFile?
     @State private var exportDoc: BackupDocumentFile?
     @State private var exportGPX: GPXDocumentFile?
     @State private var showingImporter = false
@@ -139,6 +140,12 @@ struct WaypointsView: View {
             }
         }
         .fileExporter(isPresented: Binding(
+            get: { exportBinary != nil },
+            set: { if !$0 { exportBinary = nil } }
+        ), document: exportBinary, contentType: exportBinary?.contentType ?? .zip, defaultFilename: exportBinary?.contentType == .gridFixKMZ ? "gridfix" : "gridfix-datapackage") { _ in
+            exportBinary = nil
+        }
+        .fileExporter(isPresented: Binding(
             get: { exportText != nil },
             set: { if !$0 { exportText = nil } }
         ), document: exportText, contentType: exportText?.contentType ?? .commaSeparatedText, defaultFilename: "gridfix") { _ in
@@ -157,7 +164,7 @@ struct WaypointsView: View {
             exportGPX = nil
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .gridFixGeoJSON, .commaSeparatedText, .xml, .json, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
@@ -182,11 +189,14 @@ struct WaypointsView: View {
                     Button("Export GPX") { exportGpx() }
                     Button("Export CSV") { exportOther(.csv) }
                     Button("Export GeoJSON") { exportOther(.geojson) }
+                    Button("Export KML") { exportOther(.kml) }
+                    Button("Export KMZ") { exportOther(.kmz) }
+                    Button("Export ATAK package") { exportOther(.atak) }
                 }
                 Button("Import backup") { importKind = .backup; showingImporter = true }
-                Button("Import GPX / CSV / GeoJSON") { importKind = .text; showingImporter = true }
+                Button("Import field file") { importKind = .text; showingImporter = true }.accessibilityIdentifier("import-field-file")
                 Menu("Paste text") {
-                    ForEach(TextInterchangeFormat.allCases,id: \.self) { format in
+                    ForEach(TextInterchangeFormat.allCases.filter { $0.canPaste },id: \.self) { format in
                         Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
                     }
                 }
@@ -211,7 +221,7 @@ struct WaypointsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("No waypoints yet")
                 .font(Blackout.label(18, weight: .semibold))
-            Text("Add one at your current fix, or import a backup, GPX, CSV or GeoJSON file.")
+            Text("Add one at your current fix, or import a backup, GPX, KML/KMZ, CSV, GeoJSON or ATAK package.")
                 .font(Blackout.label(14))
                 .foregroundStyle(palette.inkDim)
             if let status {
@@ -570,13 +580,20 @@ struct WaypointsView: View {
 
     private func exportOther(_ format: TextInterchangeFormat) {
         do {
-            let text: String
-            if format == .csv { text = CSV.build(store.waypoints) }
-            else {
+            if format == .csv {
+                exportText = TextDocumentFile(text: CSV.build(store.waypoints),contentType: .commaSeparatedText)
+            } else if format == .atak {
+                let routes = fieldData.document.graphics.filter { $0.type == "route" }
+                exportBinary = BinaryInterchangeDocumentFile(data: try ATAKPackage.build(waypoints: store.waypoints,routes: routes),contentType: .zip)
+            } else {
                 let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name,points: try fieldData.points(for: $0.id)) }
-                text = try GeoJSON.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks)
+                if format == .kmz {
+                    exportBinary = BinaryInterchangeDocumentFile(data: try KMZ.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks),contentType: .gridFixKMZ)
+                } else {
+                    let text = try format == .kml ? KML.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks) : GeoJSON.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks)
+                    exportText = TextDocumentFile(text: text,contentType: format == .kml ? .gridFixKML : .gridFixGeoJSON)
+                }
             }
-            exportText = TextDocumentFile(text: text,contentType: format == .csv ? .commaSeparatedText : .gridFixGeoJSON)
             status = format.label + " ready"
         } catch { status = "Export failed: \(error.localizedDescription)" }
     }
@@ -629,7 +646,7 @@ private enum LibraryActionError: LocalizedError {
 }
 
 struct TextDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.commaSeparatedText,.gridFixGeoJSON,.json] }
+    static var readableContentTypes: [UTType] { [.commaSeparatedText,.gridFixGeoJSON,.json,.gridFixKML] }
     var text: String
     var contentType: UTType
     init(text: String,contentType: UTType) { self.text = text; self.contentType = contentType }
@@ -642,4 +659,21 @@ struct TextDocumentFile: FileDocument {
 
 extension UTType {
     static let gridFixGeoJSON = UTType(exportedAs: "app.gridfix.geojson",conformingTo: .json)
+}
+
+struct BinaryInterchangeDocumentFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.zip,.gridFixKMZ,.gridFixDPK] }
+    var data: Data
+    var contentType: UTType
+    init(data: Data,contentType: UTType) { self.data = data; self.contentType = contentType }
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data(); contentType = configuration.contentType
+    }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+}
+
+extension UTType {
+    static let gridFixKML = UTType(importedAs: "com.google.earth.kml",conformingTo: .xml)
+    static let gridFixKMZ = UTType(importedAs: "com.google.earth.kmz",conformingTo: .zip)
+    static let gridFixDPK = UTType(importedAs: "app.gridfix.dpk",conformingTo: .zip)
 }

@@ -30,7 +30,7 @@ struct InterchangeImportView: View {
                         Label(url.lastPathComponent,systemImage: "doc").font(.headline)
                         Text("Review this file before adding records to your library.")
                     } else {
-                        Text(request.format == .csv ? "Paste CSV to preview its waypoints." : "Paste \(label) to preview its waypoints, routes and tracks.").font(.subheadline)
+                        Text("Paste \(label) to preview its \(request.format?.pasteSummary ?? "field data").").font(.subheadline)
                         TextEditor(text: $text).font(.system(.caption,design: .monospaced))
                             .frame(minHeight: 180).scrollContentBackground(.hidden)
                             .padding(8).background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 12))
@@ -47,7 +47,7 @@ struct InterchangeImportView: View {
                             if preview.skipped > 0 { Text("\(preview.skipped) invalid or unsupported entries/coordinates skipped. Check the source before importing.") }
                             if preview.recordCount == 0 { Text("No supported records found. Nothing will be imported.") }
                             Text("Existing records and settings are kept. Importing this unchanged content again adds no duplicates.")
-                            Text(preview.format == .geojson ? "Lines become routes and outer polygon rings become areas. Polygon holes and original tactical types are not retained." : preview.format == .csv ? "CSV carries waypoint coordinates, folders and supported metadata." : "GPX carries waypoints, routes and separate continuous track segments.").font(.footnote)
+                            Text(preview.format.importNote).font(.footnote)
                             Text("Use a GridFix backup to preserve library symbols and settings.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }
@@ -87,8 +87,8 @@ struct InterchangeImportView: View {
         let token = generation, input = text, request = request, folders = knownFolders
         task = Task {
             let parser = Task.detached(priority: .userInitiated) {
-                let bytes = try request.url.map { try InterchangeFileReader.read($0,limit: request.format?.byteLimit ?? 32*1024*1024) } ?? Data(input.utf8)
-                return try TextInterchange.preview(bytes,format: request.format,filename: request.url?.lastPathComponent ?? "",knownFolders: folders)
+                if let url = request.url { return try InterchangeFileReader.preview(url,format: request.format,knownFolders: folders) }
+                return try TextInterchange.preview(Data(input.utf8),format: request.format,knownFolders: folders)
             }
             do {
                 let result = try await withTaskCancellationHandler(operation: { try await parser.value },onCancel: { parser.cancel() })

@@ -6,7 +6,7 @@ track sentinel/normalisation in `TrackRepository.kt` and `ImportedTracks.kt`.
 
 ## Using it
 
-Waypoints → actions → **Import GPX / CSV / GeoJSON** opens Files. **Paste text**
+Waypoints → actions → **Import field file** opens Files. **Paste text**
 has a format submenu. Parsing runs off the main thread and does not save anything.
 Preview shows waypoint, graphic/route and track counts; Import is enabled only
 when supported records exist. Cancel or editing the text invalidates a pending
@@ -17,19 +17,19 @@ GPX retains its existing valid-coordinate filtering and does not report a skip c
 
 Files opened through the iOS document association are held behind a **Review**
 banner, so receiving a file does not interrupt an existing field sheet or mutate
-the library. The user opens its preview and explicitly imports. GPX, `.csv` and
-`.geojson` document associations are registered; arbitrary `.json` can also be
+the library. The user opens its preview and explicitly imports. GPX, `.csv`, `.geojson`, KML/KMZ and ATAK ZIP/DPK document associations are registered; arbitrary `.json` can also be
 chosen in the importer. Only one incoming file is pending at a time. Review it
 while its originating provider remains available; pending URLs are not a durable
 import queue across relaunch.
 
 The native file reader balances security-scoped access, coordinates with the
-provider, and reads bounded chunks rather than loading an unbounded file first.
-GPX is limited to 32 MiB; CSV/GeoJSON to 16 MiB. CSV/GeoJSON and staged-content limits follow
-the Android 10,000-record/250,000-point bounds. The existing GPX streaming reader
-also applies aggregate record/point caps across kinds, which can refuse a very
-large mixed file that Android accepts under its separate category counters. File-provider access and native
-Share/Open In delivery still require physical-device/provider checks.
+provider, and enforces format byte limits before parsing. Coordinated previews
+map local files when the filesystem permits and finish parsing before scoped
+access is released.
+GPX is limited to 32 MiB; CSV/GeoJSON to 16 MiB. Parsing and staged-content limits
+follow the Android 10,000-record/250,000-point bounds. GPX now uses a shared
+per-kind budget across package members, replacing its former aggregate-across-kinds
+cap. File-provider access and native Share/Open In delivery still require physical-device/provider checks.
 
 ## Format behavior
 
@@ -92,5 +92,6 @@ the isolated Debug session state to hold checkpoint progression until pause/resu
 so UI/import timing cannot race the route; it never injects app location state.
 See test results for the current run.
 
-KML/KMZ, ATAK, PDF/strip-map output, full provider/device validation and
-large-library/storage-pressure work remain separate parity gaps.
+KML/KMZ and ATAK are now implemented in the same preview flow; see
+[KML and mission-package behavior](kml-atak-interchange.md). PDF/strip-map output,
+ZIP64, full provider/device validation and large-library/storage-pressure work remain open.

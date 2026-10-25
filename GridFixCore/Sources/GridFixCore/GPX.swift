@@ -47,20 +47,29 @@ public enum GPX {
 
     public static func parse(_ xml: String, defaultFolder: String = "Imported",
                               now: Int64 = Int64(Date().timeIntervalSince1970 * 1000),knownFolders: [String] = []) throws -> Backup.Document {
-        guard xml.utf8.count <= ZipArchive.totalLimit else { throw BackupError.notABackup("GPX exceeds 32 MB") }
-        let reader = GPXReader(folder: defaultFolder)
-        let parser = XMLParser(data: Data(xml.utf8))
+        try parseContents(xml,defaultFolder: defaultFolder).document(now: now,knownFolders: knownFolders)
+    }
+
+    static func parseContents(_ xml: String,defaultFolder: String = "Imported",budget: ImportParseBudget = .init()) throws -> InterchangeContents {
+        try parseContents(Data(xml.utf8),defaultFolder: defaultFolder,budget: budget)
+    }
+    static func parseContents(_ bytes: Data,defaultFolder: String = "Imported",budget: ImportParseBudget = .init()) throws -> InterchangeContents {
+        guard bytes.count <= ZipArchive.totalLimit else { throw BackupError.notABackup("GPX exceeds 32 MB") }
+        let reader = GPXReader(folder: defaultFolder,budget: budget)
+        let parser = XMLParser(data: bytes)
         parser.shouldProcessNamespaces = true
         parser.shouldResolveExternalEntities = false
         parser.delegate = reader
-        guard parser.parse(), reader.hasRoot, !reader.exceededLimit else { throw BackupError.notABackup("Malformed or oversized GPX") }
+        let parsed = parser.parse()
+        if let failure = reader.failure { throw failure }
+        guard parsed, reader.hasRoot, !reader.exceededLimit else { throw BackupError.notABackup("Malformed or oversized GPX") }
         var content = InterchangeContents()
         content.waypoints = reader.waypoints.map { WaypointDraft(name: $0.name,lat: $0.lat,lon: $0.lon,folder: $0.folder,symbol: $0.symbol,
                                                                affiliation: $0.affiliation,echelon: $0.echelon,designation: $0.designation,
                                                                kind: $0.kind,rotation: $0.rotation,metadata: $0.metadata) }
         content.lines = reader.routes.map { .init(name: $0.name,folder: $0.folder,points: $0.points.map { .init(lat: $0.lat,lon: $0.lon) }) }
         content.tracks = reader.tracks
-        return try content.document(now: now,knownFolders: knownFolders)
+        return content
     }
 
     public static func parseWaypoints(_ xml: String, defaultFolder: String = "Imported") -> [WaypointDraft] {
@@ -94,14 +103,18 @@ private final class GPXReader: NSObject, XMLParserDelegate {
     private var routePoints: [Backup.GraphicPoint] = []
     private var segment: [TrackPoint] = []
     private var segments: [[TrackPoint]] = []
-    private var pointCount = 0
+    private let budget: ImportParseBudget
+    var failure: Error?
     var waypoints: [Waypoint] = []
     var routes: [Backup.Graphic] = []
     var tracks: [GPX.Track] = []
     var hasRoot = false
     var exceededLimit = false
 
-    init(folder: String) { self.folder = Folders.canonical(folder) }
+    init(folder: String,budget: ImportParseBudget) { self.folder = Folders.canonical(folder); self.budget = budget }
+    private func consume(_ parser: XMLParser,_ action: () throws -> Void) -> Bool {
+        do { try action(); return true } catch { failure = error; parser.abortParsing(); return false }
+    }
     private func gpx(_ uri: String) -> Bool { ["", GPX.namespace, "http://www.topografix.com/GPX/1/0"].contains(uri) }
     private func finishSegment() { if !segment.isEmpty { segments.append(segment) }; segment = [] }
 
@@ -119,14 +132,16 @@ private final class GPXReader: NSObject, XMLParserDelegate {
         case ("wpt", 2): pendingWaypoint = coordinate().map { Waypoint(name: "", lat: $0.0, lon: $0.1, folder: folder) }
         case ("rte", 2): routeName = ""; routePoints = []
         case ("rtept", 3) where stack[1].name == "rte":
-            if let point = coordinate() { routePoints.append(Backup.GraphicPoint(lat: point.0, lon: point.1)); pointCount += 1 }
+            if let point = coordinate(), consume(parser,{ try budget.shapePoints() }) { routePoints.append(Backup.GraphicPoint(lat: point.0, lon: point.1)) }
         case ("trk", 2): trackName = ""; segment = []; segments = []
         case ("trkseg", 3) where stack[1].name == "trk": finishSegment()
         case ("trkpt", 4) where stack[2].name == "trkseg": pendingTrackPoint = coordinate().map { TrackPoint(lat: $0.0, lon: $0.1) }
         default: break
         }
-        if pointCount > 250_000 || waypoints.count + routes.count + tracks.count > 10_000 { exceededLimit = true; parser.abortParsing() }
+
     }
+
+    func parser(_ parser: XMLParser,foundCDATA block: Data) { self.parser(parser,foundCharacters: String(decoding: block,as: UTF8.self)) }
 
     func parser(_ parser: XMLParser, foundCharacters text: String) {
         guard !stack.isEmpty else { return }
@@ -160,19 +175,20 @@ private final class GPXReader: NSObject, XMLParserDelegate {
             if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: p.time, altitudeMeters: Double(text).flatMap { $0.isFinite ? $0 : nil }) }
         case ("time", 5) where parent == "trkpt":
             if let p = pendingTrackPoint { pendingTrackPoint = TrackPoint(lat: p.lat, lon: p.lon, time: time() ?? 0, altitudeMeters: p.altitudeMeters) }
-        case ("trkpt", 4): if let point = pendingTrackPoint { segment.append(point); pointCount += 1 }; pendingTrackPoint = nil
+        case ("trkpt", 4): if let point = pendingTrackPoint, consume(parser,{ try budget.trackPoint() }) { segment.append(point) }; pendingTrackPoint = nil
         case ("trkseg", 3): finishSegment()
         case ("wpt", 2):
-            if var point = pendingWaypoint {
+            if var point = pendingWaypoint, consume(parser,{ try budget.waypoint() }) {
                 if point.name.isEmpty { point.name = "WP \(waypoints.count + 1)" }
                 waypoints.append(point)
             }
             pendingWaypoint = nil
         case ("rte", 2):
-            if routePoints.count >= 2 { routes.append(Backup.Graphic(id: UUID().uuidString.lowercased(), name: routeName.isEmpty ? "Imported route" : routeName, type: "route", points: routePoints, folder: folder)) }
+            if routePoints.count >= 2, consume(parser,{ try budget.shape() }) { routes.append(Backup.Graphic(id: UUID().uuidString.lowercased(), name: routeName.isEmpty ? "Imported route" : routeName, type: "route", points: routePoints, folder: folder)) }
         case ("trk", 2):
             finishSegment()
             for (index, points) in segments.enumerated() {
+                guard consume(parser,{ try budget.track() }) else { break }
                 let base = trackName.isEmpty ? "Imported track" : trackName
                 tracks.append(GPX.Track(name: segments.count == 1 ? base : "\(base) — segment \(index + 1)", points: points))
             }

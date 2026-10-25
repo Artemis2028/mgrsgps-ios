@@ -69,6 +69,31 @@ targets:
               public.filename-extension:
                 - geojson
               public.mime-type: application/geo+json
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.google.earth.kml
+            UTTypeDescription: Keyhole Markup Language
+            UTTypeConformsTo:
+              - public.xml
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kml
+              public.mime-type: application/vnd.google-earth.kml+xml
+          - UTTypeIdentifier: com.google.earth.kmz
+            UTTypeDescription: Compressed KML
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kmz
+              public.mime-type: application/vnd.google-earth.kmz
+          - UTTypeIdentifier: app.gridfix.dpk
+            UTTypeDescription: ATAK mission package
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - dpk
+              public.mime-type: application/zip
         CFBundleDocumentTypes:
           - CFBundleTypeName: Geographic files
             CFBundleTypeRole: Viewer
@@ -77,6 +102,10 @@ targets:
               - app.gridfix.gpx
               - app.gridfix.geojson
               - public.comma-separated-values-text
+              - com.google.earth.kml
+              - com.google.earth.kmz
+              - app.gridfix.dpk
+              - public.zip-archive
         LSSupportsOpeningDocumentsInPlace: true
         UISupportsDocumentBrowser: false
         UILaunchScreen: {}
@@ -142,6 +171,10 @@ targets:
     sources:
       - path: App/Tests
       - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-backup-contract.zip
+        buildPhase: resources
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-mission-package.zip
+        buildPhase: resources
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-nested-budget.zip
         buildPhase: resources
     dependencies:
       - target: MGRSGPS
