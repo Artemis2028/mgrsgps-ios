@@ -121,10 +121,21 @@ The next milestone adds worker-owned lane persistence, map creation/editing and
 shaded overlays, linked graphics, the lane library, checkpoint/route guidance,
 early-warning settings and background crossing-notification requests. See
 [navigation lanes](navigation-lanes.md) for behavior and validation. Lane backup
-records, route-card UI/PDF integration, watch snapshots and the uncommitted
-Android settings remain pending. Core tests do not establish physical
+records and route-card screen/text/PDF integration are now implemented in the
+following milestone. Watch snapshots and the uncommitted Android settings remain
+pending. Core tests do not establish physical
 locked-screen delivery.
 
 This is an expanded implementation inventory, not a completion claim. See
 [the original release parity checklist](ios-parity-release-1.1.0.md) for the
 existing port and its outstanding validation/release work.
+
+Lane backups now round-trip the optional Android `navLanes` section, validate
+the whole document before publication and restore additively after graphics.
+Existing local IDs win; failed later phases report durable earlier work and
+retry without duplication. Route-card screen, text and PDF share captured
+per-leg limits, including checkpoint precedence and hidden lanes. Long labels
+wrap across variable-height PDF rows. The complete core suite passes 347 tests
+and the app integration suite passes 143 tests. Four native Files/PDF workflows
+pass in a clean iOS 26.5 run; unsigned phone/embedded-watch Release builds pass.
+Physical locked-screen delivery remains unverified.

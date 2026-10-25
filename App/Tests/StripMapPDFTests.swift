@@ -5,6 +5,47 @@ import XCTest
 
 @MainActor
 final class StripMapPDFTests: XCTestCase {
+    func testLaneLimitsUseCheckpointPrecedenceAndOneSnapshotAcrossTextAndPDF() throws {
+        let points = (0..<4).map { GeoPoint(lat: 24+Double($0)*0.001,lon: 54) }
+        let settings = AppSettings(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let route = Backup.Graphic(id: "route",name: "Lane patrol",type: "route",points: points.map { .init(lat: $0.lat,lon: $0.lon) })
+        var road = Backup.Graphic(id: "road",name: "Rte 12",type: "phase_line",points: [])
+        let routeLane = NavLane(id: "route-lane",name: "Whole route",left: .init(graphicId: road.id),right: .init(label: "Bear Creek"),backstop: .init(label: "Power line"),scope: .route,targetId: route.id,visible: false)
+        let checkpointLane = NavLane(id: "cp-lane",name: "Checkpoint",left: .init(label: "Tree line"),right: .init(label: "Draw"),backstop: .init(label: "Rail"),scope: .checkpoint,targetId: "cp2")
+        let waypoint = Waypoint(id: "cp2",name: "CP2",lat: points[2].lat,lon: 54,sourceRouteId: route.id,sourceRoutePointIndex: 2)
+        let input = RouteCardRequest(route: route,settings: settings,lanes: [routeLane,checkpointLane],waypoints: [waypoint],graphics: [road])
+        road.name = "Edited after capture"
+        let report = try RouteCardOutput.report(input)
+        XCTAssertEqual(report.rows.map(\.limits),["L: Rte 12 · R: Bear Creek · BS: Power line","L: Tree line · R: Draw · BS: Rail","L: Rte 12 · R: Bear Creek · BS: Power line"])
+        XCTAssertTrue(report.shareText.contains("BS: Rail")); XCTAssertFalse(report.shareText.contains("Edited after capture"))
+        let pdf = try document(report), text = try XCTUnwrap(pdf.string)
+        for label in ["Rte 12","Bear Creek","Power line","Tree line","Rail"] { XCTAssertTrue(text.contains(label),text) }
+        assertTextInsidePage(pdf)
+        try writeReview(report,name: "lane-route-card")
+        let changed = RouteCardRequest(route: route,settings: settings,lanes: [routeLane],waypoints: [waypoint],graphics: [road])
+        XCTAssertNotEqual(input,changed)
+    }
+    func testLongLaneLabelsWrapPaginateAndKeepEveryLegAndTotalsInBounds() throws {
+        let points = (0..<85).map { GeoPoint(lat: 24+Double($0)*0.001,lon: 54+Double($0%7)*0.001) }
+        let labels = (1..<points.count).map { index -> String? in
+            String(format: "LIMIT-LEG-%04d",index)+" · L: "+String(repeating: "tree line ",count: 8)+" · R: "+String(repeating: "creek bend ",count: 8)+" · BS: "+String(repeating: "power line ",count: 8)
+        }
+        let report = try RouteCard.report(name: "Long lane labels",points: points,configuration: .init(),legLimits: labels) { _ in 0 }
+        let pdf = try document(report), text = try XCTUnwrap(pdf.string)
+        XCTAssertGreaterThan(pdf.pageCount,2)
+        for index in 1..<points.count {
+            let marker = String(format: "LIMIT-LEG-%04d",index)
+            XCTAssertEqual(text.components(separatedBy: marker).count-1,1,marker)
+        }
+        XCTAssertEqual(text.components(separatedBy: "TOTAL").count-1,1)
+        XCTAssertTrue(try XCTUnwrap(pdf.page(at: pdf.pageCount-1)?.string).contains("TOTAL"))
+        assertTextInsidePage(pdf); try writeReview(report,name: "lane-route-long-labels")
+    }
+    private func writeReview(_ report: RouteCard.Report,name: String) throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("gridfix-pdf-review",isDirectory: true)
+        try FileManager.default.createDirectory(at: folder,withIntermediateDirectories: true)
+        try StripMapPDF.render(report).write(to: folder.appendingPathComponent(name+".pdf"))
+    }
     private func request(points: [GeoPoint],name: String = "Training",north: NorthReference = .trueNorth) -> RouteCardRequest {
         let settings = AppSettings(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
         settings.northRef = north; settings.mgrsDigits = 4

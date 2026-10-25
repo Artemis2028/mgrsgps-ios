@@ -29,6 +29,15 @@ public final class NavigationLaneStore: ObservableObject {
     }
     public func setVisible(_ id: String,_ visible: Bool) async throws { _ = try await change(.visible(id,visible)) }
     public func delete(_ id: String) async throws { _ = try await change(.delete(id)) }
+    /// A confirmed backup phase finishes even if its UI owner disappears.
+    /// The worker merges by ID into current records, retaining local edits.
+    public func restore(_ imported: [NavLane]) async throws -> Int {
+        let file = file
+        do {
+            let result = try await Task.detached(priority: .userInitiated) { try await file.change(.restore(imported)) }.value
+            accept(result); return result.added
+        } catch { self.error = error.localizedDescription; throw error }
+    }
     private func change(_ edit: LaneLibraryFile.Edit) async throws -> LaneLibraryFile.Snapshot {
         do { let result = try await file.change(edit); accept(result); return result }
         catch { self.error = error.localizedDescription; throw error }
@@ -40,8 +49,8 @@ public final class NavigationLaneStore: ObservableObject {
 }
 
 private actor LaneLibraryFile {
-    struct Snapshot: Sendable { var lanes: [NavLane]; var revision: UInt64 }
-    enum Edit: Sendable { case save(NavLane,NavLane?,[Backup.Graphic]),visible(String,Bool),delete(String) }
+    struct Snapshot: Sendable { var lanes: [NavLane]; var revision: UInt64; var added = 0 }
+    enum Edit: Sendable { case save(NavLane,NavLane?,[Backup.Graphic]),visible(String,Bool),delete(String),restore([NavLane]) }
     let url: URL
     private var current: [NavLane]?
     private var revision: UInt64 = 0
@@ -53,7 +62,7 @@ private actor LaneLibraryFile {
                 let bytes = try Data(contentsOf: url,options: .mappedIfSafe)
                 guard bytes.count <= maxBytes else { throw LaneShapeError("Lane library exceeds 32 MiB") }
                 let values = try JSONDecoder().decode([NavLane].self,from: bytes)
-                guard Set(values.map(\.id)).count == values.count else { throw LaneShapeError("Lane IDs must be unique") }
+                guard values.count <= 10_000, Set(values.map(\.id)).count == values.count else { throw LaneShapeError("Lane IDs must be unique and limited to 10,000") }
                 current = values
             } else { current = [] }
         }
@@ -61,7 +70,13 @@ private actor LaneLibraryFile {
     }
     func change(_ edit: Edit) throws -> Snapshot {
         var next = try read().lanes
+        var added = 0
         switch edit {
+        case .restore(let values):
+            let checked = try JSONDecoder().decode([NavLane].self,from: JSONEncoder().encode(values))
+            guard checked.count <= 10_000,Set(checked.map(\.id)).count == checked.count else { throw LaneShapeError("Duplicate or oversized navigation lane restore") }
+            let known = Set(next.map(\.id)), fresh = checked.filter { !known.contains($0.id) }
+            added = fresh.count; next += fresh
         case let .save(draft,original,graphics):
             let value: NavLane
             if let original {
@@ -91,11 +106,12 @@ private actor LaneLibraryFile {
         case .delete(let id): next.removeAll { $0.id == id }
         }
         guard next != current else { return .init(lanes: next,revision: revision) }
+        guard next.count <= 10_000 else { throw LaneShapeError("Lane library exceeds 10,000 records") }
         let bytes = try JSONEncoder().encode(next)
         guard bytes.count <= maxBytes else { throw LaneShapeError("Lane library exceeds 32 MiB") }
         let prepared = try PreparedAtomicFile(data: bytes,destination: url,lockCompatible: true)
         try prepared.publish()
         current = next; revision &+= 1
-        return .init(lanes: next,revision: revision)
+        return .init(lanes: next,revision: revision,added: added)
     }
 }

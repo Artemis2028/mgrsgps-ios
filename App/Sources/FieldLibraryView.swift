@@ -157,6 +157,7 @@ struct RouteDetailView: View {
     let routeID: String
     var onNavigate: () -> Void = {}
     @EnvironmentObject private var fieldData: FieldDataStore
+    @EnvironmentObject private var lanes: NavigationLaneStore
     @EnvironmentObject private var waypoints: WaypointStore
     @EnvironmentObject private var navigation: NavigationSession
     @EnvironmentObject private var settings: AppSettings
@@ -174,7 +175,10 @@ struct RouteDetailView: View {
     @State private var pdfTask: Task<Void,Never>?
     @State private var pdfGeneration = UUID()
     @State private var buildingPDF = false
-    private var input: RouteCardRequest? { route.map { RouteCardRequest(route: $0,settings: settings) } }
+    private var input: RouteCardRequest? {
+        guard lanes.ready else { return nil }
+        return route.map { RouteCardRequest(route: $0,settings: settings,lanes: lanes.lanes,waypoints: waypoints.waypoints,graphics: fieldData.document.graphics) }
+    }
     private var ready: RouteCard.Report? { prepared?.request == input ? prepared?.report : nil }
 
     var body: some View {
@@ -208,6 +212,7 @@ struct RouteDetailView: View {
                                 Text("\(leg.distance) · \(leg.paces) paces")
                                     .font(.subheadline)
                                 Text(leg.destinationGrid).font(.system(.caption, design: .monospaced))
+                                if let limits = leg.limits { Text(limits).font(.caption).accessibilityIdentifier("route-card-limits-\(leg.index)") }
                                 Button("Navigate to vertex \(leg.index + 1)") {
                                     perform {
                                         try generate(route)
@@ -221,7 +226,8 @@ struct RouteDetailView: View {
                         Text("Pace \(ready.configuration.pacePer100m)/100 m · \(ready.dtg)").font(.caption)
                         Text("Azimuth from leg start; back-azimuth from leg end.").font(.footnote)
                         ForEach(Array(ready.notes.enumerated()),id: \.offset) { _,note in Text(note).font(.footnote).foregroundStyle(palette.warn) }
-                    } else if reportError == nil { ProgressView("Calculating route card") }
+                    } else if let error = lanes.error, !lanes.ready { Text(error).foregroundStyle(palette.warn) }
+                    else if reportError == nil { ProgressView("Calculating route card") }
                 }
                 Button("Delete route", role: .destructive) {
                     mutation.run("Deleting route…",action: { try await FieldEditAction.apply(.deleteGraphic(route.id),to: fieldData) },completion: { if $0 { dismiss() } })
@@ -275,7 +281,7 @@ struct RouteDetailView: View {
                 let (report,data) = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
                 guard !Task.isCancelled, pdfGeneration == token else { return }
                 buildingPDF = false; pdfTask = nil
-                guard request.matches(route), input == request else { reportError = "The route or settings changed. Export again for the current route."; return }
+                guard request.matches(route), input == request else { reportError = "The route, lane limits or settings changed. Export again for the current route."; return }
                 prepared = .init(request: request,report: report)
                 pdfRequest = .init(name: report.name,data: data)
             } catch {

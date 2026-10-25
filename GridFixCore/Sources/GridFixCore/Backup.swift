@@ -107,6 +107,7 @@ public enum Backup {
         public var settings: AppSettings
         public var tracks: [TrackMeta]
         public var courseHistory: [CourseResult]
+        public var navLanes: [NavLane]
         /// Track id → raw points file bytes (lat lon time alt lines).
         public var trackFiles: [String: Data]
         public var hasSettings: Bool = true
@@ -118,6 +119,7 @@ public enum Backup {
                     settings: AppSettings = AppSettings(),
                     tracks: [TrackMeta] = [],
                     courseHistory: [CourseResult] = [],
+                    navLanes: [NavLane] = [],
                     trackFiles: [String: Data] = [:]) {
             self.exportedAt = exportedAt
             self.waypoints = waypoints
@@ -126,6 +128,7 @@ public enum Backup {
             self.settings = settings
             self.tracks = tracks
             self.courseHistory = courseHistory
+            self.navLanes = navLanes
             self.trackFiles = trackFiles
         }
     }
@@ -233,6 +236,7 @@ public enum Backup {
                 "splits": r.splits,
             ]
         }
+        root["navLanes"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(doc.navLanes))
 
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
@@ -277,7 +281,7 @@ public enum Backup {
         guard ["GridFix", "MGRS GPS"].contains(root["app"] as? String ?? "") else {
             throw BackupError.notABackup("Not an MGRS GPS backup")
         }
-        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory"] {
+        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory", "navLanes"] {
             guard root[key] == nil || root[key] is [[String: Any]], (root[key] as? [Any])?.count ?? 0 <= 10_000 else {
                 throw BackupError.notABackup("Invalid or oversized \(key) section")
             }
@@ -299,8 +303,10 @@ public enum Backup {
         let course = try (root["courseHistory"] as? [[String: Any]] ?? []).map { record -> CourseResult in
             try decodeCourse(record)
         }
+        let laneBytes = try JSONSerialization.data(withJSONObject: root["navLanes"] ?? [])
+        let navLanes = try JSONDecoder().decode([NavLane].self,from: laneBytes)
         var document = Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
-                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course)
+                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course,navLanes: navLanes)
         document.hasSettings = root["settings"] != nil
         try validate(document, includingTrackFiles: false)
         return document
@@ -322,6 +328,11 @@ public enum Backup {
                 && values.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 256 }
         }
         try require(ids(doc.waypoints.map(\.id)) && ids(doc.graphics.map(\.id)) && ids(doc.tracks.map(\.id)), "Duplicate or invalid record IDs")
+        try require(ids(doc.navLanes.map(\.id)),"Duplicate or invalid navigation lane IDs")
+        // Like Android laneFromJson: validate the complete optional section,
+        // including programmatic documents, without requiring linked records to
+        // exist. An orphan is retained and can fall back to azimuth guidance.
+        _ = try JSONDecoder().decode([NavLane].self,from: JSONEncoder().encode(doc.navLanes))
         try require(doc.folders.count <= 10_000, "Too many folders")
         for point in doc.waypoints {
             try require(TrackCodec.validCoordinates(point.lat, point.lon) && point.rotation.isFinite

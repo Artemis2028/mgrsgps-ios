@@ -1,4 +1,4 @@
-# GridFix backup v1 — Android 1.0.4 contract
+# GridFix backup v1 — Android contract and optional lane extension
 
 Inspected `gridfix` main `94c4cc4`, especially `data/Backup.kt`,
 `TrackFiles.kt`, `ImportedTracks.kt`, and route waypoint repository logic.
@@ -24,7 +24,9 @@ validation instead of silently dropping records.
 ## Manifest
 
 The root contains `app`, `version`, `exportedAt` (milliseconds), `waypoints`,
-`folders`, `graphics`, `settings`, `tracks`, and `courseHistory`.
+`folders`, `graphics`, `settings`, `tracks`, and `courseHistory`. The subsequent
+Android lane extension adds optional `navLanes` without changing version 1;
+older backups omit it and older Android readers ignore it.
 
 Waypoints contain required `id`, `name`, `lat`, `lon`; optional `createdAt`,
 `folder`, `symbol`, `affiliation`, `echelon`, `designation`, `kind`, `rotation`,
@@ -96,3 +98,24 @@ from an Android device. Tests cover restore/export/reopen, duplicate restores,
 route ownership, malformed archives, CRCs, write failures, history, GPX segments,
 altitude, and dateline overlays. `App/Tests/BackupIntegrationTests.swift` also
 restores this fixture through the app's stores and settings on iOS.
+
+## Optional navigation lanes (post-release/1.1.0)
+
+Reference: Android `claude/nav-lanes` at `91cb68f`, `NavLaneRepository.kt` and
+`Backup.kt`. `navLanes` is an array of records containing `id`, `name`, `left`,
+`right`, `backstop`, `scope` (`checkpoint` or `route`), `targetId`, `folder`,
+`createdAt` (milliseconds) and `visible`. A line contains `points` as latitude/
+longitude pairs, nullable `graphicId`, and `label`. It needs at least two points
+or a nonblank linked graphic ID, supports at most 500 points, and rejects invalid
+coordinates. Lane IDs are nonblank and limited to 64 UTF-16 units; target IDs
+are nonblank. Duplicate IDs and malformed sections reject the whole archive
+before store publication. Missing links/targets remain identifiable orphaned
+records; geometry is resolved against the current library during guidance.
+
+Export includes all lane records, including hidden ones. The setting
+`laneWarningM` defaults to 0 and accepts 0–200 metres. Lane restore runs after
+graphics and before course history/settings, merges by ID with existing records
+winning, and keeps successful earlier phases if a later phase fails. Runtime
+lane storage and restore use a serial worker and atomic replacement; retries do
+not duplicate or overwrite existing lane edits. Active lane-guidance sessions
+are not restored or started by importing a backup.

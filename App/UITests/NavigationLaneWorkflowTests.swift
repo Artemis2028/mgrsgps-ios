@@ -16,9 +16,14 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         let button = app.buttons["lane-link-"+id]; XCTAssertTrue(button.waitForExistence(timeout: 5)); button.tap()
         XCTAssertTrue(app.buttons["Draw a replacement line"].waitForExistence(timeout: 5))
     }
-    private func reviewAndSave(_ name: String) {
+    private func reviewAndSave(_ name: String,wholeRoute: Bool = false) {
         app.buttons["review-nav-lane"].tap()
         let field = app.textFields["nav-lane-name"]; XCTAssertTrue(field.waitForExistence(timeout: 5)); replaceTextInput(field,name)
+        if wholeRoute {
+            let scope = app.segmentedControls.buttons["Whole route"]
+            for _ in 0..<4 { if scope.isHittable { break }; app.swipeUp() }
+            scope.tap()
+        }
         let target = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@","lane-target-")).firstMatch
         for _ in 0..<4 { if target.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(target.waitForExistence(timeout: 5)); target.tap()
@@ -28,6 +33,45 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         XCTAssertFalse(app.buttons["review-nav-lane"].exists)
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
+    func testNativeBackupRestoresHiddenRouteLaneAndFeedsRouteCardPDF() {
+        openLibrary(); app.buttons["create-nav-lane"].tap()
+        link("lane-left"); role("Right"); link("lane-right"); role("Backstop"); link("lane-backstop")
+        reviewAndSave("Route corridor",wholeRoute: true)
+        app.buttons["Toggle map night mode"].tap()
+        openLibrary(); app.switches["Visible on map"].coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["Hidden on map · guidance still enabled"].waitForExistence(timeout: 5))
+        app.navigationBars["Navigation lanes"].buttons["Done"].tap(); app.buttons["Waypoints"].tap()
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export backup"])
+        let filename = app.textFields["DOCPicker.filenameTextField"]
+        XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
+        let name = "lane-backup-ui-"+String(UUID().uuidString.prefix(8))
+        replaceTextInput(filename,name); saveNativeFile(in: app)
+        let section = app.buttons["library-nav-lanes"]; XCTAssertTrue(section.waitForExistence(timeout: 10)); section.tap()
+        app.buttons["Delete lane"].tap(); let confirmation = app.sheets.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5)); tapNativeMenuItem(confirmation.buttons["Delete lane"])
+        XCTAssertFalse(app.staticTexts["Route corridor"].waitForExistence(timeout: 2))
+        app.navigationBars["Navigation lanes"].buttons["Done"].tap()
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Import backup"])
+        openSavedNativeFile(name,in: app)
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","Restored"),object: app.staticTexts["library-status"])
+        XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 15),.completed,app.debugDescription)
+        XCTAssertTrue(app.staticTexts["library-status"].label.contains("1 navigation lane")); capture("lane-backup-restored-night")
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch(); app.buttons["Waypoints"].tap()
+        XCTAssertTrue(section.waitForExistence(timeout: 10)); section.tap()
+        XCTAssertTrue(app.staticTexts["Whole route: Lane patrol"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Hidden on map · guidance still enabled"].exists)
+        app.navigationBars["Navigation lanes"].buttons["Done"].tap()
+        app.buttons["open-field-library"].tap(); app.buttons["route-Lane patrol"].tap()
+        let limits = app.staticTexts["route-card-limits-1"]
+        for _ in 0..<6 { if limits.isHittable { break }; app.swipeUp() }
+        XCTAssertTrue(limits.waitForExistence(timeout: 10),app.debugDescription)
+        XCTAssertEqual(limits.label,"L: Creek bank · R: Right road · BS: Power line"); capture("lane-route-card-limits-night")
+        let export = app.buttons["prepare-strip-map-pdf"]
+        for _ in 0..<6 { if export.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(export.isEnabled); export.tap()
+        XCTAssertTrue(app.navigationBars["Strip map PDF"].waitForExistence(timeout: 15),app.debugDescription)
+        capture("lane-strip-map-pdf-preview")
+    }
     func testLinkedLaneSaveHideEditRelaunchAndDeleteRetainsGraphics() {
         openLibrary(); app.buttons["create-nav-lane"].tap()
         link("lane-left"); role("Right"); link("lane-right"); role("Backstop"); link("lane-backstop")

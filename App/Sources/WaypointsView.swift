@@ -621,7 +621,9 @@ struct WaypointsView: View {
 
     private func exportBackup() {
         guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
-        let doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
+        guard lanes.ready else { status = lanes.error ?? "Loading navigation lanes. Try again in a moment."; return }
+        var doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
+        doc.navLanes = lanes.lanes
         status = nil
         backupTransfer.export(doc) { result in
             switch result {
@@ -707,7 +709,7 @@ struct WaypointsView: View {
             guard backupTransfer.phase == nil else { return }
             status = nil
             backupTransfer.restore(url,apply: { document in
-                await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings)
+                await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
             },completion: { status = $0 })
         } catch { status = "Import failed: \(error.localizedDescription)" }
     }

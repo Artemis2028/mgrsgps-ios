@@ -86,15 +86,21 @@ public enum NavLanes {
         return line.points.count >= 2 ? line.points : nil
     }
     public static func label(_ line: LaneLine,graphics: [Backup.Graphic],fallback: String) -> String {
+        label(line,lookup: { id in graphics.first { $0.id == id } },fallback: fallback)
+    }
+    private static func label(_ line: LaneLine,lookup: (String) -> Backup.Graphic?,fallback: String) -> String {
         if let id = line.graphicId {
-            guard let g = graphics.first(where: { $0.id == id }) else { return fallback+" (line deleted)" }
+            guard let g = lookup(id) else { return fallback+" (line deleted)" }
             return g.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? GraphicTypes.label(g.type) : g.name
         }
         let trimmed = line.label.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : trimmed
     }
     public static func limitsSummary(_ lane: NavLane,graphics: [Backup.Graphic]) -> String {
-        "L: \(label(lane.left,graphics: graphics,fallback: "left limit")) · R: \(label(lane.right,graphics: graphics,fallback: "right limit")) · BS: \(label(lane.backstop,graphics: graphics,fallback: "backstop"))"
+        summary(lane,lookup: { id in graphics.first { $0.id == id } })
+    }
+    private static func summary(_ lane: NavLane,lookup: (String) -> Backup.Graphic?) -> String {
+        "L: \(label(lane.left,lookup: lookup,fallback: "left limit")) · R: \(label(lane.right,lookup: lookup,fallback: "right limit")) · BS: \(label(lane.backstop,lookup: lookup,fallback: "backstop"))"
     }
     public static func resolve(_ lane: NavLane,graphics: [Backup.Graphic]) throws -> ResolvedLane {
         guard let l = points(lane.left,graphics: graphics) else { throw LaneShapeError("The left limit's line is missing") }
@@ -110,10 +116,25 @@ public enum NavLanes {
     }
     public static func legLimits(route: Backup.Graphic,lanes: [NavLane],waypoints: [Waypoint],graphics: [Backup.Graphic]) -> [String?] {
         guard route.points.count >= 2 else { return [] }
-        let routeLane = lanes.filter { $0.scope == .route && $0.targetId == route.id }.max { $0.createdAt < $1.createdAt }
+        var routeLane: NavLane?, checkpoints: [String:NavLane] = [:], endpoints: [Int:Waypoint] = [:]
+        for lane in lanes {
+            if lane.scope == .route && lane.targetId == route.id {
+                if routeLane == nil || routeLane!.createdAt < lane.createdAt { routeLane = lane }
+            } else if lane.scope == .checkpoint {
+                if checkpoints[lane.targetId] == nil || checkpoints[lane.targetId]!.createdAt < lane.createdAt { checkpoints[lane.targetId] = lane }
+            }
+        }
+        for point in waypoints where point.sourceRouteId == route.id {
+            if let index = point.sourceRoutePointIndex,endpoints[index] == nil { endpoints[index] = point }
+        }
+        let byID = Dictionary(graphics.map { ($0.id,$0) },uniquingKeysWith: { first,_ in first })
+        var summaries: [String:String] = [:]
         return (1..<route.points.count).map { end in
-            let waypoint = waypoints.first { $0.sourceRouteId == route.id && $0.sourceRoutePointIndex == end }
-            return (forTarget(lanes,target: waypoint) ?? routeLane).map { limitsSummary($0,graphics: graphics) }
+            let checkpoint = endpoints[end].flatMap { checkpoints[$0.id] }
+            return (checkpoint ?? routeLane).map { lane in
+                if let value = summaries[lane.id] { return value }
+                let value = summary(lane,lookup: { byID[$0] }); summaries[lane.id] = value; return value
+            }
         }
     }
 }

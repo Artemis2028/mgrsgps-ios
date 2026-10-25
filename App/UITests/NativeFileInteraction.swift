@@ -9,14 +9,16 @@ extension XCTestCase {
         let browse = app.tabBars["DOC.browsingModeTabBar"].buttons["Browse"]
         XCTAssertTrue(browse.waitForExistence(timeout: 10),app.debugDescription,file: file,line: line)
         browse.tap()
-        if !item.waitForExistence(timeout: 3) {
+        let navigation = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
+        // Browse can reopen the provider directly. A virtualized filename is
+        // not evidence that we are still on the provider-selection screen.
+        if !item.waitForExistence(timeout: 3) && !navigation.staticTexts["On My iPhone"].exists {
             let local = app.cells.containing(.staticText,identifier: "On My iPhone").firstMatch
             XCTAssertTrue(local.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
             local.tap()
         }
         let files = app.collectionViews["File View"]
         XCTAssertTrue(files.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
-        let navigation = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
         let tabs = app.tabBars["DOC.browsingModeTabBar"]
         func unobscured() -> Bool {
             guard item.exists && item.isHittable else { return false }

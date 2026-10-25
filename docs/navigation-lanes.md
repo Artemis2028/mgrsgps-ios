@@ -98,11 +98,24 @@ with background work after first unlock. Folder registration is a second staged
 store phase; its error explicitly says the lane was already saved and retry
 retains that record.
 
-Still pending: the optional `navLanes` backup/restore section, route-card screen/
-text/PDF limit integration, watch overlay/status synchronization, direct map-lane
-hit selection, and the uncommitted Android lane-start/reminder/cue switches.
-The early-warning preference is backed up; **lane records themselves are not
-yet included**. These are implementation gaps, not iOS permission restrictions.
+Backups now include Android's optional `navLanes` section. Restore validates the
+whole archive before publishing anything, then merges lanes after graphics and
+before course history/settings. Existing lane IDs retain their current local
+edits; an unchanged retry skips rewriting the lane file. Missing linked graphics
+or targets are retained rather than silently dropping the lane. Referenced
+folders are registered in the waypoint/folder phase. A later failure reports
+durable earlier phases and leaves later phases untouched.
+
+Route-card screen, shared text and PDF use the same per-leg limits. Checkpoint
+lanes at a leg's endpoint override the route lane; a hidden lane still applies.
+Report requests capture relevant lane/ownership/graphic values, and workers
+prepare an indexed leg table. Changing limits or linked names invalidates an
+in-progress report/PDF. PDF rows measure and wrap their labels before pagination,
+retaining every leg and the final totals.
+
+Still pending: watch overlay/status synchronization, direct map-lane hit
+selection, and the uncommitted Android lane-start/reminder/cue switches.
+These are implementation gaps, not iOS permission restrictions.
 Physical thumb/compass/GPS/lock/storage-pressure/battery checks remain open.
 
 ## Validation
@@ -129,3 +142,28 @@ and a 13.0 m perpendicular bend, rather than merely a collinear inserted point.
 Day/night map and hidden-library screenshots were exported and inspected.
 The unsigned phone/embedded-watch Release build passes. Hosted CI and physical
 GPS/haptics/background delivery remain separate gates.
+
+## Backup and report validation
+
+The complete core suite now passes 347 tests and all 143 app integration tests
+pass. These include Android-compatible optional lane JSON/ZIP records, legacy
+archives without lanes, malformed sections, additive retries, existing-local-ID
+precedence, serial atomic lane publication, canceled confirmed restore and real
+filesystem failures before/after the lane phase. Route-card requests capture
+lane/target/graphic values; checkpoint limits override route limits, hidden
+lanes still apply and changed inputs invalidate prepared PDFs. An 84-leg PDF
+retains every table marker exactly once, repeats page headers, includes one
+final total and keeps every extracted character inside the page bounds.
+
+The clean `gridfix-lane-backup-native-final.xcresult` passes four native tests
+with zero failures/skips: the existing night-mode mixed-record backup round
+trip, hidden whole-route lane export/delete/restore/relaunch and route-card/PDF
+preview, plus both existing native PDF workflows. Files selection handles
+Browse reopening directly inside the local provider with virtualized filenames;
+no files were removed and count assertions remain intact. Actual PDFKit pages
+were rendered and the short, first, continuation and final-page layouts were
+visually inspected. Native night library, per-leg limit and PDF-preview
+screenshots were also inspected for readable text and controls. The unsigned
+phone/embedded-watch Release build passes.
+Watch lane synchronization, protected backups and later Android cue switches
+remain implementation work; this does not prove physical lock-screen delivery.

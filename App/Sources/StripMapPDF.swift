@@ -25,15 +25,29 @@ enum StripMapPDF {
         if annotations.omitted > 0 { notes.append("Overview labels omitted for \(annotations.omitted) legs to avoid overlap. Every leg is listed in the table.") }
         let noteText = notes.joined(separator: "\n"), noteHeight = height(noteText,font: smallFont)
         let summaryHeight = 30+noteHeight
+        let rowHeights = try report.rows.map { row -> CGFloat in
+            try Task.checkCancellation()
+            return rowHeight+(row.limits.map { height($0,font: smallFont)+4 } ?? 0)
+        }
+        var accumulated: [CGFloat] = [0]
+        for height in rowHeights { accumulated.append(accumulated.last!+height) }
         var plans: [PagePlan] = [], index = 0
         while index < report.rows.count {
             let overview = plans.isEmpty
             let metadataY = margin+(overview ? titleHeight : continuedHeight)+12
             let gridY = overview ? metadataY+10+280+18 : metadataY+16
             let tableY = gridY+14, firstRowY = tableY+17
-            let capacity = max(1,Int(floor((bottom-4-firstRowY)/rowHeight))+1)
+            var capacity = 0, rowBottom = firstRowY
+            for height in rowHeights[index...] {
+                if rowBottom+height > bottom { break }
+                capacity += 1; rowBottom += height
+            }
+            if capacity == 0 {
+                if overview { plans.append(.init(rows: index..<index,overview: true,totals: false,tableY: tableY,firstRowY: firstRowY)); continue }
+                throw RouteCard.Failure.invalid("A lane label exceeds the printable page. Shorten its landmark names and retry.")
+            }
             let remaining = report.rows.count-index
-            let fitsSummary = firstRowY+CGFloat(remaining)*rowHeight+summaryHeight <= bottom
+            let fitsSummary = firstRowY+accumulated.last!-accumulated[index]+summaryHeight <= bottom
             let count = fitsSummary ? remaining : min(capacity,max(1,remaining-1))
             plans.append(.init(rows: index..<(index+count),overview: overview,totals: fitsSummary,tableY: tableY,firstRowY: firstRowY))
             index += count
@@ -54,18 +68,21 @@ enum StripMapPDF {
                 if plan.overview { drawSketch(sketch,annotations: annotations,in: .init(x: margin,y: metadataY+10,width: contentWidth,height: 280),canvas: canvas) }
                 text("START  "+report.startGrid,x: margin,y: plan.tableY-14,font: boldFont)
                 tableHeader(at: plan.tableY,reference: report.configuration.referenceLetter,canvas: canvas)
-                for (offset,i) in plan.rows.enumerated() {
+                var y = plan.firstRowY
+                for i in plan.rows {
                     if Task.isCancelled { cancelled = true; break }
-                    let row = report.rows[i], y = plan.firstRowY+CGFloat(offset)*rowHeight
+                    let row = report.rows[i]
                     let values = [String(row.index),row.azimuth,row.backAzimuth,row.distance,String(row.paces),row.destinationGrid]
                     for (column,value) in values.enumerated() { text(value,x: columns[column],y: y,font: bodyFont) }
+                    if let limits = row.limits { paragraph(limits,at: .init(x: margin,y: y+4),font: smallFont) }
+                    y += rowHeights[i]
                 }
                 if cancelled { break }
                 if plan.totals {
-                    let y = plan.firstRowY+CGFloat(plan.rows.count)*rowHeight+4
-                    line(.init(x: margin,y: y),.init(x: page.width-margin,y: y),width: 0.8,canvas: canvas)
-                    text("TOTAL  \(report.totalDistance)   \(report.totalPaces) paces",x: margin,y: y+14,font: boldFont)
-                    paragraph(noteText,at: .init(x: margin,y: y+26),font: smallFont)
+                    let summaryY = y+4
+                    line(.init(x: margin,y: summaryY),.init(x: page.width-margin,y: summaryY),width: 0.8,canvas: canvas)
+                    text("TOTAL  \(report.totalDistance)   \(report.totalPaces) paces",x: margin,y: summaryY+14,font: boldFont)
+                    paragraph(noteText,at: .init(x: margin,y: summaryY+26),font: smallFont)
                 }
                 text("GridFix - route card",x: margin,y: 824,font: smallFont,color: .darkGray)
                 let footer = "Page \(number+1) of \(plans.count)"

@@ -46,3 +46,21 @@ rasterized with Poppler and visually reviewed. UI workflows cover preview,
 native Files save, route persistence and readable night controls. Physical Files
 providers, sharing extensions, printing and outdoor readability still require
 device checks; they are not classified as iOS limitations.
+
+## Navigation-lane limits
+
+The post-release Android lane extension now supplies per-leg L/R/BS landmark
+summaries to the same prepared report used by the screen, shared text and PDF.
+A checkpoint lane at the destination vertex wins over the route lane; hidden
+lanes still apply. Linked graphics supply their current names, and missing
+links are labelled as deleted. Requests capture lane/waypoint-ownership/graphic
+values; changes invalidate old report/PDF preparations. Indexed ownership and
+landmark lookups avoid searching and sorting the library anew for every leg.
+
+PDF rows measure wrapped limits text before pagination. Headers repeat on
+continuation pages; no limit label is silently clipped to keep a fixed row
+height. Overlong unprintable labels fail with a request to shorten them. Tests
+reparse actual PDFKit output, check every leg marker exactly once, keep all
+character bounds inside A4, and retain one final totals section. A one-page
+checkpoint-override example and the first, continuation and final pages of a
+seven-page long-label example were rendered with macOS PDFKit and inspected.

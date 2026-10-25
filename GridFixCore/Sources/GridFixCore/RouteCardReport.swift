@@ -19,6 +19,7 @@ extension RouteCard {
         public var paces: Int
         public var destinationGrid: String
         public var distanceMeters: Double
+        public var limits: String? = nil
     }
     public struct Report: Equatable,Sendable {
         public let name: String
@@ -34,7 +35,11 @@ extension RouteCard {
         public var totalDistance: String { Format.distance(meters: totalMeters,unit: configuration.units) }
         public var shareText: String {
             var lines = ["GRIDFIX ROUTE CARD - "+name.uppercased(with: Locale(identifier: "en_US_POSIX")),"START "+startGrid]
-            lines += rows.map { "LEG \($0.index): \($0.azimuth) \(configuration.referenceLetter) / back \($0.backAzimuth) - \($0.distance) - \($0.paces) paces -> \($0.destinationGrid)" }
+            lines += rows.flatMap { row -> [String] in
+                var text = ["LEG \(row.index): \(row.azimuth) \(configuration.referenceLetter) / back \(row.backAzimuth) - \(row.distance) - \(row.paces) paces -> \(row.destinationGrid)"]
+                if let limits = row.limits { text.append("  "+limits) }
+                return text
+            }
             lines += ["TOTAL \(totalDistance) - \(totalPaces) paces","Azimuth from leg start; back-azimuth from leg end.","North \(configuration.referenceLetter) - pace \(configuration.pacePer100m)/100 m - \(dtg)"]
             lines += notes
             return lines.joined(separator: "\n")
@@ -45,11 +50,12 @@ extension RouteCard {
         public var errorDescription: String? { if case let .invalid(message) = self { return message }; return nil }
     }
     public static func report(name: String,points: [GeoPoint],configuration: Configuration,
-                              generatedAt: Date = Date(),declination: (GeoPoint) -> Double?) throws -> Report {
+                              generatedAt: Date = Date(),legLimits: [String?] = [],declination: (GeoPoint) -> Double?) throws -> Report {
         guard (2...250_000).contains(points.count), points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }),
               (0...2).contains(configuration.northReference), (1...1000).contains(configuration.pacePer100m) else {
             throw Failure.invalid("Choose a route with 2-250,000 valid points and a pace count from 1-1,000 per 100 m.")
         }
+        guard legLimits.isEmpty || legLimits.count == points.count-1 else { throw Failure.invalid("Lane limits must match the route's legs") }
         var rows: [Row] = [], missingReference = false, unavailableGrid = false
         for index in 0..<(points.count-1) {
             try Task.checkCancellation()
@@ -60,7 +66,7 @@ extension RouteCard {
             }
             let grid = MGRS.parts(lat: points[index+1].lat,lon: points[index+1].lon,digits: 8)?.full
             if grid == nil { unavailableGrid = true }
-            rows.append(.init(index: index+1,azimuth: angle(leg.forward),backAzimuth: angle(leg.reverse),distance: Format.distance(meters: leg.distanceMeters,unit: configuration.units),paces: leg.paces,destinationGrid: grid ?? "UNAVAILABLE",distanceMeters: leg.distanceMeters))
+            rows.append(.init(index: index+1,azimuth: angle(leg.forward),backAzimuth: angle(leg.reverse),distance: Format.distance(meters: leg.distanceMeters,unit: configuration.units),paces: leg.paces,destinationGrid: grid ?? "UNAVAILABLE",distanceMeters: leg.distanceMeters,limits: legLimits.isEmpty ? nil : legLimits[index]))
         }
         let start = MGRS.parts(lat: points[0].lat,lon: points[0].lon,digits: 8)?.full
         var notes: [String] = []

@@ -229,3 +229,28 @@ watch Release build passes. These checks do not prove physical haptic feel,
 locked-screen notification delivery, battery or storage-pressure behavior.
 Lane record backups, route-card limits, watch synchronization and later Android
 cue switches remain implementation work.
+
+## Lane backup and route-card milestone
+
+The complete core suite now passes 347 tests and all 143 app integration tests
+pass. These include Android-compatible optional lane JSON/ZIP records, legacy
+archives without lanes, malformed sections, additive retries, existing-local-ID
+precedence, serial atomic lane publication, canceled confirmed restore and real
+filesystem failures before/after the lane phase. Route-card requests capture
+lane/target/graphic values; checkpoint limits override route limits, hidden
+lanes still apply and changed inputs invalidate prepared PDFs. An 84-leg PDF
+retains every table marker exactly once, repeats page headers, includes one
+final total and keeps every extracted character inside the page bounds.
+
+The clean `gridfix-lane-backup-native-final.xcresult` passes four native tests
+with zero failures/skips: the existing night-mode mixed-record backup round
+trip, hidden whole-route lane export/delete/restore/relaunch and route-card/PDF
+preview, plus both existing native PDF workflows. Files selection handles
+Browse reopening directly inside the local provider with virtualized filenames;
+no files were removed and count assertions remain intact. Actual PDFKit pages
+were rendered and the short, first, continuation and final-page layouts were
+visually inspected. Native night library, per-leg limit and PDF-preview
+screenshots were also inspected for readable text and controls. The unsigned
+phone/embedded-watch Release build passes.
+Watch lane synchronization, protected backups and later Android cue switches
+remain implementation work; this does not prove physical lock-screen delivery.
