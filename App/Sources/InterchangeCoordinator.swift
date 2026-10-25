@@ -58,6 +58,10 @@ enum InterchangeCoordinator {
 
 /// Bounds the read itself, including files whose provider reports no byte size.
 /// Coordination and parsing run off the UI thread. No persistence happens here.
+enum InterchangeFileReview: Sendable {
+    case interchange(InterchangePreview)
+    case backup(Backup.Document)
+}
 enum InterchangeFileReader {
     /// Keep provider coordination/security access alive while reading mapped ZIP
     /// pages, rather than returning a mapping after provider access is released.
@@ -73,25 +77,42 @@ enum InterchangeFileReader {
             guard bytes.count <= limit else { throw BackupError.notABackup("Backup container exceeds \(limit/(1024*1024)) MB") }
             if BackupCrypto.isSealed(bytes) {
                 guard let password else { throw BackupCrypto.Failure.passwordRequired }
-                let plain = try BackupCrypto.open(bytes,password: password)
-                try Task.checkCancellation()
-                return try Backup.importZip(plain)
+                switch try ProtectedFiles.open(bytes,password: password) {
+                case .backup(let plain): return try Backup.importZip(plain)
+                case .file: throw BackupError.notABackup("This is a protected export. Choose Import file to review it.")
+                }
             }
             return try Backup.importZip(bytes)
         }
     }
     /// Parse while coordinated access is still held. Mapping avoids duplicating
     /// a large archive container; decoded members are visited one at a time.
-    static func preview(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String]) throws -> InterchangePreview {
+    static func preview(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String],password: String? = nil) throws -> InterchangePreview {
+        switch try review(url,format: format,knownFolders: knownFolders,password: password) {
+        case .interchange(let preview): return preview
+        case .backup: throw BackupError.notABackup("This file is a GridFix backup. Use Import backup to restore it.")
+        }
+    }
+    static func review(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String],password: String? = nil) throws -> InterchangeFileReview {
         try coordinated(url) { source in
-            let limit = format?.byteLimit ?? TextInterchange.fileLimit(filename: url.lastPathComponent)
             let handle = try FileHandle(forReadingFrom: source)
             defer { try? handle.close() }
+            let head = try handle.read(upToCount: 12) ?? Data()
+            let sealed = BackupCrypto.isSealed(head)
+            let limit = sealed ? BackupCrypto.maximumSealedBytes : (format?.byteLimit ?? TextInterchange.fileLimit(filename: url.lastPathComponent))
             guard try handle.seekToEnd() <= UInt64(limit) else { throw BackupError.notABackup("File exceeds \(limit/(1024*1024)) MB") }
             try Task.checkCancellation()
             let bytes = try Data(contentsOf: source,options: .mappedIfSafe)
             guard bytes.count <= limit else { throw BackupError.notABackup("File exceeds \(limit/(1024*1024)) MB") }
-            return try TextInterchange.preview(bytes,format: format,filename: url.lastPathComponent,knownFolders: knownFolders)
+            if sealed {
+                guard let password else { throw BackupCrypto.Failure.passwordRequired }
+                switch try ProtectedFiles.open(bytes,password: password) {
+                case .backup(let archive): return .backup(try Backup.importZip(archive))
+                case let .file(name,data):
+                    return .interchange(try TextInterchange.preview(data,filename: name,knownFolders: knownFolders))
+                }
+            }
+            return .interchange(try TextInterchange.preview(bytes,format: format,filename: url.lastPathComponent,knownFolders: knownFolders))
         }
     }
     static func read(_ url: URL,limit: Int) throws -> Data {

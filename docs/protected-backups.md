@@ -110,3 +110,12 @@ The focused simulator bundle still reports one “Invalid frame dimension
 workflow completes and inspected screens remain readable; the warning remains
 an investigation item, not an asserted iOS limitation. Physical Android/iPhone
 provider transfers and storage-pressure checks remain open. This does not complete the broader parity/release goal.
+
+
+## Individual protected exports
+
+The sibling [protected interchange workflow](protected-interchange-files.md) now
+wraps a single GPX/CSV/GeoJSON/KML/KMZ/ATAK file in the same envelope. Incoming
+review distinguishes it from a backup after authentication, retains the queue
+and requires the appropriate Import/Restore confirmation. The backup contract,
+settings scope and original backup import path stay unchanged.

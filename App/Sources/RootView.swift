@@ -23,10 +23,8 @@ struct RootView: View {
     @State private var incomingQueue: [URL] = []
     @State private var importRequest: TextImportRequest?
     @State private var importStatus: String?
+    @State private var seededIncomingTest = false
     @State private var showingPractice = false
-    @StateObject private var incomingBackup = BackupTransfer()
-    @State private var backupPasswordRequest: BackupPasswordRequest?
-    @State private var pendingBackup: (URL,String)?
 
     init() {
         // The standalone screenshot script picks a tab with a launch argument;
@@ -60,21 +58,18 @@ struct RootView: View {
             if let url = incomingFile {
                 HStack {
                     Button {
-                        if url.pathExtension.lowercased() == "mgrsgps" { backupPasswordRequest = .init(url: url) }
-                        else { importRequest = TextImportRequest(url: url) }
+                        importRequest = TextImportRequest(url: url)
                     } label: { Label("Review " + url.lastPathComponent,systemImage: "doc.badge.plus").lineLimit(1).frame(minHeight: 44) }
                     Spacer()
                     Button("Dismiss") { advanceIncomingFile() }.font(.caption)
-                }.padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner").disabled(incomingBackup.phase != nil)
-            }
-            if let phase = incomingBackup.phase {
-                HStack {
-                    ProgressView(); Text(phase.title).font(.caption)
-                    if phase != .restoring { Button("Cancel") { incomingBackup.cancel() } }
-                }.padding(.horizontal,16)
+                }.foregroundStyle(FieldPalette(night: settings.nightMode).ink).padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner")
             }
             if let importStatus {
-                HStack { Text(importStatus).font(.caption); Spacer(); Button("Done") { self.importStatus = nil } }.padding(.horizontal,16)
+                HStack {
+                    ScrollView { Text(importStatus).font(.caption).foregroundStyle(FieldPalette(night: settings.nightMode).ink).frame(maxWidth: .infinity,alignment: .leading).accessibilityIdentifier("incoming-import-status") }
+                        .frame(maxHeight: 88)
+                    Button("Done") { self.importStatus = nil }.frame(minWidth: 44,minHeight: 44).tint(FieldPalette(night: settings.nightMode).accent)
+                }.padding(.horizontal,16)
             }
             RecordingBanner(onOpen: { showingRecorder = true }).zIndex(1)
             if boundaries.running {
@@ -131,28 +126,21 @@ struct RootView: View {
         }
         .onOpenURL { url in
             if url.isFileURL {
-                if incomingFile == nil {incomingFile=url;importStatus=nil}
+                if incomingFile == nil {incomingFile=url}
                 else {incomingQueue.append(url)}
             }
             else if url.scheme == "gridfix",url.host == "recording" { showingRecorder = true }
             else if url.scheme == "gridfix",url.host == "navigation" { selection = 1 }
         }
-        .sheet(item: $backupPasswordRequest,onDismiss: {
-            guard let (url,password) = pendingBackup else { return }
-            pendingBackup = nil
-            incomingBackup.restore(url,password: password,apply: { document in
-                await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes)
-            },completion: { message in importStatus = message; if incomingFile == url && (message.hasPrefix("Restored") || message == "Nothing new to restore") { advanceIncomingFile() } })
-        }) { request in
-            BackupPasswordSheet(exporting: false) { password in
-                if let url = request.url { pendingBackup = (url,password) }
-                backupPasswordRequest = nil
-            }
-        }
         .sheet(item: $importRequest) { request in
-            InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name)) { document in
+            InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name),onRestoreBackup: { document in
+                let message = await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes)
+                reportIncoming(message)
+                if incomingFile == request.url && (message.hasPrefix("Restored") || message == "Nothing new to restore") { advanceIncomingFile() }
+                return message
+            }) { document in
                 let result = try await InterchangeCoordinator.apply(document,waypoints: waypointStore,field: fieldStore)
-                importStatus = result.message
+                reportIncoming(result.message)
                 if result.completed && incomingFile == request.url { advanceIncomingFile() }
                 return result
             }.id(request.id)
@@ -160,7 +148,11 @@ struct RootView: View {
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)
-        .onAppear { updateCompassDemand(); practice.setForeground(scenePhase == .active); location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
+        .onAppear {
+            #if DEBUG
+            seedIncomingTestFiles()
+            #endif
+            updateCompassDemand(); practice.setForeground(scenePhase == .active); location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
         .onChange(of: selection) { _ in updateCompassDemand() }
         .onChange(of: settings.face) { _ in updateCompassDemand() }
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
@@ -178,6 +170,32 @@ struct RootView: View {
             location.refreshFixValidity(); boundaries.refresh(); practice.receive(location.usableFix)
         }
     }
+    private func reportIncoming(_ message: String) {
+        importStatus = importStatus.map { $0 + "\n" + message } ?? message
+    }
+    #if DEBUG
+    private func seedIncomingTestFiles() {
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("-uiTesting"),args.contains("-uiTestProtectedIncoming"),!args.contains("-keepUITestData"),!seededIncomingTest else { return }
+        seededIncomingTest = true
+        Task {
+            do {
+                let urls = try await Task.detached(priority: .userInitiated) {
+                    let root = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests")
+                    var backup = Backup.Document(); backup.hasSettings = false
+                    backup.waypoints = [.init(id: "incoming-test-backup-point",name: "Protected backup point",lat: 35.1,lon: -79)]
+                    let first = root.appendingPathComponent("incoming-backup.mgrsgps"), second = root.appendingPathComponent("incoming-file.mgrsgps")
+                    try BackupCrypto.seal(Backup.exportZip(backup),password: "fixture password").write(to: first)
+                    let gpx = GPX.build(waypoints: [.init(name: "Protected queued point",lat: 35.2,lon: -79.1)],tracks: [])
+                    try ProtectedFiles.seal(name: "queued.gpx",bytes: Data(gpx.utf8),password: "fixture password").write(to: second)
+                    return [first,second]
+                }.value
+                incomingFile = urls[0]; incomingQueue = [urls[1]]
+            } catch { importStatus = "Incoming test fixture failed: " + error.localizedDescription }
+        }
+    }
+    #endif
+
     private func advanceIncomingFile() {
         incomingFile = incomingQueue.isEmpty ? nil : incomingQueue.removeFirst()
     }

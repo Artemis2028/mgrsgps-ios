@@ -24,7 +24,7 @@ day/night native loop/confirmation/hide/delete/relaunch workflows are recorded i
 [map lasso](map-lasso.md). Physical gesture/large-text/dense-library validation
 remains. Mixed library selection continues as a separate workflow.
 
-## Protected interchange files are missing
+## Protected interchange files implemented after this audit
 
 Android `data/ProtectedFiles.kt` wraps one GPX/KML/other export in a single-entry
 ZIP, then uses the same `MGRSGPS-ENC1` envelope as a protected backup. The inner
@@ -33,14 +33,14 @@ rejects a payload larger than the reader permits and removes the temporary
 plaintext file even when sealing fails. An export recreated after Android loses
 its password on process death fails visibly and removes its empty destination.
 
-Current iOS `BackupTransfer` protects backup ZIPs only. The native interchange
-export actions have no equivalent protected-file choice, and protected incoming
-files enter the backup reader rather than a single-file interchange decoder.
-Add the single-entry contract, bounded authenticated decoding and format dispatch,
-protected export options, password/retry/cancel handling and queued incoming-file
-review. Keep plaintext preparation in memory, as existing protected backup export
-does. Do not persist a password or imply that the current backup-only tests prove
-this workflow. Cross-language fixtures and actual Files round trips are needed.
+The iOS port now implements the single-file contract, authenticated bounded
+format dispatch, all six export choices, protected saved-track GPX and
+password/retry/cancel handling through queued incoming review. Plaintext stays
+in memory and only encrypted bytes reach Files. The explicit backup importer
+remains distinct. Independent Java fixtures and reverse-direction verification
+cover all six formats; actual GPX/KML Files save/reopen and the existing protected
+backup workflow pass. See [implementation/evidence](protected-interchange-files.md)
+for native confirmation, queue and remaining physical-provider checks.
 
 ## Offline view-lifetime fix already has the relevant ownership
 

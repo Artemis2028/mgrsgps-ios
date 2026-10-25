@@ -229,3 +229,13 @@ local-only highlights, explicit Hide, confirmed Delete, draw-mode exclusion and
 worker-staged partial retry. See [implementation and evidence](map-lasso.md).
 Protected single-file interchange remains missing; protected backups do not
 cover that contract. The leave-map offline-completion regression remains open.
+
+
+### Protected interchange implementation follow-up
+
+Protected single-file exports/imports now cover all six native interchange
+formats and selected-track GPX, with the Android ZIP/envelope and 16 MiB payload
+limit. Password retries and review/confirmation keep library mutations gated;
+incoming results accumulate and protected backup/file reviews stay queued.
+See [implementation and evidence](protected-interchange-files.md). The separate
+leave-map offline-completion regression and physical provider checks remain open.

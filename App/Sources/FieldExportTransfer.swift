@@ -16,6 +16,11 @@ struct PreparedFieldExport: Sendable {
     let data: Data
     let format: TextInterchangeFormat
     let filename: String
+    var protected = false
+    var completeFilename: String {
+        let ext = format == .atak ? "zip" : format.rawValue
+        return filename + "." + ext
+    }
 }
 
 enum FieldExportPreparation {
@@ -62,6 +67,15 @@ enum FieldExportPreparation {
         try Task.checkCancellation()
         return .init(data: data,format: request.format,filename: filename)
     }
+
+    static func protect(_ prepared: PreparedFieldExport,password: String) async throws -> PreparedFieldExport {
+        let worker = Task.detached(priority: .userInitiated) {
+            let sealed = try ProtectedFiles.seal(name: prepared.completeFilename,bytes: prepared.data,password: password)
+            try Task.checkCancellation()
+            return PreparedFieldExport(data: sealed,format: prepared.format,filename: prepared.completeFilename+".mgrsgps",protected: true)
+        }
+        return try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+    }
 }
 
 @MainActor
@@ -74,13 +88,18 @@ final class FieldExportTransfer: ObservableObject {
     init(writer: @escaping Writer = { try await FieldExportPreparation.prepare($0) }) { self.writer = writer }
 
     @discardableResult
-    func start(_ request: FieldExportRequest,completion: @escaping (Result<PreparedFieldExport,Error>) -> Void) -> Bool {
+    func start(_ request: FieldExportRequest,password: String? = nil,completion: @escaping (Result<PreparedFieldExport,Error>) -> Void) -> Bool {
         guard format == nil else { return false }
         let token = UUID(), writer = writer
         generation = token; format = request.format
         work = Task {
             let result: Result<PreparedFieldExport,Error>
-            do { result = .success(try await writer(request)) }
+            do {
+                let plain = try await writer(request)
+                try Task.checkCancellation()
+                if let password { result = .success(try await FieldExportPreparation.protect(plain,password: password)) }
+                else { result = .success(plain) }
+            }
             catch { result = .failure(error) }
             guard generation == token,!Task.isCancelled else { return }
             work = nil; format = nil

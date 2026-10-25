@@ -12,6 +12,9 @@ struct FieldExportDocumentFile: FileDocument {
         self.data = data; self.contentType = contentType; self.filename = filename
     }
     init(_ prepared: PreparedFieldExport) {
+        if prepared.protected {
+            self.init(data: prepared.data,contentType: .gridFixProtectedBackup,filename: prepared.filename); return
+        }
         let type: UTType
         switch prepared.format {
         case .gpx: type = .gridFixGPX

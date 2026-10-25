@@ -304,6 +304,8 @@ struct TrackDetailView: View {
     @StateObject private var mutation = FieldMutation()
     @State private var export: FieldExportDocumentFile?
     @StateObject private var exportTransfer = FieldExportTransfer()
+    @State private var showingProtectedExport = false
+    @State private var protectedPassword: String?
     @State private var confirmingDelete = false
     @State private var backtracking = false
     @State private var backtrackWork: Task<Void,Never>?
@@ -318,16 +320,9 @@ struct TrackDetailView: View {
                 Toggle("Visible on map", isOn: Binding(get: { self.track?.visible ?? false }, set: { visible in
                     mutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(trackID,visible),to: fieldData) })
                 }))
-                Button("Export GPX") {
-                    guard let current = fieldData.document.tracks.first(where: { $0.id == trackID }), export == nil else { return }
-                    status = nil
-                    exportTransfer.start(.track(current,fieldData.document.trackFiles[trackID] ?? Data())) { result in
-                        switch result {
-                        case .success(let prepared): export = FieldExportDocumentFile(prepared)
-                        case .failure(let error): status = "Export failed: " + error.localizedDescription
-                        }
-                    }
-                }
+                Button("Export GPX") { prepareExport() }
+                Button("Export protected GPX") { showingProtectedExport = true }
+                    .accessibilityIdentifier("track-protected-export")
                 Button(backtracking ? "Building backtrack…" : "Create backtrack route") {
                     backtracking = true
                     backtrackWork = Task {
@@ -369,10 +364,27 @@ struct TrackDetailView: View {
             Button("Delete",role: .destructive) { mutation.run("Deleting track…",action: { try await FieldEditAction.apply(.deleteTrack(trackID),to: fieldData) },completion: { if $0 { dismiss() } }) }
             Button("Cancel",role: .cancel) {}
         } message: { Text("The finished track and its saved point log will be removed.") }
+        .sheet(isPresented: $showingProtectedExport,onDismiss: {
+            guard let password = protectedPassword else { return }; protectedPassword = nil
+            prepareExport(password: password)
+        }) {
+            BackupPasswordSheet(exporting: true,interchange: true) { password in
+                protectedPassword = password; showingProtectedExport = false
+            }
+        }
         .fileExporter(isPresented: Binding(get: { export != nil }, set: { if !$0 { export = nil } }), document: export,
-                      contentType: .gridFixGPX, defaultFilename: export?.filename ?? "track") { result in
+                      contentType: export?.contentType ?? .gridFixGPX, defaultFilename: export?.filename ?? "track") { result in
             if case let .failure(error) = result { status = error.localizedDescription }
             export = nil
+        }
+    }
+    private func prepareExport(password: String? = nil) {
+        guard let current = track,export == nil else { return }; status = nil
+        exportTransfer.start(.track(current,fieldData.document.trackFiles[trackID] ?? Data()),password: password) { result in
+            switch result {
+            case .success(let prepared): export = FieldExportDocumentFile(prepared)
+            case .failure(let error): status = "Export failed: " + error.localizedDescription
+            }
         }
     }
     private func perform(_ action: () throws -> Void) { do { try action() } catch { status = error.localizedDescription } }

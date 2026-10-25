@@ -18,7 +18,7 @@ final class FieldExportWorkflowTests: XCTestCase {
         saveNativeFile(in: app)
         if fromDetails {
             let done = app.navigationBars["Recon track"].buttons["Done"]
-            XCTAssertTrue(done.waitForExistence(timeout: 10)); done.tap()
+            XCTAssertTrue(done.waitForExistence(timeout: 10)); tapNativeMenuItem(done)
         }
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["import-field-file"])

@@ -44,6 +44,9 @@ struct WaypointsView: View {
     @State private var showingLibrary = false
     @State private var showingLanes = false
     @State private var pendingLane: LaneMapAction?
+    @State private var choosingProtectedFormat = false
+    @State private var protectedFormat: TextInterchangeFormat?
+    @State private var pendingProtectedExport: (FieldExportRequest,String)?
     @State private var textImport: TextImportRequest?
     @State private var exportFile: FieldExportDocumentFile?
     @State private var showingImporter = false
@@ -195,10 +198,25 @@ struct WaypointsView: View {
             Button("Export KML") { exportOther(.kml) }.disabled(exportUnavailable)
             Button("Export KMZ") { exportOther(.kmz) }.disabled(exportUnavailable)
             Button("Export ATAK package") { exportOther(.atak) }.disabled(exportUnavailable)
+            Button("Export protected file…") { choosingProtectedFormat = true }.disabled(exportUnavailable)
         }
-        .sheet(item: $backupPasswordRequest,onDismiss: finishProtectedBackup) { request in
-            BackupPasswordSheet(exporting: request.url == nil) { password in
-                pendingProtectedBackup = (request.url,password); backupPasswordRequest = nil
+        .sheet(isPresented: $choosingProtectedFormat,onDismiss: {
+            guard let format = protectedFormat else { return }; protectedFormat = nil
+            backupPasswordRequest = .init(url: nil,exportRequest: .library(format,store.waypoints,fieldData.document))
+        }) {
+            FieldChoiceSheet(title: "Protect export",choices: TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Protect " + $0.label) },night: settings.nightMode) { id in
+                protectedFormat = TextInterchangeFormat(rawValue: id); choosingProtectedFormat = false
+            }
+        }
+        .sheet(item: $backupPasswordRequest,onDismiss: {
+            if let (request,password) = pendingProtectedExport {
+                pendingProtectedExport = nil; prepareExport(request,password: password)
+            } else { finishProtectedBackup() }
+        }) { request in
+            BackupPasswordSheet(exporting: request.url == nil,interchange: request.exportRequest != nil) { password in
+                if let export = request.exportRequest { pendingProtectedExport = (export,password) }
+                else { pendingProtectedBackup = (request.url,password) }
+                backupPasswordRequest = nil
             }
         }
         .sheet(item: $folderRequest) { request in
@@ -240,7 +258,10 @@ struct WaypointsView: View {
             FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() },onShowMap: { showingLibrary = false; onShowMap() })
         }
         .sheet(item: $textImport) { request in
-            InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name)) { document in
+            InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name),onRestoreBackup: { document in
+                let message = await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
+                status = message; return message
+            }) { document in
                 let result = try await InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
                 status = result.message
                 return result
@@ -259,7 +280,7 @@ struct WaypointsView: View {
             exportFile = nil
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip,.gridFixProtectedBackup,.data] : [.gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip,.gridFixProtectedBackup,.data] : [.gridFixProtectedBackup, .gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
@@ -663,8 +684,8 @@ struct WaypointsView: View {
         searchFocused = false; status = nil
         prepareExport(.library(format,store.waypoints,fieldData.document))
     }
-    private func prepareExport(_ request: FieldExportRequest) {
-        fieldExport.start(request) { result in
+    private func prepareExport(_ request: FieldExportRequest,password: String? = nil) {
+        fieldExport.start(request,password: password) { result in
             switch result {
             case .success(let prepared): exportFile = FieldExportDocumentFile(prepared); status = prepared.format.label + " ready"
             case .failure(let error): status = "Export failed: " + error.localizedDescription
@@ -702,7 +723,7 @@ struct WaypointsView: View {
                     .init(id: "backtrack",title: backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route",
                           accessibilityIdentifier: "backtrack-track-"+track.name,enabled: backtrackingID == nil && track.pointCount >= 2),
                     .init(id: "visibility",title: track.visible ? "Hide on map" : "Make visible on map"),
-                    .init(id: "export",title: "Export GPX",enabled: !exportUnavailable),.init(id: "delete",title: "Delete",destructive: true)]
+                    .init(id: "export",title: "Export GPX",enabled: !exportUnavailable),.init(id: "export-protected",title: "Export protected GPX",enabled: !exportUnavailable),.init(id: "delete",title: "Delete",destructive: true)]
         return choices
     }
     private func runTrackAction() {
@@ -716,6 +737,9 @@ struct WaypointsView: View {
         case "move": movingTrack = track
         case "backtrack": if backtrackingID == nil && track.pointCount >= 2 { backtrack(track) }
         case "visibility": fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(track.id,!track.visible),to: fieldData) })
+        case "export-protected":
+            guard !exportUnavailable else { return }
+            backupPasswordRequest = .init(url: nil,exportRequest: .track(track,fieldData.document.trackFiles[track.id] ?? Data()))
         case "export":
             guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
             searchFocused = false; status = nil

@@ -62,7 +62,7 @@ targets:
         GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: app.gridfix.protected-backup
-            UTTypeDescription: Protected GridFix backup
+            UTTypeDescription: Protected GridFix file
             UTTypeConformsTo:
               - public.data
             UTTypeTagSpecification:
