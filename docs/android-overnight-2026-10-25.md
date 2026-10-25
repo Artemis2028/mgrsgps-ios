@@ -220,3 +220,12 @@ completion-after-leaving regression is still needed. See the concrete
 [review follow-ups](android-review-followups.md). Live TAK is now implemented and
 locally validated in both directions as described in its current evidence doc;
 the earlier paragraphs above record historical audit states.
+
+
+### Lasso implementation follow-up
+
+Map lasso is now implemented with Android even-odd/visible-vertex selection,
+local-only highlights, explicit Hide, confirmed Delete, draw-mode exclusion and
+worker-staged partial retry. See [implementation and evidence](map-lasso.md).
+Protected single-file interchange remains missing; protected backups do not
+cover that contract. The leave-map offline-completion regression remains open.

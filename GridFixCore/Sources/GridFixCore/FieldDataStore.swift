@@ -95,6 +95,9 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         case let .libraryBatch(graphicIDs,trackIDs,action):
             guard !graphicIDs.isEmpty || !trackIDs.isEmpty else { return nil }
             switch action {
+            case .hide:
+                for i in next.graphics.indices where graphicIDs.contains(next.graphics[i].id) { next.graphics[i].visible = false }
+                for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible = false }
             case .swapVisibility:
                 for i in next.graphics.indices where graphicIDs.contains(next.graphics[i].id) { next.graphics[i].visible.toggle() }
                 for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible.toggle() }

@@ -19,6 +19,14 @@ struct MapScreen: View {
     var onNavigate: () -> Void = {}
     var onOpenCourse: () -> Void = {}
     var onOrientation: () -> Void = {}
+    @State private var lassoActive = false
+    @State private var lassoSelection: LibrarySelection?
+    @State private var lassoVisibleRequest: UUID?
+    @State private var lassoFinishRequest: UUID?
+    @State private var lassoVertices = 0
+    @State private var lassoDelete = false
+    @State private var lassoError: String?
+    @StateObject private var lassoMutation = FieldMutation()
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
     @State private var overlayTracks = 0
@@ -66,7 +74,7 @@ struct MapScreen: View {
         var active: Set<String> = []
         if boundaryDraft != nil || graphicDraft != nil || laneDraft != nil { active.insert("draw") }
         if rulerAnchor != nil { active.insert("ruler") }
-        if measuringArea || terrain.viewshed != nil { active.insert("tools") }
+        if lassoActive || measuringArea || terrain.viewshed != nil { active.insert("tools") }
         if recorder.phase != .idle || recorder.failure != nil || recorder.hasRecoveryNotice { active.insert("record") }
         return active
     }
@@ -91,6 +99,9 @@ struct MapScreen: View {
     var body: some View {
         ZStack {
             MapContainer(mapStore: maps, nightMode: chromeNight, fix: location.usableFix,
+                         lassoActive: lassoActive,lassoSelection: lassoSelection,lassoVisibleRequest: lassoVisibleRequest,
+                         lassoFinishRequest: lassoFinishRequest,onLassoVertices: { lassoVertices = $0 },
+                         onLassoSelect: { lassoSelection = $0; lassoError = nil },
                          waypoints: visible, laneWaypoints:store.waypoints, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders, lanes: lanes.lanes, laneDraft: liveLaneDraft,
                          recordingPoints: recorder.active?.livePoints ?? [],
@@ -171,6 +182,7 @@ struct MapScreen: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if lassoActive { lassoControls }
                 if let anchor = rulerAnchor {
                     MapRulerCard(anchor: anchor,target: rulerTarget,reset: { rulerAnchor = rulerTarget },close: { rulerAnchor = nil })
                 }
@@ -205,7 +217,7 @@ struct MapScreen: View {
                             })
                         },cancel: { graphicDraft = nil; graphicError = nil; measuringArea = false })
                 }
-                if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+                if let waypoint = selected, !lassoActive, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
                     selectedCard(waypoint)
                 }
                 if let shade = terrain.viewshed, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
@@ -247,7 +259,7 @@ struct MapScreen: View {
                     .accessibilityLabel("Add waypoint at map centre")
                 } }
             }
-            .disabled(graphicMutation.working)
+            .disabled(graphicMutation.working || lassoMutation.working)
             .padding(.horizontal, 16).padding(.top, 8)
             // The edge-to-edge UIKit map extends beneath the custom field bar.
             // Reserve its control row explicitly for the overlaid map actions.
@@ -257,10 +269,17 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
-        .onAppear { graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
+        .onAppear { lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
         .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
         .onChange(of: graphicMutation.working) { busy in if !busy { receiveLaneRequest() } }
-        .onDisappear { graphicMutation.setPresented(false) }
+        .onDisappear { lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
+        .onChange(of: graphicDraft?.graphic.id) { value in if value != nil { endLasso() } }
+        .onChange(of: boundaryDraft?.id) { value in if value != nil { endLasso() } }
+        .onChange(of: laneDraft?.lane.id) { value in if value != nil { endLasso() } }
+        .alert("Delete selected map items?",isPresented: $lassoDelete) {
+            Button("Delete selected",role: .destructive) { applyLasso(.delete) }
+            Button("Cancel",role: .cancel) { }
+        } message: { Text("Delete \(lassoSelection?.count ?? 0) saved waypoints and graphics? This cannot be undone.") }
         .onChange(of: maps.focusRequest?.id) { _ in if let request = maps.focusRequest { cameraRequest = request } }
         .onChange(of: terrain.viewshed?.id) { _ in
             if let shade = terrain.viewshed {
@@ -355,6 +374,42 @@ struct MapScreen: View {
                 selectedID = waypoint.id
             }
         }
+    }
+
+    private func endLasso() { lassoActive = false; lassoSelection = nil; lassoError = nil; lassoVisibleRequest = nil; lassoFinishRequest = nil; lassoVertices = 0 }
+    private func applyLasso(_ action: LibraryBatchAction) {
+        guard let selection = lassoSelection,selection.count > 0 else { return }
+        lassoError = nil
+        lassoMutation.run(action == .delete ? "Deleting selected items…" : "Hiding selected items…",action: {
+            let result = await MapLassoAction.apply(selection,action: action,waypoints: store,field: fieldData)
+            if let error = result.error {
+                lassoSelection = result.remaining
+                lassoError = "\(result.completed) items updated. Retry the remaining items. \(error)"
+            } else { endLasso() }
+        })
+    }
+    private var lassoControls: some View {
+        VStack(alignment: .leading,spacing: 8) {
+            Text(lassoSelection.map { "Lasso · \($0.waypoints.count) waypoints · \($0.graphics.count) \($0.graphics.count == 1 ? "graphic" : "graphics")" } ?? "Lasso · drag a loop, or tap its corners")
+                .font(.subheadline.weight(.semibold)).accessibilityIdentifier("lasso-summary")
+            if let label = lassoMutation.label { ProgressView(label).tint(palette.accent) }
+            if let error = lassoError { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("lasso-error") }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { lassoActions }
+                VStack(alignment: .leading,spacing: 4) { lassoActions }
+            }.buttonStyle(LassoActionStyle())
+        }.padding(12).fieldChrome()
+    }
+    @ViewBuilder private var lassoActions: some View {
+        if lassoSelection != nil {
+            Button("Hide") { applyLasso(.hide) }.disabled(lassoSelection?.count == 0).accessibilityIdentifier("lasso-hide")
+            Button("Delete",role: .destructive) { lassoDelete = true }.disabled(lassoSelection?.count == 0).accessibilityIdentifier("lasso-delete")
+            Button("Again") { lassoSelection = nil; lassoError = nil; lassoVertices = 0 }.accessibilityIdentifier("lasso-again")
+        } else {
+            Button("Select loop") { lassoFinishRequest = UUID() }.disabled(lassoVertices < 3).accessibilityIdentifier("lasso-select-loop")
+            Button("Select visible") { lassoVisibleRequest = UUID() }.accessibilityIdentifier("lasso-select-visible")
+        }
+        Button("Close") { endLasso() }.accessibilityIdentifier("lasso-close")
     }
 
     @ViewBuilder private var mapToolButtons: some View {
@@ -464,7 +519,12 @@ struct MapScreen: View {
     private func runPendingTool() {
         guard let tool = pendingTool else { return }
         pendingTool = nil
+        if tool != .lasso { endLasso() }
         switch tool {
+        case .lasso:
+            guard boundaryDraft == nil && graphicDraft == nil && laneDraft == nil else { return }
+            selectedID = nil; rulerAnchor = nil; measuringArea = false
+            lassoSelection = nil; lassoError = nil; lassoActive = true
         case .distance:
             rulerAnchor = GeoPoint(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil
         case .area:
@@ -523,10 +583,24 @@ struct MapCameraRequest {
     let action: Action
 }
 
+private struct LassoActionStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.padding(.horizontal,4).frame(minWidth: 44,minHeight: 44)
+            .contentShape(Rectangle()).opacity(enabled ? (configuration.isPressed ? 0.6 : 1) : 0.4)
+    }
+}
+
 private struct MapContainer: UIViewRepresentable {
     let mapStore: MapLayerStore
     let nightMode: Bool
     let fix: Fix?
+    let lassoActive: Bool
+    let lassoSelection: LibrarySelection?
+    let lassoVisibleRequest: UUID?
+    let lassoFinishRequest: UUID?
+    let onLassoVertices: (Int) -> Void
+    let onLassoSelect: (LibrarySelection) -> Void
     let waypoints: [Waypoint]
     let laneWaypoints:[Waypoint]
     let navigationID: String?
@@ -590,6 +664,9 @@ private struct MapContainer: UIViewRepresentable {
         let tactical = context.coordinator.tactical
         tactical.map = view; tactical.frame = view.bounds; tactical.autoresizingMask = [.flexibleWidth,.flexibleHeight]
         view.addSubview(tactical)
+        let lasso = context.coordinator.lasso
+        lasso.map = view; lasso.frame = view.bounds; lasso.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(lasso)
         let crosshair = context.coordinator.crosshair
         crosshair.translatesAutoresizingMaskIntoConstraints = false
         crosshair.isUserInteractionEnabled = false; crosshair.accessibilityElementsHidden = true
@@ -604,6 +681,12 @@ private struct MapContainer: UIViewRepresentable {
     func updateUIView(_ view: MLNMapView, context: Context) {
         let coordinator = context.coordinator
         coordinator.maps = mapStore
+        coordinator.lassoActive = lassoActive
+        view.isScrollEnabled = !lassoActive; view.isZoomEnabled = !lassoActive; view.isRotateEnabled = !lassoActive
+        coordinator.lasso.waypoints = waypoints; coordinator.lasso.graphics = document.graphics; coordinator.lasso.folders = folders
+        coordinator.lasso.onSelect = onLassoSelect; coordinator.lasso.onVertexCount = onLassoVertices
+        coordinator.lasso.update(active: lassoActive,selection: lassoSelection,night: nightMode,selectVisibleRequest: lassoVisibleRequest,finishLoopRequest: lassoFinishRequest)
+        view.bringSubviewToFront(coordinator.lasso)
         // Keep a new vertex at the crosshair draggable even when it is exactly
         // at the GPS fix. The position marker returns when editing ends.
         let editing = boundaryEditing || graphicDraft != nil
@@ -644,6 +727,7 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
         coordinator.raiseAnnotations(in: view)
+        view.bringSubviewToFront(coordinator.lasso)
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
             switch request.action {
@@ -691,6 +775,8 @@ private struct MapContainer: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate, UIGestureRecognizerDelegate {
+        let lasso = MapLassoOverlay(frame: .zero)
+        var lassoActive = false
         let crosshair = UIImageView(image: UIImage(systemName: "plus",withConfiguration: UIImage.SymbolConfiguration(pointSize: 22,weight: .light)))
         let overlay = GridOverlay()
         let fieldOverlay = FieldOverlay()
@@ -726,7 +812,7 @@ private struct MapContainer: UIViewRepresentable {
         var onBoundaryInsert: ((Int,GeoPoint) -> Void)?
         var onBoundaryMove: ((Int,GeoPoint) -> Void)?
         @objc func boundaryTap(_ gesture: UITapGestureRecognizer) {
-            guard gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            guard !lassoActive, gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
             if rulerActive {
                 let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
                 onRulerAnchor?(.init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude))); return
@@ -791,6 +877,7 @@ private struct MapContainer: UIViewRepresentable {
             }
         }
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if lassoActive { return false }
             guard gestureRecognizer === lineHold, let map = gestureRecognizer.view as? MLNMapView else { return true }
             return lineSegment(at: gestureRecognizer.location(in: map),in: map) != nil
         }
@@ -923,7 +1010,7 @@ private struct MapContainer: UIViewRepresentable {
             map.bringSubviewToFront(crosshair)
         }
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            remote.setNeedsDisplay(); tactical.setNeedsDisplay()
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.setNeedsDisplay()
             if rulerActive {
                 let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
                 DispatchQueue.main.async { [weak self] in if self?.rulerActive == true { self?.onRulerTarget?(point) } }
@@ -932,7 +1019,8 @@ private struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
 
         private func redraw(_ map: MLNMapView) {
-            remote.setNeedsDisplay(); tactical.setNeedsDisplay(); raiseAnnotations(in: map)
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.setNeedsDisplay(); raiseAnnotations(in: map)
+            if lassoActive { map.bringSubviewToFront(lasso) }
             if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
             if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }
             overlay.refresh(bounds: map.visibleCoordinateBounds,

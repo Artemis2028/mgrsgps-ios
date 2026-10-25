@@ -1,11 +1,13 @@
 import SwiftUI
 
 enum MapToolChoice: String, CaseIterable, Identifiable {
+    case lasso = "map-lasso"
     case distance = "measure-distance", area = "measure-area", resection = "field-resection", intersection = "field-intersection"
     case sunMoon = "field-sunmoon", declination = "field-declination", sight = "field-los", course = "field-course", orientation = "field-orientation"
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .lasso: return "Lasso select"
         case .distance: return "Distance ruler"
         case .area: return "Measure area"
         case .resection: return "Resection"

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LibraryBatchAction: Equatable, Sendable { case swapVisibility, delete }
+public enum LibraryBatchAction: Equatable, Sendable { case swapVisibility, hide, delete }
 
 public struct LibrarySelection: Equatable, Sendable {
     public var waypoints: Set<String> = []

@@ -4,7 +4,7 @@ Source rechecked 25 October 2026 against Android `eacf084`, now included in the
 `claude/tak` checkout at `38d0170`. This narrows the previous vague
 “offline/lasso/protected-file audit” backlog into concrete work.
 
-## Lasso is missing
+## Lasso implemented after this audit
 
 Android `map/Lasso.kt` and `ui/screens/MapScreen.kt` implement a freehand,
 automatically closed screen-space loop, using the even-odd containment rule.
@@ -15,12 +15,14 @@ and graphic vertices are highlighted. The controls offer Hide, confirmed Delete,
 Again and Close. Choosing a draw type ends the lasso. The reviewed Hide action
 sets visibility false rather than toggling, including after concurrent changes.
 
-There is no lasso implementation in the current iOS map. Mixed library selection
-is implemented, but does not satisfy this map workflow. Add the draw interaction,
-selection feedback, explicit idempotent hide, confirmed deletion and drawing-mode
-exclusion. Test geometric cases, hidden-folder filtering, remote exclusion,
-concurrent visibility changes, partial repository failures and native day/night
-interaction. This is an implementation gap.
+The iOS implementation now provides the freehand loop, native map projection,
+selection feedback, explicit idempotent Hide and confirmed Delete. Tap corners /
+Select loop and Select visible offer accessible alternatives. Worker-staged
+repository phases retain only unfinished IDs on failure. Drawing modes end the
+lasso. Core, native projection/pan and filesystem tests cover the cases above;
+day/night native loop/confirmation/hide/delete/relaunch workflows are recorded in
+[map lasso](map-lasso.md). Physical gesture/large-text/dense-library validation
+remains. Mixed library selection continues as a separate workflow.
 
 ## Protected interchange files are missing
 

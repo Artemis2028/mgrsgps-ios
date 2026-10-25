@@ -69,6 +69,18 @@ struct MGRSGPSApp: App {
             }
         }
         #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestLasso") {
+            if ProcessInfo.processInfo.arguments.contains("-uiTestLassoNight") { settingsStore.nightMode = true }
+            if !ProcessInfo.processInfo.arguments.contains("-keepUITestData") {
+                _ = waypointStore.add(.init(name: "Lasso Alpha",lat: 24.4539,lon: 54.3773))
+                _ = waypointStore.add(.init(name: "Lasso Bravo",lat: 24.4538,lon: 54.3774))
+                _ = waypointStore.add(.init(name: "Lasso hidden folder",lat: 24.4539,lon: 54.3773,folder: "Hidden"))
+                try? waypointStore.setLibraryFolderVisible("Hidden",visible: false)
+                try? fieldStore.saveGraphic(.init(id: "lasso-line",name: "Lasso line",type: "phase_line",points: [.init(lat: 24.4538,lon: 54.3772),.init(lat: 24.4540,lon: 54.3774)]))
+            }
+        }
+        #endif
         let takSession = TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], waypoints: waypointStore, field: fieldStore)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKPreview") { takSession.seedMapPreview() }

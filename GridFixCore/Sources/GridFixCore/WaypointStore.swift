@@ -118,6 +118,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         var next = waypoints
         switch action {
+        case .hide: for i in next.indices where ids.contains(next[i].id) { next[i].visible = false }
         case .swapVisibility: for i in next.indices where ids.contains(next[i].id) { next[i].visible.toggle() }
         case .delete: next.removeAll { ids.contains($0.id) }
         }
@@ -282,6 +283,19 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
 
+        public func prepareBatch(ids: Set<String>,action: LibraryBatchAction) throws -> PreparedBatch {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            var next = base
+            switch action {
+            case .hide: for i in next.waypoints.indices where ids.contains(next.waypoints[i].id) { next.waypoints[i].visible = false }
+            case .swapVisibility: for i in next.waypoints.indices where ids.contains(next.waypoints[i].id) { next.waypoints[i].visible.toggle() }
+            case .delete: next.waypoints.removeAll { ids.contains($0.id) }
+            }
+            if !next.waypoints.contains(where: { $0.id == next.selectedId }) { next.selectedId = nil }
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
+            return .init(snapshot: next,revision: revision,identity: identity,file: file)
+        }
+
         public func prepare(edit: Edit) throws -> PreparedEdit {
             if let loadError { throw BackupError.notABackup(loadError) }
             var next = base
@@ -345,6 +359,21 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
         fileprivate let file: PreparedAtomicFile
+    }
+
+    public struct PreparedBatch: Sendable {
+        fileprivate let snapshot: Snapshot
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile
+    }
+    public func publishBatch(_ prepared: PreparedBatch) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw EditFailure.wrongStore }
+        guard prepared.revision == revision else { prepared.file.discard(); return false }
+        try prepared.file.publish()
+        waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders; selectedId = prepared.snapshot.selectedId
+        return true
     }
 
     public func restoreSnapshot() -> RestoreSnapshot {
