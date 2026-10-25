@@ -5,6 +5,7 @@ import SwiftUI
 /// Raster catalog, imported maps, and saved areas share one tile pipeline.
 /// Field overlays stay installed while the underlying raster layer changes.
 struct MapScreen: View {
+    @EnvironmentObject private var tak: TAKSession
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: WaypointStore
@@ -27,6 +28,7 @@ struct MapScreen: View {
     @State private var qrRequest: PositionQRRequest?
     @State private var cameraRequest: MapCameraRequest?
     @State private var editorRequest: WaypointEditorRequest?
+    @State private var showingTAK = false
     @State private var showingLayers = false
     @State private var showingMapToolSettings = false
     @State private var showingGoTo = false
@@ -92,6 +94,7 @@ struct MapScreen: View {
                          waypoints: visible, laneWaypoints:store.waypoints, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders, lanes: lanes.lanes, laneDraft: liveLaneDraft,
                          recordingPoints: recorder.active?.livePoints ?? [],
+                         remoteItems: tak.profile.showRemote ? tak.remoteItems : [],
                          viewshed: terrain.viewshed,
                          rulerAnchor: rulerAnchor,
                          onRulerAnchor: { rulerAnchor = $0; selectedID = nil },
@@ -154,6 +157,10 @@ struct MapScreen: View {
                             Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
                         }
+                        Button { showingTAK = true } label: {
+                            Label("TAK · \(tak.connected ? String(tak.remoteItems.count) : "off")", systemImage: "antenna.radiowaves.left.and.right")
+                                .font(.caption).frame(minHeight: 44)
+                        }.accessibilityIdentifier("map-tak")
                     }
                     .padding(compactMap ? 8 : 14).fieldChrome()
                     Spacer(minLength: 0)
@@ -339,6 +346,7 @@ struct MapScreen: View {
         .sheet(isPresented: $showingGoTo) {
             MapGoToView(centre: .init(lat: centre.latitude,lon: centre.longitude)) { point in selectedID = nil; cameraRequest = .init(action: .goTo(point.lat,point.lon)) }
         }
+        .sheet(isPresented: $showingTAK) { TAKSettingsView(onShow: { item in cameraRequest = .init(action: .showBoundary(item.points)) }) }
         .sheet(isPresented: $showingLayers) {
             MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
         }
@@ -528,6 +536,7 @@ private struct MapContainer: UIViewRepresentable {
     let lanes: [NavLane]
     let laneDraft: NavLane?
     let recordingPoints: [GeoPoint]
+    let remoteItems: [TAKRemoteItem]
     let viewshed: TerrainAnalysis.Viewshed?
     let rulerAnchor: GeoPoint?
     let onRulerAnchor: (GeoPoint) -> Void
@@ -576,6 +585,9 @@ private struct MapContainer: UIViewRepresentable {
         let lineHold = UILongPressGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.bendLine(_:)))
         lineHold.minimumPressDuration = 0.45; lineHold.delegate = context.coordinator
         context.coordinator.lineHold = lineHold; view.addGestureRecognizer(lineHold)
+        let remote = context.coordinator.remote
+        remote.map = view; remote.frame = view.bounds; remote.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(remote)
         let tactical = context.coordinator.tactical
         tactical.map = view; tactical.frame = view.bounds; tactical.autoresizingMask = [.flexibleWidth,.flexibleHeight]
         view.addSubview(tactical)
@@ -629,6 +641,7 @@ private struct MapContainer: UIViewRepresentable {
         var overlayDocument = document
         if let i = overlayDocument.tracks.firstIndex(where: { $0.id == mapStore.viewedTrackID }) { overlayDocument.tracks[i].visible = true }
         coordinator.fieldOverlay.update(document: overlayDocument, folders: folders, night: nightMode)
+        coordinator.remote.update(remoteItems, night: nightMode)
         coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
         coordinator.raiseAnnotations(in: view)
@@ -677,6 +690,7 @@ private struct MapContainer: UIViewRepresentable {
         let contours = ContourMapOverlay()
         let boundaryOverlay = BoundaryMapOverlay()
         let graphicHandles = BoundaryMapOverlay(identifier: "graphic",drawArea: false)
+        let remote = TAKMapOverlay(frame: .zero)
         let tactical = TacticalMapOverlay(frame: .zero)
         var graphicEditing = false
         var rulerActive = false
@@ -892,12 +906,14 @@ private struct MapContainer: UIViewRepresentable {
                 if let host {
                     if tactical.superview !== host { tactical.removeFromSuperview(); tactical.frame = host.bounds }
                     host.insertSubview(tactical,belowSubview: sibling)
+                    if remote.superview !== host { remote.removeFromSuperview(); remote.frame = host.bounds }
+                    host.insertSubview(remote,aboveSubview: tactical)
                 }
             }
             map.bringSubviewToFront(crosshair)
         }
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            tactical.setNeedsDisplay()
+            remote.setNeedsDisplay(); tactical.setNeedsDisplay()
             if rulerActive {
                 let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
                 DispatchQueue.main.async { [weak self] in if self?.rulerActive == true { self?.onRulerTarget?(point) } }
@@ -906,7 +922,7 @@ private struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
 
         private func redraw(_ map: MLNMapView) {
-            tactical.setNeedsDisplay(); raiseAnnotations(in: map)
+            remote.setNeedsDisplay(); tactical.setNeedsDisplay(); raiseAnnotations(in: map)
             if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
             if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }
             overlay.refresh(bounds: map.visibleCoordinateBounds,

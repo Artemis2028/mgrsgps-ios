@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var orientationState = OrientationState.shared
+    @State private var showingTAK = false
     @State private var showingGuide = false
     @State private var showingMapTools = false
     @State private var manualOn = false
@@ -42,6 +43,7 @@ struct SettingsView: View {
 
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
+                    Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
                     Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
                     Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
@@ -79,6 +81,7 @@ struct SettingsView: View {
         .environment(\.fieldNight, settings.nightMode)
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }
+        .sheet(isPresented: $showingTAK) { TAKSettingsView() }
         .sheet(isPresented: $showingGuide) { GuideSettingsView() }
         .sheet(isPresented: $showingMapTools) { MapToolSettingsView() }
     }

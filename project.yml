@@ -138,10 +138,12 @@ targets:
         NSLocationWhenInUseUsageDescription: >-
           MGRS GPS uses precise location to show your grid, record tracks and
           alert when you cross a drawn boundary. After you start recording or
-          monitoring, location continues while locked. Field data stays on your device.
+          monitoring, location continues while locked. Location stays on your device
+          unless you enable TAK position sharing.
         NSLocationAlwaysAndWhenInUseUsageDescription: >-
           Background access lets MGRS GPS keep recording a track while the
-          screen is off. Nothing leaves the phone.
+          screen is off. If you enable TAK position sharing, your position is sent
+          to your selected TAK server.
         UIBackgroundModes:
           - location
 

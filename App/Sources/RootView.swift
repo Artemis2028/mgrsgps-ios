@@ -12,6 +12,7 @@ struct RootView: View {
     @EnvironmentObject private var practice: PracticeSession
     @EnvironmentObject private var navigation: NavigationSession
     @EnvironmentObject private var liveActivities: LiveActivityManager
+    @EnvironmentObject private var tak: TAKSession
     @EnvironmentObject private var lanes: NavigationLaneStore
     @State private var showingOrientationPicker = false
     @State private var pendingOrientation: ScreenOrientation?
@@ -164,6 +165,8 @@ struct RootView: View {
         .onChange(of: settings.face) { _ in updateCompassDemand() }
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
+            if phase == .active { tak.setForeground(true) }
+            else if phase == .background { tak.setForeground(false) }
             practice.setForeground(phase == .active)
             if phase == .active { liveActivities.refresh(); OrientationState.shared.refresh(); location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
             else if phase == .inactive { navigation.foregroundChanged(false) }

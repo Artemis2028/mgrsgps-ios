@@ -75,7 +75,7 @@ jobs:
             -configuration Debug \
             -destination "id=$DEST" \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40
 
       - name: Screenshots
@@ -116,7 +116,7 @@ jobs:
             -skip-testing:MGRSGPSUITests/PracticeWorkflowTests \
             -skip-testing:MGRSGPSUITests/PositionFixWorkflowTests \
             -skip-testing:MGRSGPSUITests/MovementWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
 
       - name: Real fix expiry and recovery
@@ -137,7 +137,7 @@ jobs:
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/fix-freshness-tests.xcresult \
             -only-testing:MGRSGPSUITests/PositionFixWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/fix-freshness-test.log"
 
       - name: Real GPS course and speed
@@ -158,7 +158,7 @@ jobs:
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/movement-tests.xcresult \
             -only-testing:MGRSGPSUITests/MovementWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/movement-test.log"
 
       - name: Boundary drawing and real background crossing
@@ -180,7 +180,7 @@ jobs:
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/boundary-tests.xcresult \
             -only-testing:MGRSGPSUITests/BoundaryWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log"
 
       - name: Automatic route following with real background locations
@@ -200,7 +200,7 @@ jobs:
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/navigation-tests.xcresult \
             -only-testing:MGRSGPSUITests/NavigationWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log"
 
       - name: Practice course scoring with real locations
@@ -220,7 +220,7 @@ jobs:
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/practice-tests.xcresult \
             -only-testing:MGRSGPSUITests/PracticeWorkflowTests \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/practice-test.log"
 
       - name: Export UI test screenshots

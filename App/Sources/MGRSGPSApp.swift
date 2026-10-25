@@ -16,6 +16,7 @@ struct MGRSGPSApp: App {
     @StateObject private var lanes: NavigationLaneStore
 
     @StateObject private var liveActivities: LiveActivityManager
+    @StateObject private var tak: TAKSession
     @StateObject private var practice: PracticeSession
 
     private let watchBridge: WatchPhoneBridge
@@ -47,6 +48,7 @@ struct MGRSGPSApp: App {
         let boundaryStore = BoundaryMonitor(directory: directory)
         _boundaries = StateObject(wrappedValue: boundaryStore)
         let fieldStore = FieldDataStore(directory: directory)
+        _tak = StateObject(wrappedValue: TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], waypoints: waypointStore, field: fieldStore))
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty, fieldStore.document.graphics.isEmpty {
@@ -149,6 +151,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(lanes)
                 .environmentObject(practice)
                 .environmentObject(liveActivities)
+                .environmentObject(tak)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)
