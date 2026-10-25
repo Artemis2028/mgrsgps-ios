@@ -31,11 +31,50 @@ private final class TAKTestTransport: TAKTransportDriving {
         ZipArchive.write(entries: [.init(name: "server.pref", data: Data("<preferences><preference><entry key='connectString0'>127.0.0.1:8088:tcp</entry></preference></preferences>".utf8))])
     }
     private func drain() async { for _ in 0..<20 { await Task.yield() } }
+    func testCertificateEnrollmentPackageSuggestsSignInWithoutOverwritingSavedServer() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let transport = TAKTestTransport(), location = TAKTestLocation()
+        let session = TAKSession(directory: root, transport: transport, driver: location, startTimer: false)
+        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        await session.importPackage(package())
+        let previous = session.profile
+        let bytes = ZipArchive.write(entries: [.init(name: "server.pref", data: Data("<preferences><preference><entry key='connectString0'>localhost:8090:ssl</entry></preference></preferences>".utf8))])
+        await session.importPackage(bytes)
+        XCTAssertNil(session.failure)
+        XCTAssertEqual(session.enrollmentSuggestion?.host, "localhost")
+        XCTAssertEqual(session.enrollmentSuggestion?.streamPort, 8090)
+        XCTAssertEqual(session.profile.host, previous.host)
+        XCTAssertEqual(session.profile.port, previous.port)
+        XCTAssertEqual(try TAKLocalStore(root: root).readProfile().host, previous.host)
+        XCTAssertEqual(transport.starts, 0)
+        XCTAssertEqual(location.starts, 0)
+    }
+    func testPackageProfileSaveFailurePreservesPreviousCredentialReferenceAndCanRetry() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let session = TAKSession(directory: root, transport: TAKTestTransport(), driver: TAKTestLocation(), startTimer: false)
+        let store = try TAKLocalStore(root: root)
+        defer { session.disconnect(); try? store.deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        await session.importPackage(package())
+        let old = session.profile, oldID = try XCTUnwrap(old.credentialID)
+        let profileURL = store.directory.appendingPathComponent("profile.json"), original = try Data(contentsOf: profileURL)
+        try FileManager.default.removeItem(at: profileURL)
+        try FileManager.default.createDirectory(at: profileURL, withIntermediateDirectories: false)
+        await session.importPackage(package())
+        XCTAssertNotNil(session.failure)
+        XCTAssertEqual(session.profile.credentialID, oldID)
+        XCTAssertNotNil(try store.credentials(oldID))
+        try FileManager.default.removeItem(at: profileURL); try original.write(to: profileURL, options: .atomic)
+        await session.importPackage(package())
+        XCTAssertNil(session.failure)
+        XCTAssertNotEqual(session.profile.credentialID, oldID)
+        XCTAssertNil(try store.credentials(oldID))
+        XCTAssertNotNil(try store.credentials(try XCTUnwrap(session.profile.credentialID)))
+    }
     func testDefaultPresenceIsPositionlessAndNoLocationDemandThenExplicitSharingAndBackgroundStop() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let transport = TAKTestTransport(), location = TAKTestLocation()
         let session = TAKSession(directory: root, transport: transport, driver: location, startTimer: false)
-        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
         XCTAssertFalse(session.sharePosition); XCTAssertFalse(session.connected)
         await session.importPackage(package())
         XCTAssertNil(session.failure)
@@ -63,7 +102,7 @@ private final class TAKTestTransport: TAKTransportDriving {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let transport = TAKTestTransport(), location = TAKTestLocation()
         let session = TAKSession(directory: root, transport: transport, driver: location, startTimer: false)
-        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
         await session.importPackage(package()); session.connect(); await drain()
         let old = transport.callback
         transport.callback?(.refused("Changed pinned certificate")); await drain()
@@ -81,7 +120,7 @@ private final class TAKTestTransport: TAKTransportDriving {
         try field.saveGraphic(.init(id: "area", name: "IOS AREA", type: "objective", points: [.init(lat: 35.138, lon: -78.991), .init(lat: 35.139, lon: -78.991), .init(lat: 35.139, lon: -78.990)], folder: "Recon"))
         let firstTransport = TAKTestTransport()
         let first = TAKSession(directory: root, transport: firstTransport, driver: TAKTestLocation(), startTimer: false, waypoints: waypoints, field: field)
-        defer { first.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(first.profile.uid); try? FileManager.default.removeItem(at: root) }
+        defer { first.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(first.profile.credentialID ?? first.profile.uid); try? FileManager.default.removeItem(at: root) }
         await first.importPackage(package()); first.connect(); await drain()
         firstTransport.callback?(.ready); await drain()
         first.setFolderShared("Recon", shared: true); await drain()

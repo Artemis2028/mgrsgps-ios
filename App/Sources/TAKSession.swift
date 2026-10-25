@@ -12,6 +12,7 @@ final class TAKSession: ObservableObject {
     @Published private(set) var remoteItems: [TAKRemoteItem] = []
     @Published private(set) var lastReceivedAt: Date?
     @Published private(set) var failure: String?
+    @Published private(set) var enrollmentSuggestion: TAKEnrollment.Target?
     @Published var sharePosition = false { didSet { if oldValue != sharePosition { updateLocationDemand(); lastPresence = nil; tick() } } }
     private let transport: TAKTransportDriving
     private let location: RecordingLocationDriver
@@ -64,18 +65,28 @@ final class TAKSession: ObservableObject {
     }
     func importPackage(_ bytes: Data) async {
         disconnect()
+        enrollmentSuggestion = nil
         do {
             let package = try await Task.detached(priority: .userInitiated) { try TAKConnectionPackage.read(bytes) }.value
             guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
-            if package.needsEnrollment { throw TAKCoT.Failure(message: "This package needs certificate enrollment. Import a package containing your client certificate and private key.") }
+            if package.needsEnrollment {
+                enrollmentSuggestion = try .init(host: package.host, streamPort: package.port)
+                failure = nil; status = "Sign in to finish this connection package"
+                return
+            }
             let imported = try await Task.detached(priority: .userInitiated) { try TAKImportedCredentials.read(package) }.value
             var next = profile
             if next.host != package.host || next.port != package.port || next.tls != package.usesTLS { next.pin = nil }
             next.host = package.host; next.port = package.port; next.title = package.description; next.tls = package.usesTLS
             // Secrets stay in a device-only Keychain item; the profile contains
             // endpoint/callsign/pin only and is excluded from backups.
-            try store.saveCredentials(.init(package), uid: next.uid)
-            try store.write(next)
+            let oldCredentialID = profile.credentialID ?? profile.uid
+            let newCredentialID = next.uid + "-imported-" + UUID().uuidString
+            next.credentialID = newCredentialID
+            try store.saveCredentials(.init(package), uid: newCredentialID)
+            do { try store.write(next) }
+            catch { try? store.deleteCredentials(newCredentialID); throw error }
+            removeReplacedCredentials(oldCredentialID, store: store)
             profile = next
             do { sent = try store.readSent(profile: next); sharingAvailable = true }
             catch { sent = [:]; sharingAvailable = false }
@@ -83,6 +94,36 @@ final class TAKSession: ObservableObject {
             status = "Ready to connect"
             scene.clear(); remoteItems = []
         } catch { failure = error.localizedDescription; status = "Import failed" }
+    }
+    func clearEnrollmentSuggestion() { enrollmentSuggestion = nil }
+    /// Installing a new sign-in is transactional: failure leaves the old
+    /// profile/identity intact, and the pending key is deleted by its owner.
+    func installEnrollment(_ enrollment: TAKEnrollmentClient.Result) throws {
+        guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
+        let previous = profile, credentialID = profile.uid + "-enrolled-" + UUID().uuidString
+        var next = profile
+        next.host = enrollment.server.target.host; next.port = enrollment.server.target.streamPort
+        next.title = enrollment.server.target.host; next.tls = true
+        next.pin = enrollment.server.explicitlyApproved ? enrollment.server.certificate.sha256 : nil
+        next.credentialID = credentialID
+        // A new account/server never inherits folder sharing choices.
+        next.sharedFolders = []
+        try store.saveCredentials(.init(enrollment: enrollment), uid: credentialID)
+        do { try store.write(next) }
+        catch { try? store.deleteCredentials(credentialID); throw TAKCoT.Failure(message: "Unable to save the enrolled server; the previous connection was preserved") }
+        enrollment.key.retainForProfile()
+        disconnect(); profile = next; credentials = enrollment.credentials
+        do { sent = try store.readSent(profile: next); sharingAvailable = true }
+        catch { sent = [:]; sharingAvailable = false }
+        trustRequest = nil; failure = nil; scene.clear(); remoteItems = []; lastReceivedAt = nil
+        status = "Signed in · ready to connect"
+        removeReplacedCredentials(previous.credentialID ?? previous.uid, store: store)
+    }
+    private func removeReplacedCredentials(_ id: String, store: TAKLocalStore) {
+        // Profile already points to the new credentials. Cleanup failure must
+        // not turn a successful, durable sign-in into a misleading error.
+        if let archive = try? store.credentials(id), let tag = archive.enrollmentKeyTag { try? TAKEnrollmentKey.delete(tag) }
+        try? store.deleteCredentials(id)
     }
     func reportImportFailure(_ message: String) { failure = message }
     func setCallsign(_ value: String) {
@@ -140,8 +181,12 @@ final class TAKSession: ObservableObject {
         Task {
             do {
                 if credentials == nil {
-                    guard let archive = try store?.credentials(profile.uid) else { throw TAKCoT.Failure(message: "Import a TAK connection package first") }
-                    credentials = try await Task.detached(priority: .userInitiated) { try TAKImportedCredentials.read(archive.package(profile)) }.value
+                    guard let archive = try store?.credentials(profile.credentialID ?? profile.uid) else { throw TAKCoT.Failure(message: "Sign in or import a TAK connection package first") }
+                    let loaded = try await Task.detached(priority: .userInitiated) { try archive.read(profile) }.value
+                    // An import/sign-in may replace the connection while the
+                    // Keychain worker is running. Never publish its old identity.
+                    guard attempt == token, desired else { return }
+                    credentials = loaded
                 }
                 guard attempt == token, desired, let credentials else { return }
                 transport.start(host: profile.host, port: port, tls: profile.tls, identity: credentials.identity,

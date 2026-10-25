@@ -145,8 +145,10 @@ by the preference importer. Native identity import still uses Security.framework
 The original local package is now proven end-to-end in the real iOS app.
 Explicit DER/PEM CAs remain supported, and the app never substitutes a random ZIP
 certificate or a client-chain CA. Signed-only/unauthenticated PKCS #12, unsupported
-algorithms and indefinite-length BER fail explicitly. Certificate enrollment
-is still unimplemented and is reported explicitly on import.
+algorithms and indefinite-length BER fail explicitly. Native [certificate enrollment](tak-certificate-enrollment.md) now supports
+username/password or token sign-in with a device-only RSA key. Packages without
+a client identity open sign-in; they do not overwrite the saved connection
+before a new identity is valid and durable.
 
 Apple correctly refused the original ten-year server leaf's validity period.
 Claude reissued a 365-day leaf from the same CA and restarted only the TLS
@@ -159,7 +161,7 @@ Incoming drawings exceeding 500 vertices are rejected whole rather than
 truncated into misleading geometry. Supported Android drawing types and
 coordinate/time variants otherwise follow the shared contract. Physical
 locked-screen connectivity, sustained/reliability and broader malformed-network
-tests, official TAK Server and ATAK/iTAK client interoperability, enrollment,
+tests, official TAK Server and ATAK/iTAK client interoperability, enrollment renewal/crash recovery,
 and watch TAK layer synchronization remain to be checked or implemented.
 Polar points remain readable in the remote list but are labelled outside Web
 Mercator map coverage; they are not projected into nonfinite screen coordinates.
@@ -173,3 +175,14 @@ passes exact-DER comparison; a public synthetic equivalent stays in regression
 coverage. No contract or production parser change was needed. See
 [fixture provenance and validation](tak-shared-fixtures.md). This extends parser
 coverage; it does not replace the real two-app tests or the physical checks above.
+
+## Certificate enrollment follow-up
+
+Android `claude/tak` 3fb1d85 is the source reference. The real native simulator
+now enrolls against the prepared local 8446 endpoint, refuses a wrong password,
+checks certificate/key ownership, reloads the device key and reconnects to the
+8089 TLS stream without sharing a position. Profile-write failure rolls back
+the new credential archive and preserves the previous connection. See the
+[sign-in implementation and validation record](tak-certificate-enrollment.md)
+for exact coverage and remaining checks. The strict stream CA/name/pin policy
+is unchanged; enrollment has its own explicit private-CA bootstrap review.

@@ -13,6 +13,7 @@ struct TAKProfile: Codable {
     var tls = true
     var title = ""
     var pin: String?
+    var credentialID: String?
     var showRemote = true
     var sharedFolders: Set<String>?
 }
@@ -21,9 +22,28 @@ struct TAKCredentialArchive: Codable {
     let caPassword: String?
     let client: Data?
     let clientPassword: String?
+    let enrollmentKeyTag: Data?
+    let enrollmentCertificate: Data?
+    let enrollmentAuthorities: [Data]?
     init(_ package: TAKServerPackage) {
         ca = package.caPKCS12; caPassword = package.caPassword
         client = package.clientPKCS12; clientPassword = package.clientPassword
+        enrollmentKeyTag = nil; enrollmentCertificate = nil; enrollmentAuthorities = nil
+    }
+    init(enrollment: TAKEnrollmentClient.Result) {
+        ca = nil; caPassword = nil; client = nil; clientPassword = nil
+        enrollmentKeyTag = enrollment.key.tag
+        enrollmentCertificate = enrollment.certificates.client
+        enrollmentAuthorities = enrollment.certificates.authorities
+    }
+    func read(_ profile: TAKProfile) throws -> TAKImportedCredentials {
+        if let tag = enrollmentKeyTag, let certificate = enrollmentCertificate, let authorities = enrollmentAuthorities {
+            return try TAKEnrollmentKey.load(tag: tag, certificate: certificate, authorities: authorities)
+        }
+        guard enrollmentKeyTag == nil, enrollmentCertificate == nil, enrollmentAuthorities == nil else {
+            throw TAKCoT.Failure(message: "Saved enrollment credentials are incomplete; sign in again")
+        }
+        return try TAKImportedCredentials.read(package(profile))
     }
     func package(_ profile: TAKProfile) -> TAKServerPackage {
         .init(description: profile.title, host: profile.host, port: profile.port, usesTLS: profile.tls,

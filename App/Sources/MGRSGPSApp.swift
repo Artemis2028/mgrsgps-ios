@@ -37,6 +37,7 @@ struct MGRSGPSApp: App {
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKEnrollmentNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
             if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailureNight") { settingsStore.nightMode = true }
             if !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {

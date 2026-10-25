@@ -68,7 +68,7 @@ extension XCTestCase {
 
     func dismissFieldKeyboard(file: StaticString = #filePath,line: UInt = #line) {
         let app = XCUIApplication()
-        for id in ["waypoint-keyboard-done","field-fix-keyboard-done"] {
+        for id in ["waypoint-keyboard-done","field-fix-keyboard-done","tak-enroll-keyboard-done"] {
             let done = app.buttons[id]
             if done.exists && done.isHittable {
                 tapNativeMenuItem(done,file: file,line: line)

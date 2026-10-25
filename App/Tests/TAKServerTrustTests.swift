@@ -42,4 +42,24 @@ final class TAKServerTrustTests: XCTestCase {
             XCTAssertTrue(TAKServerTrust.subjectAlternativeNames(bytes).isEmpty)
         }
     }
+    func testEnrollmentBootstrapRequiresExactApprovalAndStillRefusesInvalidDates() throws {
+        let ca = try XCTUnwrap(SecCertificateCreateWithData(nil, caDER as CFData))
+        let leaf = try XCTUnwrap(SecCertificateCreateWithData(nil, leafDER as CFData))
+        let pin = TAKServerTrust.describe(leaf).sha256
+        func evaluate(_ pin: String?, _ epoch: TimeInterval = 1793145600, includeRoot: Bool = true) throws -> TAKEnrollmentTrust.Decision {
+            var trust: SecTrust?
+            XCTAssertEqual(SecTrustCreateWithCertificates((includeRoot ? [leaf, ca] : [leaf]) as CFArray, SecPolicyCreateSSL(true, "127.0.0.1" as CFString), &trust), errSecSuccess)
+            let value = try XCTUnwrap(trust)
+            SecTrustSetVerifyDate(value, Date(timeIntervalSince1970: epoch) as CFDate)
+            return TAKEnrollmentTrust.evaluate(value, host: "127.0.0.1", pin: pin)
+        }
+        guard case .approval(let metadata) = try evaluate(nil) else { return XCTFail("Unapproved private-CA/name mismatch was accepted") }
+        XCTAssertEqual(metadata.sha256, pin)
+        guard case .trusted = try evaluate(pin) else { return XCTFail("Exact approved certificate was refused") }
+        guard case .refused = try evaluate("changed") else { return XCTFail("Changed certificate was accepted") }
+        for date: TimeInterval in [0, 4102444800] {
+            guard case .refused = try evaluate(pin, date) else { return XCTFail("Approved pin bypassed certificate dates") }
+            guard case .refused = try evaluate(pin, date, includeRoot: false) else { return XCTFail("A leaf-only anchor bypassed certificate dates") }
+        }
+    }
 }

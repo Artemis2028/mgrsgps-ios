@@ -10,6 +10,7 @@ struct TAKSettingsView: View {
     @State private var importing = false
     @State private var resetTrust = false
     @State private var callsign = ""
+    @State private var enrollment = false
     var onShow: ((TAKRemoteItem) -> Void)?
     private var palette: FieldPalette { .init(night: settings.nightMode) }
     var body: some View {
@@ -24,6 +25,8 @@ struct TAKSettingsView: View {
                     if let error = tak.failure { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("tak-error") }
                     Button(importing ? "Importing…" : "Import connection package") { importer = true }
                         .disabled(importing).accessibilityIdentifier("tak-import")
+                    Button("Sign in with username and password") { tak.clearEnrollmentSuggestion(); enrollment = true }
+                        .disabled(importing).accessibilityIdentifier("tak-enrollment")
                     if tak.configured {
                         Text(tak.profile.title).font(.headline)
                         Text("\(tak.profile.host):\(String(tak.profile.port)) · \(tak.profile.tls ? "TLS" : "Unencrypted TCP")")
@@ -108,6 +111,7 @@ struct TAKSettingsView: View {
                 .tint(palette.accent)
         }.preferredColorScheme(.dark)
             .onAppear { callsign = tak.profile.callsign }
+            .sheet(isPresented: $enrollment, onDismiss: { callsign = tak.profile.callsign; tak.clearEnrollmentSuggestion() }) { TAKEnrollmentView(suggestion: tak.enrollmentSuggestion) }
             .confirmationDialog("Reset the trusted server certificate?", isPresented: $resetTrust, titleVisibility: .visible) {
                 Button("Reset server trust", role: .destructive) { tak.resetServerTrust() }
                 Button("Cancel", role: .cancel) {}
@@ -128,6 +132,7 @@ struct TAKSettingsView: View {
                             return bytes
                         }.value
                         await tak.importPackage(bytes); callsign = tak.profile.callsign
+                        if tak.enrollmentSuggestion != nil { enrollment = true }
                     } catch { tak.reportImportFailure(error.localizedDescription) }
                 }
             }
