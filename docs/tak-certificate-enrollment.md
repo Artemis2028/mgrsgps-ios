@@ -88,3 +88,9 @@ A final seven-case TAK session regression also passes in
 late Keychain read from replacing a newly imported/enrolled connection identity.
 The one-minute handoff watcher includes only the authorized local enrollment
 and CoT endpoints. All owned development simulators are shut down after checks.
+
+Claude independently confirmed from OpenTAKServer logs that two certificates
+were issued with CN `enroll_ios` and that five TLS stream connections authenticated
+as that user (22:50 shared handoff). This corroborates the native tests; it is not
+a new two-enrolled-app map exchange. That further peer round is still available
+by explicit GO through the shared handoff.

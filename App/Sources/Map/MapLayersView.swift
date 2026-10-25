@@ -56,6 +56,7 @@ struct MapLayersView: View {
                 if let plan = proposedPlan {
                     Section("Download this area") {
                         TextField("Area name", text: $downloadName)
+                            .accessibilityIdentifier("offline-download-name")
                         Text("\(plan.tiles.count) tiles · zoom \(plan.minZoom)–\(plan.maxZoom) · about \(ByteCountFormatter.string(fromByteCount: plan.estimatedBytes, countStyle: .file))")
                             .font(.subheadline).accessibilityIdentifier("offline-estimate")
                         Text("Keep the app open while downloading. Leaving the app pauses the download; saved tiles are kept so it can resume.")
@@ -70,8 +71,8 @@ struct MapLayersView: View {
                 if let message = maps.message { Text(message).font(.footnote).accessibilityIdentifier("map-operation-status") }
                 if maps.activeDownload != nil {
                     Section("Downloading") {
-                        Text("\(maps.downloadProgress) tiles saved").monospacedDigit()
-                        Button("Pause download") { maps.pauseDownload() }
+                        Text("\(maps.downloadProgress) tiles saved").monospacedDigit().accessibilityIdentifier("offline-download-progress")
+                        Button("Pause download") { maps.pauseDownload() }.accessibilityIdentifier("pause-map-download")
                     }
                 }
                 Section("Saved areas & imported maps") {
@@ -81,6 +82,7 @@ struct MapLayersView: View {
                             Text(map.name).font(.headline)
                             Text("\(map.complete ? "Ready" : "Partial · resume to finish") · zoom \(map.minZoom)–\(map.maxZoom)")
                                 .font(.caption).foregroundStyle(palette.inkDim)
+                                .accessibilityIdentifier("saved-map-status-\(map.name)")
                             HStack {
                                 if map.layerKey != "dem" {
                                     Button("Show map") { maps.setLayer(map.imported ? "mbtiles:" + map.id : map.layerKey!); onShow(map); dismiss() }
@@ -105,7 +107,10 @@ struct MapLayersView: View {
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
             .foregroundStyle(palette.ink).tint(palette.accent)
             .navigationTitle("Map layers").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .principal) { Text("Map layers").font(.headline).foregroundStyle(palette.ink) }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
                 if case let .success(urls) = result, let url = urls.first { Task { await maps.importMap(url) } }
             }

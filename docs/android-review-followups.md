@@ -50,6 +50,23 @@ its `downloadTask` begins/finishes through the persistent map library. Neither
 `MapScreen.onDisappear` nor `MapLayersView` cancels the task. Pause is explicit,
 and already-stored tiles remain resumable. That architecture addresses the
 particular view-lifetime issue without transplanting Android's coroutine scope.
-This is source evidence, not a new runtime completion/relaunch test. Add a focused
-leave-map/finish/reopen regression before closing the validation gate. Physical
-background execution, provider failures and storage pressure remain separate.
+The native regression now gates synthetic raster responses, starts the normal
+Layers download, leaves both Layers and Map for Position, releases responses only
+there, waits for actual completion, then returns and relaunches with Offline only.
+Both day/night workflows pass. Native tests also cancel the caller before
+completion, inspect every stored tile after reopening, prove offline lookups make
+zero network calls, and verify explicit Pause/Resume retains the same area ID.
+See [offline-map validation](offline-maps.md). Physical background execution,
+provider failures and storage pressure remain separate.
+
+## Newly identified saved-area controls still missing
+
+The current Android checkout at `6f9865f` retains the offline-area Rename and
+Update actions in MapScreen. iOS currently offers Show, Resume for incomplete
+areas, and Delete, but lacks Rename and explicit fresh Update for a complete area.
+Android Update re-fetches even previously cached tiles and records interrupted/
+failed status. An iOS Update must bypass both saved pinned tiles and browse cache,
+retain existing coverage on failure, persist update-pending state across relaunch,
+and finish only after the requested refresh succeeds. Remaining stored/expected
+tile counts, size/date metadata and these controls are implementation work, not
+iOS limitations; the view-lifetime regression does not close those gaps.

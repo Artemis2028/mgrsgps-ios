@@ -8,16 +8,25 @@ private final class TileNetworkFixture: URLProtocol, @unchecked Sendable {
     static var calls = 0
     static var png = Data()
     static var fail = false
+    static var hold = false
+    private var loading: Task<Void, Never>?
+    static func held() -> Bool { lock.lock(); defer { lock.unlock() }; return hold }
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host == "map-fixture.test" }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.lock.lock(); Self.calls += 1; let bytes = Self.png, fail = Self.fail; Self.lock.unlock()
         if fail { client?.urlProtocol(self,didFailWithError: URLError(.notConnectedToInternet)); return }
-        let response = HTTPURLResponse(url: request.url!,statusCode: 200,httpVersion: "HTTP/1.1",headerFields: ["Content-Type":"image/png","Cache-Control":"public, max-age=86400"])!
-        client?.urlProtocol(self,didReceive: response,cacheStoragePolicy: .allowed)
-        client?.urlProtocol(self,didLoad: bytes); client?.urlProtocolDidFinishLoading(self)
+        loading = Task {
+            do {
+                while Self.held() { try await Task.sleep(nanoseconds: 10_000_000) }
+                try Task.checkCancellation()
+                let response = HTTPURLResponse(url: request.url!,statusCode: 200,httpVersion: "HTTP/1.1",headerFields: ["Content-Type":"image/png","Cache-Control":"public, max-age=86400"])!
+                client?.urlProtocol(self,didReceive: response,cacheStoragePolicy: .allowed)
+                client?.urlProtocol(self,didLoad: bytes); client?.urlProtocolDidFinishLoading(self)
+            } catch {}
+        }
     }
-    override func stopLoading() {}
+    override func stopLoading() { loading?.cancel(); loading = nil }
 }
 
 @MainActor
@@ -33,7 +42,7 @@ final class MapLayerIntegrationTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: dir) }; return dir
     }
     private func config() -> URLSessionConfiguration {
-        TileNetworkFixture.lock.lock(); TileNetworkFixture.calls = 0; TileNetworkFixture.png = png; TileNetworkFixture.fail = false; TileNetworkFixture.lock.unlock()
+        TileNetworkFixture.lock.lock(); TileNetworkFixture.calls = 0; TileNetworkFixture.png = png; TileNetworkFixture.fail = false; TileNetworkFixture.hold = false; TileNetworkFixture.lock.unlock()
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [TileNetworkFixture.self]; return config
     }
     private func wait(_ condition: () -> Bool) async throws {
@@ -54,6 +63,49 @@ final class MapLayerIntegrationTests: XCTestCase {
         XCTAssertEqual(TileNetworkFixture.calls,0)
         do { _ = try await reloaded.pipeline.fetch(layer,tile: .init(z: 3,x: 7,y: 0)); XCTFail("An offline miss must fail without network") } catch {}
         XCTAssertEqual(TileNetworkFixture.calls,0)
+    }
+    private func holdResponses(_ value: Bool) {
+        TileNetworkFixture.lock.lock(); TileNetworkFixture.hold = value; TileNetworkFixture.lock.unlock()
+    }
+    func testCallerCancellationDoesNotCancelOwnedDownloadAndCompletionIsDurable() async throws {
+        let dir = try directory(), model = MapLayerStore(directory: dir, installPipeline: false, catalog: [layer], configuration: config())
+        let plan = try TileDownloadPlan(bounds: .init(south: 38.89, north: 38.90, west: -77.04, east: -77.03), currentZoom: 3, layer: layer)
+        holdResponses(true); defer { holdResponses(false); model.pauseDownload() }
+        let caller = Task { @MainActor in
+            model.startDownload(plan: plan, name: "Owned area")
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+        }
+        try await wait { TileNetworkFixture.calls > 0 && model.activeDownload != nil && !model.savedMaps.isEmpty }
+        let id = try XCTUnwrap(model.savedMaps.first?.id)
+        caller.cancel(); _ = try? await caller.value
+        XCTAssertNotNil(model.activeDownload)
+        XCTAssertFalse(try XCTUnwrap(model.savedMaps.first).complete)
+        holdResponses(false)
+        try await wait { model.activeDownload == nil && model.savedMaps.first?.complete == true }
+        let reopened = try MapTileLibrary(directory: dir)
+        XCTAssertEqual(reopened.maps.count, 1); XCTAssertEqual(reopened.maps.first?.id, id)
+        XCTAssertTrue(try XCTUnwrap(reopened.maps.first).complete)
+        for tile in plan.tiles { XCTAssertEqual(try reopened.data(for: tile, mapID: id), png) }
+        let offline = MapLayerStore(directory: dir, installPipeline: false, catalog: [layer], configuration: config())
+        offline.setOfflineOnly(true)
+        for tile in plan.tiles { let bytes = try await offline.pipeline.fetch(layer, tile: tile); XCTAssertEqual(bytes, png) }
+        XCTAssertEqual(TileNetworkFixture.calls, 0)
+    }
+    func testExplicitPauseOfPendingDownloadRemainsPartialAndResumeFinishesSameArea() async throws {
+        let dir = try directory(), model = MapLayerStore(directory: dir, installPipeline: false, catalog: [layer], configuration: config())
+        let plan = try TileDownloadPlan(bounds: .init(south: 38.89, north: 38.90, west: -77.04, east: -77.03), currentZoom: 3, layer: layer)
+        holdResponses(true); defer { holdResponses(false); model.pauseDownload() }
+        model.startDownload(plan: plan, name: "Paused area")
+        try await wait { TileNetworkFixture.calls > 0 && model.savedMaps.count == 1 }
+        let id = model.savedMaps[0].id
+        model.pauseDownload()
+        try await wait { model.activeDownload == nil }
+        XCTAssertFalse(model.savedMaps[0].complete)
+        XCTAssertEqual(model.message, "Download paused. Saved tiles are kept.")
+        XCTAssertFalse(try XCTUnwrap(MapTileLibrary(directory: dir).maps.first).complete)
+        holdResponses(false); model.resume(model.savedMaps[0])
+        try await wait { model.activeDownload == nil && model.savedMaps[0].complete }
+        XCTAssertEqual(model.savedMaps.count, 1); XCTAssertEqual(model.savedMaps[0].id, id)
     }
     func testImportCopySurvivesSourceRemovalAndPreferenceRelaunch() async throws {
         let dir = try directory(), file = dir.appendingPathComponent("Training.mbtiles")

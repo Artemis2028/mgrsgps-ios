@@ -36,7 +36,8 @@ higher-resolution tiles.
 
 Progress, Pause, Resume, Show map and Delete appear in the saved-map library.
 A failed request stops the batch and retains completed tiles; Resume fills in
-missing tiles in the same area. Leaving the app pauses area downloads. Keep the
+missing tiles in the same area. Downloads continue when switching tabs or
+closing the Layers sheet while the app stays active. Leaving the app pauses area downloads. Keep the
 app open to finish them, then resume manually when needed. This is separate from
 live track recording, whose background location manager continues independently.
 Downloads do not claim iOS background execution after the app is suspended.
@@ -131,3 +132,40 @@ MBTiles archive on a physical iPhone in Airplane Mode, including relaunch,
 panning across the saved boundary, contours, and storage pressure. No physical
 iPhone was available for this pass. Global licensed Esri endpoints also need a
 build with the deployment key; the local verification used Debug fallbacks.
+
+## View-lifetime regression, 25 October 2026
+
+Android `eacf084` uses repository-owned offline-region completion writes so leaving
+Map cannot cancel the result. Its current source remains in `claude/tak` at
+`6f9865f`. iOS already keeps `MapLayerStore` in the app's StateObject and owns the
+unstructured download task there; no production ownership change was necessary.
+
+Ten native map integration cases pass, including two new transport-gated checks:
+caller cancellation leaves the store's download alive, then every planned tile
+and the complete area survive reopening; offline reads make zero network calls.
+Explicitly pausing a pending request leaves the area incomplete and resumable
+under the same ID. Evidence: `/tmp/gridfix-offline-lifetime-native-20261025.xcresult`.
+
+Two native UI cases pass normal Layers → estimate → Download → close Layers →
+Position → complete → return to Layers → Offline only → terminate/relaunch → Ready,
+in both day and night. A DEBUG-only transport holds synthetic tile replies until
+the test releases them from another tab. It does not publish completion, write
+tiles/area records or alter MapScreen's disappearance/cancellation behavior.
+The production URLSession/raster validation/SQLite publication/reload paths do
+that work. All non-fixture requests are refused; no provider/server is contacted.
+The opt-in controls and protocol are compiled out of Release.
+
+Evidence: `/tmp/gridfix-offline-lifetime-ui-scroll-20261025.xcresult`; four frames
+per mode capture active/completed on Position, Ready on Map and Ready after
+relaunch. The earlier combined bundle passes the three existing map-layer
+workflows but fails the initial lifetime cases because their List rows needed
+scrolling; it is not an overall passing bundle. Screenshot inspection also led
+to a night-palette navigation title in Layers. The final two-case regression
+also passes in `/tmp/gridfix-offline-lifetime-final-ui-20261025.xcresult`;
+its exported day/night frames were inspected. Release phone/watch/widget build
+passes in `/tmp/gridfix-offline-lifetime-final-release.log`.
+
+Saved-area Rename, explicit fresh Update, detailed stored/expected tile counts
+and size/date metadata remain Android parity gaps. See the
+[concrete source follow-up](android-review-followups.md). These are separate from
+physical Airplane Mode, provider and storage-pressure validation.

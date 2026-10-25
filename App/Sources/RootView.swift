@@ -72,6 +72,9 @@ struct RootView: View {
                 }.padding(.horizontal,16)
             }
             RecordingBanner(onOpen: { showingRecorder = true }).zIndex(1)
+            #if DEBUG
+            OfflineDownloadValidationControl(maps: maps, awayFromMap: selection != 2)
+            #endif
             if boundaries.running {
                 Button { selection = 2 } label: {
                     HStack {

@@ -37,6 +37,7 @@ struct MGRSGPSApp: App {
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
         #if DEBUG
+        if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKEnrollmentNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
             if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailureNight") { settingsStore.nightMode = true }
@@ -51,7 +52,13 @@ struct MGRSGPSApp: App {
         #endif
         _waypoints = StateObject(wrappedValue: waypointStore)
         _settings = StateObject(wrappedValue: settingsStore)
-        let mapStore = MapLayerStore(directory: directory)
+        let mapStore: MapLayerStore
+        #if DEBUG
+        if OfflineDownloadValidation.enabled, let directory { mapStore = OfflineDownloadValidation.makeStore(directory: directory) }
+        else { mapStore = MapLayerStore(directory: directory) }
+        #else
+        mapStore = MapLayerStore(directory: directory)
+        #endif
         _maps = StateObject(wrappedValue: mapStore)
         _terrain = StateObject(wrappedValue: TerrainSession(sampler: mapStore.terrainSampler))
         let boundaryStore = BoundaryMonitor(directory: directory)
