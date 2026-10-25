@@ -57,6 +57,8 @@ final class TrackRecorderIntegrationTests: XCTestCase {
         rec.start(); try await wait { rec.phase == .recording }
         clock.advance(2); driver.onLocations?([clock.location(24)])
         try await wait { rec.active?.pointCount == 1 }
+        let live=try XCTUnwrap(rec.liveActivitySession(settings:AppSettings(directory:dir)))
+        XCTAssertTrue(live.state.detail.contains("1 saved points"));XCTAssertTrue(live.state.hasFreshFix(at:clock.date,uptime:clock.uptime))
         clock.foreground = false
         LocationService().stop() // independent position/heading manager
         XCTAssertTrue(driver.updating)
@@ -64,6 +66,7 @@ final class TrackRecorderIntegrationTests: XCTestCase {
         driver.onLocations?([clock.location(24.0001, secondsAgo: 5), clock.location(24.0002, verticalAccuracy: 0)])
         rec.stop(name: "Patrol") // must wait for both queued fixes
         try await wait { rec.phase == .idle }
+        XCTAssertNil(rec.liveActivitySession(settings:AppSettings(directory:dir)))
         XCTAssertFalse(driver.updating)
         let track = try XCTUnwrap(field.document.tracks.first)
         XCTAssertEqual(track.name, "Patrol"); XCTAssertEqual(track.pointCount, 3)

@@ -94,6 +94,7 @@ final class TrackRecorder: ObservableObject {
     @Published private(set) var lastAcceptedAt: Date?
     @Published private(set) var lastGPSAt: Date?
     @Published private(set) var hasRecoveryNotice = false
+    private var lastGPSUptime: TimeInterval?
     private let worker: RecordingWorker
     private let fieldData: FieldDataStore
     private let driver: RecordingLocationDriver
@@ -131,7 +132,7 @@ final class TrackRecorder: ObservableObject {
         guard driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways, driver.precise else {
             phase = .idle; failure = "Recording needs location permission with Precise Location enabled. Earlier tracks are kept."; return
         }
-        phase = .preparing; generation = UUID(); lastAcceptedAt = nil; lastGPSAt = nil
+        phase = .preparing; generation = UUID(); lastAcceptedAt = nil; lastGPSAt = nil; lastGPSUptime = nil
         let token = generation, time = millis, startUptime = uptime()
         enqueue { [weak self] in
             guard let self else { return }
@@ -216,6 +217,7 @@ final class TrackRecorder: ObservableObject {
                                    accuracyMeters: location.horizontalAccuracy, uptime: receivedUptime - max(0, age))
         }
         if let latest = samples.last(where: { $0.accuracyMeters.isFinite && (0...30).contains($0.accuracyMeters) }) {
+            lastGPSUptime = latest.uptime
             lastGPSAt = Date(timeIntervalSince1970: Double(latest.point.time) / 1000)
             message = nil
         }
@@ -283,5 +285,15 @@ final class TrackRecorder: ObservableObject {
     }
     private func endFinishingTask() {
         if backgroundTask != .invalid { UIApplication.shared.endBackgroundTask(backgroundTask); backgroundTask = .invalid }
+    }
+}
+
+extension TrackRecorder {
+    func liveActivitySession(settings: AppSettings) -> FieldActivitySession? {
+        guard (canStop || phase == .saving),let active else { return nil }
+        let state=FieldActivityState(title:String(active.name.prefix(80)),status:phase == .saving ? "Saving track" : "Recording",
+            detail:"\(active.pointCount) saved points · \(Format.distance(meters:active.distanceM,unit:settings.units)) saved",
+            grid:nil,fixDate:lastGPSAt,fixExpiresAt:lastGPSAt?.addingTimeInterval(15),startedAt:Date(timeIntervalSince1970:Double(active.startedAt)/1000),fixUptime:lastGPSUptime,night:settings.nightMode)
+        return .init(id:active.id,kind:"recording",state:state)
     }
 }

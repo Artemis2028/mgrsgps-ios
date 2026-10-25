@@ -22,3 +22,5 @@ Watch/Info.generated.plist
 # Generated PDF review artifacts and rendered pages.
 tmp/
 output/
+
+ActivityWidget/Info.generated.plist

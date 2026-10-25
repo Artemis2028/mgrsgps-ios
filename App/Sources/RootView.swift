@@ -11,6 +11,7 @@ struct RootView: View {
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var practice: PracticeSession
     @EnvironmentObject private var navigation: NavigationSession
+    @EnvironmentObject private var liveActivities: LiveActivityManager
     @EnvironmentObject private var lanes: NavigationLaneStore
     @State private var showingOrientationPicker = false
     @State private var pendingOrientation: ScreenOrientation?
@@ -128,6 +129,8 @@ struct RootView: View {
         }
         .onOpenURL { url in
             if url.isFileURL { incomingFile = url; importStatus = nil }
+            else if url.scheme == "gridfix",url.host == "recording" { showingRecorder = true }
+            else if url.scheme == "gridfix",url.host == "navigation" { selection = 1 }
         }
         .sheet(item: $backupPasswordRequest,onDismiss: {
             guard let (url,password) = pendingBackup else { return }
@@ -158,7 +161,7 @@ struct RootView: View {
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
             practice.setForeground(phase == .active)
-            if phase == .active { OrientationState.shared.refresh(); location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
+            if phase == .active { liveActivities.refresh(); OrientationState.shared.refresh(); location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
             else if phase == .inactive { navigation.foregroundChanged(false) }
             else if phase == .background { location.stop(); maps.pauseDownload(); terrain.backgrounded() }
         }

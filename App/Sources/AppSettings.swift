@@ -73,6 +73,7 @@ final class AppSettings: ObservableObject {
     @Published var guideCorridorM = 0 { didSet { persist() } }
     @Published var laneWarningM = 0 { didSet { persist() } }
     @Published var hiddenMapTools: Set<String> = [] { didSet { persist() } }
+    @Published var liveActivitiesEnabled = false { didSet { persist() } }
     var guideConfiguration: GuideConfiguration {
         var c = GuideConfiguration()
         c.allowance = Double(guideAllowance); c.holdOff = Double(guideHoldOffSec); c.heartbeat = Double(guideHeartbeatSec)
@@ -105,6 +106,7 @@ final class AppSettings: ObservableObject {
         var guideCorridorM: Int?
         var laneWarningM: Int?
         var hiddenMapTools: String?
+        var liveActivitiesEnabled: Bool?
         var orientation: Int?
         var disclaimerAccepted: Bool?
     }
@@ -166,6 +168,7 @@ final class AppSettings: ObservableObject {
         guideCorridorM = min(2000,max(0,snap.guideCorridorM ?? 0))
         laneWarningM = min(200,max(0,snap.laneWarningM ?? 0))
         hiddenMapTools = MapTools.decode(snap.hiddenMapTools)
+        liveActivitiesEnabled = snap.liveActivitiesEnabled ?? false
         orientation = (0...3).contains(snap.orientation ?? 0) ? (snap.orientation ?? 0) : 0
         disclaimerAccepted = snap.disclaimerAccepted ?? false
     }
@@ -183,11 +186,11 @@ final class AppSettings: ObservableObject {
     }
 
     func applyBackup(_ s: Backup.AppSettings) throws {
-        try Self.encodeBackup(s).write(to: fileURL,options: .atomic)
+        try Self.encodeBackup(s,liveActivitiesEnabled:liveActivitiesEnabled).write(to: fileURL,options: .atomic)
         installBackup(s)
     }
 
-    nonisolated private static func encodeBackup(_ s: Backup.AppSettings) throws -> Data {
+    nonisolated private static func encodeBackup(_ s: Backup.AppSettings,liveActivitiesEnabled: Bool = false) throws -> Data {
         var check = Backup.Document(settings: s)
         check.hasSettings = true
         try Backup.validate(check)
@@ -199,6 +202,7 @@ final class AppSettings: ObservableObject {
         snapshot.gridSystem = s.gridSystem
         snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
         snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM; snapshot.laneWarningM = s.laneWarningM; snapshot.hiddenMapTools = MapTools.encode(s.hiddenMapTools)
+        snapshot.liveActivitiesEnabled = liveActivitiesEnabled
         return try JSONEncoder().encode(snapshot)
     }
 
@@ -220,8 +224,9 @@ final class AppSettings: ObservableObject {
         fileprivate let destination: URL
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
+        fileprivate let liveActivitiesEnabled: Bool
         func prepare(_ settings: Backup.AppSettings) throws -> PreparedRestore {
-            let file = try PreparedAtomicFile(data: AppSettings.encodeBackup(settings),destination: destination)
+            let file = try PreparedAtomicFile(data: AppSettings.encodeBackup(settings,liveActivitiesEnabled:liveActivitiesEnabled),destination: destination)
             return PreparedRestore(settings: settings,revision: revision,identity: identity,file: file)
         }
     }
@@ -234,7 +239,7 @@ final class AppSettings: ObservableObject {
     }
 
     func restoreSnapshot() -> RestoreSnapshot {
-        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity)
+        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity,liveActivitiesEnabled:liveActivitiesEnabled)
     }
 
     func publishRestore(_ prepared: PreparedRestore) throws -> Bool {
@@ -265,6 +270,7 @@ final class AppSettings: ObservableObject {
         snap.gridSystem = gridSystem
         snap.guideAllowance = guideAllowance; snap.guideHoldOffSec = guideHoldOffSec; snap.guideHeartbeatSec = guideHeartbeatSec
         snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM; snap.laneWarningM = laneWarningM; snap.hiddenMapTools = MapTools.encode(hiddenMapTools)
+        snap.liveActivitiesEnabled = liveActivitiesEnabled
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }

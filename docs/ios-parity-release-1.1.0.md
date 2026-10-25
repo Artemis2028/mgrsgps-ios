@@ -10,7 +10,7 @@ lanes, protected backups, map-button preferences, fixes and the experimental
 TAK branch. Those additions are tracked separately from this pinned release.
 The first [navigation-lane UI and guidance integration](navigation-lanes.md)
 now includes optional lane backup/restore and shared screen/text/PDF leg limits;
-watch overlays/status and later Android cue switches remain implementation gaps. It does not replace the separate quiet-inside perimeter.
+watch status and later Android cue switches remain implementation gaps. It does not replace the separate quiet-inside perimeter.
 
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
@@ -65,6 +65,7 @@ synchronization remains a post-release implementation gap. See the
 
 User-requested follow-on: optional Live Activities, off by default, for recording
 and active navigation. ActivityKit surfaces session state; background location
-execution remains a separate capability. Implement opt-in, session lifecycle,
-freshness/stale presentation and simulator/physical validation. This remains
-implementation work. [Apple ActivityKit guidance](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).
+execution remains a separate capability. Opt-in, session lifecycle and freshness
+presentation are implemented; recording and navigation native workflows pass.
+Recording Lock Screen day/night/stale presentation was inspected; physical
+checks and navigation Lock Screen inspection remain required. See [Live Activities](live-activities.md). [Apple ActivityKit guidance](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).

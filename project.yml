@@ -23,12 +23,15 @@ targets:
     platform: iOS
     sources:
       - path: App/Sources
+      - path: Shared
       - path: App/Resources/MapAssets
         buildPhase: resources
       - path: App/Resources/MilitarySymbols
         type: folder
         buildPhase: resources
     dependencies:
+      - target: FieldActivityWidget
+        embed: true
       - target: GridFixWatch
         embed: true
       - package: GridFixCore
@@ -51,6 +54,11 @@ targets:
       path: App/Resources/Info.generated.plist
       properties:
         CFBundleDisplayName: MGRS GPS
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: app.gridfix.sessions
+            CFBundleURLSchemes:
+              - gridfix
         GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: app.gridfix.protected-backup
@@ -136,6 +144,28 @@ targets:
           screen is off. Nothing leaves the phone.
         UIBackgroundModes:
           - location
+
+  FieldActivityWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.2"
+    sources:
+      - path: ActivityWidget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.activities
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: ActivityWidget/Info.generated.plist
+      properties:
+        CFBundleDisplayName: GridFix Live Activities
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   GridFixWatch:
     type: application

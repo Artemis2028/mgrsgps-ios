@@ -15,6 +15,7 @@ struct MGRSGPSApp: App {
     @StateObject private var navigation: NavigationSession
     @StateObject private var lanes: NavigationLaneStore
 
+    @StateObject private var liveActivities: LiveActivityManager
     @StateObject private var practice: PracticeSession
 
     private let watchBridge: WatchPhoneBridge
@@ -124,7 +125,9 @@ struct MGRSGPSApp: App {
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
         _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
-        _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))
+        let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
+        _recorder = StateObject(wrappedValue: recordingSession)
+        _liveActivities = StateObject(wrappedValue: LiveActivityManager(recorder:recordingSession,navigation:navigationSession,settings:settingsStore))
     }
 
     var body: some Scene {
@@ -141,6 +144,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(navigation)
                 .environmentObject(lanes)
                 .environmentObject(practice)
+                .environmentObject(liveActivities)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)
                 .statusBarHidden(false)

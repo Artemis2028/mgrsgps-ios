@@ -46,6 +46,8 @@ final class NavigationIntegrationTests: XCTestCase {
         func send(_ x: Double,_ y: Double) { date += 1; up += 1; let p = lanePoint(x,y); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         send(0,100); XCTAssertEqual(nav.laneDecision?.state,.inside); XCTAssertNil(nav.decision)
         XCTAssertTrue(feedback.pulses.isEmpty); XCTAssertTrue(nav.status.contains("silent"))
+        let live=try XCTUnwrap(nav.liveActivitySession())
+        XCTAssertNotNil(live.state.grid);XCTAssertTrue(live.state.hasFreshFix(at:Date(timeIntervalSince1970:date),uptime:up))
         foreground = false
         send(-80,100); nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.inside)
         send(-80,110); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
@@ -56,7 +58,8 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertEqual(nav.laneDecision?.state,.inside)
         up += 11; date += 11; nav.tick(); XCTAssertNil(nav.laneDecision)
         XCTAssertTrue(nav.status.contains("unavailable")); XCTAssertEqual(feedback.pulses.last,.unavailable)
-        nav.stop()
+        XCTAssertNil(nav.liveActivitySession()?.state.grid)
+        nav.stop();XCTAssertNil(nav.liveActivitySession())
     }
     func testLinkedLineMovementUpdatesGuidanceAndDeletionFallsBackToAzimuth() async throws {
         let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()

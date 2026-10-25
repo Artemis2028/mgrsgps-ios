@@ -182,6 +182,13 @@ struct WatchMapView: View {
         }
     }
 
+    private func laneInfo(_ lane: WatchLaneOverlay) -> String {
+        let left = "L: \(lane.leftLabel)"
+        let right = "R: \(lane.rightLabel)"
+        let backstop = "BS: \(lane.backstopLabel)"
+        return ["Lane: \(lane.name)",left,right,backstop].joined(separator: " · ")
+    }
+
     private func mapInfo(at date: Date) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
@@ -201,7 +208,9 @@ struct WatchMapView: View {
                 Text("F = displayed fence · TRK = track · R = route · RG = range ring · A = area. Zoom closer for names.")
                 if let snapshot = model.mapSnapshot {
                     ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + MilitarySymbols.label(point.symbol)) }
-                    ForEach(snapshot.laneOverlays) { lane in Text("Lane: " + lane.name + " · L: " + lane.leftLabel + " · R: " + lane.rightLabel + " · BS: " + lane.backstopLabel) }
+                    ForEach(snapshot.laneOverlays) { lane in
+                        Text(laneInfo(lane))
+                    }
                     ForEach(snapshot.features, id: \.renderID) { feature in Text(GraphicTypes.label(feature.type) + ": " + feature.name) }
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")

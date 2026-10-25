@@ -368,3 +368,17 @@ private struct LaneShapeErrorForApp: LocalizedError {
     init(_ message: String) { self.message = message }
     var errorDescription: String? { message }
 }
+
+extension NavigationSession {
+    func liveActivitySession() -> FieldActivitySession? {
+        guard running,let target else { return nil }
+        let usable=fix.flatMap { value in NavigationFixPolicy.isUsable(lat:value.coordinate.latitude,lon:value.coordinate.longitude,accuracyMeters:value.horizontalAccuracy,timestampUptime:fixTime,nowUptime:uptime()) ? value : nil }
+        let distance=usable.map { Geodesy.navInfo(fromLat:$0.coordinate.latitude,fromLon:$0.coordinate.longitude,toLat:target.lat,toLon:target.lon).distanceMeters }
+        let checkpoint=progress.map { " · CP \(min($0.index+1,$0.points.count))/\($0.points.count)" } ?? ""
+        let title=String((progress?.name ?? target.name).prefix(80))
+        let grid=usable.flatMap { MGRS.parts(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,digits:settings.mgrsDigits)?.full }
+        let state=FieldActivityState(title:title,status:String(status.prefix(160)),detail:(distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
+            grid:grid,fixDate:usable?.timestamp,fixExpiresAt:usable?.timestamp.addingTimeInterval(10),startedAt:nil,fixUptime:usable == nil ? nil : fixTime,night:settings.nightMode)
+        return .init(id:progress.map { "route:"+$0.routeID } ?? "target:"+target.id,kind:"navigation",state:state)
+    }
+}

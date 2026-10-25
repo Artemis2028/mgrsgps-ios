@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var liveActivities: LiveActivityManager
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var orientationState = OrientationState.shared
@@ -42,6 +43,9 @@ struct SettingsView: View {
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
+                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
+                    Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
+                    Text(liveActivities.message).font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("live-activity-status").accessibilityValue("\(liveActivities.activityCount) active")
                     section("Grid & units")
                     Picker("Grid name", selection: $settings.gridSystem) {
                         Text("MGRS").tag(0); Text("USNG").tag(1)
