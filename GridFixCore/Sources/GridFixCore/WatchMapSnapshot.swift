@@ -14,6 +14,9 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
     public var revision: Int64
     public var waypoints: [Point] = []
     public var features: [Feature] = []
+    /// Optional for version-1 cache compatibility; nil is a complete empty lane replacement.
+    public var lanes: [WatchLaneOverlay]?
+    public var laneOverlays: [WatchLaneOverlay] { lanes ?? [] }
     public var omittedItems = 0
     public var simplifiedItems = 0
 
@@ -56,6 +59,7 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
     public var isValid: Bool {
         version == 1 && updatedAt.timeIntervalSince1970.isFinite && !sourceID.isEmpty && sourceID.count <= 64 && revision >= 0 && omittedItems >= 0 && simplifiedItems >= 0
         && waypoints.count <= Self.maxWaypoints && features.count <= Self.maxFeatures
+        && laneOverlays.count <= 8 && Set(laneOverlays.map(\.id)).count == laneOverlays.count && laneOverlays.allSatisfy(\.isValid)
         && Set(waypoints.map(\.id)).count == waypoints.count && Set(features.map(\.renderID)).count == features.count
         && waypoints.allSatisfy { !$0.id.isEmpty && $0.id.count <= 120 && $0.name.count <= 80
             && $0.symbol.count <= 80 && $0.affiliation.count <= 24 && $0.echelon.count <= 24
@@ -81,11 +85,17 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
     }
 
     public static func build(waypoints source: [Waypoint], folders: [FolderInfo], document: Backup.Document,
-                             boundary: BoundaryArea? = nil, date: Date = Date(), sourceID: String = "local", revision: Int64 = 0) -> Self {
+                             boundary: BoundaryArea? = nil, lanes: [NavLane] = [], date: Date = Date(), sourceID: String = "local", revision: Int64 = 0) -> Self {
         var result = Self(updatedAt: date, sourceID: sourceID, revision: revision)
         let hidden = Set(folders.filter { !$0.visible }.map { Folders.canonical($0.name).lowercased() })
         func shown(_ folder: String) -> Bool { !hidden.contains(Folders.canonical(folder).lowercased()) }
         func short(_ value: String, _ limit: Int = 80) -> String { String(value.prefix(limit)) }
+        result.lanes = []
+        var laneIDs = Set<String>()
+        for lane in lanes where lane.visible && shown(lane.folder) {
+            guard result.laneOverlays.count < 8,laneIDs.insert(lane.id).inserted,let overlay = WatchLaneOverlay.build(lane,graphics: document.graphics) else { result.omittedItems += 1; continue }
+            result.lanes?.append(overlay)
+        }
         var pointIDs = Set<String>(), featureIDs = Set<String>()
         for point in source where point.visible && shown(point.folder) {
             let id = short(point.id, 120), coordinate = GeoPoint(lat: point.lat, lon: point.lon)
@@ -130,7 +140,9 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
         while result.encoded() == nil {
             if let removed = result.features.popLast() {
                 if removed.simplified { result.simplifiedItems -= 1 }
-            } else if result.waypoints.popLast() == nil { break }
+            } else if result.waypoints.popLast() == nil {
+                if result.lanes?.popLast() == nil { break }
+            }
             result.omittedItems += 1
         }
         return result

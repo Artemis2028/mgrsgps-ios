@@ -18,7 +18,7 @@ watch overlays/status and later Android cue switches remain implementation gaps.
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
-| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Watch lane sync and later Android cue switches; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
+| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Phone-to-watch lane status and later Android cue switches; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; persistent map-button visibility with active escape controls and coordinate Go to | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
@@ -59,5 +59,12 @@ prompts. Independent JCA vectors and reverse-direction Swift exports verify
 Unicode and byte-level compatibility. Physical Android/iPhone provider checks
 remain required. Map-tool preferences now persist locally and through backups;
 [map-button behavior](map-tool-visibility.md) covers active-control protection,
-reset, direct ruler and Go to. Watch lane synchronization remains a post-release
-implementation gap.
+reset, direct ruler and Go to. Both watches now display complete cached lane overlays; phone lane-status
+synchronization remains a post-release implementation gap. See the
+[watch contract](watch-companion-parity.md).
+
+User-requested follow-on: optional Live Activities, off by default, for recording
+and active navigation. ActivityKit surfaces session state; background location
+execution remains a separate capability. Implement opt-in, session lifecycle,
+freshness/stale presentation and simulator/physical validation. This remains
+implementation work. [Apple ActivityKit guidance](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).

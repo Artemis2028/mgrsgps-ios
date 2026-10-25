@@ -9,6 +9,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private let settings: AppSettings
     private let field: FieldDataStore
     private let boundaries: BoundaryMonitor
+    private let lanes: NavigationLaneStore?
     private var sourceID: String
     private var revision: Int64
     private var generation = 0
@@ -16,8 +17,8 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private var subscriptions = Set<AnyCancellable>()
     private var session: WCSession?
 
-    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor) {
-        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries
+    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor,lanes: NavigationLaneStore? = nil) {
+        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries; self.lanes = lanes
         let defaults = UserDefaults.standard
         sourceID = defaults.string(forKey: "watch.map.source") ?? UUID().uuidString
         revision = max(0, (defaults.object(forKey: "watch.map.revision") as? NSNumber)?.int64Value ?? 0)
@@ -28,14 +29,16 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         session?.delegate = self
         session?.activate()
         // objectWillChange fires before the new value: defer serialization until the next runloop.
-        Publishers.MergeMany([
+        var sources: [AnyPublisher<Void,Never>] = [
             store.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             settings.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             field.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             boundaries.$areas.map { _ in () }.eraseToAnyPublisher(),
             boundaries.$displayedID.map { _ in () }.eraseToAnyPublisher(),
             boundaries.$activeID.map { _ in () }.eraseToAnyPublisher()
-        ])
+        ]
+        if let lanes { sources.append(lanes.objectWillChange.map { _ in () }.eraseToAnyPublisher()) }
+        Publishers.MergeMany(sources)
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self] in self?.publish() }.store(in: &subscriptions)
     }
@@ -50,7 +53,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
                                      northRef: settings.northRef.rawValue, declinationOverride: settings.declinationOverride)
         guard snapshot.isValid, let data = try? JSONEncoder().encode(snapshot) else { return }
         let points = store.waypoints, folders = store.folders, document = field.document
-        let boundary = boundaries.displayedArea
+        let boundary = boundaries.displayedArea, laneValues = lanes?.lanes ?? []
         generation += 1
         if revision == .max { sourceID = UUID().uuidString; revision = 0 }
         revision += 1
@@ -61,7 +64,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         // Track decoding/simplification is bounded and off the main actor. A newer edit wins.
         mapTask?.cancel()
         mapTask = Task.detached(priority: .utility) { [weak self] in
-            let map = WatchMapSnapshot.build(waypoints: points, folders: folders, document: document, boundary: boundary, sourceID: source, revision: mapRevision)
+            let map = WatchMapSnapshot.build(waypoints: points, folders: folders, document: document, boundary: boundary, lanes: laneValues, sourceID: source, revision: mapRevision)
             guard !Task.isCancelled else { return }
             let mapData = map.encoded()
             await MainActor.run { [weak self] in

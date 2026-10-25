@@ -89,7 +89,17 @@ struct MGRSGPSApp: App {
         #if DEBUG
         WatchPhoneBridge.seedMapUITest(store: waypointStore, field: fieldStore, boundaries: boundaryStore)
         #endif
-        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore)
+        let laneStore = NavigationLaneStore(directory: directory)
+        _lanes = StateObject(wrappedValue: laneStore)
+        #if DEBUG
+        let watchArgs = ProcessInfo.processInfo.arguments
+        if watchArgs.contains("-uiTesting"),watchArgs.contains("-uiTestWatchMapLanes"),!watchArgs.contains("-uiTestWatchMapClear") {
+            func p(_ x: Double,_ y: Double) -> GeoPoint { .init(lat:24.4539+y/111195,lon:54.3773+x/(111195*cos(24.4539 * .pi/180))) }
+            let fixture = NavLane(id:"watch-lane",name:"SYNTHETIC LANE",left:.init(points:[p(-60,-200),p(-60,200),p(-90,320)],label:"Creek"),right:.init(points:[p(60,-200),p(60,320)],label:"Road"),backstop:.init(points:[p(-120,340),p(0,360),p(120,340)],label:"Power line"),scope:.checkpoint,targetId:"watch-objective")
+            Task { _ = try? await laneStore.restore([fixture]) }
+        }
+        #endif
+        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore)
         _fieldData = StateObject(wrappedValue: fieldStore)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPractice"), waypointStore.waypoints.isEmpty {
@@ -111,8 +121,6 @@ struct MGRSGPSApp: App {
             try? fieldStore.saveGraphic(.init(id: "lane-route",name: "Lane patrol",type: "route",points: [point(0,0),point(0,300),point(0,500)].map { .init(lat: $0.lat,lon: $0.lon) }))
         }
         #endif
-        let laneStore = NavigationLaneStore(directory: directory)
-        _lanes = StateObject(wrappedValue: laneStore)
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
         _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))

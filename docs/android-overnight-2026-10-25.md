@@ -155,3 +155,14 @@ reachable reset. Direct ruler and coordinate Go to controls complete the seven
 settings. See [map-button preferences](map-tool-visibility.md) for grouping and
 validation. Watch lanes, later cue switches and the remaining polish/TAK work
 remain separate tasks.
+
+## Follow-up source check after watch-map work
+
+`origin/claude/lane-settings` now points to committed `4db6b21` (previously the
+local provisional work): lane cue switches, not-yet-entered startup, waiting
+reminders/calmer GPS-loss alerts, L/Z time display and duplicate-import prompts.
+These additions are confirmed backlog items; they are not yet iOS parity or a
+new released baseline. Wear's companion phone branch integrates pushed polish
+`e6bb5c5` and now exports lane maps. Both watch renderers show complete cached
+lanes; phone lane-status transfer remains pending. See
+[watch contract and evidence](watch-companion-parity.md).

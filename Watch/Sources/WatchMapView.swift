@@ -26,6 +26,7 @@ struct WatchMapView: View {
                         WatchMapMarker(point: point, night: night, showName: showsNames || point.id == model.snapshot.target?.id)
                     }.annotationTitles(.hidden)
                 }
+                ForEach(model.mapSnapshot?.laneOverlays ?? []) { lane in laneContent(lane) }
                 ForEach(model.mapSnapshot?.features ?? [], id: \.renderID) { feature in
                     featureContent(feature)
                 }
@@ -116,7 +117,7 @@ struct WatchMapView: View {
         camera = .region(MKCoordinateRegion(center: fix.coordinate, span: span))
     }
     private func fitOverlay() {
-        let points = (model.mapSnapshot?.waypoints.map(\.coordinate) ?? []) + (model.mapSnapshot?.features.flatMap(\.points) ?? [])
+        let points = (model.mapSnapshot?.waypoints.map(\.coordinate) ?? []) + (model.mapSnapshot?.features.flatMap(\.points) ?? []) + (model.mapSnapshot?.laneOverlays.flatMap(\.outline) ?? [])
         guard let bounds = FieldMapGeometry.bounds(points) else { return }
         camera = .region(MKCoordinateRegion(center: .init(latitude: (bounds.south + bounds.north) / 2,
                                                          longitude: TerrainGeometry.wrap((bounds.west + bounds.east) / 2)),
@@ -136,6 +137,20 @@ struct WatchMapView: View {
         case "neutral": return .green
         case "unknown": return .yellow
         default: return track ? .green : .orange
+        }
+    }
+
+    @MapContentBuilder private func laneContent(_ lane: WatchLaneOverlay) -> some MapContent {
+        MapPolygon(coordinates: lane.outline.map(coordinate)).foregroundStyle((night ? Color.red : Color.green).opacity(0.12))
+        ForEach([0,1,2],id: \.self) { role in
+            let points = role == 0 ? lane.left : role == 1 ? lane.right : lane.backstop
+            let tint: Color = night || role == 2 ? .red : .orange
+            MapPolyline(coordinates: points.map(coordinate)).stroke(tint,style: StrokeStyle(lineWidth: 2,dash: role == 2 ? [] : [4,3]))
+            Annotation(lane.name,coordinate: coordinate(WatchLaneOverlay.labelPoint(points)),anchor: role == 0 ? .trailing : role == 1 ? .leading : .bottom) {
+                Text((role == 0 ? "L" : role == 1 ? "R" : "BS") + (showsNames ? " · " + (role == 0 ? lane.leftLabel : role == 1 ? lane.rightLabel : lane.backstopLabel) : ""))
+                    .font(.system(size: 8,weight: .bold,design: .monospaced)).lineLimit(2).frame(maxWidth: 65)
+                    .foregroundStyle(tint).padding(2).background(.black.opacity(0.75))
+            }.annotationTitles(.hidden)
         }
     }
 
@@ -175,16 +190,18 @@ struct WatchMapView: View {
                 Text(model.reachable ? "Phone app reachable" : "Phone app not reachable")
                 if let snapshot = model.mapSnapshot {
                     Text("Cached sync · " + WatchFixPolicy.ageLabel(date.timeIntervalSince(snapshot.updatedAt)))
-                    Text("\(snapshot.waypoints.count) waypoints · \(snapshot.features.count) items")
+                    Text("\(snapshot.waypoints.count) waypoints · \(snapshot.features.count) items · \(snapshot.laneOverlays.count) lanes")
                     Text("\(snapshot.omittedItems) omitted · \(snapshot.simplifiedItems) simplified")
                 }
                 Text("Watch CoreLocation: " + model.status)
                 if let fix = model.fix {
                     Text(String(format: "±%.0f m · ", fix.horizontalAccuracy) + WatchFixPolicy.ageLabel(date.timeIntervalSince(fix.timestamp)))
                 }
+                Text("L/R = lane side limits · BS = backstop. Shading is a cached phone lane, not a watch crossing detector.")
                 Text("F = displayed fence · TRK = track · R = route · RG = range ring · A = area. Zoom closer for names.")
                 if let snapshot = model.mapSnapshot {
                     ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + MilitarySymbols.label(point.symbol)) }
+                    ForEach(snapshot.laneOverlays) { lane in Text("Lane: " + lane.name + " · L: " + lane.leftLabel + " · R: " + lane.rightLabel + " · BS: " + lane.backstopLabel) }
                     ForEach(snapshot.features, id: \.renderID) { feature in Text(GraphicTypes.label(feature.type) + ": " + feature.name) }
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
