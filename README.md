@@ -180,6 +180,8 @@ Position callouts, QR handoff and USNG naming: [behavior and validation](docs/po
 
 Native orientation and cross-runtime UI checks: [screen orientation](docs/screen-orientation.md) and [validation notes](docs/native-ui-validation.md). For local simulator tests from a Documents workspace, use a derived-data path outside Documents, such as `/tmp/gridfix-native-field-derived`.
 
+[Backup preparation](docs/backup-preparation.md) runs provider reads and ZIP encoding off the UI thread with progress/cancellation. Restore follows Android's section order and supports additive retry after partial failures. Store commits still need large-library performance work.
+
 Position fix age, accuracy/trusted precision and screen-versus-pocket compass references: [behavior and device checks](docs/position-fix-quality.md).
 
 GPS course selection and speed units: [behavior and real-location verification](docs/gps-course-speed.md).

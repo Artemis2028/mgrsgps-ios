@@ -128,6 +128,9 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             keys.insert(HistoryKey(started: $0.started, name: $0.name)).inserted
         }.sorted { $0.started == $1.started ? $0.name.utf16.lexicographicallyPrecedes($1.name.utf16) : $0.started < $1.started }.suffix(30))
         let courseAdded = next.courseHistory.filter { !oldKeys.contains(HistoryKey(started: $0.started, name: $0.name)) }.count
+        if graphics.isEmpty && tracks.isEmpty && next.courseHistory == document.courseHistory {
+            return Backup.RestoreResult(waypoints: 0,graphics: 0,tracks: 0,course: 0,settingsApplied: false)
+        }
         try commit(next)
         return Backup.RestoreResult(waypoints: 0, graphics: graphics.count, tracks: tracks.count, course: courseAdded, settingsApplied: false)
     }

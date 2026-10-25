@@ -27,6 +27,7 @@ struct WaypointsView: View {
     @FocusState private var searchFocused: Bool
     @State private var searchQuery = ""
     @State private var waypointSort: WaypointSort = .distance
+    @State private var choosingSort = false
     @State private var status: String?
     @State private var showingLibrary = false
     @State private var textImport: TextImportRequest?
@@ -43,6 +44,7 @@ struct WaypointsView: View {
     @State private var trackDetail: Backup.TrackMeta?
     @State private var backtrackingID: String?
     @State private var backtrackWork: Task<Void,Never>?
+    @StateObject private var backupTransfer = BackupTransfer()
 
     private var libraryFolders: [FolderInfo] {
         var folders = store.folders
@@ -85,6 +87,17 @@ struct WaypointsView: View {
                 folderPicker
                 searchControls
                 libraryCaption
+                if let phase = backupTransfer.phase {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text(phase.title).font(.footnote)
+                        Spacer()
+                        if phase != .restoring {
+                            Button("Cancel") { backupTransfer.cancel(); status = "Backup cancelled" }
+                                .frame(minHeight: 44).accessibilityIdentifier("backup-cancel")
+                        }
+                    }.padding(.horizontal,20).accessibilityIdentifier("backup-progress")
+                }
                 if !query.isEmpty && listedSelection.count == 0 {
                     Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
                 } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
@@ -97,12 +110,18 @@ struct WaypointsView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .onDisappear { searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil }
+        .onDisappear { searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel() }
         .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
+        .sheet(isPresented: $choosingSort) {
+            FieldChoiceSheet(title: "Sort waypoints",choices: WaypointSort.allCases.map { .init(id: $0.rawValue,title: $0.label) },selectedID: waypointSort.rawValue,night: settings.nightMode) { id in
+                if let order = WaypointSort(rawValue: id) { waypointSort = order }
+                choosingSort = false
+            }
+        }
         .sheet(isPresented: $choosingLibraryActions,onDismiss: runLibraryAction) {
-            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title) },night: settings.nightMode) { id in
+            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title,enabled: $0 != .backup || backupTransfer.phase == nil) },night: settings.nightMode) { id in
                 pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
             }
         }
@@ -125,7 +144,7 @@ struct WaypointsView: View {
             }
         }
         .confirmationDialog("Export",isPresented: $choosingExportFormat,titleVisibility: .visible) {
-            Button("Export backup") { exportBackup() }
+            Button("Export backup") { exportBackup() }.disabled(backupTransfer.phase != nil)
             Button("Export GPX") { exportGpx() }
             Button("Export CSV") { exportOther(.csv) }
             Button("Export GeoJSON") { exportOther(.geojson) }
@@ -278,11 +297,9 @@ struct WaypointsView: View {
                 Button { searchQuery = "" } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44,minHeight: 44) }
                     .accessibilityLabel("Clear library search").accessibilityIdentifier("library-search-clear")
             }
-            Menu {
-                ForEach(WaypointSort.allCases,id: \.self) { order in
-                    Button(order.label,systemImage: waypointSort == order ? "checkmark" : "arrow.up.arrow.down") { waypointSort = order; searchFocused = false }
-                }
-            } label: { Image(systemName: "arrow.up.arrow.down").frame(width: 44,height: 44) }
+            Button { searchFocused = false; choosingSort = true } label: {
+                Image(systemName: "arrow.up.arrow.down").frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain)
                 .accessibilityLabel("Sort waypoints, \(waypointSort.label)").accessibilityIdentifier("library-sort")
         }.padding(.horizontal,12).frame(minHeight: 44)
             .fieldContentSurface(night: settings.nightMode).padding(.horizontal,20).padding(.vertical,4)
@@ -554,13 +571,16 @@ struct WaypointsView: View {
     private func perform(_ action: () throws -> Void) { do { try action(); status = nil } catch { status = error.localizedDescription } }
 
     private func exportBackup() {
+        guard backupTransfer.phase == nil else { return }
         let doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
-        do {
-            let data = try Backup.exportZip(doc)
-            exportFile = FieldExportDocumentFile(data: data,contentType: .zip,filename: "gridfix-backup")
-            status = "Backup ready"
-        } catch {
-            status = "Backup failed: \(error.localizedDescription)"
+        status = nil
+        backupTransfer.export(doc) { result in
+            switch result {
+            case .success(let data):
+                exportFile = FieldExportDocumentFile(data: data,contentType: .zip,filename: "gridfix-backup")
+                status = "Backup ready"
+            case .failure(let error): status = "Backup failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -650,8 +670,11 @@ struct WaypointsView: View {
         do {
             guard let url = try result.get().first else { return }
             if importKind == .text { textImport = TextImportRequest(url: url); return }
-            let doc = try InterchangeFileReader.backup(url)
-            status = BackupCoordinator.restore(doc,waypoints: store,fieldData: fieldData,settings: settings)
+            guard backupTransfer.phase == nil else { return }
+            status = nil
+            backupTransfer.restore(url,apply: { document in
+                BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings)
+            },completion: { status = $0 })
         } catch { status = "Import failed: \(error.localizedDescription)" }
     }
 

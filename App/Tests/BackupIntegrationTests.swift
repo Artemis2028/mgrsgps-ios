@@ -28,6 +28,56 @@ final class BackupIntegrationTests: XCTestCase {
         XCTAssertTrue(UTType.gridFixGPX.conforms(to: .xml))
     }
 
+    func testUnreadableGraphicsStoreStopsAfterWaypointsAndKeepsHistoryAndSettings() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "android-backup-contract",withExtension: "zip"))
+        var document = try Backup.importZip(Data(contentsOf: file))
+        document.tracks = []; document.trackFiles = [:]
+        let archive = directory.appendingPathComponent("field-data-v1.zip")
+        let corrupt = Data("Unreadable archive kept for recovery".utf8)
+        try corrupt.write(to: archive)
+        let points = WaypointStore(directory: directory), field = FieldDataStore(directory: directory), settings = AppSettings(directory: directory)
+        let result = BackupCoordinator.restore(document,waypoints: points,fieldData: field,settings: settings)
+        XCTAssertTrue(result.contains("Restore stopped:"),result)
+        XCTAssertTrue(result.contains("Already restored: 1 waypoints"),result)
+        XCTAssertEqual(WaypointStore(directory: directory).waypoints.count,1)
+        XCTAssertTrue(field.document.graphics.isEmpty); XCTAssertTrue(field.document.courseHistory.isEmpty)
+        XCTAssertEqual(settings.backupSettings,Backup.AppSettings())
+        XCTAssertEqual(try Data(contentsOf: archive),corrupt)
+        try FileManager.default.removeItem(at: archive)
+        let repaired = FieldDataStore(directory: directory)
+        let retry = BackupCoordinator.restore(document,waypoints: points,fieldData: repaired,settings: settings)
+        XCTAssertFalse(retry.contains("stopped"),retry)
+        XCTAssertEqual(points.waypoints.count,1)
+        XCTAssertEqual(repaired.document.graphics.count,1); XCTAssertEqual(repaired.document.courseHistory.count,1)
+        XCTAssertEqual(settings.backupSettings,document.settings)
+    }
+
+    func testSettingsFailureReportsAllEarlierDurableSectionsAndRetryDoesNotDuplicate() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "android-backup-contract",withExtension: "zip"))
+        let document = try Backup.importZip(Data(contentsOf: file))
+        let points = WaypointStore(directory: directory), field = FieldDataStore(directory: directory), settings = AppSettings(directory: directory)
+        let blocked = directory.appendingPathComponent("settings-v1.json")
+        try FileManager.default.createDirectory(at: blocked,withIntermediateDirectories: false)
+        let result = BackupCoordinator.restore(document,waypoints: points,fieldData: field,settings: settings)
+        XCTAssertTrue(result.contains("Restore stopped:"),result)
+        XCTAssertTrue(result.contains("1 tracks, 1 waypoints, 1 graphics/routes, 1 course results"),result)
+        XCTAssertEqual(WaypointStore(directory: directory).waypoints.count,1)
+        let durable = FieldDataStore(directory: directory)
+        XCTAssertEqual(durable.document.tracks.count,1); XCTAssertEqual(durable.document.graphics.count,1); XCTAssertEqual(durable.document.courseHistory.count,1)
+        XCTAssertEqual(settings.backupSettings,Backup.AppSettings())
+        try FileManager.default.removeItem(at: blocked)
+        let retry = BackupCoordinator.restore(document,waypoints: points,fieldData: field,settings: settings)
+        XCTAssertFalse(retry.contains("stopped"),retry)
+        XCTAssertEqual(points.waypoints.count,1); XCTAssertEqual(field.document.tracks.count,1); XCTAssertEqual(field.document.courseHistory.count,1)
+        XCTAssertEqual(AppSettings(directory: directory).backupSettings,document.settings)
+    }
+
     func testPartialRestoreReportsSavedSectionsAndRetryCompletesWithoutDuplicates() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -43,6 +93,8 @@ final class BackupIntegrationTests: XCTestCase {
         XCTAssertTrue(result.contains("Restore stopped"), result)
         XCTAssertTrue(result.contains("Already restored:"), result)
         XCTAssertEqual(field.document.tracks.count, 1)
+        XCTAssertTrue(field.document.graphics.isEmpty,"Android commits graphics only after waypoints")
+        XCTAssertTrue(field.document.courseHistory.isEmpty,"Course history follows graphics")
         XCTAssertTrue(waypoints.waypoints.isEmpty)
         XCTAssertEqual(settings.backupSettings, Backup.AppSettings())
         try FileManager.default.removeItem(at: blocked)

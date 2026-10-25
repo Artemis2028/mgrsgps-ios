@@ -171,7 +171,7 @@ struct WaypointEditor: View {
                         .onChange(of: affiliation) { value in
                             if let function = MilitarySymbols.function(symbol), value != "none" { symbol = "nato_\(MilitarySymbols.affiliationCode(value))_\(function)" }
                         }
-                    Picker("Echelon",selection: $echelon) { ForEach(MilitarySymbols.echelons) { Text($0.label).tag($0.key) } }.accessibilityIdentifier("unit-echelon")
+                    FieldChoicePicker(selection: $echelon,title: "Echelon",choices: MilitarySymbols.echelons.map { .init(id: $0.key,title: $0.label) },identifier: "unit-echelon")
                     TextField("Unit designation",text: $designation,prompt: Text("Unit designation").foregroundColor(secondaryInk)).focused($focusedInput,equals: .designation).accessibilityIdentifier("unit-designation")
                     if symbol.hasPrefix("task_") { Slider(value: $rotation,in: 0...360,step: 5); Text("Task rotation: \(Int(rotation))°") }
                     if markerMetadata?.color != nil || markerMetadata?.milgpsSymbolCode != nil {

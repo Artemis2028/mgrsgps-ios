@@ -2,6 +2,20 @@ import XCTest
 @testable import GridFixCore
 
 final class LibraryWorkflowTests: XCTestCase {
+    func testDuplicateRestoreDoesNotRewriteUnchangedArchive() throws {
+        let directory = try directory(), store = try field(directory)
+        let snapshot = store.document
+        let file = directory.appendingPathComponent("field-data-v1.zip")
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        let result = try store.restore(snapshot)
+        XCTAssertEqual(result.graphics,0); XCTAssertEqual(result.tracks,0); XCTAssertEqual(result.course,0)
+        XCTAssertEqual(store.document.graphics,snapshot.graphics)
+        XCTAssertEqual(store.document.trackFiles,snapshot.trackFiles)
+        var changed = snapshot.graphics[0]; changed.name = "Changed"
+        XCTAssertThrowsError(try store.saveGraphic(changed),"A real change still attempts the atomic write")
+        XCTAssertEqual(store.document.graphics,snapshot.graphics)
+    }
     private func directory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: url,withIntermediateDirectories: true)
