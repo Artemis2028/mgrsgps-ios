@@ -10,7 +10,13 @@ Restore merges into the current stores after reading, including edits made while
 
 Merge, validation, serialization and file writes now run on workers using immutable store snapshots. Files are staged in Apple's [replacement directory on the destination volume](https://developer.apple.com/documentation/foundation/filemanager/replaceitemat(_:withitemat:backupitemname:options:)). The main actor checks the store instance and revision, atomically renames the completed file, then publishes its in-memory state. A selection change, folder edit, new recording or other record mutation invalidates a successful preparation; it is discarded and rebuilt from current data. Settings use the same protocol. Track decoding also releases the store lock after capturing its immutable bytes, so a background reader does not hold that lock throughout decoding.
 
-Cancel applies before restore publication starts. In-process cancellation does not interrupt a commit already underway; ordered phases finish and report progress even if the owning view leaves, matching Android's noncancellable commit policy. An actual process interruption can leave earlier durable sections, and retrying the backup completes the remaining sections. Main-actor work is reduced to snapshot capture, revision checks, atomic rename/cleanup and publication. Remaining costs include repeated field-archive encoding across phases, other synchronous editing operations, library listing/search and SwiftUI rendering; provider/storage-pressure and physical-device checks remain. This is implementation work, not an iOS restriction. Active sessions, offline packs and quiet-inside boundaries remain outside the Android v1 backup contract.
+Cancel applies before restore publication starts. In-process cancellation does not interrupt a commit already underway; ordered phases finish and report progress even if the owning view leaves, matching Android's noncancellable commit policy. An actual process interruption can leave earlier durable sections, and retrying the backup completes the remaining sections. Main-actor work is reduced to snapshot capture, revision checks, atomic rename/cleanup and publication. Remaining costs include repeated field-archive encoding across phases, other synchronous editing/export operations and dense-map rendering/accessibility; provider/storage-pressure and physical-device checks remain. This is implementation work, not an iOS restriction. Active sessions, offline packs and quiet-inside boundaries remain outside the Android v1 backup contract.
+
+Backups and interchange now share `LibraryRestoreCommit` for worker-prepared
+field and waypoint phases. Their cancellation policies remain distinct: backup
+restore completes its ordered commit; interchange checks cancellation between
+finished atomic phases, matching `ImportCoordinator.persist`. See
+[text interchange](text-interchange.md).
 
 ## Verification
 

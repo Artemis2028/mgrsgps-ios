@@ -86,3 +86,34 @@ a distinct gate; these focused results are not a claim that hosted CI is green.
 The existing coordinate-entry → map marker selection → navigation → folder
 hide/show native regression passes after marker batching. The final unsigned
 combined phone/embedded-watch Release build passes as well.
+
+## Worker-prepared interchange commits
+
+CSV/GeoJSON/GPX/KML/KMZ/ATAK confirmations now use the shared staged field and
+waypoint commit phases. Validation, merge, encoding and full writes run on
+workers; atomic main-actor publication rechecks store identity/revision and
+rebases after concurrent edits. Android's tracks → waypoints/folders → graphics
+order and cancellation between completed atomic phases remain intact. Storage
+failures name the failed section and retain confirmed saved counts for retry.
+
+The sheet displays importing progress and rejects duplicate confirmation,
+editing and dismissal during a confirmed commit. Its owner finishes and reports work
+through sheet disappearance; reading/preview remains separately cancellable.
+Tests cover duplicate starts, cancellation/error reset, retained ownership,
+cancellation after durable track publication, untouched later phases, invalid
+plan rejection, suppression of a departed sheet’s late dismissal, local track
+edits on retry and the existing failure/reopen/ID
+fixtures through the production async coordinator.
+
+A parsed GPX with 5,000 waypoints, 1,000 routes and 50,000 track points committed
+locally in 0.940 seconds (485 main-actor pulses; largest gap 0.005 seconds), then
+0.800 seconds (400 pulses; largest gap 0.004 seconds), while a local waypoint was
+edited/selected. These are model measurements, not physical/UI performance gates.
+Native CSV/GeoJSON preview/cancel/confirm/retry, malformed/night input, KML map/
+relaunch, KMZ and ATAK Files workflows pass. The GPX route/track import, generated
+waypoints/navigation, map overlays and track visibility/relaunch regression also
+passes. Day/night preview attachments were exported from closed bundles and
+inspected. All 119 app integration tests and the combined unsigned phone/watch Release
+build pass locally; hosted
+CI, physical providers/storage pressure and synchronous non-backup exports/other
+library edits remain separate work.

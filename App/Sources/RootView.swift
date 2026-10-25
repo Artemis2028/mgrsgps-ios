@@ -118,11 +118,11 @@ struct RootView: View {
         }
         .sheet(item: $importRequest) { request in
             InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name)) { document in
-                let result = InterchangeCoordinator.apply(document,waypoints: waypointStore,field: fieldStore)
+                let result = try await InterchangeCoordinator.apply(document,waypoints: waypointStore,field: fieldStore)
                 importStatus = result.message
                 if result.completed && incomingFile == request.url { incomingFile = nil }
                 return result
-            }
+            }.id(request.id)
         }
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }

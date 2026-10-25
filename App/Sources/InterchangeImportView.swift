@@ -12,11 +12,13 @@ struct InterchangeImportView: View {
     @Environment(\.fieldNight) private var night
     let request: TextImportRequest
     let knownFolders: [String]
-    let onImport: (Backup.Document) -> InterchangeCoordinator.Result
+    let onImport: (Backup.Document) async throws -> InterchangeCoordinator.Result
     @State private var text = ""
     @State private var preview: InterchangePreview?
     @State private var message: String?
     @State private var working = false
+    @StateObject private var importCommit = InterchangeCommit()
+    private var importing: Bool { importCommit.importing }
     @State private var task: Task<Void,Never>?
     @State private var generation = UUID()
     @FocusState private var editing: Bool
@@ -34,11 +36,14 @@ struct InterchangeImportView: View {
                         TextEditor(text: $text).font(.system(.caption,design: .monospaced))
                             .frame(minHeight: 180).scrollContentBackground(.hidden)
                             .padding(8).background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 12))
-                            .focused($editing).autocorrectionDisabled().textInputAutocapitalization(.never)
+                            .disabled(importing).focused($editing).autocorrectionDisabled().textInputAutocapitalization(.never)
                             .accessibilityIdentifier("gpx-import-text")
                             .onChange(of: text) { _ in invalidate() }
                     }
-                    if working { ProgressView("Reading and checking…") }
+                    if working || importing {
+                        ProgressView(importing ? "Importing records…" : "Reading and checking…")
+                            .accessibilityIdentifier("interchange-progress")
+                    }
                     if let preview {
                         VStack(alignment: .leading,spacing: 8) {
                             Text("\(preview.format.label) preview").font(.headline)
@@ -51,21 +56,19 @@ struct InterchangeImportView: View {
                             Text("Use a GridFix backup to preserve library symbols and settings.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }
-                    if let message { Text(message).font(.footnote).accessibilityIdentifier("interchange-message") }
+                    if let message = importCommit.failure ?? message { Text(message).font(.footnote).accessibilityIdentifier("interchange-message") }
                 }.padding()
             }
             .background { FieldScreenBackground() }
             .navigationTitle("Import \(label)").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) { Text("Import \(label)").font(.headline).foregroundStyle(FieldPalette(night: night).ink) }
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { invalidate(); dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { invalidate(); dismiss() }.disabled(importing) }
                 ToolbarItem(placement: .confirmationAction) {
                     if let preview {
                         Button("Import") {
-                            editing = false
-                            let result = onImport(preview.document)
-                            if result.completed { dismiss() } else { message = result.message }
-                        }.disabled(preview.recordCount == 0).accessibilityIdentifier("confirm-gpx-import")
+                            commit(preview)
+                        }.disabled(importing || preview.recordCount == 0).accessibilityIdentifier("confirm-gpx-import")
                     } else {
                         Button("Preview") { prepare() }.disabled(working || (request.url == nil && text.isEmpty))
                             .accessibilityIdentifier("preview-interchange")
@@ -75,14 +78,28 @@ struct InterchangeImportView: View {
             }
         }
         .foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent).fieldSheetAppearance()
-        .onAppear { if request.url != nil { prepare() } }
-        .onDisappear { invalidate() }
+        .onAppear { importCommit.setPresented(true); if request.url != nil { prepare() } }
+        .interactiveDismissDisabled(importing)
+        .onDisappear { importCommit.setPresented(false); invalidate() }
     }
 
     private func invalidate() {
+        // Preparation may be cancelled. Once confirmed, retain the owned task
+        // through disappearance so ordered publication can finish and report.
+        guard !importing else { return }
+        importCommit.clearFailure()
         task?.cancel(); task = nil; generation = UUID(); preview = nil; message = nil; working = false
     }
+    private func commit(_ preview: InterchangePreview) {
+        guard !working, preview.recordCount > 0 else { return }
+        editing = false; message = nil
+        importCommit.start(preview.document,apply: onImport) { result in
+            if result.completed { dismiss() } else { message = result.message }
+        }
+    }
+
     private func prepare() {
+        guard !importing else { return }
         invalidate(); editing = false; working = true
         let token = generation, input = text, request = request, folders = knownFolders
         task = Task {

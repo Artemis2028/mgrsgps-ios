@@ -74,6 +74,23 @@ confirmed saved and leaves the preview open for retry. No rollback deletes field
 data or user edits. Import never applies device settings or changes navigation
 selection. ZIP backup restore keeps its separate existing contract.
 
+Confirmed imports now validate, merge, encode and stage files on workers using
+immutable store snapshots. The main actor checks store identity/revision,
+atomically publishes the completed file, then updates the UI. Concurrent record,
+folder or selection edits discard a stale preparation and rebase it on current
+stores. This shares the backup commit machinery without applying backup settings
+or course results.
+
+Android `release/1.1.0` at `482b417`, `data/ImportCoordinator.kt`, makes each
+started phase noncancellable and checks cancellation before the next phase. The
+iOS async coordinator follows that policy and propagates cancellation separately
+from storage failures. The native sheet shows “Importing records…” and prevents
+editing, duplicate confirmation and dismissal while confirmed work finishes.
+Its task owner survives the sheet leaving, so in-process completion still reports
+its result upstream. A departed sheet cannot dismiss a replacement file preview. Preview reads remain cancellable. This UI policy is an implementation
+choice, not an iOS permission restriction. Process death can still leave earlier
+durable phases; unchanged-content retry adds the remaining records safely.
+
 ## Verification
 
 Core tests cover delimiter/header/grid parsing, quoted exports, metadata,
@@ -93,5 +110,17 @@ so UI/import timing cannot race the route; it never injects app location state.
 See test results for the current run.
 
 KML/KMZ and ATAK are now implemented in the same preview flow; see
-[KML and mission-package behavior](kml-atak-interchange.md). PDF/strip-map output,
-ZIP64, full provider/device validation and large-library/storage-pressure work remain open.
+[KML and mission-package behavior](kml-atak-interchange.md).
+[Route-card PDF output](route-card-pdf.md) and [ZIP64 support](zip64-containers.md)
+are implemented and documented separately. Synchronous non-backup
+export encoding, other library edits, full provider/device validation and storage
+pressure remain open.
+
+Worker-commit tests additionally cover cancellation before start and after the
+track phase, complete track-log durability, invalid-plan rejection before any
+publication, retained local track edits on retry, duplicate confirmation and an
+owner leaving while work is suspended. A parsed GPX benchmark commits 5,000
+waypoints, 1,000 routes and 50,000 track points while the main actor edits/selects
+a local point. One local run took 0.940 seconds, with 485 timer pulses and a
+largest observed gap of 0.005 seconds. Timings are recorded rather than used as
+hardware-dependent gates; they do not measure the large library's rendered UI.

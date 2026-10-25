@@ -204,10 +204,10 @@ struct WaypointsView: View {
         }
         .sheet(item: $textImport) { request in
             InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name)) { document in
-                let result = InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
+                let result = try await InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
                 status = result.message
                 return result
-            }
+            }.id(request.id)
         }
         .fileExporter(isPresented: Binding(
             get: { exportFile != nil },

@@ -3,36 +3,55 @@ import GridFixCore
 
 @MainActor
 enum InterchangeCoordinator {
-    struct Result {
+    struct Result: Sendable {
         var completed: Bool
         var message: String
     }
 
     /// Android imports commit tracks, then waypoints/folders, then graphics.
-    /// Each phase is atomic; stable content IDs make a retry additive.
-    static func apply(_ document: Backup.Document, waypoints: WaypointStore, field: FieldDataStore) -> Result {
+    /// Each phase is atomic; stable content IDs make a retry additive. Workers
+    /// finish a started phase; cancellation is honored between phases, matching
+    /// Android ImportCoordinator.persist and never translated into a write error.
+    static func apply(_ document: Backup.Document, waypoints: WaypointStore, field: FieldDataStore) async throws -> Result {
         var saved: [String] = []
+        var phase = "validation"
         do {
-            try Backup.validate(document)
+            try Task.checkCancellation()
+            let validation = Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                try Backup.validate(document)
+                try Task.checkCancellation()
+            }
+            try await withTaskCancellationHandler(operation: { try await validation.value },onCancel: { validation.cancel() })
+            try Task.checkCancellation()
             if !document.tracks.isEmpty {
+                phase = "tracks"
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
-                let count = try field.restore(tracks).tracks
+                let count = try await LibraryRestoreCommit.field(tracks,into: field).tracks
                 if count > 0 { saved.append("\(count) tracks") }
             }
+            try Task.checkCancellation()
             if !document.waypoints.isEmpty || !document.folders.isEmpty {
-                let count = try waypoints.restore(waypoints: document.waypoints,folders: document.folders)
+                phase = "waypoints and folders"
+                let count = try await LibraryRestoreCommit.waypoints(document.waypoints,folders: document.folders,into: waypoints)
                 if count > 0 { saved.append("\(count) waypoints") }
             }
+            try Task.checkCancellation()
             if !document.graphics.isEmpty {
+                phase = "graphics/routes"
                 var graphics = Backup.Document(); graphics.hasSettings = false; graphics.graphics = document.graphics
-                let count = try field.restore(graphics).graphics
+                let count = try await LibraryRestoreCommit.field(graphics,into: field).graphics
                 if count > 0 { saved.append("\(count) graphics/routes") }
             }
+            try Task.checkCancellation()
             return .init(completed: true,message: saved.isEmpty ? "Nothing new to import. Existing records kept." : "Imported " + saved.joined(separator: ", "))
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             let progress = saved.isEmpty ? "No records added." : "Already imported: " + saved.joined(separator: ", ") + "."
-            return .init(completed: false,message: "Import stopped: \(error.localizedDescription). \(progress) Retry this unchanged file to finish without duplicates.")
+            let failure = phase == "validation" ? "Could not validate import" : "Could not save " + phase
+            return .init(completed: false,message: "Import stopped: \(failure): \(error.localizedDescription). \(progress) Retry this unchanged file to finish without duplicates.")
         }
     }
 }

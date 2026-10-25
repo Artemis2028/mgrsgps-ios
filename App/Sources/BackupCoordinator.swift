@@ -13,7 +13,7 @@ enum BackupCoordinator {
             if !document.tracks.isEmpty {
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
-                let count = try await restoreField(tracks,into: fieldData).tracks
+                let count = try await LibraryRestoreCommit.field(tracks,into: fieldData).tracks
                 if count > 0 { applied.append("\(count) tracks") }
             }
             let folders = await Task.detached(priority: .userInitiated) {
@@ -23,24 +23,16 @@ enum BackupCoordinator {
                 }
                 return folders
             }.value
-            while true {
-                let snapshot = waypoints.restoreSnapshot()
-                let prepared = try await Task.detached(priority: .userInitiated) {
-                    try snapshot.prepare(waypoints: document.waypoints,folders: folders)
-                }.value
-                if let count = try waypoints.publishRestore(prepared) {
-                    if count > 0 { applied.append("\(count) waypoints") }
-                    break
-                }
-            }
+            let count = try await LibraryRestoreCommit.waypoints(document.waypoints,folders: folders,into: waypoints)
+            if count > 0 { applied.append("\(count) waypoints") }
             if !document.graphics.isEmpty {
                 var graphics = Backup.Document(); graphics.hasSettings = false; graphics.graphics = document.graphics
-                let count = try await restoreField(graphics,into: fieldData).graphics
+                let count = try await LibraryRestoreCommit.field(graphics,into: fieldData).graphics
                 if count > 0 { applied.append("\(count) graphics/routes") }
             }
             if !document.courseHistory.isEmpty {
                 var course = Backup.Document(); course.hasSettings = false; course.courseHistory = document.courseHistory
-                let count = try await restoreField(course,into: fieldData).course
+                let count = try await LibraryRestoreCommit.field(course,into: fieldData).course
                 if count > 0 { applied.append("\(count) course results") }
             }
             if document.hasSettings {
@@ -54,14 +46,6 @@ enum BackupCoordinator {
         } catch {
             let progress = applied.isEmpty ? "No records added." : "Already restored: "+applied.joined(separator: ", ")+"."
             return "Restore stopped: \(error.localizedDescription). \(progress) You can retry."
-        }
-    }
-
-    private static func restoreField(_ document: Backup.Document,into store: FieldDataStore) async throws -> Backup.RestoreResult {
-        while true {
-            let snapshot = try store.restoreSnapshot()
-            let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(document) }.value
-            if let result = try store.publishRestore(prepared) { return result }
         }
     }
 }
