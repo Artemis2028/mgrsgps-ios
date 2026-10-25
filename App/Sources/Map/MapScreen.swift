@@ -25,6 +25,7 @@ struct MapScreen: View {
     @State private var editorRequest: WaypointEditorRequest?
     @State private var showingLayers = false
     @State private var showingTerrain = false
+    @State private var fieldFixRequest: FieldFixRequest?
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
     @State private var zoom = 6.5
     @State private var contourLabel = ""
@@ -152,8 +153,11 @@ struct MapScreen: View {
                                     rulerAnchor = nil; selectedID = nil; graphicError = nil
                                     graphicDraft = GraphicDraft(type: "area"); measuringArea = true
                                 }.accessibilityIdentifier("measure-area")
+                                Divider()
+                                Button("Resection") { openFieldFix(.resection) }.accessibilityIdentifier("field-resection")
+                                Button("Intersection") { openFieldFix(.intersection) }.accessibilityIdentifier("field-intersection")
                             } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
-                                .fieldGlassButton().accessibilityLabel("Map measurements").accessibilityIdentifier("map-measure")
+                                .fieldGlassButton().accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
                             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain")
                         }
@@ -262,6 +266,11 @@ struct MapScreen: View {
         .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
             Button("OK") { routeWaypointError = nil }
         } message: { Text(routeWaypointError ?? "") }
+        .sheet(item: $fieldFixRequest) { request in
+            FieldFixPanel(request: request) { point in
+                selectedID = nil; cameraRequest = MapCameraRequest(action: .locate(point.lat,point.lon))
+            }
+        }
         .sheet(isPresented: $showingTerrain) {
             TerrainPanel(centre: .init(lat: centre.latitude,lon: centre.longitude),position: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
         }
@@ -287,6 +296,11 @@ struct MapScreen: View {
                 selectedID = waypoint.id
             }
         }
+    }
+
+    private func openFieldFix(_ mode: FieldFix.Mode) {
+        rulerAnchor = nil; selectedID = nil
+        fieldFixRequest = .init(mode: mode,centre: .init(lat: centre.latitude,lon: centre.longitude),position: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
     }
 
     private func selectedCard(_ waypoint: Waypoint) -> some View {

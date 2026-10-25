@@ -168,3 +168,7 @@ Terrain tools now include map-centre elevation/slope estimates, point-to-point
 line of sight, route elevation profiles, and day/night viewsheds using the same
 cached/downloaded DEM data as contours. Missing data stays unknown. See
 [terrain visibility](docs/terrain-visibility.md) for behavior and validation.
+
+Route cards include a complete leg table and a native, multi-page A4 strip-map PDF preview with Files save and system sharing. See [route-card export behavior and verification](docs/route-card-pdf.md).
+
+The map field-tools menu also includes [resection and intersection worksheets](docs/field-fixes.md), with per-point north-reference conversion, geometry warnings and show/save actions.

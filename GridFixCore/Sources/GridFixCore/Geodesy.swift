@@ -125,24 +125,28 @@ public enum Geodesy {
     /// reject rather than plot.
     public static func rayIntersection(lat1: Double, lon1: Double, bearing1True: Double,
                                        lat2: Double, lon2: Double, bearing2True: Double) -> RayFix? {
+        guard TrackCodec.validCoordinates(lat1,lon1),TrackCodec.validCoordinates(lat2,lon2),
+              (-80...84).contains(lat1),(-80...84).contains(lat2),bearing1True.isFinite,bearing2True.isFinite else { return nil }
         let zone = UTM.zone(lat: lat1, lon: lon1)
         let north = lat1 >= 0
         let p1 = UTM.forZone(lat: lat1, lon: lon1, zone: zone, north: north)
         let p2 = UTM.forZone(lat: lat2, lon: lon2, zone: zone, north: north)
-        let g1 = (bearing1True - UTM.gridConvergence(lat: lat1, lon: lon1, zone: zone)) * .pi / 180.0
-        let g2 = (bearing2True - UTM.gridConvergence(lat: lat2, lon: lon2, zone: zone)) * .pi / 180.0
+        guard p1.easting.isFinite,p1.northing.isFinite,p2.easting.isFinite,p2.northing.isFinite else { return nil }
+        let g1 = (bearing1True.truncatingRemainder(dividingBy: 360) - UTM.gridConvergence(lat: lat1, lon: lon1, zone: zone)) * .pi / 180.0
+        let g2 = (bearing2True.truncatingRemainder(dividingBy: 360) - UTM.gridConvergence(lat: lat2, lon: lon2, zone: zone)) * .pi / 180.0
         let d1x = sin(g1), d1y = cos(g1)
         let d2x = sin(g2), d2y = cos(g2)
         let cross = d1x * d2y - d1y * d2x
-        if abs(cross) < 1e-6 { return nil }
+        if !cross.isFinite || abs(cross) < 1e-6 { return nil }
         let dx = p2.easting - p1.easting
         let dy = p2.northing - p1.northing
         let t = (dx * d2y - dy * d2x) / cross
         let s = (dx * d1y - dy * d1x) / cross
-        if t <= 0.0 || s <= 0.0 || t > 100000.0 || s > 100000.0 { return nil }
+        if !t.isFinite || !s.isFinite || t <= 0.0 || s <= 0.0 || t > 100000.0 || s > 100000.0 { return nil }
         let ll = UTM.inverse(easting: p1.easting + t * d1x,
                              northing: p1.northing + t * d1y,
                              zone: zone, north: north)
+        guard TrackCodec.validCoordinates(ll.lat,ll.lon),(-80...84).contains(ll.lat) else { return nil }
         return RayFix(lat: ll.lat, lon: ll.lon, dist1: t, dist2: s)
     }
 }
