@@ -31,9 +31,8 @@ struct NavigationControlsView: View {
                 .accessibilityIdentifier("haptic-guide-toggle")
             Text(navigation.preparing ? "Starting navigation…" : navigation.status).accessibilityIdentifier("navigation-guide-status")
             if let d = navigation.decision, let error = d.deviation, d.cue != .unavailable, navigation.haptics {
-                HStack(spacing: 16) {
-                    Image(systemName: "arrow.up").font(.system(size: 36,weight: .semibold))
-                        .rotationEffect(.degrees(error)).frame(width: 70,height: 70)
+                VStack(alignment: .leading,spacing: 6) {
+                    Text("Haptic guide · phone top").font(.caption)
                     Text(error == 0 ? "On bearing" : "\(error > 0 ? "Right" : "Left") \(Int(abs(error)))°")
                         .font(.system(.headline,design: .monospaced))
                 }.foregroundStyle(palette.accent).accessibilityIdentifier("relative-heading-guide")

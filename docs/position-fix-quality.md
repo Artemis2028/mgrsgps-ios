@@ -1,0 +1,21 @@
+# Position age and screen-relative compass
+
+Android reference: `release/1.1.0` at `482b417`, `ui/faces/Faces.kt`, `location/CompassTracker.kt` and `ui/screens/NavigateScreen.kt`.
+
+Position grades horizontal accuracy at Android's 5/10/20/50 m boundaries. Trusted grid precision uses the Android 1/5/50 m boundaries: 10/8/6/4 total digits. Core Location exposes neither satellite counts nor an authoritative GPS-versus-network provider, so those Android caps and labels are not invented.
+
+The existing one-second foreground refresh recomputes age from the fix's captured system uptime. A whole-second age of 30 is current for the display; 31 is STALE, with one quality bar and four trusted digits. The selected grid precision and retained coordinate remain visible, accompanied by the stale word, age and wait-for-fresh-fix warning. The age display follows Android's seconds/minutes/hour formatting. Invalid monotonic timestamps cannot claim freshness. Adjusting the phone's wall clock cannot rejuvenate a retained fix.
+
+Display quality and navigation eligibility are distinct. Navigation and position QR still require the existing precise, authorized, ≤25 m and ≤10-second policy. An 11-second display fix can therefore retain its normal accuracy grade while navigation/QR is unavailable. Permission revocation clears the retained fix; approximate location retains the explicit Precise Location notice. Foreground acquisition does not restart from an authorization callback while the app is backgrounded. The grid remains together on Glance; its lower readouts scroll above the opaque night bar or on smaller screens.
+
+The main LocationService sets Core Location's public `headingOrientation` from the **actual UIWindowScene interface orientation**, including automatic rotation and rejected-request handling. UIKit's landscape interface names are opposite Core Location's physical-device names. Unknown/face-up/down are never substituted for an actual window orientation. Rotation discards the previous heading and rejects samples older than the reference change. Invalid/poor samples (heading accuracy outside 0…25°) are unavailable; the foreground refresh expires headings older than two seconds. Position, selected-waypoint screen steering and compass-derived declination consume only this fresh heading. Manual declination remains authoritative over the native true-heading estimate.
+
+Selected-waypoint visual steering says **Screen top**. It uses the selected units/reference for the heading and angle units for the turn, and shows an explicit unavailable label when no valid heading exists. The separate pocket-navigation driver's actual CLLocationManager remains portrait/top-edge based. Screen rotation changes neither its sensor reference, haptic decisions, ordered-route progress nor quiet-inside boundary behavior.
+
+## Validation and limits
+
+Unit/integration fixtures cover Android's exact accuracy/trust boundaries, 30/31-second transition, invalid values, wall-clock independence, age formatting and two-second heading expiry. Tests inspect actual CLLocationManager instances to verify both landscape mappings and the pocket driver's unchanged portrait reference.
+
+The native expiry workflow uses `scripts/fix-freshness-test.py` to feed **real simulator Core Location**. It stops delivery only after the UI observes a fresh fix, asserts QR expiry and a retained STALE grid, checks day/night presentation, then requests a moving stream and asserts recovery. Repeating the identical coordinate after `simctl location clear` was coalesced by this runtime, so the resumed feed moves slightly, as the existing route feeds do. The app has no mock location branch for this test. CI runs it separately from continuous recording/navigation feeds and retains its feed log and xcresult.
+
+Simulators have no genuine magnetometer. Physical true/magnetic/grid comparisons, calibration, orientation changes on tilted/worn phones, heading latency, background/lock behavior and battery use remain device checks. GPS course fallback and the Position speed readout remain separate implementation gaps; this milestone does not claim they are forbidden on iOS.

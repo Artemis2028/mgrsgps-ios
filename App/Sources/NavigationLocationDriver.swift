@@ -16,7 +16,7 @@ protocol NavigationLocationDriver: RecordingLocationDriver {
 @MainActor
 final class CoreLocationNavigationDriver: NSObject, NavigationLocationDriver, @preconcurrency CLLocationManagerDelegate {
     private let location = CoreLocationRecordingDriver()
-    private let compass = CLLocationManager()
+    private let compass: CLLocationManager
     var hasCompass: Bool { CLLocationManager.headingAvailable() }
     var onHeading: ((NavigationHeading) -> Void)?
     var authorization: CLAuthorizationStatus { location.authorization }
@@ -25,7 +25,10 @@ final class CoreLocationNavigationDriver: NSObject, NavigationLocationDriver, @p
     var onLocations: (([CLLocation]) -> Void)? { get { location.onLocations } set { location.onLocations = newValue } }
     var onAuthorization: (() -> Void)? { get { location.onAuthorization } set { location.onAuthorization = newValue } }
     var onFailure: ((Error) -> Void)? { get { location.onFailure } set { location.onFailure = newValue } }
-    override init() { super.init(); compass.delegate = self; compass.headingFilter = kCLHeadingFilterNone; compass.headingOrientation = .portrait }
+    init(compass: CLLocationManager = CLLocationManager()) {
+        self.compass = compass
+        super.init(); compass.delegate = self; compass.headingFilter = kCLHeadingFilterNone; compass.headingOrientation = .portrait
+    }
     func requestPermission() { location.requestPermission() }
     func start() { location.start(); if hasCompass { compass.startUpdatingHeading() } }
     func stop() { location.stop(); compass.stopUpdatingHeading() }

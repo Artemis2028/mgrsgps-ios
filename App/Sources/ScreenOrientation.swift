@@ -32,6 +32,7 @@ final class OrientationState: ObservableObject {
     static let shared = OrientationState()
     @Published private(set) var error: String?
     @Published private(set) var actual = "Not available"
+    @Published private(set) var interfaceOrientation: UIInterfaceOrientation = .unknown
     private weak var scene: UIWindowScene?
     private(set) var mode = ScreenOrientation.auto
     private var sceneID: ObjectIdentifier?
@@ -71,6 +72,7 @@ final class OrientationState: ObservableObject {
         case .landscapeLeft: text = "Flipped"
         default: text = "Not available"
         }
+        if interfaceOrientation != scene.effectiveGeometry.interfaceOrientation { interfaceOrientation = scene.effectiveGeometry.interfaceOrientation }
         if actual != text { actual = text }
     }
 

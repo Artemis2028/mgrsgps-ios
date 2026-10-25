@@ -243,7 +243,7 @@ struct SettingsView: View {
             return svc.declination(
                 lat: f.lat, lon: f.lon,
                 heightMeters: f.altitudeMeters ?? 0,
-                heading: location.heading,
+                heading: location.usableHeading,
                 isCurrentPosition: true
             )
         }

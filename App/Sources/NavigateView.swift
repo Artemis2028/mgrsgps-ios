@@ -85,6 +85,7 @@ struct NavigateView: View {
         let back = formattedAzimuth(nav, offset: 180)
         let distance = nav.map { Format.distance(meters: $0.distanceMeters, unit: settings.units) } ?? "—"
         let eta = etaText(nav: nav)
+        let heading = screenHeading()
 
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
@@ -115,7 +116,44 @@ struct NavigateView: View {
                 cell(title: "Distance", value: distance)
                 cell(title: "Time to go", value: eta)
             }
+            if let heading, let nav {
+                let deviation = FieldMath.normalize(nav.bearingTrue - heading + 180) - 180
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.up").font(.system(size: 32,weight: .semibold))
+                        .rotationEffect(.degrees(deviation)).frame(width: 56,height: 56)
+                    VStack(alignment: .leading,spacing: 4) {
+                        Text("Screen top · \(formattedHeading(heading)) \(letter)")
+                        Text(abs(deviation) < 0.5 ? "On bearing" : "\(deviation > 0 ? "Right" : "Left") \(Format.angle(degrees: abs(deviation),unit: settings.angleUnit))")
+                    }.font(Blackout.label(14))
+                }.foregroundStyle(palette.accent).accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("display-relative-navigation")
+            } else {
+                Text("Screen heading unavailable").font(Blackout.label(12)).foregroundStyle(palette.inkDim)
+                    .accessibilityIdentifier("display-heading-unavailable")
+            }
         }
+    }
+
+    /// The visible arrow follows the screen; pocket cues use the separate
+    /// portrait/top-edge driver even when this screen was last in landscape.
+    private func screenHeading() -> Double? {
+        guard let fix = location.usableFix, let heading = location.usableHeading else { return nil }
+        let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
+            .declination(lat: fix.lat,lon: fix.lon,heightMeters: fix.altitudeMeters ?? 0,
+                         heading: heading,isCurrentPosition: true)
+        return FieldMath.heading(trueHeading: settings.declinationOverride == nil && heading.trueHeading >= 0 ? heading.trueHeading : nil,
+                                 magneticHeading: heading.magneticHeading >= 0 ? heading.magneticHeading : nil,
+                                 north: .trueNorth,declinationEast: decl.degreesEast,convergence: nil)
+    }
+    private func formattedHeading(_ value: Double) -> String {
+        guard let fix = location.usableFix else { return "—" }
+        let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
+            .declination(lat: fix.lat,lon: fix.lon,heightMeters: fix.altitudeMeters ?? 0,
+                         heading: location.usableHeading,isCurrentPosition: true)
+        guard let referenced = FieldMath.toNorthRef(angleTrue: value,north: settings.northRef,
+                                                   declinationEast: decl.degreesEast,
+                                                   convergence: UTM.gridConvergence(lat: fix.lat,lon: fix.lon)) else { return "—" }
+        return Format.angle(degrees: referenced,unit: settings.angleUnit)
     }
 
     /// Azimuth in the saved north reference. Magnetic without a declination
@@ -124,7 +162,7 @@ struct NavigateView: View {
         guard let nav, let f = location.usableFix else { return "—" }
         let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
             .declination(lat: f.lat, lon: f.lon, heightMeters: f.altitudeMeters ?? 0,
-                         heading: location.heading, isCurrentPosition: true)
+                         heading: location.usableHeading, isCurrentPosition: true)
         let conv = UTM.gridConvergence(lat: f.lat, lon: f.lon)
         guard let az = FieldMath.toNorthRef(
             angleTrue: nav.bearingTrue + offset,

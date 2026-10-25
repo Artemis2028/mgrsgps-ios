@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import GridFixCore
+import UIKit
 
 /// The fix, graded the way the Android app grades it.
 ///
@@ -20,8 +21,8 @@ struct Fix: Equatable {
 
     /// 0 to 5, from horizontal accuracy.
     var grade: Int {
+        guard accuracyMeters.isFinite, accuracyMeters >= 0 else { return 0 }
         switch accuracyMeters {
-        case ..<0: return 0
         case 0...5: return 5
         case 5...10: return 4
         case 10...20: return 3
@@ -45,11 +46,11 @@ struct Fix: Equatable {
     /// 10-digit grid off a 30 m fix is false confidence, and the operator
     /// should be told which digits mean something.
     var trustedDigits: Int {
+        guard accuracyMeters.isFinite, accuracyMeters >= 0 else { return 4 }
         switch accuracyMeters {
-        case ..<0: return 4
-        case 0...2: return 10
-        case 2...15: return 8
-        case 15...150: return 6
+        case 0...1: return 10
+        case 1...5: return 8
+        case 5...50: return 6
         default: return 4
         }
     }
@@ -60,6 +61,8 @@ final class LocationService: NSObject, ObservableObject {
     @Published private(set) var fix: Fix?
     /// Only a recent, precise, authorised fix may create a waypoint or drive navigation.
     @Published private(set) var usableFix: Fix?
+    @Published private(set) var quality: PositionFixQuality?
+    @Published private(set) var usableHeading: CLHeading?
     /// Latest compass sample. Nil until Core Location reports one. A negative
     /// headingAccuracy means the sample is not a heading — callers must not
     /// treat 0 as "north" when this is nil or invalid.
@@ -70,9 +73,15 @@ final class LocationService: NSObject, ObservableObject {
     /// quietly. This is the iOS twin of Android's approximate-location gate.
     @Published private(set) var reducedAccuracy = false
 
-    private let manager = CLLocationManager()
+    private let manager: CLLocationManager
+    private var headingUptime: TimeInterval?
+    private var minimumHeadingUptime: TimeInterval = 0
+    private var headingActive = false
+    private var active = false
 
-    override init() {
+    override convenience init() { self.init(manager: CLLocationManager()) }
+    init(manager: CLLocationManager) {
+        self.manager = manager
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
@@ -83,19 +92,30 @@ final class LocationService: NSObject, ObservableObject {
     }
 
     func start() {
+        active = true
         if manager.authorizationStatus == .notDetermined {
             manager.requestWhenInUseAuthorization()
         }
         manager.startUpdatingLocation()
         startHeading()
+        refreshFixValidity()
     }
 
     func stop() {
+        active = false
         manager.stopUpdatingLocation()
         manager.stopUpdatingHeading()
+        headingActive = false
+        heading = nil; usableHeading = nil; headingUptime = nil
     }
 
     func refreshFixValidity() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let nextQuality = fix.map { PositionFixQuality(fix: $0, nowUptime: now) }
+        if quality != nextQuality { quality = nextQuality }
+        let freshHeading = headingUptime.map { DisplayHeadingPolicy.isFresh(timestampUptime: $0, nowUptime: now) } == true
+        let nextHeading = freshHeading ? heading : nil
+        if usableHeading !== nextHeading { usableHeading = nextHeading }
         guard authorization == .authorizedAlways || authorization == .authorizedWhenInUse,
               !reducedAccuracy, let fix,
               NavigationFixPolicy.isUsable(lat: fix.lat, lon: fix.lon, accuracyMeters: fix.accuracyMeters,
@@ -107,8 +127,18 @@ final class LocationService: NSObject, ObservableObject {
         if usableFix != fix { usableFix = fix }
     }
 
+    /// Main-screen heading follows the actual window, independently of the
+    /// navigation driver whose compass stays referenced to the hardware top.
+    func setDisplayOrientation(_ orientation: UIInterfaceOrientation) {
+        guard let device = DisplayHeadingPolicy.deviceOrientation(orientation), manager.headingOrientation != device else { return }
+        manager.headingOrientation = device
+        minimumHeadingUptime = ProcessInfo.processInfo.systemUptime
+        heading = nil; usableHeading = nil; headingUptime = nil
+    }
+
     private func startHeading() {
         guard CLLocationManager.headingAvailable() else { return }
+        headingActive = true
         manager.headingFilter = 1
         manager.startUpdatingHeading()
     }
@@ -132,8 +162,9 @@ extension LocationService: CLLocationManagerDelegate {
             timestampUptime: ProcessInfo.processInfo.systemUptime - Date().timeIntervalSince(l.timestamp)
         )
         Task { @MainActor [weak self] in
-            self?.fix = f
-            self?.refreshFixValidity()
+            guard let self, self.active, self.authorization == .authorizedAlways || self.authorization == .authorizedWhenInUse else { return }
+            self.fix = f
+            self.refreshFixValidity()
         }
     }
 
@@ -143,8 +174,11 @@ extension LocationService: CLLocationManagerDelegate {
             guard let self else { return }
             self.authorization = status
             self.refreshAccuracyAuthorization()
+            if status != .authorizedAlways && status != .authorizedWhenInUse {
+                self.fix = nil; self.heading = nil; self.headingUptime = nil
+            }
             self.refreshFixValidity()
-            if status == .authorizedWhenInUse || status == .authorizedAlways {
+            if self.active && (status == .authorizedWhenInUse || status == .authorizedAlways) {
                 m.startUpdatingLocation()
                 self.startHeading()
             }
@@ -152,7 +186,17 @@ extension LocationService: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        Task { @MainActor [weak self] in self?.heading = newHeading }
+        let sampleUptime = ProcessInfo.processInfo.systemUptime - Date().timeIntervalSince(newHeading.timestamp)
+        Task { @MainActor [weak self] in
+            guard let self, self.headingActive, sampleUptime >= self.minimumHeadingUptime,
+                  self.authorization == .authorizedAlways || self.authorization == .authorizedWhenInUse else { return }
+            let valid = newHeading.headingAccuracy.isFinite && (0...25).contains(newHeading.headingAccuracy)
+                && newHeading.magneticHeading.isFinite && (0..<360).contains(newHeading.magneticHeading)
+                && newHeading.trueHeading.isFinite
+            self.heading = valid ? newHeading : nil
+            self.headingUptime = self.heading == nil ? nil : sampleUptime
+            self.refreshFixValidity()
+        }
     }
 
     nonisolated func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {

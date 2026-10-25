@@ -25,7 +25,7 @@ struct PositionView: View {
             return svc.declination(
                 lat: f.lat, lon: f.lon,
                 heightMeters: f.altitudeMeters ?? 0,
-                heading: location.heading,
+                heading: location.usableHeading,
                 isCurrentPosition: true
             )
         }
@@ -48,7 +48,7 @@ struct PositionView: View {
 
     private var headingDegrees: Double? {
         if let injected = injectedHeading { return injected }
-        let h = location.heading
+        let h = location.usableHeading
         let trueH: Double? = {
             guard let h, h.headingAccuracy >= 0, h.trueHeading >= 0 else { return nil }
             return h.trueHeading
@@ -59,7 +59,7 @@ struct PositionView: View {
         }()
         let conv: Double? = location.fix.map { UTM.gridConvergence(lat: $0.lat, lon: $0.lon) }
         return FieldMath.heading(
-            trueHeading: trueH,
+            trueHeading: settings.declinationOverride == nil ? trueH : nil,
             magneticHeading: magH,
             north: settings.northRef,
             declinationEast: reading.degreesEast,
@@ -119,11 +119,12 @@ struct PositionView: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("Position").font(.system(compact ? .title2 : .largeTitle, design: .rounded, weight: .bold))
             Spacer()
-            if let f = location.fix {
-                Text(f.gradeWord)
+            if let quality = location.quality {
+                Text(location.reducedAccuracy ? "PRECISE OFF" : quality.word)
                     .font(Blackout.label(11))
                     .tracking(1.4)
-                    .foregroundStyle(f.grade >= 4 ? palette.good : f.grade >= 2 ? palette.accent : palette.warn)
+                    .foregroundStyle(quality.bars >= 4 ? palette.good : quality.bars >= 2 ? palette.accent : palette.warn)
+                    .accessibilityIdentifier("position-fix-quality")
             } else {
                 Text("ACQUIRING")
                     .font(Blackout.label(11))
@@ -158,9 +159,11 @@ struct PositionView: View {
     private var glance: some View {
         VStack(alignment: .leading, spacing: 22) {
             grid
-            Spacer(minLength: 0)
             precisionPicker
-            footer
+            // Keep the whole grid together while making every readout reachable
+            // above the larger opaque night tab bar and at larger text sizes.
+            ScrollView { footer.frame(maxWidth: .infinity,alignment: .leading) }
+                .accessibilityIdentifier("position-details")
         }
     }
 
@@ -233,21 +236,35 @@ struct PositionView: View {
     }
 
     private var statusLine: String {
-        guard let f = location.fix else { return "ACQUIRING" }
+        guard let f = location.fix, let quality = location.quality else { return "ACQUIRING" }
         let acc = Format.accuracy(meters: f.accuracyMeters, unit: settings.units)
-        return "\(f.gradeWord) \(acc)"
+        return quality.stale ? "STALE \(quality.ageText) · \(acc)" : "\(quality.word) \(acc)"
     }
 
     @ViewBuilder
     private var footer: some View {
         if let f = location.fix {
             VStack(alignment: .leading, spacing: 6) {
+                if let quality = location.quality {
+                    HStack(spacing: 8) {
+                        HStack(alignment: .bottom,spacing: 2) {
+                            ForEach(0..<5) { index in
+                                Rectangle().fill(index < quality.bars ? (quality.bars >= 4 ? palette.good : quality.bars >= 2 ? palette.accent : palette.warn) : palette.inkDim.opacity(0.25))
+                                    .frame(width: 3,height: CGFloat(4+index*2))
+                            }
+                        }.accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Accuracy quality: \(quality.word), \(quality.bars) of 5")
+                        Text(quality.stale ? "Last fix \(quality.ageText) ago · wait for a fresh fix" : "Fix age \(quality.ageText)")
+                            .font(Blackout.label(12)).foregroundStyle(quality.stale ? palette.warn : palette.inkDim)
+                            .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("position-fix-age")
+                    }
+                }
                 row("HEADING", headingLine)
                 row("DECL", reading.display + " · " + reading.source.rawValue,
                     tint: reading.degreesEast == nil ? palette.warn : palette.ink)
                 row("ACCURACY", Format.accuracy(meters: f.accuracyMeters, unit: settings.units))
-                if settings.mgrsDigits > f.trustedDigits {
-                    row("TRUST", "\(f.trustedDigits)-digit at this accuracy", tint: palette.warn)
+                if let quality = location.quality, settings.mgrsDigits > quality.trustDigits {
+                    row("TRUST", quality.stale ? "\(quality.trustDigits)-digit · stale position" : "\(quality.trustDigits)-digit at this accuracy", tint: palette.warn)
                 }
                 if let alt = f.altitudeMeters {
                     row("ALTITUDE", Format.altitude(meters: alt, unit: settings.units))

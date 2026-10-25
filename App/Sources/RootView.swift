@@ -133,6 +133,7 @@ struct RootView: View {
             else if phase == .inactive { navigation.foregroundChanged(false) }
             else if phase == .background { location.stop(); maps.pauseDownload(); terrain.backgrounded() }
         }
+        .onReceive(OrientationState.shared.$interfaceOrientation) { location.setDisplayOrientation($0) }
         .onReceive(location.$usableFix) { practice.receive($0) }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
             location.refreshFixValidity(); boundaries.refresh(); practice.receive(location.usableFix)

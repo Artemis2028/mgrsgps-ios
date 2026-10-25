@@ -178,3 +178,5 @@ The map field-tools menu also includes [resection and intersection worksheets](d
 Position callouts, QR handoff and USNG naming: [behavior and validation](docs/position-sharing.md).
 
 Native orientation and cross-runtime UI checks: [screen orientation](docs/screen-orientation.md) and [validation notes](docs/native-ui-validation.md). For local simulator tests from a Documents workspace, use a derived-data path outside Documents, such as `/tmp/gridfix-native-field-derived`.
+
+Position fix age, accuracy/trusted precision and screen-versus-pocket compass references: [behavior and device checks](docs/position-fix-quality.md).
