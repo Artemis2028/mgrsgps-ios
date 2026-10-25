@@ -30,6 +30,8 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility | Enrollment, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, watch TAK scene sync and physical background checks; see [evidence and gaps](tak-server-interoperability.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs with local regression evidence | Full hosted CI pass, app icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
+See [hosted field UI repairs](ci-field-ui-activation.md) for the five older-runtime cases now passing locally; a full new hosted run is still required.
+
 See [protected interchange files](protected-interchange-files.md) for format dispatch, retry/confirmation and queued review.
 
 See [review follow-ups](android-review-followups.md) for protected interchange and offline lifetime validation; [map lasso](map-lasso.md) is now implemented.

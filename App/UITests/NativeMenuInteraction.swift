@@ -8,6 +8,23 @@ extension XCTestCase {
     func tapNativeMenuItem(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
         tapVisibleControl(element,horizontal: 0.5,file: file,line: line)
     }
+    func tapNativeSwitch(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
+        tapVisibleControl(element,horizontal: 0.9,file: file,line: line)
+    }
+    /// Older runtimes report a scrolled row as hittable beneath the navigation
+    /// bar; tapping its stale centre can activate Done instead of the switch.
+    func revealSettingsControl(_ element: XCUIElement,in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+        for _ in 0..<8 {
+            let top = app.navigationBars.firstMatch.frame.maxY+12, bottom = app.frame.maxY-60
+            if element.exists {
+                let frame = element.frame
+                if frame.height > 0 && frame.minY >= top && frame.maxY <= bottom && element.isHittable { return }
+                if frame.midY < top { app.scrollViews.firstMatch.swipeDown() }
+                else { app.scrollViews.firstMatch.swipeUp() }
+            } else { app.scrollViews.firstMatch.swipeUp() }
+        }
+        XCTFail("Settings control never entered the visible content: \(element.debugDescription)",file: file,line: line)
+    }
 
     /// Right-aligned Form text fields can expose a label-wide activation
     /// point. Tap within the actual value side without using an edge pixel.

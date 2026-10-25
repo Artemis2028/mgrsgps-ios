@@ -11,12 +11,12 @@ final class MapToolWorkflowTests: XCTestCase {
         let value = app.switches["map-tool-shown-"+key]
         for _ in 0..<4 { if value.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(value.isHittable,app.debugDescription)
-        if (value.value as? String == "1") != shown { value.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap() }
+        if (value.value as? String == "1") != shown { tapNativeSwitch(value) }
         let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@",shown ? "1" : "0"),object: value)
         XCTAssertEqual(XCTWaiter.wait(for: [applied],timeout: 5),.completed,app.debugDescription)
     }
     private func done(_ app: XCUIApplication) {
-        app.navigationBars.buttons["Done"].tap()
+        tapNativeMenuItem(app.navigationBars.buttons["Done"])
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: app.switches["map-tool-shown-layers"])
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 5),.completed,app.debugDescription)
     }
@@ -85,9 +85,14 @@ final class MapToolWorkflowTests: XCTestCase {
         XCTAssertTrue(discard.waitForExistence(timeout: 8)); discard.tap()
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5)); alert.buttons["Discard recording"].tap()
-        app.navigationBars.buttons["Done"].tap()
+        // Hiding the now-idle Record tool removes its sheet owner. Older
+        // runtimes dismiss that sheet immediately; others retain Done.
+        let panel = app.navigationBars["Track recording"]
+        if panel.waitForExistence(timeout: 2) { tapNativeMenuItem(panel.buttons["Done"]) }
         let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: record)
         XCTAssertEqual(XCTWaiter.wait(for: [finished],timeout: 10),.completed,app.debugDescription)
+        XCTAssertFalse(app.buttons["recording-banner"].exists)
+        XCTAssertTrue(app.buttons["map-button-settings"].isHittable)
     }
 
 }

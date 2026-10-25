@@ -14,10 +14,12 @@ final class WaypointSaveFailureWorkflowTests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 15)); add.tap()
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Durable point")
-        app.segmentedControls.buttons["Lat / Lon"].tap()
+        dismissFieldKeyboard()
+        tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
         let latitude = app.textFields["waypoint-latitude"], longitude = app.textFields["waypoint-longitude"]
-        latitude.tap(); latitude.typeText("24.4539"); longitude.tap(); longitude.typeText("54.3773")
-        app.buttons["waypoint-save"].tap()
+        XCTAssertTrue(latitude.waitForExistence(timeout: 5),app.debugDescription)
+        tapTextInput(latitude); latitude.typeText("24.4539"); tapTextInput(longitude); longitude.typeText("54.3773")
+        tapNativeMenuItem(app.buttons["waypoint-save"])
         let error = app.staticTexts["waypoint-save-error"]
         XCTAssertTrue(error.waitForExistence(timeout: 8),app.debugDescription)
         for _ in 0..<5 { if name.exists && name.isHittable { break }; app.swipeDown() }
@@ -26,7 +28,7 @@ final class WaypointSaveFailureWorkflowTests: XCTestCase {
         capture(night ? "waypoint-save-failure-night" : "waypoint-save-failure-day")
         let repair = app.buttons["waypoint-repair-test-storage"]
         for _ in 0..<5 { if repair.isHittable { break }; app.swipeDown() }
-        XCTAssertTrue(repair.isHittable); repair.tap(); app.buttons["waypoint-save"].tap()
+        XCTAssertTrue(repair.isHittable); tapNativeMenuItem(repair); tapNativeMenuItem(app.buttons["waypoint-save"])
         let edit = app.buttons["edit-waypoint-Durable point"]
         XCTAssertTrue(edit.waitForExistence(timeout: 8),app.debugDescription)
         XCTAssertEqual(app.buttons.matching(identifier: "edit-waypoint-Durable point").count,1)

@@ -79,14 +79,6 @@ struct WaypointEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
-                    Button("Repair test storage") {
-                        let blocked = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
-                        if (try? FileManager.default.contentsOfDirectory(atPath: blocked.path))?.isEmpty == true { try? FileManager.default.removeItem(at: blocked) }
-                    }.accessibilityIdentifier("waypoint-repair-test-storage")
-                }
-                #endif
                 Section("Waypoint") {
                     TextField("Name", text: $name, prompt: Text("Name").foregroundColor(secondaryInk)).focused($focusedInput,equals: .name).accessibilityIdentifier("waypoint-name")
                     TextField("Folder", text: $folder, prompt: Text("Folder").foregroundColor(secondaryInk)).focused($focusedInput,equals: .folder).accessibilityIdentifier("waypoint-folder")
@@ -200,6 +192,14 @@ struct WaypointEditor: View {
                             Text("Could not save waypoint. " + reason + " Your draft is kept.")
                                 .foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-save-error")
                         }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
+                    Button("Repair test storage") {
+                        let blocked = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                        if (try? FileManager.default.contentsOfDirectory(atPath: blocked.path))?.isEmpty == true { try? FileManager.default.removeItem(at: blocked) }
+                    }.frame(minHeight: 44).accessibilityIdentifier("waypoint-repair-test-storage")
+                }
+                #endif
                         if let label = mutation.label { HStack { ProgressView(); Text(label) }.accessibilityIdentifier("waypoint-save-progress") }
                     }.font(.footnote).frame(maxWidth: .infinity,alignment: .leading).padding(12).background(palette.background)
                 }
