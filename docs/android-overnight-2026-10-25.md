@@ -208,3 +208,15 @@ review details still need individual audit. The user has now explicitly
 requested [live OpenTAKServer interoperability](tak-server-interoperability.md);
 Android's latest observed TAK commit is 6fc4733. File interchange is implemented,
 but live transport is the next implementation scope.
+
+
+### Current review follow-up
+
+The remaining offline/lasso/protected-file changes are now inspected individually.
+Map lasso and protected single-file interchange are actual iOS implementation
+gaps, separate from existing mixed library selection and protected backups.
+Offline work is already app-store-owned across map view disappearance; a focused
+completion-after-leaving regression is still needed. See the concrete
+[review follow-ups](android-review-followups.md). Live TAK is now implemented and
+locally validated in both directions as described in its current evidence doc;
+the earlier paragraphs above record historical audit states.
