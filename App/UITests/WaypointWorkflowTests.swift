@@ -47,14 +47,14 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["add-waypoint"].tap()
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Southern point\n")
+        replace(name,with: "Southern point")
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
         app.segmentedControls.buttons["Lat / Lon"].tap()
         let latitude = app.textFields["waypoint-latitude"]
         XCTAssertTrue(latitude.waitForExistence(timeout: 5))
-        latitude.tap(); latitude.typeText("-91")
+        replace(latitude,with: "-91")
         let longitude = app.textFields["waypoint-longitude"]
-        longitude.tap(); longitude.typeText("151.2093")
+        replace(longitude,with: "151.2093")
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
         replace(latitude, with: "-33.8688")
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
@@ -170,10 +170,10 @@ final class WaypointWorkflowTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap(); name.typeText("Training\n")
         XCTAssertFalse(app.buttons["save-route"].isEnabled)
-        app.buttons["append-route-waypoint"].tap(); app.buttons["route-append-choice-Start"].tap()
+        app.buttons["append-route-waypoint"].tap(); tapNativeMenuItem(app.buttons["route-append-choice-Start"])
         XCTAssertTrue(app.staticTexts.matching(identifier: "route-vertex-0").firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["save-route"].isEnabled)
-        app.buttons["append-route-waypoint"].tap(); app.buttons["route-append-choice-Finish"].tap()
+        app.buttons["append-route-waypoint"].tap(); tapNativeMenuItem(app.buttons["route-append-choice-Finish"])
         XCTAssertTrue(app.staticTexts.matching(identifier: "route-vertex-1").firstMatch.waitForExistence(timeout: 5))
         let save = app.buttons["save-route"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true AND enabled == true"),object: save)
@@ -194,9 +194,9 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["add-waypoint"].tap()
         let nameField = app.textFields["waypoint-name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 5))
-        nameField.tap(); nameField.typeText(name)
+        replace(nameField,with: name)
         let gridField = app.textFields["waypoint-mgrs"]
-        gridField.tap(); gridField.typeText(grid)
+        replace(gridField,with: grid)
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
         capture("coordinate-entry-mgrs")
         app.buttons["waypoint-save"].tap()
@@ -204,13 +204,11 @@ final class WaypointWorkflowTests: XCTestCase {
     }
 
     private func replace(_ field: XCUIElement, with text: String) {
-        field.tap()
-        // Right-aligned coordinate fields may place a centred tap in the
-        // middle of the text. Put the insertion point at the trailing edge.
-        field.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
-        let current = field.value as? String ?? ""
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count + 1) + text)
+        tapTextInput(field)
+        field.typeKey("a",modifierFlags: .command)
+        field.typeText(text)
         XCTAssertEqual(field.value as? String, text)
+        dismissFieldKeyboard()
     }
 
     private func capture(_ name: String) {

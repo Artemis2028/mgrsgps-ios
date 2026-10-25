@@ -25,16 +25,18 @@ final class RoutePDFWorkflowTests: XCTestCase {
         let activity = app.otherElements["ActivityListView"]
         XCTAssertTrue(activity.waitForExistence(timeout: 10),app.debugDescription)
         capture("strip-map-system-share")
-        let sheetFrame = activity.frame, appFrame = app.frame
-        app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: sheetFrame.midX-appFrame.minX,dy: sheetFrame.minY-appFrame.minY-40)).tap()
+        // ActivityListView describes the action rows, not the outer popover.
+        // Tapping above that subview can still land inside the popover.
+        app.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.9)).tap()
         let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: activity)
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 8),.completed)
         XCTAssertTrue(app.buttons["export-strip-map-pdf"].waitForExistence(timeout: 5))
         app.buttons["export-strip-map-pdf"].tap()
         let name = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(name.waitForExistence(timeout: 10))
-        let base = "gridfix_route_Recon_route", filename = "gridfix-pdf-ui-"+UUID().uuidString.prefix(8)
-        name.tap(); name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: base.count)+filename)
-        app.buttons["DOCPicker.actionButton"].tap()
+        let filename = "gridfix-pdf-ui-"+UUID().uuidString.prefix(8)
+        name.tap(); name.typeKey("a",modifierFlags: .command); name.typeText(String(filename))
+        XCTAssertEqual(name.value as? String,String(filename))
+        saveNativeFile(in: app)
         XCTAssertTrue(app.navigationBars["Strip map PDF"].waitForExistence(timeout: 10)); capture("strip-map-pdf-after-save")
         app.navigationBars["Strip map PDF"].buttons["Done"].tap()
         let total = app.staticTexts["route-card-total"]

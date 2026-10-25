@@ -141,7 +141,9 @@ private struct TerrainEndpoint: View {
             Text("Map centre").tag("centre"); Text("Waypoint").tag("waypoint").accessibilityIdentifier("terrain-\(prefix)-source-waypoint"); Text("Coordinate").tag("coordinate")
         }.accessibilityIdentifier("terrain-\(prefix)-source")
         if mode == "waypoint" {
-            Picker("Waypoint",selection: $id) { Text("Choose waypoint").tag(""); ForEach(waypoints) { Text($0.name).tag($0.id).accessibilityIdentifier("terrain-\(prefix)-choice-\($0.name)") } }.accessibilityIdentifier("terrain-\(prefix)-waypoint")
+            FieldPointPicker(selection: $id,
+                             choices: [.init(id: "",name: "Choose waypoint")] + waypoints.map { .init(id: $0.id,name: $0.name,coordinate: .init(lat: $0.lat,lon: $0.lon)) },
+                             title: "Choose waypoint",identifier: "terrain-\(prefix)-waypoint",choicePrefix: "terrain-\(prefix)-choice-",labelPrefix: "Waypoint: ",prompt: "Choose waypoint")
         } else if mode == "coordinate" {
             Picker("Format",selection: Binding(get: { coordinate.format },set: { coordinate.changeFormat(to: $0) })) {
                 Text(settings.gridName).tag(WaypointCoordinateDraft.Format.mgrs); Text("Lat / Lon").tag(WaypointCoordinateDraft.Format.decimal)

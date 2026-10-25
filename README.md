@@ -176,3 +176,5 @@ The map field-tools menu also includes [resection and intersection worksheets](d
 [Field planning](docs/field-planning.md) includes waypoint projection (up to 200 km), local/Zulu sun and moon tables with date navigation, and the map-centre true/grid/magnetic north diagram. The map tools menu also opens practice courses and terrain line of sight.
 
 Position callouts, QR handoff and USNG naming: [behavior and validation](docs/position-sharing.md).
+
+Native orientation and cross-runtime UI checks: [screen orientation](docs/screen-orientation.md) and [validation notes](docs/native-ui-validation.md). For local simulator tests from a Documents workspace, use a derived-data path outside Documents, such as `/tmp/gridfix-native-field-derived`.

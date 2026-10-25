@@ -1,0 +1,11 @@
+# Screen orientation
+
+Android reference: `release/1.1.0` / `482b417`, `ui/Layout.kt`, `ui/GridFixApp.kt` and `ui/screens/SettingsScreen.kt`.
+
+Settings now exposes the existing Android-compatible `orientation` values: 0 Auto, 1 Portrait, 2 Landscape, 3 Flipped. Settings and full backup restore retain the choice. Auto restores the normal system-supported orientations; the two landscape choices request opposite sides. The Position gear also offers a long-press shortcut, Navigate has a rotate button, and map tools/library actions include Orientation. Shortcuts open a native choice sheet and apply the selected mode after that sheet dismisses, so rotation does not race a closing modal. Changing orientation leaves the view hierarchy and active field sessions intact.
+
+The iOS implementation uses the public iOS 16+ scene geometry request and supported-orientation APIs; it does not set UIDevice orientation through private/KVC APIs. The phone's Auto mode excludes upside-down, matching this app's supported orientations. iPad Auto retains all supported orientations. Landscape uses UIInterfaceOrientation.landscapeRight and Flipped uses landscapeLeft (interface/device names are opposite). Settings reports the actual window orientation separately from the requested setting. A rejected native request is shown explicitly rather than pretending rotation succeeded.
+
+Position uses two columns in compact landscape: grid/instrument on the left and precision/readouts on the right. Either column can scroll when content needs additional space. Maps and library retain their existing compact arrangements; navigation remains scrollable.
+
+Window sizing and rotation are ultimately controlled by iOS. iPad multitasking/window constraints, system rotation lock behavior and a physically worn phone require device checks. This implementation does not force iPad users out of multitasking. Native tests verify requested and actual scene orientation, opposite-side rotation, relaunch persistence and Auto following the device. Shortcut reachability is checked separately in portrait; full landscape touch interaction remains a device check. Simulator runtime/startup and gesture-automation problems are tracked separately from feature limitations in [native UI validation](native-ui-validation.md).

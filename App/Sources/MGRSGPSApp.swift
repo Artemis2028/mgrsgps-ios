@@ -3,6 +3,7 @@ import GridFixCore
 
 @main
 struct MGRSGPSApp: App {
+    @UIApplicationDelegateAdaptor(FieldAppDelegate.self) private var appDelegate
     @StateObject private var location = LocationService()
     @StateObject private var waypoints: WaypointStore
     @StateObject private var settings: AppSettings
@@ -32,6 +33,7 @@ struct MGRSGPSApp: App {
         #endif
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
+        OrientationState.shared.prepare(settingsStore.orientation)
         #if DEBUG
         WatchPhoneBridge.seedUITest(store: waypointStore, settings: settingsStore)
         #endif

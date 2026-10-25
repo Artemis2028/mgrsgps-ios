@@ -11,6 +11,8 @@ struct RootView: View {
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var practice: PracticeSession
     @EnvironmentObject private var navigation: NavigationSession
+    @State private var showingOrientationPicker = false
+    @State private var pendingOrientation: ScreenOrientation?
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
     @State private var showingRecorder = false
@@ -79,16 +81,16 @@ struct RootView: View {
                 }.accessibilityIdentifier("navigation-session-banner")
             }
             TabView(selection: $selection) {
-                PositionView()
+                PositionView(onOrientation: { showingOrientationPicker = true })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Position", systemImage: "location.north.line") }.tag(0)
-                NavigateView()
+                NavigateView(onOrientation: { showingOrientationPicker = true })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
-                MapScreen(onNavigate: { selection = 1 },onOpenCourse: { showingPractice = true })
+                MapScreen(onNavigate: { selection = 1 },onOpenCourse: { showingPractice = true },onOrientation: { showingOrientationPicker = true })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Map", systemImage: "map") }.tag(2)
-                WaypointsView(onNavigate: { selection = 1 },onShowMap: { selection = 2 })
+                WaypointsView(onNavigate: { selection = 1 },onShowMap: { selection = 2 },onOrientation: { showingOrientationPicker = true })
                     .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
                     .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
             }
@@ -101,6 +103,14 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Blackout.background.ignoresSafeArea())
+        .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))
+        .sheet(isPresented: $showingOrientationPicker,onDismiss: {
+            if let mode = pendingOrientation { settings.orientation = mode.rawValue; pendingOrientation = nil }
+        }) {
+            OrientationChooser(current: settings.orientation,night: settings.nightMode) { mode in
+                pendingOrientation = mode; showingOrientationPicker = false
+            }
+        }
         .onOpenURL { url in
             if url.isFileURL { incomingFile = url; importStatus = nil }
         }
@@ -119,7 +129,7 @@ struct RootView: View {
         .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
         .onChange(of: scenePhase) { phase in
             practice.setForeground(phase == .active)
-            if phase == .active { location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
+            if phase == .active { OrientationState.shared.refresh(); location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
             else if phase == .inactive { navigation.foregroundChanged(false) }
             else if phase == .background { location.stop(); maps.pauseDownload(); terrain.backgrounded() }
         }

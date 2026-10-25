@@ -4,6 +4,7 @@ import SwiftUI
 /// Navigate slice — azimuth / back-azimuth / distance / ETA to the selected
 /// waypoint. Honours saved units, MGRS digits, north reference, and night mode.
 struct NavigateView: View {
+    var onOrientation: () -> Void = {}
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
@@ -26,6 +27,8 @@ struct NavigateView: View {
                     HStack {
                         Text("Navigate").font(.system(.largeTitle, design: .rounded, weight: .bold))
                         Spacer()
+                        Button(action: onOrientation) { Image(systemName: "rotate.right").frame(width: 44,height: 44) }
+                            .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
                         Menu {
                             ForEach(store.waypoints) { waypoint in
                                 Button(waypoint.name) { store.select(waypoint.id) }

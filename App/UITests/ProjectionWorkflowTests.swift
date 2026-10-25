@@ -6,9 +6,14 @@ final class ProjectionWorkflowTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestTerrainNoData","-uiTestBoundaryMap","-startTab","waypoints"]; app.launch()
     }
-    private func reveal(_ element: XCUIElement) { for _ in 0..<6 { if element.isHittable { return }; app.swipeUp() } }
+    private func reveal(_ element: XCUIElement) {
+        for _ in 0..<8 {
+            if element.isHittable { return }
+            if element.exists && element.frame.midY < 150 { app.swipeDown() } else { app.swipeUp() }
+        }
+    }
     private func field(_ id: String,_ value: String) {
-        let input = app.textFields[id]; reveal(input); input.tap()
+        let input = app.textFields[id]; reveal(input); tapTextInput(input)
         input.typeKey("a",modifierFlags: .command)
         input.typeText(value)
         XCTAssertEqual(input.value as? String,value)
@@ -16,7 +21,7 @@ final class ProjectionWorkflowTests: XCTestCase {
     }
     private func project() {
         let method = app.segmentedControls["waypoint-position-method"]
-        reveal(method); XCTAssertTrue(method.waitForExistence(timeout: 5)); method.buttons["Project"].tap()
+        reveal(method); XCTAssertTrue(method.waitForExistence(timeout: 5)); tapNativeMenuItem(method.buttons["Project"])
         tapNativeMenuItem(app.buttons["projection-base"])
         tapNativeMenuItem(app.buttons["projection-base-West observer"].firstMatch)
         XCTAssertTrue(app.buttons["projection-base"].label.contains("West observer"))
@@ -48,7 +53,7 @@ final class ProjectionWorkflowTests: XCTestCase {
         reveal(preview); XCTAssertTrue(preview.waitForExistence(timeout: 5)); XCTAssertNotEqual(preview.label,original)
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled); capture("waypoint-projection-night-valid")
         app.swipeDown(); app.swipeDown()
-        app.segmentedControls["waypoint-position-method"].buttons["Coordinate"].tap()
+        tapNativeMenuItem(app.segmentedControls["waypoint-position-method"].buttons["Coordinate"])
         reveal(preview); XCTAssertEqual(preview.label,original); XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
         app.buttons["waypoint-save"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-West observer"].waitForExistence(timeout: 5))

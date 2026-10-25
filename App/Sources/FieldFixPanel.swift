@@ -97,20 +97,15 @@ struct FieldFixPanel: View {
             .navigationTitle(title).navigationBarTitleDisplayMode(.inline).autocorrectionDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = nil } }
+                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = nil }.accessibilityIdentifier("field-fix-keyboard-done") }
             }
             .onAppear { prepare() }
         }.tint(palette.accent).fieldSheetAppearance()
     }
     private func pointPicker(selection: Binding<String>,index: Int) -> some View {
-        Menu {
-            ForEach(points) { point in
-                Button(point.name) { focused = nil; selection.wrappedValue = point.id }
-                    .accessibilityIdentifier("field-fix-choice-\(index)-\(point.name)")
-            }
-        } label: {
-            HStack { Text(points.first(where: { $0.id == selection.wrappedValue })?.name ?? "Choose point"); Spacer(); Image(systemName: "chevron.up.chevron.down") }
-        }.accessibilityIdentifier("field-fix-point-\(index)")
+        FieldPointPicker(selection: selection,choices: points.map { .init(id: $0.id,name: $0.name,coordinate: $0.point) },
+                         title: "Choose point",identifier: "field-fix-point-\(index)",choicePrefix: "field-fix-choice-\(index)-",
+                         onOpen: { focused = nil })
     }
     private func prepare() {
         guard points.isEmpty else { return }

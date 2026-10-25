@@ -14,6 +14,9 @@ struct WaypointsView: View {
     @State private var editorRequest: WaypointEditorRequest?
     var onNavigate: () -> Void = {}
     var onShowMap: () -> Void = {}
+    var onOrientation: () -> Void = {}
+    @State private var choosingPasteFormat = false
+    @State private var choosingExportFormat = false
     @State private var folderFilter: String?
     @FocusState private var searchFocused: Bool
     @State private var searchQuery = ""
@@ -21,10 +24,7 @@ struct WaypointsView: View {
     @State private var status: String?
     @State private var showingLibrary = false
     @State private var textImport: TextImportRequest?
-    @State private var exportText: TextDocumentFile?
-    @State private var exportBinary: BinaryInterchangeDocumentFile?
-    @State private var exportDoc: BackupDocumentFile?
-    @State private var exportGPX: GPXDocumentFile?
+    @State private var exportFile: FieldExportDocumentFile?
     @State private var showingImporter = false
     @State private var importKind: ImportKind = .backup
     @State private var selecting = false
@@ -95,6 +95,20 @@ struct WaypointsView: View {
         .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
+        .confirmationDialog("Paste text",isPresented: $choosingPasteFormat,titleVisibility: .visible) {
+            ForEach(TextInterchangeFormat.allCases.filter { $0.canPaste },id: \.self) { format in
+                Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
+            }
+        }
+        .confirmationDialog("Export",isPresented: $choosingExportFormat,titleVisibility: .visible) {
+            Button("Export backup") { exportBackup() }
+            Button("Export GPX") { exportGpx() }
+            Button("Export CSV") { exportOther(.csv) }
+            Button("Export GeoJSON") { exportOther(.geojson) }
+            Button("Export KML") { exportOther(.kml) }
+            Button("Export KMZ") { exportOther(.kmz) }
+            Button("Export ATAK package") { exportOther(.atak) }
+        }
         .sheet(item: $folderRequest) { request in
             LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
         }
@@ -140,28 +154,16 @@ struct WaypointsView: View {
             }
         }
         .fileExporter(isPresented: Binding(
-            get: { exportBinary != nil },
-            set: { if !$0 { exportBinary = nil } }
-        ), document: exportBinary, contentType: exportBinary?.contentType ?? .zip, defaultFilename: exportBinary?.contentType == .gridFixKMZ ? "gridfix" : "gridfix-datapackage") { _ in
-            exportBinary = nil
-        }
-        .fileExporter(isPresented: Binding(
-            get: { exportText != nil },
-            set: { if !$0 { exportText = nil } }
-        ), document: exportText, contentType: exportText?.contentType ?? .commaSeparatedText, defaultFilename: "gridfix") { _ in
-            exportText = nil
-        }
-        .fileExporter(isPresented: Binding(
-            get: { exportDoc != nil },
-            set: { if !$0 { exportDoc = nil } }
-        ), document: exportDoc, contentType: .zip, defaultFilename: "gridfix-backup") { _ in
-            exportDoc = nil
-        }
-        .fileExporter(isPresented: Binding(
-            get: { exportGPX != nil },
-            set: { if !$0 { exportGPX = nil } }
-        ), document: exportGPX, contentType: .gridFixGPX, defaultFilename: "gridfix") { _ in
-            exportGPX = nil
+            get: { exportFile != nil },
+            set: { if !$0 { exportFile = nil } }
+        ), document: exportFile, contentType: exportFile?.contentType ?? .data, defaultFilename: exportFile?.filename ?? "gridfix") { result in
+            if case .failure(let error) = result {
+                let failure = error as NSError
+                if failure.domain != NSCocoaErrorDomain || failure.code != NSUserCancelledError {
+                    status = "Export failed: " + error.localizedDescription
+                }
+            }
+            exportFile = nil
         }
         .fileImporter(isPresented: $showingImporter,
                       allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
@@ -183,23 +185,12 @@ struct WaypointsView: View {
                 Button("Enter coordinates") { beginAdd(atFix: false) }
                 Button("Select items") { selecting = true; selection = LibrarySelection() }.accessibilityIdentifier("library-select")
                 Button("New folder") { folderRequest = LibraryFolderRequest() }
+                Button("Orientation",action: onOrientation).accessibilityIdentifier("library-orientation-shortcut")
                 Divider()
-                Menu("Export") {
-                    Button("Export backup") { exportBackup() }
-                    Button("Export GPX") { exportGpx() }
-                    Button("Export CSV") { exportOther(.csv) }
-                    Button("Export GeoJSON") { exportOther(.geojson) }
-                    Button("Export KML") { exportOther(.kml) }
-                    Button("Export KMZ") { exportOther(.kmz) }
-                    Button("Export ATAK package") { exportOther(.atak) }
-                }
+                Button("Export") { choosingExportFormat = true }
                 Button("Import backup") { importKind = .backup; showingImporter = true }
                 Button("Import field file") { importKind = .text; showingImporter = true }.accessibilityIdentifier("import-field-file")
-                Menu("Paste text") {
-                    ForEach(TextInterchangeFormat.allCases.filter { $0.canPaste },id: \.self) { format in
-                        Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
-                    }
-                }
+                Button("Paste text") { choosingPasteFormat = true }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)
             }
@@ -421,7 +412,12 @@ struct WaypointsView: View {
                 Button(backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route") { backtrack(track) }
                     .disabled(backtrackingID != nil || track.pointCount < 2).accessibilityIdentifier("backtrack-track-\(track.name)")
                 Button(track.visible ? "Hide on map" : "Make visible on map") { perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) } }
-                Button("Export GPX") { perform { exportGPX = GPXDocumentFile(text: GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])) } }
+                Button("Export GPX") {
+                    perform {
+                        let xml = GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])
+                        exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
+                    }
+                }
                 Button("Delete",role: .destructive) { selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true }
             } label: { Image(systemName: "ellipsis").frame(width: 44,height: 44) }.accessibilityLabel("Actions for track \(track.name)")
         }.padding(12).fieldContentSurface(night: settings.nightMode)
@@ -562,7 +558,7 @@ struct WaypointsView: View {
         let doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
         do {
             let data = try Backup.exportZip(doc)
-            exportDoc = BackupDocumentFile(data: data)
+            exportFile = FieldExportDocumentFile(data: data,contentType: .zip,filename: "gridfix-backup")
             status = "Backup ready"
         } catch {
             status = "Backup failed: \(error.localizedDescription)"
@@ -573,7 +569,7 @@ struct WaypointsView: View {
         do {
             let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name, points: try fieldData.points(for: $0.id)) }
             let xml = GPX.build(waypoints: store.waypoints, routes: fieldData.document.graphics, tracks: tracks)
-            exportGPX = GPXDocumentFile(text: xml)
+            exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
             status = "GPX ready"
         } catch { status = "Export failed: \(error.localizedDescription)" }
     }
@@ -581,17 +577,17 @@ struct WaypointsView: View {
     private func exportOther(_ format: TextInterchangeFormat) {
         do {
             if format == .csv {
-                exportText = TextDocumentFile(text: CSV.build(store.waypoints),contentType: .commaSeparatedText)
+                exportFile = FieldExportDocumentFile(data: Data(CSV.build(store.waypoints).utf8),contentType: .commaSeparatedText)
             } else if format == .atak {
                 let routes = fieldData.document.graphics.filter { $0.type == "route" }
-                exportBinary = BinaryInterchangeDocumentFile(data: try ATAKPackage.build(waypoints: store.waypoints,routes: routes),contentType: .zip)
+                exportFile = FieldExportDocumentFile(data: try ATAKPackage.build(waypoints: store.waypoints,routes: routes),contentType: .zip,filename: "gridfix-datapackage")
             } else {
                 let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name,points: try fieldData.points(for: $0.id)) }
                 if format == .kmz {
-                    exportBinary = BinaryInterchangeDocumentFile(data: try KMZ.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks),contentType: .gridFixKMZ)
+                    exportFile = FieldExportDocumentFile(data: try KMZ.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks),contentType: .gridFixKMZ)
                 } else {
                     let text = try format == .kml ? KML.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks) : GeoJSON.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks)
-                    exportText = TextDocumentFile(text: text,contentType: format == .kml ? .gridFixKML : .gridFixGeoJSON)
+                    exportFile = FieldExportDocumentFile(data: Data(text.utf8),contentType: format == .kml ? .gridFixKML : .gridFixGeoJSON)
                 }
             }
             status = format.label + " ready"

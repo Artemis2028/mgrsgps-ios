@@ -16,6 +16,7 @@ struct MapScreen: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     var onNavigate: () -> Void = {}
     var onOpenCourse: () -> Void = {}
+    var onOrientation: () -> Void = {}
     @State private var intervalLabel = "—"
     @State private var overlayRoutes = 0
     @State private var overlayTracks = 0
@@ -27,6 +28,8 @@ struct MapScreen: View {
     @State private var editorRequest: WaypointEditorRequest?
     @State private var showingLayers = false
     @State private var showingTerrain = false
+    @State private var showingTools = false
+    @State private var pendingTool: MapToolChoice?
     @State private var fieldFixRequest: FieldFixRequest?
     @State private var planningRequest: FieldPlanningRequest?
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
@@ -148,23 +151,7 @@ struct MapScreen: View {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
                         if boundaryDraft == nil && graphicDraft == nil {
-                            Menu {
-                                Button("Distance ruler") {
-                                    rulerAnchor = GeoPoint(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil
-                                }.accessibilityIdentifier("measure-distance")
-                                Button("Measure area") {
-                                    rulerAnchor = nil; selectedID = nil; graphicError = nil
-                                    graphicDraft = GraphicDraft(type: "area"); measuringArea = true
-                                }.accessibilityIdentifier("measure-area")
-                                Divider()
-                                Button("Resection") { openFieldFix(.resection) }.accessibilityIdentifier("field-resection")
-                                Button("Intersection") { openFieldFix(.intersection) }.accessibilityIdentifier("field-intersection")
-                                Divider()
-                                Button("Sun & moon") { openPlanning(.sunMoon) }.accessibilityIdentifier("field-sunmoon")
-                                Button("Declination diagram") { openPlanning(.declination) }.accessibilityIdentifier("field-declination")
-                                Button("Line of sight") { showingTerrain = true }.accessibilityIdentifier("field-los")
-                                Button("Practice course",action: onOpenCourse).accessibilityIdentifier("field-course")
-                            } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
+                            Button { showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
                             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain")
@@ -274,6 +261,9 @@ struct MapScreen: View {
         .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
             Button("OK") { routeWaypointError = nil }
         } message: { Text(routeWaypointError ?? "") }
+        .sheet(isPresented: $showingTools,onDismiss: runPendingTool) {
+            FieldToolChooser(night: settings.nightMode) { tool in pendingTool = tool; showingTools = false }
+        }
         .sheet(item: $qrRequest) { PositionQRView(request: $0, night: settings.nightMode) }
         .sheet(item: $planningRequest) { request in
             switch request.kind {
@@ -310,6 +300,25 @@ struct MapScreen: View {
                 let waypoint = store.add(draft)
                 selectedID = waypoint.id
             }
+        }
+    }
+
+    private func runPendingTool() {
+        guard let tool = pendingTool else { return }
+        pendingTool = nil
+        switch tool {
+        case .distance:
+            rulerAnchor = GeoPoint(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil
+        case .area:
+            rulerAnchor = nil; selectedID = nil; graphicError = nil
+            graphicDraft = GraphicDraft(type: "area"); measuringArea = true
+        case .resection: openFieldFix(.resection)
+        case .intersection: openFieldFix(.intersection)
+        case .sunMoon: openPlanning(.sunMoon)
+        case .declination: openPlanning(.declination)
+        case .sight: showingTerrain = true
+        case .course: onOpenCourse()
+        case .orientation: onOrientation()
         }
     }
 

@@ -208,13 +208,10 @@ struct WaypointEditor: View {
     private var projectionFields: some View {
         let preview = projectionPreview
         return Group {
-            Menu {
-                ForEach(projectionBases) { base in
-                    Button(base.name) { focusedInput = nil; projectionBaseID = base.id }.accessibilityIdentifier("projection-base-"+base.name)
-                }
-            } label: {
-                HStack { Text("From: "+(projectionBases.first { $0.id == projectionBaseID }?.name ?? "Choose base")); Spacer(); Image(systemName: "chevron.up.chevron.down") }
-            }.accessibilityIdentifier("projection-base")
+            FieldPointPicker(selection: $projectionBaseID,
+                             choices: projectionBases.map { .init(id: $0.id,name: $0.name,coordinate: $0.point) },
+                             title: "Projection base",identifier: "projection-base",choicePrefix: "projection-base-",labelPrefix: "From: ",prompt: "Choose base",
+                             onOpen: { focusedInput = nil })
             LabeledContent("Azimuth (\(settings.angleUnit == .mils ? "mils" : "degrees") \(settings.northRef.letter))") {
                 TextField("0",text: $projectionAzimuth).keyboardType(.numbersAndPunctuation)
                     .multilineTextAlignment(.trailing).focused($focusedInput,equals: .azimuth).accessibilityIdentifier("projection-azimuth")

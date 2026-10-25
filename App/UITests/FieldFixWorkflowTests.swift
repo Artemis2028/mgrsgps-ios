@@ -24,7 +24,7 @@ final class FieldFixWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [selected],timeout: 5),.completed,app.debugDescription)
     }
     private func angle(_ index: Int,_ text: String) {
-        let field = app.textFields["field-fix-azimuth-\(index)"]; reveal(field); field.tap()
+        let field = app.textFields["field-fix-azimuth-\(index)"]; reveal(field); tapTextInput(field)
         field.typeKey("a",modifierFlags: .command)
         field.typeText(text)
         XCTAssertEqual(field.value as? String,text)
@@ -64,4 +64,33 @@ final class FieldFixWorkflowTests: XCTestCase {
         app.navigationBars["Resection"].buttons["Close"].tap()
         XCTAssertFalse(app.buttons["navigation-session-banner"].exists)
     }
+    func testPointSearchAndCancelPreservesReference() {
+        app.buttons["Toggle map night mode"].tap()
+        open("Resection")
+        let point = app.buttons["field-fix-point-1"]
+        let original = point.label
+        tapNativeMenuItem(point)
+        let search = app.searchFields["Search points"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("Unknown reference XYZ")
+        XCTAssertTrue(app.staticTexts["No matching points"].waitForExistence(timeout: 5))
+        capture("field-point-search-empty")
+        let cancel = app.buttons["field-fix-point-1-cancel"]
+        if !cancel.exists {
+            // iOS 26's expanded search replaces the normal navigation items.
+            let closeSearch = app.buttons["close"].firstMatch
+            XCTAssertTrue(closeSearch.waitForExistence(timeout: 5)); closeSearch.tap()
+        }
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in cancel.exists || point.isHittable },object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 5),.completed)
+        if cancel.exists { cancel.tap() }
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"),object: point)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 5),.completed)
+        XCTAssertEqual(point.label,original)
+        tapNativeMenuItem(point)
+        XCTAssertTrue(app.buttons["field-fix-choice-1-East target"].waitForExistence(timeout: 5))
+        app.buttons["field-fix-point-1-cancel"].tap()
+        XCTAssertEqual(point.label,original)
+        XCTAssertFalse(app.buttons["navigation-session-banner"].exists)
+    }
+
 }

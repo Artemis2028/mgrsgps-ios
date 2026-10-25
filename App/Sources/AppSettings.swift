@@ -65,7 +65,7 @@ final class AppSettings: ObservableObject {
 
     @Published var keepScreenOn = true { didSet { persist() } }
     @Published var pacePer100m = 65 { didSet { persist() } }
-    // Preserved for cross-platform backups; orientation UI is a later slice.
+    // Android guide settings and display orientation keep their backup integer codes.
     @Published var guideAllowance = 10 { didSet { persist() } }
     @Published var guideHoldOffSec = 5 { didSet { persist() } }
     @Published var guideHeartbeatSec = 30 { didSet { persist() } }
@@ -158,7 +158,7 @@ final class AppSettings: ObservableObject {
         guideAllowance = min(90,max(1,snap.guideAllowance ?? 10)); guideHoldOffSec = min(60,max(0,snap.guideHoldOffSec ?? 5))
         guideHeartbeatSec = min(600,max(0,snap.guideHeartbeatSec ?? 30)); guideMode = snap.guideMode == 1 ? 1 : 0
         guideCorridorM = min(2000,max(0,snap.guideCorridorM ?? 0))
-        orientation = snap.orientation ?? 0
+        orientation = (0...3).contains(snap.orientation ?? 0) ? (snap.orientation ?? 0) : 0
         disclaimerAccepted = snap.disclaimerAccepted ?? false
     }
 

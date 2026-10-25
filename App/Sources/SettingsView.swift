@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var location: LocationService
     @Environment(\.dismiss) private var dismiss
 
+    @ObservedObject private var orientationState = OrientationState.shared
     @State private var showingGuide = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
@@ -22,6 +23,16 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     section("Display")
                     faceBlock
+                    Picker("Orientation", selection: $settings.orientation) {
+                        ForEach(ScreenOrientation.allCases) { Text($0.title).tag($0.rawValue) }
+                    }.pickerStyle(.segmented).accessibilityIdentifier("screen-orientation")
+                    Text((ScreenOrientation(rawValue: settings.orientation) ?? .auto).explanation)
+                        .font(.footnote).foregroundStyle(palette.inkDim)
+                    Text("Current window: \(orientationState.actual)").font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("orientation-window")
+                    if let error = orientationState.error {
+                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("orientation-error")
+                        Button("Retry orientation") { orientationState.refresh() }.foregroundStyle(palette.accent)
+                    }
                     nightBlock
                     Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent)
                     Stepper("Paces per 100 m: \(settings.pacePer100m)", value: $settings.pacePer100m, in: 1...1000)

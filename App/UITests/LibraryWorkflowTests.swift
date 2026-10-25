@@ -20,18 +20,18 @@ final class LibraryWorkflowTests: XCTestCase {
     private func selected(_ count: Int) { XCTAssertEqual(app.staticTexts["library-selected-count"].label,"\(count) selected") }
     func testMixedSelectionSwapsIndividualVisibilityAndCancelKeepsSelection() {
         folder("Recon"); selectAll(); selected(3); capture("library-mixed-selection")
-        app.buttons["Selected item actions"].tap(); app.buttons["library-swap-visibility"].tap()
+        app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-swap-visibility"])
         XCTAssertTrue(app.staticTexts["library-status"].waitForExistence(timeout: 5)); XCTAssertTrue(app.staticTexts["library-status"].label.contains("3 items"))
         let routeHidden = app.images["library-graphic-hidden-Recon route"], trackHidden = app.images["library-track-hidden-Recon track"]
         reveal(routeHidden); XCTAssertTrue(routeHidden.exists); reveal(trackHidden); XCTAssertTrue(trackHidden.exists)
         selectAll(); selected(3)
-        app.buttons["Selected item actions"].tap(); app.buttons["library-delete-selected"].tap()
+        app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-delete-selected"])
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5)); app.alerts.buttons["Cancel"].tap(); selected(3)
         app.buttons["library-selection-done"].tap(); capture("library-mixed-visibility")
     }
     func testDeleteMixedFolderSelectionPersistsAndLeavesOtherFolderUntouched() {
         folder("Recon"); selectAll(); selected(3)
-        app.buttons["Selected item actions"].tap(); app.buttons["library-delete-selected"].tap(); app.alerts.buttons["Delete"].tap()
+        app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-delete-selected"]); app.alerts.buttons["Delete"].tap()
         XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         folder("Recon"); XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5))
@@ -42,7 +42,8 @@ final class LibraryWorkflowTests: XCTestCase {
     func testRenameFolderMovesAllRecordTypesThenKeepContentsInBase() {
         folder("Recon"); app.buttons["Folder options"].tap(); tapNativeMenuItem(app.buttons["Rename folder"])
         let name = app.textFields["library-folder-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap()
-        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: (name.value as? String ?? "").count)+"Patrol")
+        name.typeKey("a",modifierFlags: .command); name.typeText("Patrol")
+        XCTAssertEqual(name.value as? String,"Patrol")
         app.buttons["library-folder-save"].tap()
         XCTAssertTrue(app.buttons["Patrol"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))

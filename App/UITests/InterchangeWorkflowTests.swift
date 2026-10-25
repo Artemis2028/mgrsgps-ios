@@ -48,8 +48,9 @@ final class InterchangeWorkflowTests: XCTestCase {
         XCTAssertTrue(filename.waitForExistence(timeout: 10),app.debugDescription)
         capture("geojson-export-files")
         let name = "gridfix-ui-" + UUID().uuidString.prefix(8)
-        filename.tap(); filename.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: 7) + name)
-        app.buttons["DOCPicker.actionButton"].tap()
+        filename.tap(); filename.typeKey("a",modifierFlags: .command); filename.typeText(String(name))
+        XCTAssertEqual(filename.value as? String,String(name))
+        saveNativeFile(in: app)
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); app.buttons["import-field-file"].tap()
         let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",String(name))).firstMatch

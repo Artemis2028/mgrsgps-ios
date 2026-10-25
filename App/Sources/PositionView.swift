@@ -4,11 +4,14 @@ import SwiftUI
 /// Position: Glance, Lensatic, or Dial, from the saved face.
 /// Settings is a sheet from the gear — not a fifth tab.
 struct PositionView: View {
+    var onOrientation: () -> Void = {}
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showSettings = false
     @State private var qrRequest: PositionQRRequest?
 
+    private var compact: Bool { verticalSizeClass == .compact }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
     private var parts: MGRS.Parts? {
@@ -79,11 +82,20 @@ struct PositionView: View {
                     reducedAccuracyNotice
                     Spacer(minLength: 0)
                 } else {
-                    switch settings.face {
-                    case .glance:
-                        glance
-                    case .lensatic, .dial:
-                        instrument
+                    if compact {
+                        HStack(alignment: .top,spacing: 24) {
+                            if settings.face == .glance {
+                                ScrollView { grid.frame(maxWidth: .infinity,alignment: .leading) }.frame(maxWidth: .infinity)
+                            } else { instrument.frame(maxWidth: .infinity) }
+                            ScrollView {
+                                VStack(alignment: .leading,spacing: 12) { precisionPicker; footer }
+                            }.frame(maxWidth: .infinity)
+                        }
+                    } else {
+                        switch settings.face {
+                        case .glance: glance
+                        case .lensatic, .dial: instrument
+                        }
                     }
                 }
             }
@@ -105,7 +117,7 @@ struct PositionView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("Position").font(.system(.largeTitle, design: .rounded, weight: .bold))
+            Text("Position").font(.system(compact ? .title2 : .largeTitle, design: .rounded, weight: .bold))
             Spacer()
             if let f = location.fix {
                 Text(f.gradeWord)
@@ -138,6 +150,8 @@ struct PositionView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Settings")
+            .contextMenu { Button("Orientation",action: onOrientation).accessibilityIdentifier("position-orientation-shortcut") }
+            .accessibilityHint("Touch and hold for orientation controls")
         }
     }
 
@@ -155,13 +169,13 @@ struct PositionView: View {
         if let p = parts {
             VStack(alignment: .leading, spacing: 4) {
                 Text(p.gzd + " " + p.square)
-                    .font(Blackout.numerals(30, weight: .semibold))
+                    .font(Blackout.numerals(compact ? 22 : 30, weight: .semibold))
                     .foregroundStyle(palette.inkDim)
                 Text(p.easting)
-                    .font(Blackout.numerals(62, weight: .bold))
+                    .font(Blackout.numerals(compact ? 48 : 62, weight: .bold))
                     .foregroundStyle(palette.ink)
                 Text(p.northing)
-                    .font(Blackout.numerals(62, weight: .bold))
+                    .font(Blackout.numerals(compact ? 48 : 62, weight: .bold))
                     .foregroundStyle(palette.ink)
                 Text(Phonetic.mgrs(p.full))
                     .font(Blackout.label(12, weight: .medium))
@@ -174,7 +188,7 @@ struct PositionView: View {
             .lineLimit(1)
         } else {
             Text("— — — — —")
-                .font(Blackout.numerals(62, weight: .bold))
+                .font(Blackout.numerals(compact ? 48 : 62, weight: .bold))
                 .foregroundStyle(palette.inkDim)
         }
     }
