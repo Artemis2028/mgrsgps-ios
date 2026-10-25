@@ -171,23 +171,55 @@ public struct LaneShape: Sendable {
         }
         return .init(left: outside(left,leftOutside),right: outside(right,rightOutside),backstop: outside(backstop,backstopOutside))
     }
-    /// Shading ring in line order; the renderer closes the final edge.
-    public func outline() -> [GeoPoint] {
-        func joined(_ points: [LaneXY]) -> [LaneXY] {
-            let a = points[points.count-2], d = points.last!-a
-            var best: LaneXY?, bestT = Double.infinity
-            for i in 0..<(backstop.points.count-1) {
-                let c = backstop.points[i], s = backstop.points[i+1]-c, denominator = d.cross(s)
-                if abs(denominator) < 1e-12 { continue }
-                let t = (c-a).cross(s)/denominator, u = (c-a).cross(d)/denominator
-                if (u >= 0 || i == 0) && (u <= 1 || i == backstop.points.count-2) && t >= 0 && t < bestT {
-                    bestT = t; best = a+d*t
-                }
+    /// Extend/trim a side limit at its intersection with the backstop.
+    private func joined(_ points: [LaneXY]) -> [LaneXY] {
+        let a = points[points.count-2], d = points.last!-a
+        var best: LaneXY?, bestT = Double.infinity
+        for i in 0..<(backstop.points.count-1) {
+            let c = backstop.points[i], s = backstop.points[i+1]-c, denominator = d.cross(s)
+            if abs(denominator) < 1e-12 { continue }
+            let t = (c-a).cross(s)/denominator, u = (c-a).cross(d)/denominator
+            if (u >= 0 || i == 0) && (u <= 1 || i == backstop.points.count-2) && t >= 0 && t < bestT {
+                bestT = t; best = a+d*t
             }
-            guard let best else { return points }
-            let kept = points.dropLast().filter { backstop.offset($0).distance*backstopOutside < 0 }
-            return (kept.isEmpty ? [a] : kept)+[best]
         }
-        return (joined(left.points)+joined(right.points).reversed()).map(plane.unproject)
+        guard let best else { return points }
+        let kept = points.dropLast().filter { backstop.offset($0).distance*backstopOutside < 0 }
+        return (kept.isEmpty ? [a] : kept)+[best]
+    }
+    /// Position along the backstop in metres, including its end rays.
+    private func measure(_ point: LaneXY) -> Double {
+        var best = Double.infinity, result = 0.0, travelled = 0.0
+        for i in 0..<(backstop.points.count-1) {
+            let a = backstop.points[i], d = backstop.points[i+1]-a
+            var t = (point-a).dot(d)/d.dot(d)
+            if i != 0 { t = max(0,t) }
+            if i != backstop.points.count-2 { t = min(1,t) }
+            let delta = point-(a+d*t), distance = delta.dot(delta)
+            if distance < best { best = distance; result = travelled+t*d.length }
+            travelled += d.length
+        }
+        return result
+    }
+    private func intervening(_ a: LaneXY,_ b: LaneXY) -> [LaneXY] {
+        let start = measure(a), end = measure(b)
+        var distance = 0.0, middle: [LaneXY] = []
+        for i in backstop.points.indices {
+            if i > 0 { distance += (backstop.points[i]-backstop.points[i-1]).length }
+            if distance > min(start,end)+0.01 && distance < max(start,end)-0.01 { middle.append(backstop.points[i]) }
+        }
+        return start <= end ? middle : Array(middle.reversed())
+    }
+    public func outline() -> [GeoPoint] {
+        let l = joined(left.points), r = joined(right.points)
+        return (l+intervening(l.last!,r.last!)+r.reversed()).map(plane.unproject)
+    }
+    /// Finite visible geometry consistent with the guide: side limits reach the
+    /// backstop; its end rays reach at least both side-limit intersections.
+    public func mapLines() -> (left: [GeoPoint],right: [GeoPoint],backstop: [GeoPoint]) {
+        let l = joined(left.points), r = joined(right.points)
+        let ends = [l.last!,r.last!,backstop.points.first!,backstop.points.last!].sorted { measure($0) < measure($1) }
+        let b = [ends.first!]+intervening(ends.first!,ends.last!)+[ends.last!]
+        return (l.map(plane.unproject),r.map(plane.unproject),b.map(plane.unproject))
     }
 }

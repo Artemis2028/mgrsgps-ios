@@ -8,6 +8,9 @@ The user also requested the subsequent development work: see the
 [25 October Android audit](android-overnight-2026-10-25.md) for navigation
 lanes, protected backups, map-button preferences, fixes and the experimental
 TAK branch. Those additions are tracked separately from this pinned release.
+The first [navigation-lane UI and guidance integration](navigation-lanes.md)
+is now implemented, with its remaining backup, route-card and watch gaps listed
+explicitly. It does not replace the separate quiet-inside perimeter.
 
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
@@ -15,7 +18,7 @@ TAK branch. Those additions are tracked separately from this pinned release.
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
-| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications | Physical direction-pattern validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
+| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Lane backup records, route-card limits, watch lane sync and later Android cue switches; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |

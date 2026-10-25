@@ -206,3 +206,26 @@ After the explicit library-row visibility fix, the closed
 tests and both native night-mode field-edit/relaunch cases: 135 passed,
 zero failures/skips. Individual Hide applies the requested visibility even if
 another edit already hid the record; mixed batch swaps remain swaps.
+
+## Navigation lanes beyond release/1.1.0
+
+The separate three-line lane mode now has worker-owned persistent records,
+map drawing and draggable segment handles, linked graphic limits, day/night
+shading and L/R/BS labels, checkpoint/route assignment, a lane library and
+Navigate state/cues. Confirmed background crossings/reentry request iOS
+notifications; repeats stay foreground haptics. Quiet-inside perimeters remain
+independent. See [navigation lanes](navigation-lanes.md) for behavior and gaps.
+
+The complete core suite passes 340 tests; all 137 app integration tests pass.
+The closed `gridfix-lane-final.xcresult` reports 140 passed / zero failed/skipped,
+including native lane creation/editing/persistence/deletion and the existing
+route-drawing regression. After display refinements,
+`gridfix-lane-display-native.xcresult` passes both native lane workflows again.
+Its exported day/night screenshots show separated L/R/BS labels and limits
+reaching the backstop; the hidden-library night sheet remains readable.
+A final draw-only native run passes, and its actual saved lane file contains a
+three-point line with a 13.0 m perpendicular bend. The unsigned phone/embedded-
+watch Release build passes. These checks do not prove physical haptic feel,
+locked-screen notification delivery, battery or storage-pressure behavior.
+Lane record backups, route-card limits, watch synchronization and later Android
+cue switches remain implementation work.

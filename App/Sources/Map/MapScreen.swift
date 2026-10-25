@@ -12,6 +12,7 @@ struct MapScreen: View {
     @EnvironmentObject private var recorder: TrackRecorder
     @EnvironmentObject private var maps: MapLayerStore
     @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var lanes: NavigationLaneStore
     @EnvironmentObject private var terrain: TerrainSession
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     var onNavigate: () -> Void = {}
@@ -47,6 +48,13 @@ struct MapScreen: View {
     @State private var routeWaypointOffer: Backup.Graphic?
     @State private var showingRouteWaypointOffer = false
     @State private var routeWaypointError: String?
+    @State private var showingLanes = false
+    @State private var pendingLane: LaneMapAction?
+    @State private var laneDraft: LaneEditingDraft?
+    @State private var showingLaneDetails = false
+    @State private var choosingLaneLine = false
+    @State private var replacingLaneAction: LaneMapAction?
+    @State private var confirmingLaneReplace = false
 
     private var chromeNight: Bool { settings.nightMode }
     private var compactMap: Bool { verticalSizeClass == .compact }
@@ -72,7 +80,7 @@ struct MapScreen: View {
         ZStack {
             MapContainer(mapStore: maps, nightMode: chromeNight, fix: location.usableFix,
                          waypoints: visible, navigationID: store.selectedId,
-                         document: fieldData.document, folders: store.folders,
+                         document: fieldData.document, folders: store.folders, lanes: lanes.lanes, laneDraft: liveLaneDraft,
                          recordingPoints: recorder.active?.livePoints ?? [],
                          viewshed: terrain.viewshed,
                          rulerAnchor: rulerAnchor,
@@ -97,16 +105,16 @@ struct MapScreen: View {
                              if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
                          },
                          graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
-                         onGraphicPoint: { if !graphicMutation.working { graphicDraft?.append($0) } },
+                         onGraphicPoint: { if !graphicMutation.working && (laneDraft == nil || (graphicDraft?.vertices.count ?? 0) < 500) { graphicDraft?.append($0) } },
                          onGraphicSelect: { if !graphicMutation.working { graphicDraft?.selected = $0 } },
-                         onGraphicInsert: { index, point in if !graphicMutation.working { graphicDraft?.selected = index; graphicDraft?.insert(point) } },
+                         onGraphicInsert: { index, point in if !graphicMutation.working && (laneDraft == nil || (graphicDraft?.vertices.count ?? 0) < 500) { graphicDraft?.selected = index; graphicDraft?.insert(point) } },
                          onGraphicMove: { if !graphicMutation.working { graphicDraft?.move($0,to: $1) } },
                          onGraphicRemove: { index in if !graphicMutation.working { graphicDraft?.selected = index; graphicDraft?.removeSelected() } },
-                         onGraphicPick: { guard !graphicMutation.working else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
+                         onGraphicPick: { guard !graphicMutation.working && laneDraft == nil else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
-                         onSelect: { if boundaryDraft == nil && graphicDraft == nil { selectedID = $0 } },
+                         onSelect: { if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
                              intervalLabel = label; centre = position; viewport = bounds; zoom = level
                              rulerTarget = GeoPoint(lat: position.latitude,lon: position.longitude)
@@ -140,18 +148,21 @@ struct MapScreen: View {
                     .padding(compactMap ? 8 : 14).fieldChrome()
                     Spacer(minLength: 0)
                     toolLayout {
+                        Button { showingLanes = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").frame(width: 44,height: 44) }
+                            .fieldGlassButton().accessibilityLabel("Navigation lanes").accessibilityIdentifier("map-lanes")
+                            .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
                         Button { showingGraphics = true } label: {
                             Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
                         }.fieldGlassButton().accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
-                            .disabled(boundaryDraft != nil || graphicDraft != nil)
+                            .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
                         Button { showingBoundaries = true } label: {
                             Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
                         }.fieldGlassButton().accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
-                            .disabled(boundaryDraft != nil || graphicDraft != nil)
+                            .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
                         Button { showingLayers = true } label: {
                             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
                         }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers")
-                        if boundaryDraft == nil && graphicDraft == nil {
+                        if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
                             Button { showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
                                 .fieldGlassButton().accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
                             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
@@ -172,7 +183,15 @@ struct MapScreen: View {
                         centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaries.error,
                         save: { if let area = boundaryDraft?.area, boundaries.save(area) { boundaryDraft = nil } },cancel: { boundaryDraft = nil; boundaries.clearError() })
                 }
-                if let draft = graphicDraft {
+                if let draft = laneDraft {
+                    LaneDrawingControls(draft: draft,count: graphicDraft?.vertices.count ?? 0,selected: graphicDraft?.selected != nil,busy: graphicMutation.working,error: graphicMutation.error,
+                        chooseRole: switchLaneRole,
+                        add: { if graphicDraft?.vertices.count ?? 0 < 500 { graphicDraft?.append(.init(lat: centre.latitude,lon: centre.longitude)) } },
+                        undo: { if graphicDraft?.vertices.isEmpty == false { graphicDraft?.graphic.points.removeLast(); graphicDraft?.selected = nil } },remove: { graphicDraft?.removeSelected() },
+                        useLine: { choosingLaneLine = true },drawInstead: { laneDraft?.line = .init(); loadLaneLine() },
+                        review: { captureLaneLine(); showingLaneDetails = true },cancel: { laneDraft = nil; graphicDraft = nil })
+                }
+                if let draft = graphicDraft, laneDraft == nil {
                     GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),measuringArea: $measuringArea,
                         centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError ?? graphicMutation.error,saving: graphicMutation.working,
                         save: {
@@ -190,10 +209,10 @@ struct MapScreen: View {
                             })
                         },cancel: { graphicDraft = nil; graphicError = nil; measuringArea = false })
                 }
-                if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil {
+                if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
                     selectedCard(waypoint)
                 }
-                if let shade = terrain.viewshed, boundaryDraft == nil && graphicDraft == nil {
+                if let shade = terrain.viewshed, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
                     Button { terrain.clearViewshed() } label: {
                         VStack(alignment: .leading,spacing: 4) {
                             Text("Viewshed · \(Int(shade.radius)) m · tap to clear").font(.caption.bold())
@@ -206,20 +225,20 @@ struct MapScreen: View {
                     .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
                     .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.8), in: Capsule())
                     .accessibilityIdentifier("map-attribution")
-                if !compactMap || (boundaryDraft == nil && graphicDraft == nil) { HStack(spacing: 12) {
+                if laneDraft == nil && (!compactMap || (boundaryDraft == nil && graphicDraft == nil)) { HStack(spacing: 12) {
                     Button {
                         guard let fix = location.usableFix else { return }
                         cameraRequest = MapCameraRequest(action: .locate(fix.lat, fix.lon))
                     } label: {
-                        Label("Locate", systemImage: "location").frame(minHeight: 40)
+                        Label("Locate", systemImage: "location").labelStyle(.iconOnly).frame(width: 44,height: 40)
                     }
-                    .fieldGlassButton().disabled(location.usableFix == nil)
+                    .fieldGlassButton().disabled(location.usableFix == nil).accessibilityLabel("Locate")
                     Button {
                         cameraRequest = MapCameraRequest(action: .fitData)
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil)
+                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible }))
                     .accessibilityLabel("Show all visible data")
                     RecordingButton()
                     Spacer(minLength: 0)
@@ -242,7 +261,9 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
-        .onAppear { graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request } }
+        .onAppear { graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
+        .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
+        .onChange(of: graphicMutation.working) { busy in if !busy { receiveLaneRequest() } }
         .onDisappear { graphicMutation.setPresented(false) }
         .onChange(of: maps.focusRequest?.id) { _ in if let request = maps.focusRequest { cameraRequest = request } }
         .onChange(of: terrain.viewshed?.id) { _ in
@@ -292,6 +313,32 @@ struct MapScreen: View {
                 if !draft.vertices.isEmpty { cameraRequest = MapCameraRequest(action: .showBoundary(draft.graphic.mapExtentPoints)) }
             },onShow: { graphic in cameraRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)) },onNavigate: onNavigate)
         }
+        .sheet(isPresented: $showingLanes,onDismiss: runLaneRequest) {
+            NavigationLaneLibraryView { pendingLane = $0; showingLanes = false }
+        }
+        .confirmationDialog("Replace the current unsaved drawing?",isPresented: $confirmingLaneReplace,titleVisibility: .visible) {
+            Button("Replace drawing",role: .destructive) {
+                boundaryDraft = nil; graphicDraft = nil; laneDraft = nil
+                pendingLane = replacingLaneAction; replacingLaneAction = nil; runLaneRequest()
+            }
+            Button("Keep drawing",role: .cancel) { replacingLaneAction = nil }
+        }
+        .sheet(isPresented: $showingLaneDetails) {
+            if let draft = laneDraft {
+                LaneDetailsView(draft: Binding(get: { laneDraft ?? draft },set: { laneDraft = $0 }),busy: graphicMutation.working,error: graphicMutation.error,save: saveLane)
+            }
+        }
+        .sheet(isPresented: $choosingLaneLine) {
+            NavigationStack {
+                List(fieldData.document.graphics.filter(NavLanes.canBeLimit)) { graphic in
+                    Button(graphic.name.isEmpty ? GraphicTypes.label(graphic.type) : graphic.name) {
+                        captureLaneLine(); laneDraft?.line = LaneLine(graphicId: graphic.id)
+                        graphicDraft = nil; choosingLaneLine = false
+                    }.accessibilityIdentifier("lane-link-"+graphic.id)
+                }.navigationTitle("Use existing line").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { choosingLaneLine = false } } }
+            }.fieldSheetAppearance()
+        }
         .sheet(isPresented: $showingBoundaries) {
             BoundaryPanel(onDraw: { area in
                 selectedID = nil; rulerAnchor = nil; boundaries.clearError()
@@ -310,6 +357,68 @@ struct MapScreen: View {
         }
     }
 
+    private var liveLaneDraft: NavLane? {
+        guard var draft = laneDraft else { return nil }
+        if draft.line.graphicId == nil,let graphicDraft { draft.line.points = graphicDraft.vertices }
+        return draft.lane
+    }
+    private func receiveLaneRequest() {
+        guard !graphicMutation.working,let request = maps.laneRequest else { return }
+        maps.laneRequest = nil
+        if case .show = request.action { pendingLane = request.action; runLaneRequest(); return }
+        if graphicDraft != nil || boundaryDraft != nil || laneDraft != nil {
+            replacingLaneAction = request.action; confirmingLaneReplace = true
+        } else { pendingLane = request.action; runLaneRequest() }
+    }
+    private func captureLaneLine() {
+        guard laneDraft?.line.graphicId == nil,let points = graphicDraft?.vertices else { return }
+        laneDraft?.line.points = points
+    }
+    private func loadLaneLine() {
+        guard let draft = laneDraft else { graphicDraft = nil; return }
+        guard draft.line.graphicId == nil else { graphicDraft = nil; return }
+        var graphic = GraphicDraft(type: "phase_line")
+        graphic.graphic.name = draft.line.label.isEmpty ? draft.role.title : draft.line.label
+        graphic.graphic.points = draft.line.points.map { .init(lat: $0.lat,lon: $0.lon) }
+        graphicDraft = graphic
+    }
+    private func switchLaneRole(_ role: LaneLimit) { captureLaneLine(); laneDraft?.role = role; loadLaneLine() }
+    private func runLaneRequest() {
+        guard let request = pendingLane else { return }; pendingLane = nil
+        switch request {
+        case .show(let lane):
+            let points = [lane.left,lane.right,lane.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }
+            cameraRequest = MapCameraRequest(action: .showBoundary(points))
+        case .create: beginLane(nil)
+        case .edit(let lane): beginLane(lane)
+        }
+    }
+    private func beginLane(_ lane: NavLane?) {
+        selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicMutation.clearError()
+        laneDraft = LaneEditingDraft(lane); loadLaneLine()
+        if let lane {
+            cameraRequest = MapCameraRequest(action: .showBoundary([lane.left,lane.right,lane.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }))
+        }
+    }
+    private func saveLane() {
+        captureLaneLine()
+        guard var value = laneDraft?.lane else { return }
+        let original = laneDraft?.original
+        value.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.name.isEmpty {
+            let targetName = value.scope == .route ? fieldData.document.graphics.first { $0.id == value.targetId }?.name : store.waypoints.first { $0.id == value.targetId }?.name
+            value.name = "Lane to "+(targetName ?? "point")
+        }
+        let savedValue = value
+        graphicMutation.run("Saving lane…",action: {
+            let saved = try await lanes.save(savedValue,original: original,graphics: fieldData.document.graphics)
+            do { _ = try await LibraryRestoreCommit.waypoints([],folders: [.init(name: saved.folder)],into: store) }
+            catch { throw LaneSaveFolderError(message: "Lane saved. Folder settings could not be finished: \(error.localizedDescription). Retry to finish.") }
+            let extent = [saved.left,saved.right,saved.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }
+            cameraRequest = MapCameraRequest(action: .showBoundary(extent))
+            showingLaneDetails = false; laneDraft = nil; graphicDraft = nil
+        })
+    }
     private func runPendingTool() {
         guard let tool = pendingTool else { return }
         pendingTool = nil
@@ -380,6 +489,8 @@ private struct MapContainer: UIViewRepresentable {
     let navigationID: String?
     let document: Backup.Document
     let folders: [FolderInfo]
+    let lanes: [NavLane]
+    let laneDraft: NavLane?
     let recordingPoints: [GeoPoint]
     let viewshed: TerrainAnalysis.Viewshed?
     let rulerAnchor: GeoPoint?
@@ -470,6 +581,7 @@ private struct MapContainer: UIViewRepresentable {
         }
         coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
+        coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,night: nightMode)
         coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
         coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
         coordinator.overlay.nightMode = nightMode
@@ -498,7 +610,7 @@ private struct MapContainer: UIViewRepresentable {
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
             case .fitData:
-                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + recordingPoints + boundaryPoints
+                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + coordinator.laneOverlay.points + recordingPoints + boundaryPoints
                 if let bounds = FieldMapGeometry.bounds(points) {
                     if bounds.south == bounds.north && bounds.west == bounds.east {
                         view.setCenter(CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), zoomLevel: 15, animated: true)
@@ -521,6 +633,7 @@ private struct MapContainer: UIViewRepresentable {
         let crosshair = UIImageView(image: UIImage(systemName: "plus",withConfiguration: UIImage.SymbolConfiguration(pointSize: 22,weight: .light)))
         let overlay = GridOverlay()
         let fieldOverlay = FieldOverlay()
+        let laneOverlay = NavigationLaneMapOverlay()
         let liveOverlay = LiveTrackOverlay()
         let rasterLayers = RasterMapLayers()
         let contours = ContourMapOverlay()
@@ -713,6 +826,7 @@ private struct MapContainer: UIViewRepresentable {
             if let maps { rasterLayers.update(style: style, store: maps, night: nightMode) }
             overlay.install(into: style)
             fieldOverlay.install(into: style)
+            laneOverlay.install(style)
             liveOverlay.install(into: style)
             contours.install(style: style)
             boundaryOverlay.install(style: style)

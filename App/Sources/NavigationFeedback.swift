@@ -26,17 +26,18 @@ final class SystemNavigationFeedback: NavigationFeedback {
         }
         let permitted = (await center.notificationSettings()).authorizationStatus == .authorized
         status = CHHapticEngine.capabilitiesForHardware().supportsHaptics ? "Steering patterns work while open. " : "Distinct steering haptics unavailable on this device. "
-        status += permitted ? "Background route milestones use iOS notifications; settings and Focus apply." : "Notifications are off; background route milestones will be silent."
+        status += permitted ? "Background route milestones and lane crossings use iOS notifications; settings and Focus apply." : "Notifications are off; background route milestones and lane crossings will be silent."
     }
     func begin() { session = UUID() }
     func emit(_ pulse: NavigationPulse,name: String) {
         guard let token = session else { return }
         if UIApplication.shared.applicationState != .active {
-            guard [.arrival,.checkpoint,.complete].contains(pulse) else { return }
+            let laneEvent = pulse.isLaneCrossingEvent
+            guard let title = pulse.backgroundNotificationTitle else { return }
             let content = UNMutableNotificationContent()
-            content.title = pulse == .complete ? "Route complete" : (pulse == .checkpoint ? "Route advanced" : "Arrived")
+            content.title = title
             content.body = name; content.sound = .default; content.interruptionLevel = .timeSensitive
-            let id = "navigation-\(token.uuidString)"
+            let id = "navigation-\(token.uuidString)"+(laneEvent ? "-lane" : "")
             Task {
                 guard session == token else { return }
                 do {
@@ -57,10 +58,11 @@ final class SystemNavigationFeedback: NavigationFeedback {
             try engine?.start(); try player?.stop(atTime: CHHapticTimeImmediate)
             let bursts: [(Double,Double)]
             switch pulse {
-            case .right: bursts = [(0,0.07),(0.16,0.07)]
-            case .left: bursts = [(0,0.3)]
+            case .right,.laneLeftCrossing: bursts = [(0,0.07),(0.16,0.07)]
+            case .left,.laneRightCrossing: bursts = [(0,0.3)]
+            case .laneOvershot,.laneBackstopCrossing: bursts = [(0,0.3),(0.5,0.3),(1,0.3)]
             case .unavailable: bursts = [(0,0.12),(0.24,0.12),(0.48,0.12)]
-            case .onCourse,.checkpoint: bursts = [(0,0.05)]
+            case .onCourse,.checkpoint,.laneReentered: bursts = [(0,0.05)]
             case .arrival,.complete: bursts = [(0,0.4),(0.6,0.4)]
             }
             let events = bursts.map { CHHapticEvent(eventType: .hapticContinuous,parameters: [.init(parameterID: .hapticIntensity,value: 1),.init(parameterID: .hapticSharpness,value: 0.5)],relativeTime: $0.0,duration: $0.1) }
@@ -73,7 +75,7 @@ final class SystemNavigationFeedback: NavigationFeedback {
         cancelPlayback()
         if let session {
             let id = "navigation-\(session.uuidString)"
-            center.removePendingNotificationRequests(withIdentifiers: [id]); center.removeDeliveredNotifications(withIdentifiers: [id])
+            center.removePendingNotificationRequests(withIdentifiers: [id,id+"-lane"]); center.removeDeliveredNotifications(withIdentifiers: [id,id+"-lane"])
         }
         session = nil
     }

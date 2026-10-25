@@ -3,6 +3,18 @@ import XCTest
 
 /// Numerical scenarios ported from Android LaneGuideTest (91cb68f).
 final class NavigationLaneTests: XCTestCase {
+    func testBackgroundNotificationsAreTransitionsRatherThanRepeatingSteering() {
+        for pulse in [NavigationPulse.right,.left,.laneOvershot,.onCourse,.unavailable] { XCTAssertNil(pulse.backgroundNotificationTitle); XCTAssertFalse(pulse.isLaneCrossingEvent) }
+        for pulse in [NavigationPulse.laneLeftCrossing,.laneRightCrossing,.laneBackstopCrossing,.laneReentered] { XCTAssertNotNil(pulse.backgroundNotificationTitle); XCTAssertTrue(pulse.isLaneCrossingEvent) }
+        XCTAssertEqual(NavigationPulse.arrival.backgroundNotificationTitle,"Arrived")
+    }
+    func testLaneWarningBackupContractDefaultsAndValidation() throws {
+        var document = Backup.Document(); document.settings.laneWarningM = 50
+        let decoded = try Backup.importZip(Backup.exportZip(document))
+        XCTAssertEqual(decoded.settings.laneWarningM,50)
+        document.settings.laneWarningM = 201
+        XCTAssertThrowsError(try Backup.validate(document))
+    }
     private let plane = LaneLocalPlane(origin: .init(lat: 35,lon: -79))
     private func at(_ x: Double,_ y: Double) -> GeoPoint { plane.unproject(.init(x: x,y: y)) }
     private func line(_ points: (Double,Double)...) -> [GeoPoint] { points.map { at($0.0,$0.1) } }
@@ -141,6 +153,24 @@ final class NavigationLaneTests: XCTestCase {
         for (i,expected) in [(-50.0,0.0),(-50,520),(50,520),(50,0)].enumerated() {
             XCTAssertEqual(ring[i].x,expected.0,accuracy: 0.2); XCTAssertEqual(ring[i].y,expected.1,accuracy: 0.2)
         }
+    }
+    func testVisibleLimitsReachBackstopAndBentBackstopKeepsItsVertices() throws {
+        let short = try LaneShape(leftDrawn: line((-150,0),(-150,200)),rightDrawn: right,backstopDrawn: back)
+        let display = short.mapLines()
+        XCTAssertEqual(plane.project(try XCTUnwrap(display.left.last)).y,520,accuracy: 0.2)
+        XCTAssertEqual(plane.project(try XCTUnwrap(display.backstop.first)).x,-150,accuracy: 0.2)
+        XCTAssertEqual(plane.project(try XCTUnwrap(display.backstop.last)).x,100,accuracy: 0.2)
+        let bent = try LaneShape(leftDrawn: left,rightDrawn: right,backstopDrawn: line((-100,520),(0,560),(100,520)))
+        let ring = bent.outline().map(plane.project)
+        XCTAssertEqual(ring.count,5)
+        XCTAssertEqual(ring[2].x,0,accuracy: 0.2); XCTAssertEqual(ring[2].y,560,accuracy: 0.2)
+        XCTAssertLessThan(try XCTUnwrap(bent.read(at(0,550)).backstop),0)
+        XCTAssertGreaterThan(try XCTUnwrap(bent.read(at(0,580)).backstop),0)
+        let creek = try LaneShape(leftDrawn: line((-50,0),(-50,200),(-150,300),(-150,500)),rightDrawn: right,backstopDrawn: back)
+        let visible = creek.mapLines().left.map(plane.project)
+        XCTAssertEqual(visible.count,4)
+        XCTAssertEqual(visible[1].x,-50,accuracy: 0.2); XCTAssertEqual(visible[1].y,200,accuracy: 0.2)
+        XCTAssertEqual(visible[2].x,-150,accuracy: 0.2); XCTAssertEqual(visible[2].y,300,accuracy: 0.2)
     }
     func testCueCadencePatternsAndReturnToSilence() {
         var c = LaneCueCadence()

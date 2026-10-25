@@ -60,7 +60,23 @@ public struct NavigationArrivalState: Sendable {
         return false
     }
 }
-public enum NavigationPulse: String, Equatable, Sendable { case right, left, unavailable, onCourse, arrival, checkpoint, complete }
+public enum NavigationPulse: String, Equatable, Sendable {
+    case right, left, unavailable, onCourse, arrival, checkpoint, complete
+    case laneLeftCrossing, laneRightCrossing, laneBackstopCrossing, laneReentered, laneOvershot
+    public var backgroundNotificationTitle: String? {
+        switch self {
+        case .arrival: return "Arrived"
+        case .checkpoint: return "Route advanced"
+        case .complete: return "Route complete"
+        case .laneLeftCrossing: return "Past left limit · turn right"
+        case .laneRightCrossing: return "Past right limit · turn left"
+        case .laneBackstopCrossing: return "Past backstop · turn back"
+        case .laneReentered: return "Back inside lane"
+        default: return nil
+        }
+    }
+    public var isLaneCrossingEvent: Bool { [.laneLeftCrossing,.laneRightCrossing,.laneBackstopCrossing,.laneReentered].contains(self) }
+}
 /// Android's four-Hz scheduler, kept separate from playback so unavailable
 /// hardware/background suspension cannot change navigation or arrival state.
 public struct GuideCadence: Sendable {

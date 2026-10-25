@@ -13,6 +13,7 @@ struct MGRSGPSApp: App {
     @StateObject private var terrain: TerrainSession
     @StateObject private var boundaries: BoundaryMonitor
     @StateObject private var navigation: NavigationSession
+    @StateObject private var lanes: NavigationLaneStore
 
     @StateObject private var practice: PracticeSession
 
@@ -99,7 +100,20 @@ struct MGRSGPSApp: App {
             if ProcessInfo.processInfo.arguments.contains("-uiTestPracticeNight") { settingsStore.nightMode = true }
         }
         #endif
-        let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestLanes"),waypointStore.waypoints.isEmpty {
+            func point(_ x: Double,_ y: Double) -> GeoPoint { .init(lat: 24.4539+y/111195,lon: 54.3773+x/(111195*cos(24.4539 * .pi/180))) }
+            let target = point(0,1000)
+            _ = waypointStore.add(.init(name: "Lane OBJ",lat: target.lat,lon: target.lon))
+            for (id,name,points) in [("lane-left","Creek bank",[point(-50,0),point(-50,500)]),("lane-right","Right road",[point(50,0),point(50,500)]),("lane-backstop","Power line",[point(-100,520),point(100,520)])] {
+                try? fieldStore.saveGraphic(.init(id: id,name: name,type: "phase_line",points: points.map { .init(lat: $0.lat,lon: $0.lon) }))
+            }
+            try? fieldStore.saveGraphic(.init(id: "lane-route",name: "Lane patrol",type: "route",points: [point(0,0),point(0,300),point(0,500)].map { .init(lat: $0.lat,lon: $0.lon) }))
+        }
+        #endif
+        let laneStore = NavigationLaneStore(directory: directory)
+        _lanes = StateObject(wrappedValue: laneStore)
+        let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
         _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
         _recorder = StateObject(wrappedValue: TrackRecorder(directory: directory, fieldData: fieldStore))
@@ -117,6 +131,7 @@ struct MGRSGPSApp: App {
                 .environmentObject(terrain)
                 .environmentObject(boundaries)
                 .environmentObject(navigation)
+                .environmentObject(lanes)
                 .environmentObject(practice)
                 .environment(\.fieldNight, settings.nightMode)
                 .preferredColorScheme(.dark)

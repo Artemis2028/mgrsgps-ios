@@ -20,8 +20,9 @@ private final class GuideTestFeedback: NavigationFeedback {
     var status = "Test feedback"
     var pulses: [NavigationPulse] = []
     var active = false
+    var begins = 0
     func prepare() async {}
-    func begin() { active = true }
+    func begin() { active = true; begins += 1 }
     func emit(_ pulse: NavigationPulse,name: String) { if active { pulses.append(pulse) } }
     func cancelPlayback() {}
     func stop() { active = false }
@@ -29,6 +30,82 @@ private final class GuideTestFeedback: NavigationFeedback {
 
 @MainActor
 final class NavigationIntegrationTests: XCTestCase {
+    private func lanePoint(_ x: Double,_ y: Double) -> GeoPoint { .init(lat: 35+y/111195,lon: -79+x/(111195*cos(35 * .pi/180))) }
+    private func lane(_ target: String,scope: NavLane.Scope = .checkpoint) -> NavLane {
+        .init(id: "lane",name: "Creek",left: .init(points: [lanePoint(-50,0),lanePoint(-50,500)]),right: .init(points: [lanePoint(50,0),lanePoint(50,500)]),backstop: .init(points: [lanePoint(-100,1600),lanePoint(100,1600)]),scope: scope,targetId: target,createdAt: 1)
+    }
+    func testLaneIsSilentWithoutHeadingAndEmitsDistinctBackgroundCrossingEvents() async throws {
+        let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let target = lanePoint(0,1000), waypoint = store.add(.init(name: "OBJ",lat: target.lat,lon: target.lon))
+        store.select(waypoint.id)
+        let lanes = NavigationLaneStore(directory: directory); _ = try await lanes.save(lane(waypoint.id),graphics: [])
+        var date = 1000.0, up = 100.0, foreground = true
+        let nav = NavigationSession(directory: directory,store: store,field: field,settings: settings,driver: driver,feedback: feedback,lanes: lanes,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { foreground },scheduleTicks: false)
+        nav.startGuide(); try await wait { nav.running }
+        feedback.pulses.removeAll() // Initial no-position cue precedes the first fix.
+        func send(_ x: Double,_ y: Double) { date += 1; up += 1; let p = lanePoint(x,y); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
+        send(0,100); XCTAssertEqual(nav.laneDecision?.state,.inside); XCTAssertNil(nav.decision)
+        XCTAssertTrue(feedback.pulses.isEmpty); XCTAssertTrue(nav.status.contains("silent"))
+        foreground = false
+        send(-80,100); nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        send(-80,110); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        XCTAssertEqual(feedback.pulses.last,.laneLeftCrossing)
+        up += 3; date += 3; nav.tick(); XCTAssertEqual(feedback.pulses.last,.right)
+        XCTAssertNil(feedback.pulses.last?.backgroundNotificationTitle)
+        send(0,120); send(0,125); XCTAssertEqual(feedback.pulses.last,.laneReentered)
+        XCTAssertEqual(nav.laneDecision?.state,.inside)
+        up += 11; date += 11; nav.tick(); XCTAssertNil(nav.laneDecision)
+        XCTAssertTrue(nav.status.contains("unavailable")); XCTAssertEqual(feedback.pulses.last,.unavailable)
+        nav.stop()
+    }
+    func testLinkedLineMovementUpdatesGuidanceAndDeletionFallsBackToAzimuth() async throws {
+        let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let target = lanePoint(0,1000), waypoint = store.add(.init(name: "OBJ",lat: target.lat,lon: target.lon)); store.select(waypoint.id)
+        var value = lane(waypoint.id), graphic = Backup.Graphic(id: "limit",name: "Creek bank",type: "phase_line",points: value.left.points.map { .init(lat: $0.lat,lon: $0.lon) })
+        try field.saveGraphic(graphic); value.left = .init(graphicId: graphic.id)
+        let lanes = NavigationLaneStore(directory: directory); _ = try await lanes.save(value,graphics: field.document.graphics)
+        var date = 1000.0, up = 100.0
+        let nav = NavigationSession(directory: directory,store: store,field: field,settings: settings,driver: driver,feedback: feedback,lanes: lanes,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
+        nav.startGuide(); try await wait { nav.running }
+        func send(_ x: Double) { date += 1; up += 1; let p = lanePoint(x,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
+        send(-80); send(-80); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        graphic.points = [lanePoint(-150,0),lanePoint(-150,500)].map { .init(lat: $0.lat,lon: $0.lon) }
+        try field.saveGraphic(graphic); send(-80); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        try await lanes.setVisible(value.id,false); send(0)
+        XCTAssertEqual(nav.lane?.visible,false); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        try field.deleteGraphic(graphic.id); nav.tick()
+        XCTAssertNotNil(nav.laneProblem); XCTAssertNil(nav.laneDecision); XCTAssertEqual(nav.decision?.cue,.unavailable)
+        driver.onHeading?(.init(magnetic: 0,accuracy: 5,timestamp: Date(timeIntervalSince1970: date)))
+        XCTAssertEqual(nav.decision?.cue,.onBearing); nav.stop()
+    }
+    func testRouteLaneStateSurvivesCheckpointAdvanceAndCheckpointLaneWins() async throws {
+        let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let route = Backup.Graphic(id: "route",name: "Patrol",type: "route",points: [lanePoint(0,1000),lanePoint(0,1200),lanePoint(0,1400)].map { .init(lat: $0.lat,lon: $0.lon) })
+        try field.saveGraphic(route)
+        let lanes = NavigationLaneStore(directory: directory); _ = try await lanes.save(lane(route.id,scope: .route),graphics: [])
+        var date = 1000.0, up = 100.0
+        let nav = NavigationSession(directory: directory,store: store,field: field,settings: settings,driver: driver,feedback: feedback,lanes: lanes,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
+        nav.follow(route); try await wait { nav.running }
+        for _ in 0..<2 { date += 1; up += 1; let p = lanePoint(-80,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
+        XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        nav.movePoint(1); nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        XCTAssertEqual(feedback.begins,1,"A route-lane checkpoint change must not cancel queued crossing notifications")
+        let checkpoint = try XCTUnwrap(store.waypoints.first { $0.sourceRoutePointIndex == 1 })
+        var cpLane = lane(checkpoint.id); cpLane.id = "checkpoint-lane"
+        cpLane.left.points = [lanePoint(-150,0),lanePoint(-150,500)]
+        _ = try await lanes.save(cpLane,graphics: [])
+        nav.tick(); XCTAssertEqual(nav.lane?.id,cpLane.id); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        nav.pause(); XCTAssertNil(nav.lane); XCTAssertNil(nav.laneDecision)
+    }
+    func testLaneWarningPreferencePersistsAndBacksUp() throws {
+        let (directory,_,_,settings) = try setup()
+        settings.laneWarningM = 50
+        XCTAssertEqual(AppSettings(directory: directory).laneWarningM,50)
+        let snapshot = settings.backupSettings
+        XCTAssertEqual(snapshot.laneWarningM,50)
+        settings.laneWarningM = 0; try settings.applyBackup(snapshot)
+        XCTAssertEqual(settings.laneWarningM,50); XCTAssertEqual(AppSettings(directory: directory).laneWarningM,50)
+    }
     private func setup() throws -> (URL,WaypointStore,FieldDataStore,AppSettings) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir,withIntermediateDirectories: true)

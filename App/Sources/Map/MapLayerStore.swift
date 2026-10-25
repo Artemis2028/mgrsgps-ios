@@ -16,6 +16,7 @@ final class MapLayerStore: ObservableObject {
     @Published private(set) var downloadProgress = 0
     @Published private(set) var revision = 0
     @Published var focusRequest: MapCameraRequest?
+    @Published var laneRequest: LaneMapRequest?
     @Published var viewedTrackID: String?
     @Published private(set) var isImporting = false
     lazy var terrainSampler = TerrainSampler(pipeline: pipeline)

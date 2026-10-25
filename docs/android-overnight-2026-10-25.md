@@ -117,9 +117,13 @@ scenarios and model/wire contracts; the complete core suite passes 330 tests.
 This is based on pushed `91cb68f` behavior, not the uncommitted lane settings.
 State owns fix timestamps; cue cadence owns monotonic playback time in seconds.
 
-Persistent lane storage, map creation/editing/rendering, guidance integration,
-backups, route-card UI/PDF integration and watch snapshots are still pending.
-No user-facing lane mode or locked-screen delivery is claimed by core tests.
+The next milestone adds worker-owned lane persistence, map creation/editing and
+shaded overlays, linked graphics, the lane library, checkpoint/route guidance,
+early-warning settings and background crossing-notification requests. See
+[navigation lanes](navigation-lanes.md) for behavior and validation. Lane backup
+records, route-card UI/PDF integration, watch snapshots and the uncommitted
+Android settings remain pending. Core tests do not establish physical
+locked-screen delivery.
 
 This is an expanded implementation inventory, not a completion claim. See
 [the original release parity checklist](ios-parity-release-1.1.0.md) for the

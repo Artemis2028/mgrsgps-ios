@@ -25,6 +25,7 @@ public enum Backup {
         public var guideHeartbeatSec = 30
         public var guideMode = 0
         public var guideCorridorM = 0
+        public var laneWarningM = 0
         public var orientation: Int = 0
         public var disclaimerAccepted: Bool = false
         /// Nil means unset — never conflate with 0.0° (a real meridian value).
@@ -208,6 +209,7 @@ public enum Backup {
             "guideHeartbeatSec": doc.settings.guideHeartbeatSec,
             "guideMode": doc.settings.guideMode,
             "guideCorridorM": doc.settings.guideCorridorM,
+            "laneWarningM": doc.settings.laneWarningM,
             "disclaimerAccepted": doc.settings.disclaimerAccepted,
         ]
         if let d = doc.settings.declinationOverride {
@@ -337,6 +339,7 @@ public enum Backup {
                         && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
                         && (1...90).contains(s.guideAllowance) && (0...60).contains(s.guideHoldOffSec)
                         && (0...600).contains(s.guideHeartbeatSec) && (0...1).contains(s.guideMode) && (0...2000).contains(s.guideCorridorM)
+                        && (0...200).contains(s.laneWarningM)
                         && (s.declinationOverride.map { $0.isFinite && (-180...180).contains($0) } ?? true), "Invalid settings in backup")
         }
         try require(doc.courseHistory.count <= 10_000 && doc.courseHistory.allSatisfy {
@@ -455,6 +458,7 @@ public enum Backup {
         s.guideHeartbeatSec = int(o["guideHeartbeatSec"]) ?? 30
         s.guideMode = int(o["guideMode"]) ?? 0
         s.guideCorridorM = int(o["guideCorridorM"]) ?? 0
+        s.laneWarningM = int(o["laneWarningM"]) ?? 0
         s.disclaimerAccepted = o["disclaimerAccepted"] as? Bool ?? false
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {
             s.declinationOverride = nil

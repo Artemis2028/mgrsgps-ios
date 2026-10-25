@@ -6,11 +6,21 @@ struct NavigationControlsView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var lanes: NavigationLaneStore
+    @EnvironmentObject private var field: FieldDataStore
     @State private var showingSettings = false
     @State private var clearing = false
     private var palette: FieldPalette { .init(night: settings.nightMode) }
     var body: some View {
         VStack(alignment: .leading,spacing: 14) {
+            if let lane = navigation.lane ?? NavLanes.forTarget(lanes.lanes,target: store.waypoints.first { $0.id == store.selectedId }) {
+                VStack(alignment: .leading,spacing: 6) {
+                    Text("NAV LANE · "+(lane.name.isEmpty ? "Navigation lane" : lane.name)).font(.headline)
+                    Text(NavLanes.limitsSummary(lane,graphics: field.document.graphics)).font(.caption)
+                    if let problem = navigation.laneProblem { Text(problem).font(.caption).foregroundStyle(palette.warn) }
+                    if !lane.visible { Text("Hidden on map · still guides").font(.caption) }
+                }.accessibilityIdentifier("navigation-lane-status")
+            }
             if let p = navigation.progress {
                 Text(p.name).font(.headline)
                 Text(p.complete ? "Route complete" : "Point \(p.index+1) of \(p.points.count) · \(p.paused ? "paused" : "following")")
@@ -40,9 +50,9 @@ struct NavigationControlsView: View {
             if navigation.preparing { Button("Cancel start") { navigation.pause() } }
             Button("Guide settings") { showingSettings = true }.accessibilityIdentifier("guide-settings")
             if !navigation.feedbackStatus.isEmpty { Text(navigation.feedbackStatus).font(.caption).foregroundStyle(palette.inkDim) }
-            Text("Phone top edge points ahead. Two taps: right. Long pulse: left. Three taps: unavailable. Two long pulses: arrival. Short tick: back on course or configured heartbeat. Silence does not confirm a bearing.")
+            Text(navigation.lane != nil && navigation.laneProblem == nil ? "Lane: silent inside. Past left: two taps to turn right. Past right: one long pulse to turn left. Past backstop: three long pulses to turn back. One tick on reentry. Three short taps: position unavailable. Phone heading is not needed in lane mode." : "Phone top edge points ahead. Two taps: right. Long pulse: left. Three taps: unavailable. Two long pulses: arrival. Short tick: back on course or configured heartbeat. Silence does not confirm a bearing.")
                 .font(.caption).foregroundStyle(palette.inkDim)
-            Text("Steering patterns require the app open. Background route following uses GPS and milestone notifications as iOS permits; it does not promise continuous locked-screen steering buzzes.")
+            Text("Steering patterns require the app open. Background route following and lane crossings use GPS and iOS notifications as permitted; continuous locked-screen steering buzzes are not promised.")
                 .font(.caption).foregroundStyle(palette.inkDim)
             if boundaries.running {
                 Text("Boundary monitoring is separate and remains crossing-only. If you enable this navigation guide, its route and steering alerts can sound inside the boundary.")
@@ -84,7 +94,13 @@ struct GuideSettingsView: View {
                         Text("Hold the leg azimuth from the start position. Within 100 m of the target, home on the point. A drift corridor steers you back to this straight leg; it does not change drawn boundary alerts.").font(.footnote)
                     }
                 }
-                Section { Text("These settings apply to navigation guidance only. Quiet-inside boundary monitoring has no heading tolerance, heartbeat or steering cues.").font(.footnote) }
+                Section("Navigation lanes") {
+                    Picker("Early warning",selection: $settings.laneWarningM) {
+                        ForEach(Array(Set([0,25,50,settings.laneWarningM])).sorted(),id: \.self) { Text($0 == 0 ? "Off" : "\($0) m inside").tag($0) }
+                    }
+                    Text("One turn-away cue per approach. Crossing cues repeat while outside. Lane guidance replaces azimuth steering only when the selected checkpoint or route has a usable assigned lane.").font(.footnote)
+                }
+                Section { Text("These settings apply to navigation guidance only. Quiet-inside boundary monitoring has no heading tolerance, approach warning, heartbeat or steering cues.").font(.footnote) }
             }.navigationTitle("Guide settings").navigationBarTitleDisplayMode(.inline)
                 .tint(FieldPalette(night: settings.nightMode).accent)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }

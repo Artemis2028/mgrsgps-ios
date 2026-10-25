@@ -9,6 +9,7 @@ struct WaypointsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var lanes: NavigationLaneStore
 
     private var preparingOutput: Bool { fieldExport.format != nil || backupTransfer.phase == .exporting }
     private var exportUnavailable: Bool { fieldExport.format != nil || backupTransfer.phase != nil || exportFile != nil }
@@ -41,6 +42,8 @@ struct WaypointsView: View {
     @State private var choosingSort = false
     @State private var status: String?
     @State private var showingLibrary = false
+    @State private var showingLanes = false
+    @State private var pendingLane: LaneMapAction?
     @State private var textImport: TextImportRequest?
     @State private var exportFile: FieldExportDocumentFile?
     @State private var showingImporter = false
@@ -84,6 +87,12 @@ struct WaypointsView: View {
                         .contentShape(Rectangle())
                 }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("open-field-library")
                 folderPicker.disabled(preparingOutput || fieldMutation.working)
+                if !lanes.lanes.isEmpty {
+                    Button { showingLanes = true } label: {
+                        HStack { Text("Navigation lanes · \(lanes.lanes.count)"); Spacer(); Image(systemName: "chevron.right") }
+                            .padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("library-nav-lanes")
+                }
                 searchControls.disabled(preparingOutput || fieldMutation.working)
                 libraryCaption.disabled(preparingOutput || fieldMutation.working)
                 if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
@@ -183,6 +192,9 @@ struct WaypointsView: View {
         .sheet(item: $folderRequest) { request in
             LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
         }
+        .sheet(isPresented: $showingLanes,onDismiss: {
+            if let action = pendingLane { pendingLane = nil; maps.laneRequest = LaneMapRequest(action: action); onShowMap() }
+        }) { NavigationLaneLibraryView { pendingLane = $0; showingLanes = false } }
         .sheet(item: $movingTrack) { track in
             LibraryTrackFolderPicker(track: track,folders: libraryFolders) { folder in try await FieldEditAction.apply(.moveTrack(track.id,folder),to: fieldData) }.id(track.id)
         }

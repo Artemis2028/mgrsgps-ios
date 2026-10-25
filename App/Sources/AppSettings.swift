@@ -71,6 +71,7 @@ final class AppSettings: ObservableObject {
     @Published var guideHeartbeatSec = 30 { didSet { persist() } }
     @Published var guideMode = 0 { didSet { persist() } }
     @Published var guideCorridorM = 0 { didSet { persist() } }
+    @Published var laneWarningM = 0 { didSet { persist() } }
     var guideConfiguration: GuideConfiguration {
         var c = GuideConfiguration()
         c.allowance = Double(guideAllowance); c.holdOff = Double(guideHoldOffSec); c.heartbeat = Double(guideHeartbeatSec)
@@ -101,6 +102,7 @@ final class AppSettings: ObservableObject {
         var guideHeartbeatSec: Int?
         var guideMode: Int?
         var guideCorridorM: Int?
+        var laneWarningM: Int?
         var orientation: Int?
         var disclaimerAccepted: Bool?
     }
@@ -160,6 +162,7 @@ final class AppSettings: ObservableObject {
         guideAllowance = min(90,max(1,snap.guideAllowance ?? 10)); guideHoldOffSec = min(60,max(0,snap.guideHoldOffSec ?? 5))
         guideHeartbeatSec = min(600,max(0,snap.guideHeartbeatSec ?? 30)); guideMode = snap.guideMode == 1 ? 1 : 0
         guideCorridorM = min(2000,max(0,snap.guideCorridorM ?? 0))
+        laneWarningM = min(200,max(0,snap.laneWarningM ?? 0))
         orientation = (0...3).contains(snap.orientation ?? 0) ? (snap.orientation ?? 0) : 0
         disclaimerAccepted = snap.disclaimerAccepted ?? false
     }
@@ -172,7 +175,7 @@ final class AppSettings: ObservableObject {
         s.declinationOverride = declinationOverride; s.face = face.rawValue; s.keepScreenOn = keepScreenOn
         s.pacePer100m = pacePer100m; s.orientation = orientation; s.disclaimerAccepted = disclaimerAccepted
         s.guideAllowance = guideAllowance; s.guideHoldOffSec = guideHoldOffSec; s.guideHeartbeatSec = guideHeartbeatSec
-        s.guideMode = guideMode; s.guideCorridorM = guideCorridorM
+        s.guideMode = guideMode; s.guideCorridorM = guideCorridorM; s.laneWarningM = laneWarningM
         return s
     }
 
@@ -192,7 +195,7 @@ final class AppSettings: ObservableObject {
                                 orientation: s.orientation, disclaimerAccepted: s.disclaimerAccepted)
         snapshot.gridSystem = s.gridSystem
         snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
-        snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM
+        snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM; snapshot.laneWarningM = s.laneWarningM
         return try JSONEncoder().encode(snapshot)
     }
 
@@ -205,7 +208,7 @@ final class AppSettings: ObservableObject {
         declinationOverride = s.declinationOverride; face = PositionFace(rawValue: s.face)!
         keepScreenOn = s.keepScreenOn; pacePer100m = s.pacePer100m
         guideAllowance = s.guideAllowance; guideHoldOffSec = s.guideHoldOffSec; guideHeartbeatSec = s.guideHeartbeatSec
-        guideMode = s.guideMode; guideCorridorM = s.guideCorridorM
+        guideMode = s.guideMode; guideCorridorM = s.guideCorridorM; laneWarningM = s.laneWarningM
         orientation = s.orientation; disclaimerAccepted = s.disclaimerAccepted
         ready = true
     }
@@ -258,7 +261,7 @@ final class AppSettings: ObservableObject {
         )
         snap.gridSystem = gridSystem
         snap.guideAllowance = guideAllowance; snap.guideHoldOffSec = guideHoldOffSec; snap.guideHeartbeatSec = guideHeartbeatSec
-        snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM
+        snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM; snap.laneWarningM = laneWarningM
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)
     }

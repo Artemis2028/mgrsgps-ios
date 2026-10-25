@@ -15,6 +15,15 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var feedbackStatus = ""
     @Published private(set) var arrivals = 0
+    @Published private(set) var lane: NavLane?
+    @Published private(set) var laneDecision: LaneDecision?
+    @Published private(set) var laneProblem: String?
+    private let laneStore: NavigationLaneStore?
+    private struct LaneKey: Equatable { var id: String; var left: [GeoPoint]; var right: [GeoPoint]; var backstop: [GeoPoint] }
+    private var laneKey: LaneKey?
+    private var laneGuide: LaneGuideState?
+    private var laneCadence = LaneCueCadence()
+    private var laneUnavailableAt = 0.0
     private let store: WaypointStore
     private let field: FieldDataStore
     private let settings: AppSettings
@@ -44,10 +53,11 @@ final class NavigationSession: ObservableObject {
     private var arrival = NavigationArrivalState()
 
     init(directory: URL? = nil, store: WaypointStore, field: FieldDataStore, settings: AppSettings,
-         driver: NavigationLocationDriver? = nil, feedback: NavigationFeedback? = nil,
+         driver: NavigationLocationDriver? = nil, feedback: NavigationFeedback? = nil, lanes: NavigationLaneStore? = nil,
          now: @escaping () -> Date = Date.init, uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }, scheduleTicks: Bool = true) {
         self.store = store; self.field = field; self.settings = settings
+        self.laneStore = lanes
         self.driver = driver ?? CoreLocationNavigationDriver(); self.feedback = feedback ?? SystemNavigationFeedback()
         self.now = now; self.uptime = uptime; self.foreground = foreground; self.scheduleTicks = scheduleTicks
         file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("navigation-session-v1.json")
@@ -84,6 +94,7 @@ final class NavigationSession: ObservableObject {
         store.$selectedId.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         store.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         field.$document.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
+        lanes?.$lanes.sink { [weak self] _ in Task { @MainActor in self?.tick() } }.store(in: &subscriptions)
     }
     private var permitted: Bool { (driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways) && driver.precise && driver.servicesEnabled }
     func follow(_ route: Backup.Graphic,startIndex: Int = 0) {
@@ -108,6 +119,7 @@ final class NavigationSession: ObservableObject {
         launch(progress: nil,haptics: true)
     }
     private func launch(progress requested: RouteFollowingProgress?,haptics enabled: Bool) {
+        guard laneStore?.ready ?? true else { error = laneStore?.error ?? "Loading navigation lanes. Try again in a moment."; return }
         guard requested == nil || !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
         guard foreground() else { error = "Open the app before starting navigation."; return }
@@ -157,6 +169,7 @@ final class NavigationSession: ObservableObject {
     func pause(reason: String? = nil) {
         generation = UUID(); operation?.cancel(); pending = nil; preparing = false
         loop?.cancel(); driver.stop(); feedback.stop(); running = false; fix = nil; heading = nil; decision = nil
+        clearLane()
         progress?.paused = true; status = progress == nil ? "Navigation guide off" : "Route paused"
         if let reason { error = reason }
         do { if loaded { try persist(progress: progress,active: false,haptics: haptics) } }
@@ -177,10 +190,15 @@ final class NavigationSession: ObservableObject {
         do {
             try persist(progress: p,active: running && !p.complete,haptics: haptics); progress = p
             if p.complete { finishRoute() }
-            else if let wp = routeTarget(p) { target = wp; store.select(wp.id); resetLeg(); feedback.stop(); if running { feedback.begin() } }
+            else if let wp = routeTarget(p) { target = wp; store.select(wp.id); resetLeg(); resetTargetFeedback() }
         } catch { pause(reason: error.localizedDescription) }
     }
     func foregroundChanged(_ active: Bool) { feedback.cancelPlayback(); cues = GuideCueState(); cadence = GuideCadence(); if active { reconcile(); tick() } }
+    private func resetTargetFeedback() {
+        guard running else { feedback.stop(); return }
+        if let laneKey, NavLanes.forTarget(laneStore?.lanes ?? [],target: target)?.id == laneKey.id { feedback.cancelPlayback() }
+        else { feedback.stop(); feedback.begin() }
+    }
     private func resetLeg() { origin = nil; cues = GuideCueState(); cadence = GuideCadence(); arrival = NavigationArrivalState(); decision = nil; feedback.cancelPlayback() }
     private func routeTarget(_ p: RouteFollowingProgress) -> Waypoint? {
         guard !p.complete else { return nil }
@@ -206,7 +224,7 @@ final class NavigationSession: ObservableObject {
         } else {
             guard let selected = store.waypoints.first(where: { $0.id == store.selectedId }) else { pause(reason: "Navigation target was removed or cleared."); return }
             if selected.id != target?.id || selected.lat != target?.lat || selected.lon != target?.lon {
-                target = selected; resetLeg(); feedback.stop(); feedback.begin()
+                target = selected; resetLeg(); resetTargetFeedback()
             } else { target = selected }
         }
     }
@@ -234,7 +252,7 @@ final class NavigationSession: ObservableObject {
                     try persist(progress: p,active: !p.complete,haptics: haptics); progress = p
                     if p.complete { finishRoute(); return }
                     guard let next = routeTarget(p) else { pause(reason: "Next route waypoint is missing."); return }
-                    self.target = next; store.select(next.id); resetLeg(); feedback.stop(); feedback.begin()
+                    self.target = next; store.select(next.id); resetLeg(); resetTargetFeedback()
                     status = "Route advanced to point \(p.index+1) of \(p.points.count)"
                     feedback.emit(.checkpoint,name: "\(p.name) · point \(p.index+1): \(next.name)")
                 } catch { pause(reason: "Route progress could not be saved: \(error.localizedDescription)"); return }
@@ -244,7 +262,7 @@ final class NavigationSession: ObservableObject {
     }
     private func finishRoute() {
         loop?.cancel(); driver.stop(); running = false; decision = nil; feedback.cancelPlayback()
-        status = "Route complete"; feedback.emit(.complete,name: progress?.name ?? "Route")
+        clearLane(); status = "Route complete"; feedback.emit(.complete,name: progress?.name ?? "Route")
     }
     func tick() {
         guard running, let target else { return }
@@ -254,6 +272,7 @@ final class NavigationSession: ObservableObject {
             NavigationFixPolicy.isUsable(lat: l.coordinate.latitude,lon: l.coordinate.longitude,accuracyMeters: l.horizontalAccuracy,timestampUptime: fixTime,nowUptime: up) ? l : nil
         }
         let nav = usable.map { Geodesy.navInfo(fromLat: $0.coordinate.latitude,fromLon: $0.coordinate.longitude,toLat: target.lat,toLon: target.lon) }
+        if guideLane(target: target,fix: usable,nav: nav,uptime: up) { return }
         var trueHeading: Double?
         if let l = usable {
             if driver.hasCompass, let h = heading, (0...25).contains(h.accuracy), h.magnetic.isFinite, (0..<360).contains(h.magnetic), up >= headingTime, up-headingTime <= 2 {
@@ -276,9 +295,76 @@ final class NavigationSession: ObservableObject {
         if haptics, let pulse = cadence.pulse(now: up,decision: d,arrived: arrived,heartbeat: config.heartbeat) { feedback.emit(pulse,name: target.name) }
         if feedbackStatus != feedback.status { feedbackStatus = feedback.status }
     }
+    private func clearLane() {
+        if laneGuide != nil { cues = GuideCueState(); cadence = GuideCadence(); feedback.cancelPlayback() }
+        lane = nil; laneDecision = nil; laneProblem = nil; laneKey = nil; laneGuide = nil
+        laneCadence.reset(); laneUnavailableAt = 0
+    }
+    private func guideLane(target: Waypoint,fix: CLLocation?,nav: Geodesy.NavInfo?,uptime up: TimeInterval) -> Bool {
+        guard let value = NavLanes.forTarget(laneStore?.lanes ?? [],target: target) else { if lane != nil || laneProblem != nil { clearLane() }; return false }
+        if lane != value { lane = value }
+        do {
+            guard let l = NavLanes.points(value.left,graphics: field.document.graphics),let r = NavLanes.points(value.right,graphics: field.document.graphics),let b = NavLanes.points(value.backstop,graphics: field.document.graphics) else {
+                throw LaneShapeErrorForApp("A linked lane line is missing.")
+            }
+            let key = LaneKey(id: value.id,left: l,right: r,backstop: b)
+            if key != laneKey {
+                laneGuide = LaneGuideState(shape: try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b))
+                laneKey = key; laneCadence.reset(); laneUnavailableAt = 0; feedback.cancelPlayback()
+            }
+            var configuration = LaneGuideConfiguration(); configuration.warningMeters = Double(settings.laneWarningM)
+            laneGuide?.configuration = configuration
+            laneProblem = nil; decision = nil
+            guard let fix else {
+                laneGuide?.invalidateFix(); laneDecision = nil
+                status = "Nav lane · unavailable · waiting for a fresh, accurate location"
+                if haptics && up >= laneUnavailableAt { feedback.emit(.unavailable,name: value.name); laneUnavailableAt = up+4 }
+                feedbackStatus = feedback.status; return true
+            }
+            laneUnavailableAt = 0
+            let result = laneGuide!.update(position: .init(lat: fix.coordinate.latitude,lon: fix.coordinate.longitude),accuracy: fix.horizontalAccuracy,fixTime: fixTime)
+            laneDecision = result
+            switch result.state {
+            case .inside: status = "Inside lane · silent"
+            case .outLeft: status = "Past left limit · turn right"
+            case .outRight: status = "Past right limit · turn left"
+            case .overshot:
+                status = "Past backstop · turn back"
+                if let nav { status += String(format: " · %03.0f° T · %.0f m to %@",nav.bearingTrue,nav.distanceMeters,target.name) }
+            }
+            let arrived = arrival.update(target: target.id,distance: nav?.distanceMeters,accuracy: fix.horizontalAccuracy)
+            if arrived { arrivals += 1 }
+            let pulse = laneCadence.next(decision: result,now: up)
+            if haptics {
+                if arrived { feedback.emit(.arrival,name: target.name) }
+                if let pulse, !arrived || !foreground() {
+                    let output: NavigationPulse
+                    switch pulse {
+                    case .turnRight: output = result.changed ? .laneLeftCrossing : .right
+                    case .turnLeft: output = result.changed ? .laneRightCrossing : .left
+                    case .overshot: output = result.changed ? .laneBackstopCrossing : .laneOvershot
+                    case .backInside: output = .laneReentered
+                    }
+                    feedback.emit(output,name: "\(value.name) · \(status)")
+                }
+            }
+            feedbackStatus = feedback.status; return true
+        } catch {
+            if laneGuide != nil { cues = GuideCueState(); cadence = GuideCadence(); feedback.cancelPlayback() }
+            laneProblem = "\(error.localizedDescription) Using azimuth guidance."
+            laneGuide = nil; laneKey = nil; laneDecision = nil; laneCadence.reset()
+            return false
+        }
+    }
     private func persist(progress: RouteFollowingProgress?,active: Bool,haptics: Bool) throws {
         let data = try JSONEncoder().encode(Saved(progress: progress,active: active,haptics: haptics))
         guard data.count < 2 * 1024 * 1024 else { throw BoundaryError.invalid("Navigation session is too large to save.") }
         try data.write(to: file,options: [.atomic,.completeFileProtectionUntilFirstUserAuthentication])
     }
+}
+
+private struct LaneShapeErrorForApp: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
 }

@@ -33,6 +33,7 @@ public struct LaneGuideState: Sendable {
     public init(shape: LaneShape,configuration: LaneGuideConfiguration = .init()) {
         self.shape = shape; self.configuration = configuration
     }
+    public mutating func invalidateFix() { pending = nil; pendingCount = 0; warningPending = nil; warningCount = 0 }
     public mutating func update(position: GeoPoint,accuracy: Double,fixTime: TimeInterval) -> LaneDecision {
         if !fixTime.isFinite || lastFixTime.map({ fixTime <= $0 }) == true { return decision() }
         lastFixTime = fixTime
