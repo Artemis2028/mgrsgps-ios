@@ -1,0 +1,126 @@
+# Android overnight additions — 25 October 2026
+
+Audited after fetching `Artemis2028/gridfix` on 25 October. The release branch
+still points to `482b417da93c521be480730f663fab262d26c206`; these additions are
+development work beyond that baseline, not a new merged release. The GitHub PR
+search returned only the existing draft Wear OS PR #1. Source and the Android
+`reports/overnight-2026-10-25.md` were inspected; reported Android test/emulator
+results were not independently rerun in this audit.
+
+## References
+
+| Branch | Audited tip | Additions |
+| --- | --- | --- |
+| `claude/1.1.0-fixes` | `b817a21` | Incoming-file lifecycle fix; atomic publication of restored/imported track logs |
+| `claude/nav-lanes` | `045db7d` | Three-line navigation lanes, guidance, map editor, persistence, route-card/backup integration |
+| `claude/hide-map-buttons` | `4c8216d` | Persistent map-tool visibility, active-mode escape controls, backup preferences |
+| `claude/encrypted-backups` | `d6c971b` | Optional password-protected backups |
+| `claude/polish` | `e6bb5c5` | Lane library, tab navigation, singular counts, Locate zoom, unique MARK names |
+| `claude/tak-spike` | `38e64d5` | Debug-only TAK prototype and overnight report |
+
+The first five branches are stacked. TAK branches from encrypted backups;
+it does not contain the sibling polish commits. Do not compare only `main`
+or assume one branch contains every addition.
+
+The Android checkout also contains **uncommitted** lane-settings work on
+`claude/lane-settings`: a not-yet-entered state, configurable side/backstop/
+entry cues, a waiting reminder (off/2/5/10 minutes), and configurable GPS-loss
+alerts reduced to once per minute. These are provisional source changes, not
+part of the pushed baseline. This audit leaves that checkout untouched.
+
+## iOS work added to the parity backlog
+
+1. **Navigation lanes.** Add a model distinct from `BoundaryArea`: left and
+   right polylines plus a backstop, each drawn or linked to an existing line.
+   Resolve draw order/direction against the backstop; preserve bends, extend
+   the forward end of side limits and both ends of the backstop. Attach to one
+   checkpoint or an entire route, with checkpoint scope taking precedence.
+   Port the pure geometry/debounce cases, including reversed lines, sharp turns,
+   limits extending beyond the backstop, deleted links and checkpoint changes.
+   Provide map shading/labels/editing, a library section with visibility/delete,
+   Navigate status, per-leg route-card/text/PDF labels, and optional backup data.
+   Hidden lanes continue guiding; hiding is a map display preference.
+2. **Password-protected backups.** Keep ordinary ZIP support and implement the
+   existing Android envelope byte-for-byte, with cross-platform fixtures before
+   adding UI. Optional password plus confirmation on export; detect protected
+   files before restore and request their password. Authenticate/decrypt and
+   validate the complete archive before any store publication. Run key
+   derivation off the main actor. Never persist passwords.
+3. **Map-button preferences.** Allow unused tools to be hidden, persist and
+   back up the preference, retain reachable controls for active recording,
+   drawing and measurement, and offer a visible reset in Settings. Adapt to
+   iOS's split tool layout rather than copying Android's deck literally.
+4. **Polish and regression coverage.** Check incoming Open In while app is
+   backgrounded, restored/imported track durability, singular counts and
+   repeated same-minute waypoint names. Locate should zoom a wide map to
+   walking scale while preserving an already closer zoom. iOS tab selection
+   must still work after returning from Settings.
+5. **TAK: experimental follow-on.** Android currently proves localhost mutual
+   TLS position/marker exchange in debug builds only. It is not production
+   server connectivity. A future iOS implementation needs explicit per-server
+   opt-in, Keychain-backed identity, certificate/hostname validation, bounded
+   parsing, stale/delete handling and an honest background-execution policy.
+   Existing ATAK file import/export does not satisfy live TAK connectivity.
+
+### Lane behavior and platform limits
+
+The pushed Android guide confirms crossings on two distinct new fixes, beyond
+5 m plus reported accuracy; return requires 3 m inside on two fixes. Fixes
+worse than 50 m do not change state. Backstop overshoot wins over side exits.
+Side cues repeat every 2.5 seconds; overshoot every 4 seconds. Optional early
+warning is off by default, with 25/50 m choices. Reentry has a single tick.
+The uncommitted startup/reminder changes must be reconciled before freezing a
+new compatibility baseline.
+
+**Keep the user's existing quiet-inside perimeter separate.** Its silence must
+not inherit lane reminders, approach warnings or azimuth steering. Lane mode
+is a separate explicit navigation choice; do not silently replace the current
+boundary monitor or the existing route-following guide. Editing uses draggable
+vertices/segment handles, without an “Add kink” action.
+
+iOS may receive background location updates when authorized, but an iPhone
+cannot promise Android's indefinitely repeating screen-locked vibration
+cadence. Status and notifications must expose that limit; simulator execution
+does not validate physical locked-screen delivery.
+
+### Protected-backup wire contract
+
+`BackupCrypto.kt` at `d6c971b` uses ASCII `MGRSGPS-ENC1`, then a 4-byte big-endian
+PBKDF2 iteration count, 16-byte salt, 12-byte IV, AES-256-GCM ciphertext and a
+16-byte tag. The complete header is authenticated as AAD. Key derivation is
+PBKDF2-HMAC-SHA256, 310,000 iterations for new files; accepted range is
+100,000–5,000,000. New passwords require at least eight characters under
+Android's UTF-16 length semantics; Unicode encoding needs explicit interop
+tests. Android reads at most the normal backup limit plus 1 MiB of sealed
+bytes. Wrong passwords and tampering must fail before restore with no partial
+publication. The encrypted file extension is `.mgrsgps`; the inner data remains
+the ordinary ZIP contract.
+
+## Watches
+
+The current Wear OS draft remains based on `482b417`, so it does not yet know
+about these lanes. Both companion snapshot contracts/renderers need lane
+overlays and visibility, followed by navigation status if phone guidance is
+active. Show GPS-loss/stale-state honestly and preserve existing large grids,
+precision controls, waypoint metrics and interactive maps. Do not promise
+watch background guidance or offline packs from this source audit.
+
+## Port progress
+
+The first core milestone now exists in `NavigationLaneGeometry.swift`,
+`NavigationLaneGuide.swift` and `NavigationLane.swift`: local-plane geometry,
+direction/order normalization, bend bisectors, forward extensions, outline,
+crossing confirmation/hysteresis, warning rearming, cue cadence, drawn/linked
+lines, checkpoint-over-route resolution, route-leg summaries and Android's
+JSON point-pair representation. Twenty new tests cover the Android numerical
+scenarios and model/wire contracts; the complete core suite passes 330 tests.
+This is based on pushed `91cb68f` behavior, not the uncommitted lane settings.
+State owns fix timestamps; cue cadence owns monotonic playback time in seconds.
+
+Persistent lane storage, map creation/editing/rendering, guidance integration,
+backups, route-card UI/PDF integration and watch snapshots are still pending.
+No user-facing lane mode or locked-screen delivery is claimed by core tests.
+
+This is an expanded implementation inventory, not a completion claim. See
+[the original release parity checklist](ios-parity-release-1.1.0.md) for the
+existing port and its outstanding validation/release work.
