@@ -23,7 +23,9 @@ final class ProjectionWorkflowTests: XCTestCase {
         reveal(method); XCTAssertTrue(method.waitForExistence(timeout: 5)); tapNativeMenuItem(method.buttons["Project"])
         tapNativeMenuItem(app.buttons["projection-base"])
         tapNativeMenuItem(app.buttons["projection-base-West observer"].firstMatch)
-        XCTAssertTrue(app.buttons["projection-base"].label.contains("West observer"))
+        let base = app.buttons["projection-base"]
+        let selected = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in base.label.contains("West observer") },object:base)
+        XCTAssertEqual(XCTWaiter.wait(for:[selected],timeout:5),.completed,app.debugDescription)
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     func testProjectFromSavedPointSavesAndKeepsFullCoordinateAfterEditAndRelaunch() {
@@ -45,14 +47,13 @@ final class ProjectionWorkflowTests: XCTestCase {
         // The padded summary must open the editor even when touched off-glyph.
         app.buttons["edit-waypoint-West observer"].coordinate(withNormalizedOffset: .init(dx: 0.95,dy: 0.9)).tap()
         let preview = app.staticTexts["waypoint-coordinate-preview"]; reveal(preview); let original = preview.label
-        app.swipeDown(); app.swipeDown()
         project(); field("projection-azimuth","90"); field("projection-distance","200001")
         let error = app.staticTexts["projection-error"]; reveal(error); XCTAssertTrue(error.label.contains("200,000"))
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled); capture("waypoint-projection-night-invalid")
         field("projection-distance","1000")
         reveal(preview); XCTAssertTrue(preview.waitForExistence(timeout: 5)); XCTAssertNotEqual(preview.label,original)
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled); capture("waypoint-projection-night-valid")
-        app.swipeDown(); app.swipeDown()
+        reveal(app.segmentedControls["waypoint-position-method"])
         tapNativeMenuItem(app.segmentedControls["waypoint-position-method"].buttons["Coordinate"])
         reveal(preview); XCTAssertEqual(preview.label,original); XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
         app.buttons["waypoint-save"].tap()

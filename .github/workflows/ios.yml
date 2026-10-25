@@ -17,10 +17,14 @@ permissions:
 # the screenshots are gated on the field math passing first.
 jobs:
   build:
+    name: Build and test (${{ matrix.shard }})
     runs-on: macos-latest
-    # Run 40168664266 needed 58 minutes for the integration/UI step alone.
-    # Preserve all assertions, added large-library/edit/export coverage and the
-    # separate real-location workflows, with time left to upload diagnostics.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [library, map, field]
+    # Run 40231275491 hit 90 minutes mid-suite. Each isolated runner owns one
+    # phone and an exhaustive UI shard; field also runs the native/location suites.
     timeout-minutes: 90
 
     steps:
@@ -79,19 +83,28 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40
 
       - name: Screenshots
+        if: matrix.shard == 'library'
         run: |
           APP=$(find build/Build/Products -maxdepth 4 -name "MGRSGPS.app" | head -n 1)
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
       - name: Simulator location feed recovery tests
-        run: python3 -m unittest discover -s scripts -p test_simulator_location.py
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: App integration and field UI workflows
         id: ui_tests
         run: |
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          xcrun simctl boot "$DEST" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEST" -b
+          xcrun simctl install "$DEST" build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+          python3 scripts/ui_test_shards.py "${{ matrix.shard }}" > "$RUNNER_TEMP/ui-test-selection.txt"
+          TEST_ARGUMENTS=()
+          while IFS= read -r argument; do
+            TEST_ARGUMENTS+=("$argument")
+          done < "$RUNNER_TEMP/ui-test-selection.txt"
           # Actual Core Location updates for recording/background workflow tests.
           # The screenshot step grants Always; verify recording needs only While Using.
           xcrun simctl privacy "$DEST" revoke location-always app.gridfix.ios
@@ -104,22 +117,19 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_route EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj \
             -scheme MGRSGPS \
             -configuration Debug \
             -destination "id=$DEST" \
             -derivedDataPath build \
             -resultBundlePath build/ui-tests.xcresult \
-            -skip-testing:MGRSGPSUITests/BoundaryWorkflowTests \
-            -skip-testing:MGRSGPSUITests/NavigationWorkflowTests \
-            -skip-testing:MGRSGPSUITests/PracticeWorkflowTests \
-            -skip-testing:MGRSGPSUITests/PositionFixWorkflowTests \
-            -skip-testing:MGRSGPSUITests/MovementWorkflowTests \
+            "${TEST_ARGUMENTS[@]}" \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
             2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
 
       - name: Real fix expiry and recovery
+        if: matrix.shard == 'field'
         id: fix_freshness_tests
         run: |
           set -o pipefail
@@ -132,7 +142,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_freshness_feed EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/fix-freshness-tests.xcresult \
@@ -141,6 +151,7 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/fix-freshness-test.log"
 
       - name: Real GPS course and speed
+        if: matrix.shard == 'field'
         id: movement_tests
         run: |
           set -o pipefail
@@ -153,7 +164,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_movement_feed EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/movement-tests.xcresult \
@@ -162,6 +173,7 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/movement-test.log"
 
       - name: Boundary drawing and real background crossing
+        if: matrix.shard == 'field'
         id: boundary_tests
         run: |
           set -o pipefail
@@ -175,7 +187,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_boundary_route EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/boundary-tests.xcresult \
@@ -184,6 +196,7 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log"
 
       - name: Automatic route following with real background locations
+        if: matrix.shard == 'field'
         id: navigation_tests
         run: |
           set -o pipefail
@@ -195,7 +208,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_navigation_route EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/navigation-tests.xcresult \
@@ -204,6 +217,7 @@ jobs:
             2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log"
 
       - name: Practice course scoring with real locations
+        if: matrix.shard == 'field'
         id: practice_tests
         run: |
           set -o pipefail
@@ -215,7 +229,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_practice_route EXIT
-          xcodebuild test \
+          xcodebuild test -parallel-testing-enabled NO \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/practice-tests.xcresult \
@@ -226,27 +240,27 @@ jobs:
       - name: Export UI test screenshots
         if: always() && steps.ui_tests.outcome != 'skipped'
         run: |
-          if [ -d build/movement-tests.xcresult ]; then
+          if [ -f build/movement-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/movement-tests.xcresult --output-path screenshots/movement-tests
           fi
-          if [ -d build/fix-freshness-tests.xcresult ]; then
+          if [ -f build/fix-freshness-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/fix-freshness-tests.xcresult --output-path screenshots/fix-freshness-tests
           fi
-          if [ -d build/practice-tests.xcresult ]; then
+          if [ -f build/practice-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/practice-tests.xcresult --output-path screenshots/practice-tests
           fi
-          if [ -d build/ui-tests.xcresult ]; then
+          if [ -f build/ui-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/ui-tests.xcresult --output-path screenshots/ui-tests
           fi
-          if [ -d build/navigation-tests.xcresult ]; then
+          if [ -f build/navigation-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/navigation-tests.xcresult --output-path screenshots/navigation-tests
           fi
-          if [ -d build/boundary-tests.xcresult ]; then
+          if [ -f build/boundary-tests.xcresult/Info.plist ]; then
             xcrun xcresulttool export attachments \
               --path build/boundary-tests.xcresult --output-path screenshots/boundary-tests
           fi
@@ -264,7 +278,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mgrsgps-ios-${{ github.run_number }}
+          name: mgrsgps-ios-${{ github.run_number }}-${{ matrix.shard }}
           path: |
             screenshots/
             build.log
@@ -293,11 +307,12 @@ jobs:
       # a plain git fetch. The Actions API needs a token; a branch does not,
       # and on a public repo that makes every run diagnosable from anywhere.
       - name: Publish the run outcome to the ci-status branch
-        if: always() && github.event_name != 'pull_request'
+        if: always() && github.event_name != 'pull_request' && matrix.shard == 'library'
         run: |
           mkdir -p /tmp/status
           {
             echo "run=${{ github.run_number }}"
+            echo "scope=library shard only; all three workflow jobs must pass"
             echo "sha=${GITHUB_SHA:0:7}"
             echo "tests=${{ steps.tests.outcome }}"
             echo "build=${{ steps.build.outcome }}"

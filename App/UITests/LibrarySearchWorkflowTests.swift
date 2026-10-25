@@ -30,15 +30,15 @@ final class LibrarySearchWorkflowTests: XCTestCase {
     }
     func testFavouriteSurvivesRelaunchLeadsNameSortAndCanBeRemoved() {
         launch()
-        app.buttons["Actions for Bravo"].tap()
-        app.buttons["toggle-favorite-Bravo"].tap()
+        tapNativeMenuItem(app.buttons["Actions for Bravo"])
+        tapNativeMenuItem(app.buttons["toggle-favorite-Bravo"])
         app.buttons["library-sort"].tap(); app.buttons["Name"].tap()
         let bravo = app.buttons["edit-waypoint-Bravo"], alpha = app.buttons["edit-waypoint-Alpha"]
         XCTAssertTrue(bravo.waitForExistence(timeout: 5)); XCTAssertLessThan(bravo.frame.minY,alpha.frame.minY)
         capture("library-favourite-first")
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         XCTAssertTrue(app.images["favorite-Bravo"].waitForExistence(timeout: 5))
-        app.buttons["Actions for Bravo"].tap(); app.buttons["toggle-favorite-Bravo"].tap()
+        tapNativeMenuItem(app.buttons["Actions for Bravo"]); tapNativeMenuItem(app.buttons["toggle-favorite-Bravo"])
         app.buttons["library-sort"].tap(); app.buttons["Name"].tap()
         XCTAssertLessThan(app.buttons["edit-waypoint-Alpha"].frame.minY,app.buttons["edit-waypoint-Bravo"].frame.minY)
     }

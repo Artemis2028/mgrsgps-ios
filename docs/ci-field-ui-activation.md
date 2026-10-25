@@ -39,3 +39,41 @@ grants While Using, matching the hosted workflow. Later recording/navigation
 checks use real delivered samples, not injected app fixes. Only one owned phone
 was booted at a time; the location feed is stopped and the phone shut down after
 validation. A complete new hosted run remains required.
+
+## Library/projection follow-up and bounded hosted jobs
+
+Hosted run 40231275491 passed all 188 integrations (two opt-in local TAK skips)
+then encountered two further UI failures before reaching the 90-minute job
+limit. It did not finish the suite or the later real-location phases. Its
+unfinished result bundle could not be exported. This is not a hosted pass.
+
+- The Favourite native menu item exposed an invalid/infinite activation frame
+  to XCTest's default tap. Library search now uses the same validated native
+  menu helper already used by the other workflows. Favourite persistence,
+  first-in-sort, removal and relaunch assertions remain.
+- The night projection workflow opened its editor successfully, then swiped
+  down twice while already at the top. That dismissed the sheet. It now reveals
+  the actual position-method control and changes it directly. The base-selection
+  result is awaited before continuing. The invalid-distance rejection, disabled
+  Save, corrected preview, coordinate-mode retention and night assertions remain.
+
+The hosted workflow now runs exhaustive library/map/field shards on separate
+runners, each with one test simulator and parallel XCTest disabled. The field
+shard also executes all app integrations and the five existing dedicated real-
+location scenarios. Core tests still gate every build; screenshots run once.
+All 40 current UI classes are accounted for: 35 assigned exactly once and five
+retained in their dedicated feed phases. New classes automatically receive one
+stable shard; missing/renamed configured classes fail selection. Three partition
+regressions and the three existing feed-recovery script tests pass. Actionlint,
+YAML parsing and all shell-block syntax checks pass. No assertion is excluded.
+
+Artifacts have distinct shard names. Screenshot export requires a completed
+xcresult Info.plist; incomplete raw evidence remains in the artifact without
+masking the original job failure. The legacy ci-status branch explicitly says
+it covers only the library shard; the three GitHub workflow job conclusions
+remain the full hosted gate. A complete hosted pass remains required.
+
+The final local bundle `/tmp/gridfix-ci-library-projection-final-20261026.xcresult`
+passes all five existing library search and projection workflows on iOS 26.5.
+The earlier replay passed the three library cases but still dismissed the night
+projection editor; that failed bundle is not counted as a passing run.

@@ -138,3 +138,10 @@ opt-in local TAK checks skipped). Three final recovery UI workflows pass, includ
 day/night cancellation, recovery, create/relaunch and an actual Files export.
 Release phone/watch/widget build passes. Hosted run 40231275491 was cancelled in
 the integration/UI step; it is not a full hosted pass.
+
+Hosted run 40231275491 reached the job timeout after further favourite-menu and
+night-projection UI failures. Those workflows are repaired without dropping
+outcome checks. The workflow now partitions every UI class into exhaustive
+library/map/field jobs and retains all five dedicated location-feed phases.
+See [CI repair and partition details](ci-field-ui-activation.md). All three hosted
+job conclusions remain required; local passes alone do not close that gate.
