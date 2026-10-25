@@ -40,6 +40,20 @@ enum InterchangeCoordinator {
 /// Bounds the read itself, including files whose provider reports no byte size.
 /// Coordination and parsing run off the UI thread. No persistence happens here.
 enum InterchangeFileReader {
+    /// Keep provider coordination/security access alive while reading mapped ZIP
+    /// pages, rather than returning a mapping after provider access is released.
+    static func backup(_ url: URL) throws -> Backup.Document {
+        try coordinated(url) { source in
+            let handle = try FileHandle(forReadingFrom: source)
+            defer { try? handle.close() }
+            let limit = KMZ.inputByteLimit
+            guard try handle.seekToEnd() <= UInt64(limit) else { throw BackupError.notABackup("Backup container exceeds \(limit/(1024*1024)) MB") }
+            try Task.checkCancellation()
+            let bytes = try Data(contentsOf: source,options: .mappedIfSafe)
+            guard bytes.count <= limit else { throw BackupError.notABackup("Backup container exceeds \(limit/(1024*1024)) MB") }
+            return try Backup.importZip(bytes)
+        }
+    }
     /// Parse while coordinated access is still held. Mapping avoids duplicating
     /// a large archive container; decoded members are visited one at a time.
     static func preview(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String]) throws -> InterchangePreview {

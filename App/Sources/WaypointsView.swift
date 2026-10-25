@@ -598,9 +598,7 @@ struct WaypointsView: View {
         do {
             guard let url = try result.get().first else { return }
             if importKind == .text { textImport = TextImportRequest(url: url); return }
-            let unlocked = url.startAccessingSecurityScopedResource()
-            defer { if unlocked { url.stopAccessingSecurityScopedResource() } }
-            let doc = try Backup.importZip(Data(contentsOf: url))
+            let doc = try InterchangeFileReader.backup(url)
             status = BackupCoordinator.restore(doc,waypoints: store,fieldData: fieldData,settings: settings)
         } catch { status = "Import failed: \(error.localizedDescription)" }
     }

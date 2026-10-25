@@ -102,81 +102,190 @@ enum ZipArchive {
             guard let end = stride(from: bytes.count-22,through: lower,by: -1).first(where: {
                 u32(bytes,$0) == 0x06054b50 && $0+22+Int(u16(bytes,$0+20)) == bytes.count
             }) else { throw invalid("Missing ZIP directory") }
-            let count = Int(u16(bytes,end+10)), directorySize = Int(u32(bytes,end+12))
-            var cursor = Int(u32(bytes,end+16))
-            guard u16(bytes,end+4) == 0, u16(bytes,end+6) == 0,
-                  u16(bytes,end+8) == UInt16(count), count <= limits.entries,
-                  cursor+directorySize == end else { throw invalid("Unsupported ZIP directory") }
+            func fits(_ start: Int, _ size: Int, _ boundary: Int) -> Bool {
+                start >= 0 && start <= boundary && size >= 0 && size <= boundary-start
+            }
+            func bounded(_ value: UInt64, _ limit: Int, _ reason: String) throws -> Int {
+                guard limit >= 0, value <= UInt64(limit) else { throw invalid(reason) }
+                return Int(value)
+            }
+            guard limits.entries >= 0, limits.entryBytes >= 0, limits.totalBytes >= 0,
+                  u16(bytes,end+4) == 0, u16(bytes,end+6) == 0 else { throw invalid("Unsupported split ZIP") }
+            let legacyCount = u16(bytes,end+10), legacySize = u32(bytes,end+12), legacyOffset = u32(bytes,end+16)
+            let locator = end-20
+            // A classic entry comment can end with locator-like bytes. A
+            // complete legacy directory reaching EOCD takes precedence there.
+            let completeLegacy = legacyCount != .max && legacySize != .max && legacyOffset != .max
+                && UInt64(legacySize)+UInt64(legacyOffset) == UInt64(end)
+            let hasZip64 = !completeLegacy && locator >= 0 && u32(bytes,locator) == 0x07064b50
+            var count64 = UInt64(legacyCount), size64 = UInt64(legacySize), offset64 = UInt64(legacyOffset)
+            var directoryEnd = end
+            if hasZip64 {
+                guard u32(bytes,locator+4) == 0, u32(bytes,locator+16) == 1 else { throw invalid("Unsupported split ZIP64") }
+                let record = try bounded(u64(bytes,locator+8),locator,"Invalid ZIP64 directory offset")
+                guard fits(record,56,locator), u32(bytes,record) == 0x06064b50,
+                      u64(bytes,record+4) >= 44, u64(bytes,record+4) == UInt64(locator-record-12),
+                      u32(bytes,record+16) == 0, u32(bytes,record+20) == 0,
+                      u64(bytes,record+24) == u64(bytes,record+32) else { throw invalid("Invalid ZIP64 directory") }
+                count64 = u64(bytes,record+32); size64 = u64(bytes,record+40); offset64 = u64(bytes,record+48)
+                guard (legacyCount == .max || UInt64(legacyCount) == count64),
+                      (u16(bytes,end+8) == .max || UInt64(u16(bytes,end+8)) == count64),
+                      (legacySize == .max || UInt64(legacySize) == size64),
+                      (legacyOffset == .max || UInt64(legacyOffset) == offset64) else { throw invalid("Conflicting ZIP64 directory") }
+                directoryEnd = record
+            } else {
+                guard legacyCount != .max, legacySize != .max, legacyOffset != .max,
+                      u16(bytes,end+8) == legacyCount else { throw invalid("Missing ZIP64 directory") }
+            }
+            let count = try bounded(count64,limits.entries,"Too many ZIP entries")
+            let directorySize = try bounded(size64,directoryEnd,"Invalid ZIP directory size")
+            var cursor = try bounded(offset64,directoryEnd,"Invalid ZIP directory offset")
+            guard fits(cursor,directorySize,directoryEnd), cursor+directorySize == directoryEnd else { throw invalid("Invalid ZIP directory length") }
             let directoryStart = cursor
-            struct Member { var name: String; var start: Int; var compressed: Int; var size: Int; var method: UInt16; var checksum: UInt32; var local: Int }
+
+            // Extra-field values are conditional in the central directory: only
+            // sentinel fields consume values, in size/compressed/offset/disk order.
+            func zip64Extra(_ start: Int, _ length: Int) throws -> Range<Int>? {
+                let finish = start+length
+                var position = start, found: Range<Int>?
+                while position < finish {
+                    guard fits(position,4,finish) else { throw invalid("Truncated ZIP extra field") }
+                    let tag = u16(bytes,position), size = Int(u16(bytes,position+2))
+                    position += 4
+                    guard fits(position,size,finish) else { throw invalid("Invalid ZIP extra field length") }
+                    if tag == 1 {
+                        guard found == nil else { throw invalid("Duplicate ZIP64 extra field") }
+                        found = position..<(position+size)
+                    }
+                    position += size
+                }
+                return found
+            }
+            func expanded(_ raw: UInt32, _ extra: Range<Int>?, _ position: inout Int) throws -> UInt64 {
+                guard raw == .max else { return UInt64(raw) }
+                guard let extra, fits(position,8,extra.upperBound) else { throw invalid("Missing ZIP64 entry value") }
+                defer { position += 8 }
+                return u64(bytes,position)
+            }
+            struct Member { var name: String; var start: Int; var end: Int; var compressed: Int; var size: Int; var method: UInt16; var checksum: UInt32; var local: Int }
             var members: [Member] = [], names = Set<String>(), offsets = Set<Int>(), total = 0
             for _ in 0..<count {
-                guard cursor+46 <= end, u32(bytes,cursor) == 0x02014b50 else { throw invalid("Truncated ZIP directory") }
+                try Task.checkCancellation()
+                guard fits(cursor,46,directoryEnd), u32(bytes,cursor) == 0x02014b50 else { throw invalid("Truncated ZIP directory") }
                 let flags = u16(bytes,cursor+8), method = u16(bytes,cursor+10), checksum = u32(bytes,cursor+16)
-                let compressed = Int(u32(bytes,cursor+20)), size = Int(u32(bytes,cursor+24))
-                let nameLength = Int(u16(bytes,cursor+28)), extra = Int(u16(bytes,cursor+30)), comment = Int(u16(bytes,cursor+32))
-                let local = Int(u32(bytes,cursor+42)), next = cursor+46+nameLength+extra+comment
-                guard next <= end, flags & 1 == 0, method == 0 || method == 8,
-                      size <= limits.entryBytes, compressed <= (limits.backupRules ? totalLimit : data.count),
+                let rawCompressed = u32(bytes,cursor+20), rawSize = u32(bytes,cursor+24), rawLocal = u32(bytes,cursor+42)
+                let nameLength = Int(u16(bytes,cursor+28)), extraLength = Int(u16(bytes,cursor+30)), comment = Int(u16(bytes,cursor+32))
+                let length = 46+nameLength+extraLength+comment
+                guard fits(cursor,length,directoryEnd), flags & 0x2041 == 0, method == 0 || method == 8 else { throw invalid("Unsupported ZIP entry") }
+                let extra = try zip64Extra(cursor+46+nameLength,extraLength)
+                var extraPosition = extra?.lowerBound ?? 0
+                let size = try bounded(expanded(rawSize,extra,&extraPosition),limits.entryBytes,"Oversized ZIP entry")
+                let compressed = try bounded(expanded(rawCompressed,extra,&extraPosition),limits.backupRules ? totalLimit : data.count,"Oversized compressed ZIP entry")
+                guard method != 0 || compressed == size else { throw invalid("Invalid stored ZIP sizes") }
+                let local = try bounded(expanded(rawLocal,extra,&extraPosition),directoryStart,"Invalid ZIP local offset")
+                var disk = UInt32(u16(bytes,cursor+34))
+                if disk == UInt32(UInt16.max) {
+                    guard let extra, fits(extraPosition,4,extra.upperBound) else { throw invalid("Missing ZIP64 disk value") }
+                    disk = u32(bytes,extraPosition)
+                }
+                guard disk == 0,
                       let name = String(bytes: bytes[(cursor+46)..<(cursor+46+nameLength)],encoding: .utf8),
-                      !name.isEmpty, offsets.insert(local).inserted else { throw invalid("Invalid or oversized ZIP entry") }
+                      !name.isEmpty, offsets.insert(local).inserted else { throw invalid("Invalid ZIP entry") }
                 if limits.backupRules {
                     guard !name.hasPrefix("/"), !name.contains("\\"),
                           !name.split(separator: "/",omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }),
                           names.insert(name).inserted else { throw invalid("Invalid or duplicate ZIP path") }
                 }
+                guard size <= limits.totalBytes-total else { throw invalid("ZIP total size limit exceeded") }
                 total += size
-                guard total <= limits.totalBytes, !limits.backupRules || name != Backup.manifestName || size <= manifestLimit,
-                      local+30 <= directoryStart, u32(bytes,local) == 0x04034b50,
+                guard !limits.backupRules || name != Backup.manifestName || size <= manifestLimit,
+                      fits(local,30,directoryStart), u32(bytes,local) == 0x04034b50,
                       u16(bytes,local+8) == method, u16(bytes,local+6) == flags else { throw invalid("Invalid ZIP entry header or size") }
                 let localName = Int(u16(bytes,local+26)), localExtra = Int(u16(bytes,local+28))
-                let start = local+30+localName+localExtra
-                guard start+compressed <= directoryStart,
+                let headerLength = 30+localName+localExtra
+                guard fits(local,headerLength,directoryStart) else { throw invalid("Truncated ZIP local header") }
+                let start = local+headerLength
+                guard fits(start,compressed,directoryStart),
                       String(bytes: bytes[(local+30)..<(local+30+localName)],encoding: .utf8) == name else { throw invalid("Truncated ZIP entry") }
-                members.append(.init(name: name,start: start,compressed: compressed,size: size,method: method,checksum: checksum,local: local))
-                cursor = next
+                let localExtension = try zip64Extra(local+30+localName,localExtra)
+                let rawLocalSize = u32(bytes,local+22), rawLocalCompressed = u32(bytes,local+18)
+                let localSize: UInt64, localCompressed: UInt64
+                if let localExtension {
+                    // Local ZIP64 fields always contain both sizes. Central
+                    // directory fields above are conditional on each sentinel.
+                    guard localExtension.count >= 16 else { throw invalid("Truncated local ZIP64 sizes") }
+                    localSize = rawLocalSize == .max ? u64(bytes,localExtension.lowerBound) : UInt64(rawLocalSize)
+                    localCompressed = rawLocalCompressed == .max ? u64(bytes,localExtension.lowerBound+8) : UInt64(rawLocalCompressed)
+                } else {
+                    guard rawLocalSize != .max, rawLocalCompressed != .max else { throw invalid("Missing local ZIP64 sizes") }
+                    localSize = UInt64(rawLocalSize); localCompressed = UInt64(rawLocalCompressed)
+                }
+                var memberEnd = start+compressed
+                if flags & 8 == 0 {
+                    guard u32(bytes,local+14) == checksum, localSize == UInt64(size), localCompressed == UInt64(compressed) else { throw invalid("Conflicting ZIP local sizes or checksum") }
+                } else {
+                    guard (u32(bytes,local+14) == 0 || u32(bytes,local+14) == checksum),
+                          (localSize == 0 || localSize == UInt64(size)),
+                          (localCompressed == 0 || localCompressed == UInt64(compressed)) else { throw invalid("Conflicting streamed ZIP header") }
+                    let wide = localExtension != nil || rawSize == .max || rawCompressed == .max
+                    let descriptorSize = wide ? 20 : 12
+                    // A checksum may itself equal the optional signature. Try
+                    // both forms, validating every value before accepting either.
+                    let signed = fits(memberEnd,4,directoryStart) && u32(bytes,memberEnd) == 0x08074b50
+                    let candidates = signed ? [memberEnd+4,memberEnd] : [memberEnd]
+                    guard let descriptor = candidates.first(where: { position in
+                        guard fits(position,descriptorSize,directoryStart), u32(bytes,position) == checksum else { return false }
+                        return wide
+                            ? u64(bytes,position+4) == UInt64(compressed) && u64(bytes,position+12) == UInt64(size)
+                            : u32(bytes,position+4) == UInt32(compressed) && u32(bytes,position+8) == UInt32(size)
+                    }) else { throw invalid("Invalid ZIP data descriptor") }
+                    memberEnd = descriptor+descriptorSize
+                }
+                members.append(.init(name: name,start: start,end: memberEnd,compressed: compressed,size: size,method: method,checksum: checksum,local: local))
+                cursor += length
             }
-            guard cursor == end else { throw invalid("Invalid ZIP directory length") }
+            guard cursor == directoryEnd else { throw invalid("Invalid ZIP directory length") }
             var previousEnd = 0
             for member in members.sorted(by: { $0.local < $1.local }) {
                 try Task.checkCancellation()
                 guard member.local >= previousEnd else { throw invalid("Overlapping ZIP entries") }
-                previousEnd = member.start+member.compressed
+                previousEnd = member.end
                 try beforeEntry(member.name,member.size)
-                let payload = Data(bytes: bytes.baseAddress!.advanced(by: member.start),count: member.compressed)
-                let decoded = try member.method == 0 ? payload : inflateRaw(payload,expected: member.size)
+                try Task.checkCancellation()
+                let payload = UnsafeRawBufferPointer(rebasing: bytes[member.start..<(member.start+member.compressed)])
+                let decoded = try member.method == 0 ? Data(payload) : inflateRaw(payload,expected: member.size)
                 guard decoded.count == member.size, crc32(decoded) == member.checksum else { throw invalid("ZIP checksum or size mismatch") }
+                try Task.checkCancellation()
                 try onEntry(member.name,decoded)
             }
         }
     }
 
-    private static func inflateRaw(_ data: Data, expected: Int) throws -> Data {
-        try data.withUnsafeBytes { (input: UnsafeRawBufferPointer) -> Data in
-            var stream = z_stream()
-            stream.next_in = UnsafeMutablePointer(mutating: input.bindMemory(to: Bytef.self).baseAddress)
-            stream.avail_in = uInt(data.count)
-            guard inflateInit2_(&stream, -MAX_WBITS, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
-                throw BackupError.notABackup("Cannot read compressed ZIP entry")
+    private static func inflateRaw(_ input: UnsafeRawBufferPointer, expected: Int) throws -> Data {
+        var stream = z_stream()
+        stream.next_in = UnsafeMutablePointer(mutating: input.bindMemory(to: Bytef.self).baseAddress)
+        stream.avail_in = uInt(input.count)
+        guard inflateInit2_(&stream, -MAX_WBITS, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size)) == Z_OK else {
+            throw BackupError.notABackup("Cannot read compressed ZIP entry")
+        }
+        defer { inflateEnd(&stream) }
+        var result = Data()
+        var buffer = [UInt8](repeating: 0, count: 16 * 1024)
+        while true {
+            try Task.checkCancellation()
+            let status = buffer.withUnsafeMutableBytes { output -> Int32 in
+                stream.next_out = output.bindMemory(to: Bytef.self).baseAddress
+                stream.avail_out = 16 * 1024
+                return inflate(&stream, Z_NO_FLUSH)
             }
-            defer { inflateEnd(&stream) }
-            var result = Data()
-            var buffer = [UInt8](repeating: 0, count: 16 * 1024)
-            while true {
-                let status = buffer.withUnsafeMutableBytes { output -> Int32 in
-                    stream.next_out = output.bindMemory(to: Bytef.self).baseAddress
-                    stream.avail_out = 16 * 1024
-                    return inflate(&stream, Z_NO_FLUSH)
-                }
-                let written = buffer.count - Int(stream.avail_out)
-                guard result.count + written <= expected else { throw BackupError.notABackup("ZIP expands beyond its declared size") }
-                result.append(contentsOf: buffer.prefix(written))
-                if status == Z_STREAM_END {
-                    guard stream.avail_in == 0 else { throw BackupError.notABackup("Trailing compressed ZIP data") }
-                    return result
-                }
-                guard status == Z_OK, written > 0 || stream.avail_in > 0 else { throw BackupError.notABackup("Damaged compressed ZIP entry") }
+            let written = buffer.count - Int(stream.avail_out)
+            guard result.count + written <= expected else { throw BackupError.notABackup("ZIP expands beyond its declared size") }
+            result.append(contentsOf: buffer.prefix(written))
+            if status == Z_STREAM_END {
+                guard stream.avail_in == 0 else { throw BackupError.notABackup("Trailing compressed ZIP data") }
+                return result
             }
+            guard status == Z_OK, written > 0 || stream.avail_in > 0 else { throw BackupError.notABackup("Damaged compressed ZIP entry") }
         }
     }
 
@@ -200,6 +309,10 @@ private func u16(_ b: UnsafeRawBufferPointer, _ i: Int) -> UInt16 {
 }
 private func u32(_ b: UnsafeRawBufferPointer, _ i: Int) -> UInt32 {
     UInt32(b[i]) | (UInt32(b[i + 1]) << 8) | (UInt32(b[i + 2]) << 16) | (UInt32(b[i + 3]) << 24)
+}
+
+private func u64(_ b: UnsafeRawBufferPointer, _ i: Int) -> UInt64 {
+    UInt64(u32(b,i)) | (UInt64(u32(b,i+4)) << 32)
 }
 
 public enum BackupError: Error, LocalizedError, Equatable {

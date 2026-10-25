@@ -182,3 +182,5 @@ Native orientation and cross-runtime UI checks: [screen orientation](docs/screen
 Position fix age, accuracy/trusted precision and screen-versus-pocket compass references: [behavior and device checks](docs/position-fix-quality.md).
 
 GPS course selection and speed units: [behavior and real-location verification](docs/gps-course-speed.md).
+
+ZIP64 inputs and bounded archive handling: [compatibility and independent fixtures](docs/zip64-containers.md).

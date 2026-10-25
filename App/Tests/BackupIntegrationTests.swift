@@ -5,6 +5,22 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class BackupIntegrationTests: XCTestCase {
+    func testMappedZIP64BackupRestoresNativeStoresAndReopens() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "zip64-full-backup",withExtension: "zip"))
+        let document = try InterchangeFileReader.backup(file)
+        let waypoints = WaypointStore(directory: directory), field = FieldDataStore(directory: directory), settings = AppSettings(directory: directory)
+        let result = BackupCoordinator.restore(document,waypoints: waypoints,fieldData: field,settings: settings)
+        XCTAssertFalse(result.contains("stopped"),result)
+        XCTAssertEqual(WaypointStore(directory: directory).waypoints[0].id,"contract-vertex")
+        let reopened = FieldDataStore(directory: directory)
+        XCTAssertEqual(reopened.document.graphics[0].id,"contract-route")
+        XCTAssertEqual(reopened.document.tracks[0].pointCount,2)
+        XCTAssertEqual(try reopened.points(for: reopened.document.tracks[0].id).count,2)
+        XCTAssertEqual(AppSettings(directory: directory).backupSettings,document.settings)
+    }
     func testFreshSettingsMatchAndroidDefaults() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         XCTAssertEqual(AppSettings(directory: directory).backupSettings, Backup.AppSettings())

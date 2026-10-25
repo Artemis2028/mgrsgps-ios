@@ -170,6 +170,8 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: App/Tests
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/zip64-full-backup.zip
+        buildPhase: resources
       - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-backup-contract.zip
         buildPhase: resources
       - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-mission-package.zip

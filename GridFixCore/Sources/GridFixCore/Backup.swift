@@ -238,17 +238,24 @@ public enum Backup {
     // MARK: - Import
 
     public static func importZip(_ data: Data) throws -> Document {
-        let entries = try ZipArchive.read(data)
-        guard let manifest = entries.first(where: { $0.name == manifestName })?.data else {
+        var manifest: Data?, trackFiles: [String: Data] = [:]
+        try ZipArchive.visit(data,beforeEntry: { name,_ in
+            if !name.hasSuffix("/"), name.hasPrefix("tracks/") {
+                guard name.hasSuffix(".txt") else { throw BackupError.notABackup("Invalid track filename") }
+                let id = String(name.dropFirst(7).dropLast(4))
+                guard TrackCodec.validID(id) else { throw BackupError.notABackup("Invalid track ID") }
+            }
+        }) { name,bytes in
+            if name == manifestName { manifest = bytes }
+            else if !name.hasSuffix("/"), name.hasPrefix("tracks/") {
+                trackFiles[String(name.dropFirst(7).dropLast(4))] = bytes
+            }
+        }
+        guard let manifest else {
             throw BackupError.notABackup("not an MGRS GPS backup")
         }
         var doc = try decodeManifest(manifest)
-        for entry in entries where entry.name.hasPrefix("tracks/") {
-            guard entry.name.hasSuffix(".txt") else { throw BackupError.notABackup("Invalid track filename") }
-            let id = String(entry.name.dropFirst(7).dropLast(4))
-            guard TrackCodec.validID(id) else { throw BackupError.notABackup("Invalid track ID") }
-            doc.trackFiles[id] = entry.data
-        }
+        doc.trackFiles = trackFiles
         try validate(doc)
         for index in doc.tracks.indices {
             let points = try TrackCodec.decode(doc.trackFiles[doc.tracks[index].id] ?? Data())
