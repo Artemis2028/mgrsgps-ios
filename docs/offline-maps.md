@@ -34,7 +34,7 @@ are rejected before fetching anything. Saved parent tiles can be enlarged for
 viewing at closer zooms; this adds no detail and never counts as downloaded
 higher-resolution tiles.
 
-Progress, Pause, Resume, Show map and Delete appear in the saved-map library.
+Progress, Pause, Resume, Show map, Rename, Update and Delete appear in the saved-map library.
 A failed request stops the batch and retains completed tiles; Resume fills in
 missing tiles in the same area. Downloads continue when switching tabs or
 closing the Layers sheet while the app stays active. Leaving the app pauses area downloads. Keep the
@@ -165,7 +165,56 @@ also passes in `/tmp/gridfix-offline-lifetime-final-ui-20261025.xcresult`;
 its exported day/night frames were inspected. Release phone/watch/widget build
 passes in `/tmp/gridfix-offline-lifetime-final-release.log`.
 
-Saved-area Rename, explicit fresh Update, detailed stored/expected tile counts
-and size/date metadata remain Android parity gaps. See the
-[concrete source follow-up](android-review-followups.md). These are separate from
-physical Airplane Mode, provider and storage-pressure validation.
+Saved-area Rename, fresh Update and stored-count/size/date details were identified
+as additional source gaps during this regression. They are now implemented and
+validated below. Physical Airplane Mode, provider and storage-pressure validation
+remain separate.
+
+## Saved-area Rename, Update and details
+
+Following Android `claude/tak` `6f9865f` (`MapScreen.downloadRegion` and the
+Offline areas dialog), saved areas now expose Rename and Update. Rename uses
+an 80-character, trimmed nonblank display name without changing the area's ID,
+coverage or tile file. The worker publishes the manifest atomically; a failed
+save keeps the dialog/draft and the previous record. Imported maps can be renamed
+without modifying their source archive, but have no Update action.
+
+Update re-fetches every requested tile, bypassing both pinned area data and the
+HTTP browse cache. It first durably marks the area incomplete with refresh intent.
+Existing tiles remain readable through failure/pause; the area is not labelled
+Ready just because old coverage still fills its bounds. Resume after refresh
+interruption re-fetches the area, including after process death. Only a successful
+full pass clears refresh intent. Ordinary interrupted first downloads still skip
+stored tiles. Updated older areas take precedence over overlapping stale areas;
+deleting one area preserves the other's independent archive.
+
+Rows show stored/expected tile counts, actual on-device archive bytes, zooms and
+last update date, with Downloading / Updating / Update unfinished / Partial /
+Ready labels. File inspection runs on a worker and publishes generation-checked
+snapshots. Legacy records without dates remain readable without fabricated dates;
+the next update supplies a known date. Missing tiles in an allegedly complete
+area are labelled for repair. The list orders by last update and uses adaptive,
+44-point actions in day/night palettes.
+
+Validation: 416 core tests pass, including atomic rename/legacy metadata,
+refresh-intent and overlap regressions. Eleven native map integrations pass,
+including failure, old-tile retention, pause, process recreation, rename and
+successful provider re-fetch with distinguishable new pixel data. Three existing
+map-layer UI cases and two expanded day/night rename/update/offline-relaunch
+cases pass in `/tmp/gridfix-offline-area-ui-20261025.xcresult`. Exported rename,
+Updating, Ready and offline-relaunch screenshots were inspected. The final
+last-successful-timestamp overlap correction also passes the full core suite
+(`/tmp/gridfix-offline-area-final-core.log`) and eleven native cases
+(`/tmp/gridfix-offline-area-final-native-20261025.xcresult`). Updated means the
+last completed data timestamp, so starting a refresh cannot prioritize old data
+over a newer completed overlapping area. Physical provider/storage-pressure
+checks remain required. The previously recorded source-less simulator
+invalid-frame warning still occurs in the existing layer/navigation case; it
+has no new assertion failure here and remains an investigation item.
+
+Final broad native regression: `/tmp/gridfix-offline-area-all-native-20261025.xcresult`
+executes 188 app integration tests with two opt-in local TAK tests skipped (their
+credential/package fixtures were not staged) and zero failures. Release
+phone/watch/widget build passes in `/tmp/gridfix-offline-area-final-release.log`.
+The five UI workflows and final screenshots above pass; this does not close the
+full hosted-CI or physical-device release gates.

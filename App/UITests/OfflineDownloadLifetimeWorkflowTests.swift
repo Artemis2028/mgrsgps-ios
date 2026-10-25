@@ -54,10 +54,37 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [done], timeout: 15), .completed)
         capture(night ? "offline-download-away-completed-night" : "offline-download-away-completed-day")
         tab("Map", app: app, night: night); openLayers(app)
-        let saved = app.staticTexts["saved-map-status-Lifetime training area"]
+        var saved = app.staticTexts["saved-map-status-Lifetime training area"]
         reveal(saved, app: app); XCTAssertTrue(saved.exists)
         XCTAssertTrue(saved.label.hasPrefix("Ready")); XCTAssertFalse(app.buttons["pause-map-download"].exists)
         capture(night ? "offline-download-ready-night" : "offline-download-ready-day")
+        let rename = app.buttons["rename-map-Lifetime training area"]
+        reveal(rename, app: app); tapNativeMenuItem(rename)
+        let name = app.textFields["offline-area-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); replaceTextInput(name, "Updated field area")
+        capture(night ? "offline-area-rename-night" : "offline-area-rename-day")
+        tapNativeMenuItem(app.buttons["offline-area-rename-save"])
+        saved = app.staticTexts["saved-map-status-Updated field area"]
+        reveal(saved, app: app); XCTAssertTrue(saved.label.hasPrefix("Ready"))
+        let details = app.staticTexts["saved-map-details-Updated field area"]
+        XCTAssertTrue(details.exists); XCTAssertTrue(details.label.contains("tiles stored")); XCTAssertTrue(details.label.contains("on device"))
+        tapNativeMenuItem(app.navigationBars.buttons["Done"])
+        tab("Position", app: app, night: night)
+        tapNativeMenuItem(app.buttons["offline-lifetime-hold"])
+        tab("Map", app: app, night: night); openLayers(app)
+        let update = app.buttons["update-map-Updated field area"]
+        reveal(update, app: app); XCTAssertEqual(update.label, "Update"); tapNativeMenuItem(update)
+        reveal(saved, app: app); XCTAssertTrue(saved.label.hasPrefix("Updating"))
+        capture(night ? "offline-area-updating-night" : "offline-area-updating-day")
+        tapNativeMenuItem(app.navigationBars.buttons["Done"])
+        tab("Position", app: app, night: night)
+        XCTAssertEqual(status.label, "Download active")
+        tapNativeMenuItem(app.buttons["offline-lifetime-release"])
+        let updated = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Offline area saved"), object: status)
+        XCTAssertEqual(XCTWaiter.wait(for: [updated], timeout: 15), .completed)
+        tab("Map", app: app, night: night); openLayers(app)
+        reveal(saved, app: app); XCTAssertTrue(saved.label.hasPrefix("Ready"))
+        capture(night ? "offline-area-updated-night" : "offline-area-updated-day")
         let offline = app.switches["Offline only"]
         reveal(offline, app: app, up: false); tapNativeSwitch(offline)
         XCTAssertEqual(offline.value as? String, "1")

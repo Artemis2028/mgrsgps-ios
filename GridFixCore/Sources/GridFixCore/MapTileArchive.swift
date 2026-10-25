@@ -130,6 +130,11 @@ public struct SavedMap: Codable, Equatable, Sendable, Identifiable {
     public let attribution: String
     public let expectedTiles: Int
     public var complete: Bool
+    /// A resumed refresh must re-fetch tiles, rather than count old coverage
+    /// as a successful update after interruption/process death.
+    public var refreshPending: Bool? = nil
+    public var createdAt: Date? = nil
+    public var updatedAt: Date? = nil
     public var imported: Bool { layerKey == nil }
 }
 
@@ -162,7 +167,10 @@ public final class MapTileLibrary: @unchecked Sendable {
     }
     public func pinnedTile(_ tile: MapTile, layerKey: String) -> Data? {
         lock.lock(); defer { lock.unlock() }
-        for map in records.reversed() where map.layerKey == layerKey {
+        // A refreshed older area must win over an overlapping area created
+        // later; otherwise the renderer would keep showing the stale copy.
+        let priority = records.reversed().sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+        for map in priority where map.layerKey == layerKey {
             if let data = try? archive(map.id).tile(tile) { return data }
         }
         return nil
@@ -184,7 +192,8 @@ public final class MapTileLibrary: @unchecked Sendable {
         let base = original.isEmpty ? info.name : original
         var name = base, suffix = 2
         while records.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) { name = base + "-\(suffix)"; suffix += 1 }
-        let map = SavedMap(id: id, name: name, layerKey: nil, bounds: info.bounds, minZoom: info.minZoom, maxZoom: info.maxZoom, tileSize: info.tileSize, attribution: info.attribution, expectedTiles: info.tileCount, complete: true)
+        var map = SavedMap(id: id, name: name, layerKey: nil, bounds: info.bounds, minZoom: info.minZoom, maxZoom: info.maxZoom, tileSize: info.tileSize, attribution: info.attribution, expectedTiles: info.tileCount, complete: true)
+        map.createdAt = Date(); map.updatedAt = map.createdAt
         let target = fileURL(id)
         try FileManager.default.moveItem(at: stage, to: target)
         do { try publish(records + [map]) } catch { try? FileManager.default.removeItem(at: target); throw error }
@@ -194,7 +203,8 @@ public final class MapTileLibrary: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard layer.bulkDownload, plan.layerKey == layer.key else { throw BackupError.notABackup("Area download not allowed for this layer") }
         let id = UUID().uuidString.lowercased(), file = fileURL(id)
-        let map = SavedMap(id: id, name: name.isEmpty ? layer.label : name, layerKey: layer.key, bounds: plan.bounds, minZoom: plan.minZoom, maxZoom: plan.maxZoom, tileSize: layer.tileSize, attribution: layer.attribution, expectedTiles: plan.tiles.count, complete: false)
+        var map = SavedMap(id: id, name: try Self.areaName(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? layer.label : name), layerKey: layer.key, bounds: plan.bounds, minZoom: plan.minZoom, maxZoom: plan.maxZoom, tileSize: layer.tileSize, attribution: layer.attribution, expectedTiles: plan.tiles.count, complete: false)
+        map.createdAt = Date(); map.updatedAt = map.createdAt
         do {
             let db = try MapTileArchive(url: file, create: true)
             try db.setMetadata(["name": map.name, "format": "png", "scheme": "tms", "attribution": layer.attribution, "tile_size": "\(layer.tileSize)", "bounds": "\(plan.bounds.west),\(plan.bounds.south),\(plan.bounds.east),\(plan.bounds.north)"])
@@ -213,7 +223,29 @@ public final class MapTileLibrary: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         var next = records
         guard let index = next.firstIndex(where: { $0.id == id }), downloadedCount(id) >= next[index].expectedTiles else { throw BackupError.notABackup("Area is incomplete; saved tiles were kept") }
-        next[index].complete = true; try publish(next)
+        next[index].complete = true; next[index].refreshPending = nil; next[index].updatedAt = Date(); try publish(next)
+    }
+    public func rename(_ id: String, name: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        var next = records
+        guard let index = next.firstIndex(where: { $0.id == id }) else { throw BackupError.notABackup("Offline map not found") }
+        next[index].name = try Self.areaName(name)
+        try publish(next)
+    }
+    public func beginRefresh(_ id: String) throws -> SavedMap {
+        lock.lock(); defer { lock.unlock() }
+        var next = records
+        guard let index = next.firstIndex(where: { $0.id == id }), !next[index].imported else { throw BackupError.notABackup("Only downloaded areas can be updated") }
+        // Keep the last successful data timestamp until completion. Otherwise
+        // merely starting a refresh would prioritize its old tiles over a
+        // more recently completed overlapping area's data.
+        next[index].complete = false; next[index].refreshPending = true
+        try publish(next); return next[index]
+    }
+    private static func areaName(_ name: String) throws -> String {
+        let value = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        guard !value.isEmpty, !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw BackupError.notABackup("Enter an area name without control characters") }
+        return value
     }
     public func delete(_ id: String) throws {
         lock.lock(); defer { lock.unlock() }

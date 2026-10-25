@@ -15,6 +15,9 @@ final class MapLayerStore: ObservableObject {
     @Published private(set) var activeDownload: String?
     @Published private(set) var downloadProgress = 0
     @Published private(set) var revision = 0
+    struct AreaDetails: Sendable { let tiles: Int; let bytes: Int64 }
+    @Published private(set) var areaDetails: [String: AreaDetails] = [:]
+    private var detailGeneration = UUID()
     @Published var focusRequest: MapCameraRequest?
     @Published var laneRequest: LaneMapRequest?
     @Published var viewedTrackID: String?
@@ -77,6 +80,7 @@ final class MapLayerStore: ObservableObject {
         #endif
         pipeline.offlineOnly = preferences.offlineOnly
         if installPipeline { pipeline.install() }
+        refreshDetails()
     }
     var selectedMap: SavedMap? { savedMaps.first { "mbtiles:" + $0.id == preferences.baseLayer } }
     var selectedLayer: RasterLayer { layers.first { $0.key == preferences.baseLayer } ?? layers[0] }
@@ -106,13 +110,13 @@ final class MapLayerStore: ObservableObject {
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let map = try await Task.detached(priority: .utility) { try library.importFile(url) }.value
-            savedMaps = library.maps; revision += 1; setLayer("mbtiles:" + map.id); message = "Imported \(map.name)"
+            savedMaps = library.maps; revision += 1; refreshDetails(); setLayer("mbtiles:" + map.id); message = "Imported \(map.name)"
         } catch { message = "Import failed: \(error.localizedDescription)" }
     }
     func startDownload(plan: TileDownloadPlan, name: String) {
         guard activeDownload == nil, !preferences.offlineOnly, let library,
               let layer = (layers + [MapCatalog.elevation]).first(where: { $0.key == plan.layerKey }) else { return }
-        activeDownload = "preparing"
+        activeDownload = "preparing"; message = nil
         downloadTask = Task {
             do {
                 let map = try await Task.detached { try library.begin(plan, name: name, layer: layer) }.value
@@ -122,13 +126,47 @@ final class MapLayerStore: ObservableObject {
         }
     }
     func resume(_ map: SavedMap) {
-        guard activeDownload == nil, !preferences.offlineOnly, !map.imported, let layer = (layers + [MapCatalog.elevation]).first(where: { $0.key == map.layerKey }) else { return }
-        activeDownload = "preparing"
+        guard activeDownload == nil, !preferences.offlineOnly, let library,
+              let map = library.maps.first(where: { $0.id == map.id }), !map.imported,
+              let layer = (layers + [MapCatalog.elevation]).first(where: { $0.key == map.layerKey }) else { return }
+        activeDownload = "preparing"; message = nil
         downloadTask = Task {
             do {
                 let tiles = try TileDownloadPlan.coverage(map.bounds, minZoom: map.minZoom, maxZoom: map.maxZoom, limit: map.layerKey == "dem" ? 400 : 12_000)
                 await runDownload(map, tiles: tiles, layer: layer)
             } catch { message = error.localizedDescription; activeDownload = nil }
+        }
+    }
+    func refreshArea(_ map: SavedMap) {
+        guard activeDownload == nil, !preferences.offlineOnly, !map.imported, let library,
+              let layer = (layers + [MapCatalog.elevation]).first(where: { $0.key == map.layerKey }), layer.bulkDownload else { return }
+        activeDownload = "preparing"; message = nil
+        downloadTask = Task {
+            do {
+                let updated = try await Task.detached { try library.beginRefresh(map.id) }.value
+                savedMaps = library.maps
+                let tiles = try TileDownloadPlan.coverage(updated.bounds, minZoom: updated.minZoom, maxZoom: updated.maxZoom, limit: updated.layerKey == "dem" ? 400 : 12_000)
+                await runDownload(updated, tiles: tiles, layer: layer)
+            } catch { message = error.localizedDescription; activeDownload = nil }
+        }
+    }
+    func rename(_ map: SavedMap, name: String) async -> Bool {
+        guard let library else { message = loadError ?? "Offline map storage is unavailable"; return false }
+        do {
+            try await Task.detached { try library.rename(map.id, name: name) }.value
+            savedMaps = library.maps; revision += 1; refreshDetails(); message = "Area renamed"
+            return true
+        } catch { message = "Rename failed: " + error.localizedDescription; return false }
+    }
+    private func refreshDetails() {
+        guard let library else { return }
+        let token = UUID(); detailGeneration = token
+        Task {
+            let details = await Task.detached(priority: .utility) {
+                Dictionary(uniqueKeysWithValues: library.maps.map { ($0.id, AreaDetails(tiles: library.downloadedCount($0.id), bytes: library.bytes($0.id))) })
+            }.value
+            guard detailGeneration == token else { return }
+            areaDetails = details
         }
     }
     private func runDownload(_ map: SavedMap, tiles: [MapTile], layer: RasterLayer) async {
@@ -139,8 +177,8 @@ final class MapLayerStore: ObservableObject {
             if Task.isCancelled { break }
             do {
                 let exists = try await Task.detached { try library.data(for: tile, mapID: map.id) != nil }.value
-                if !exists {
-                    let data = try await pipeline.fetch(layer, tile: tile, allowParentFallback: false)
+                if !exists || map.refreshPending == true {
+                    let data = try await pipeline.fetch(layer, tile: tile, allowParentFallback: false, refresh: map.refreshPending == true)
                     try Task.checkCancellation()
                     try await Task.detached { try library.store(data, tile: tile, in: map.id) }.value
                     if layer.key == "dem" { pipeline.terrainCache.remove(tile) }
@@ -158,14 +196,14 @@ final class MapLayerStore: ObservableObject {
             do { try await Task.detached { try library.finish(map.id) }.value; message = "Offline area saved" }
             catch { message = error.localizedDescription }
         }
-        savedMaps = library.maps; revision += 1; pipeline.adjustCacheBudget(); activeDownload = nil
+        savedMaps = library.maps; revision += 1; refreshDetails(); pipeline.adjustCacheBudget(); activeDownload = nil
     }
     func pauseDownload() { downloadTask?.cancel() }
     func delete(_ map: SavedMap) async {
-        guard activeDownload != map.id, let library else { return }
+        guard activeDownload != map.id, activeDownload != "preparing", let library else { return }
         do {
             try await Task.detached { try library.delete(map.id) }.value
-            savedMaps = library.maps; revision += 1
+            savedMaps = library.maps; revision += 1; refreshDetails()
             if selectedMap == nil && preferences.baseLayer == "mbtiles:" + map.id { setLayer(layers[0].key) }
             pipeline.adjustCacheBudget()
         } catch { message = error.localizedDescription }

@@ -107,6 +107,41 @@ final class MapLayerIntegrationTests: XCTestCase {
         try await wait { model.activeDownload == nil && model.savedMaps[0].complete }
         XCTAssertEqual(model.savedMaps.count, 1); XCTAssertEqual(model.savedMaps[0].id, id)
     }
+    func testUpdateRefetchesPinnedTilesAndFailedPausedRefreshResumesAfterRelaunch() async throws {
+        let dir = try directory(), model = MapLayerStore(directory: dir, installPipeline: false, catalog: [layer], configuration: config())
+        let plan = try TileDownloadPlan(bounds: .init(south: 38.89, north: 38.90, west: -77.04, east: -77.03), currentZoom: 3, layer: layer)
+        model.startDownload(plan: plan, name: "Original area")
+        try await wait { model.activeDownload == nil && model.savedMaps.first?.complete == true }
+        let id = model.savedMaps[0].id, old = png
+        TileNetworkFixture.fail = true
+        model.refreshArea(model.savedMaps[0])
+        try await wait { model.activeDownload == nil && model.savedMaps[0].refreshPending == true }
+        XCTAssertFalse(model.savedMaps[0].complete)
+        let library = try MapTileLibrary(directory: dir)
+        for tile in plan.tiles { XCTAssertEqual(try library.data(for: tile, mapID: id), old) }
+        let reopened = MapLayerStore(directory: dir, installPipeline: false, catalog: [layer], configuration: config())
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1
+        let blue = UIGraphicsImageRenderer(size: .init(width: 256, height: 256), format: format).pngData { context in UIColor.blue.setFill(); context.fill(.init(x: 0, y: 0, width: 256, height: 256)) }
+        TileNetworkFixture.lock.lock(); TileNetworkFixture.png = blue; TileNetworkFixture.lock.unlock()
+        holdResponses(true); defer { holdResponses(false); reopened.pauseDownload() }
+        reopened.resume(reopened.savedMaps[0])
+        try await wait { TileNetworkFixture.calls > 0 && reopened.activeDownload != nil }
+        reopened.pauseDownload(); try await wait { reopened.activeDownload == nil }
+        XCTAssertEqual(reopened.savedMaps[0].refreshPending, true)
+        let renamed = await reopened.rename(reopened.savedMaps[0], name: "Renamed CAFÉ")
+        XCTAssertTrue(renamed); XCTAssertEqual(reopened.savedMaps[0].refreshPending, true)
+        TileNetworkFixture.calls = 0; holdResponses(false)
+        reopened.resume(reopened.savedMaps[0])
+        try await wait { reopened.activeDownload == nil && reopened.savedMaps[0].complete }
+        XCTAssertEqual(TileNetworkFixture.calls, plan.tiles.count, "Update must contact the provider even with every old tile pinned")
+        XCTAssertEqual(reopened.savedMaps.count, 1); XCTAssertEqual(reopened.savedMaps[0].id, id)
+        XCTAssertNil(reopened.savedMaps[0].refreshPending)
+        XCTAssertEqual(reopened.savedMaps[0].name, "Renamed CAFÉ")
+        let final = try MapTileLibrary(directory: dir)
+        for tile in plan.tiles { XCTAssertEqual(try final.data(for: tile, mapID: id), blue) }
+        try await wait { reopened.areaDetails[id]?.tiles == plan.tiles.count }
+        XCTAssertGreaterThan(reopened.areaDetails[id]?.bytes ?? 0, 0)
+    }
     func testImportCopySurvivesSourceRemovalAndPreferenceRelaunch() async throws {
         let dir = try directory(), file = dir.appendingPathComponent("Training.mbtiles")
         let db = try MapTileArchive(url: file,create: true)

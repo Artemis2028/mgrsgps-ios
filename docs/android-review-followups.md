@@ -59,14 +59,17 @@ zero network calls, and verify explicit Pause/Resume retains the same area ID.
 See [offline-map validation](offline-maps.md). Physical background execution,
 provider failures and storage pressure remain separate.
 
-## Newly identified saved-area controls still missing
+## Saved-area controls implemented after the audit
 
-The current Android checkout at `6f9865f` retains the offline-area Rename and
-Update actions in MapScreen. iOS currently offers Show, Resume for incomplete
-areas, and Delete, but lacks Rename and explicit fresh Update for a complete area.
-Android Update re-fetches even previously cached tiles and records interrupted/
-failed status. An iOS Update must bypass both saved pinned tiles and browse cache,
-retain existing coverage on failure, persist update-pending state across relaunch,
-and finish only after the requested refresh succeeds. Remaining stored/expected
-tile counts, size/date metadata and these controls are implementation work, not
-iOS limitations; the view-lifetime regression does not close those gaps.
+Android at `6f9865f` retains Rename and Update in the offline-area dialog. The
+native port now adds both controls, worker-prepared count/size details and update
+dates. Rename atomically changes only the display name. Update bypasses pinned
+and browse caches, persists refresh intent, retains usable tiles on failure and
+re-fetches after interruption/relaunch. Successful completion clears that intent;
+ordinary interrupted downloads still resume only missing tiles. Refreshed older
+areas win overlapping stale copies only after successful completion. Independent
+archives keep overlap coverage when another area is deleted.
+
+Core tests, native failure/pause/relaunch/new-pixel tests and day/night native
+rename/update/offline-relaunch workflows pass. See [offline map evidence](offline-maps.md).
+Provider/physical/storage-pressure checks remain; those tests do not claim them.

@@ -49,13 +49,14 @@ final class MapTilePipeline: @unchecked Sendable {
         config.urlCache = nil // synthetic URLs must not bypass Offline only or pinning
         MLNNetworkConfiguration.sharedManager.sessionConfiguration = config
     }
-    func fetch(_ layer: RasterLayer, tile: MapTile, allowNetwork: Bool = true, allowParentFallback: Bool = true) async throws -> Data {
+    func fetch(_ layer: RasterLayer, tile: MapTile, allowNetwork: Bool = true, allowParentFallback: Bool = true, refresh: Bool = false) async throws -> Data {
         guard tile.valid else { throw URLError(.badURL) }
-        if let data = library?.pinnedTile(tile, layerKey: layer.key) { return data }
-        if layer.key == "dem", let cached = terrainCache.read(tile) { return cached }
+        if !refresh, let data = library?.pinnedTile(tile, layerKey: layer.key) { return data }
+        if !refresh, layer.key == "dem", let cached = terrainCache.read(tile) { return cached }
         guard let url = layer.url(for: tile) else { throw URLError(.badURL) }
-        let request = URLRequest(url: url)
+        let request = URLRequest(url: url, cachePolicy: refresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy)
         if offlineOnly || !allowNetwork {
+            guard !refresh else { throw URLError(.notConnectedToInternet) }
             if layer.key == "dem" { throw URLError(.notConnectedToInternet) }
             if let cached = cache.cachedResponse(for: request), MapTileArchive.rasterFormat(cached.data) != nil { return cached.data }
             if allowParentFallback, let parent = parentTile(tile, layer: layer) { return parent }
@@ -63,7 +64,7 @@ final class MapTilePipeline: @unchecked Sendable {
         }
         let data: Data, response: URLResponse
         do { (data, response) = try await (layer.key == "dem" ? terrainSession : session).data(for: request) }
-        catch { if allowParentFallback, layer.key != "dem", let parent = parentTile(tile, layer: layer) { return parent }; throw error }
+        catch { if !refresh, allowParentFallback, layer.key != "dem", let parent = parentTile(tile, layer: layer) { return parent }; throw error }
         guard let http = response as? HTTPURLResponse, http.statusCode == 200,
               data.count <= 4 * 1024 * 1024, MapTileArchive.rasterFormat(data) != nil,
               let source = CGImageSourceCreateWithData(data as CFData, nil),

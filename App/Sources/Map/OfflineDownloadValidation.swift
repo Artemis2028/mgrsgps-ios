@@ -40,6 +40,7 @@ final class OfflineDownloadValidation: URLProtocol, @unchecked Sendable {
         return MapLayerStore(directory: directory, catalog: [layer], configuration: configuration)
     }
     static func releaseResponses() { lock.lock(); released = true; lock.unlock() }
+    static func holdResponses() { lock.lock(); released = false; lock.unlock() }
     private static func response() -> Data? {
         lock.lock(); defer { lock.unlock() }
         return released ? png : nil
@@ -75,6 +76,8 @@ struct OfflineDownloadValidationControl: View {
                     .font(.caption).accessibilityIdentifier("offline-lifetime-status")
                 Button("Release synthetic tile responses") { OfflineDownloadValidation.releaseResponses() }
                     .frame(minHeight: 44).accessibilityIdentifier("offline-lifetime-release")
+                Button("Hold synthetic tile responses") { OfflineDownloadValidation.holdResponses() }
+                    .frame(minHeight: 44).accessibilityIdentifier("offline-lifetime-hold")
             }.padding(.horizontal, 16).foregroundStyle(FieldPalette(night: night).ink)
         }
     }

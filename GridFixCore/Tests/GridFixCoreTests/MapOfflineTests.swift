@@ -107,6 +107,67 @@ final class MapOfflineTests: XCTestCase {
         XCTAssertThrowsError(try library.delete("../outside"))
         XCTAssertEqual(try Data(contentsOf: outside),png)
     }
+    func testAreaRenameIsAtomicPreservesTilesAndBoundsAndRejectsBlankNames() throws {
+        let dir = try directory(), library = try MapTileLibrary(directory: dir)
+        let plan = try TileDownloadPlan(bounds: bounds, currentZoom: 15, layer: layer)
+        let original = try library.begin(plan, name: "Original", layer: layer)
+        for tile in plan.tiles { try library.store(png, tile: tile, in: original.id) }
+        try library.finish(original.id)
+        let file = library.fileURL(original.id), bytes = try Data(contentsOf: file)
+        try library.rename(original.id, name: "  CAFÉ field area  ")
+        let renamed = try XCTUnwrap(MapTileLibrary(directory: dir).maps.first)
+        XCTAssertEqual(renamed.id, original.id); XCTAssertEqual(renamed.name, "CAFÉ field area")
+        XCTAssertEqual(renamed.bounds, original.bounds); XCTAssertTrue(renamed.complete)
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+        for name in ["  ", "bad\nname", "bad\u{0}name"] { XCTAssertThrowsError(try library.rename(original.id, name: name)) }
+        let manifest = dir.appendingPathComponent("OfflineMaps/library.json"), saved = try Data(contentsOf: manifest)
+        try FileManager.default.removeItem(at: manifest); try FileManager.default.createDirectory(at: manifest, withIntermediateDirectories: false)
+        XCTAssertThrowsError(try library.rename(original.id, name: "Lost rename"))
+        XCTAssertEqual(library.maps.first?.name, "CAFÉ field area")
+        try FileManager.default.removeItem(at: manifest); try saved.write(to: manifest)
+        XCTAssertEqual(try MapTileLibrary(directory: dir).maps.first?.name, "CAFÉ field area")
+    }
+    func testRefreshIntentSurvivesRelaunchAndOldMetadataRemainsCompatible() throws {
+        let dir = try directory(), library = try MapTileLibrary(directory: dir)
+        let plan = try TileDownloadPlan(bounds: bounds, currentZoom: 15, layer: layer)
+        let map = try library.begin(plan, name: "Refresh", layer: layer)
+        for tile in plan.tiles { try library.store(png, tile: tile, in: map.id) }
+        try library.finish(map.id)
+        let oldFile = dir.appendingPathComponent("OfflineMaps/library.json")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: oldFile)) as? [[String: Any]])
+        for key in ["refreshPending", "createdAt", "updatedAt"] { json[0].removeValue(forKey: key) }
+        try JSONSerialization.data(withJSONObject: json).write(to: oldFile)
+        let legacy = try MapTileLibrary(directory: dir)
+        XCTAssertNil(legacy.maps[0].updatedAt); XCTAssertNil(legacy.maps[0].refreshPending)
+        let pending = try legacy.beginRefresh(map.id)
+        XCTAssertFalse(pending.complete); XCTAssertEqual(pending.refreshPending, true)
+        let reopened = try MapTileLibrary(directory: dir)
+        XCTAssertEqual(reopened.maps[0].refreshPending, true); XCTAssertFalse(reopened.maps[0].complete)
+        for tile in plan.tiles { XCTAssertEqual(try reopened.data(for: tile, mapID: map.id), png) }
+        try reopened.rename(map.id, name: "Renamed while unfinished")
+        try reopened.finish(map.id)
+        let finished = try MapTileLibrary(directory: dir).maps[0]
+        XCTAssertTrue(finished.complete); XCTAssertNil(finished.refreshPending)
+        XCTAssertEqual(finished.name, "Renamed while unfinished"); XCTAssertNotNil(finished.updatedAt)
+    }
+    func testRefreshedOlderAreaWinsOverlapAndDeletingItKeepsOtherCoverage() throws {
+        let library = try MapTileLibrary(directory: directory())
+        let plan = try TileDownloadPlan(bounds: bounds, currentZoom: 15, layer: layer)
+        let first = try library.begin(plan, name: "Older", layer: layer)
+        for tile in plan.tiles { try library.store(png, tile: tile, in: first.id) }; try library.finish(first.id)
+        let second = try library.begin(plan, name: "Newer", layer: layer)
+        let newer = png + Data([1])
+        for tile in plan.tiles { try library.store(newer, tile: tile, in: second.id) }; try library.finish(second.id)
+        let fresh = png + Data([0])
+        _ = try library.beginRefresh(first.id)
+        XCTAssertEqual(library.pinnedTile(plan.tiles[0], layerKey: layer.key), newer)
+        for tile in plan.tiles { try library.store(fresh, tile: tile, in: first.id) }
+        XCTAssertEqual(library.pinnedTile(plan.tiles[0], layerKey: layer.key), newer)
+        try library.finish(first.id)
+        XCTAssertEqual(library.pinnedTile(plan.tiles[0], layerKey: layer.key), fresh)
+        try library.delete(first.id)
+        XCTAssertEqual(library.pinnedTile(plan.tiles[0], layerKey: layer.key), newer)
+    }
     func testTerrainIntervalsDecodingAndSaddleGeometryMatchAndroid() throws {
         XCTAssertEqual(TerrainContours.elevation(red: 128,green: 1,blue: 128), 1.5)
         XCTAssertNil(TerrainContours.elevation(red: 0,green: 0,blue: 0))

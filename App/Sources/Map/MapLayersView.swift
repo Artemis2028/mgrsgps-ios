@@ -14,8 +14,10 @@ struct MapLayersView: View {
     @State private var planError: String?
     @State private var downloadName = ""
     @State private var deleting: SavedMap?
+    @State private var renaming: SavedMap?
     var onShow: (SavedMap) -> Void
     private var palette: FieldPalette { FieldPalette(night: night) }
+    private var orderedMaps: [SavedMap] { maps.savedMaps.reversed().sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) } }
     var body: some View {
         NavigationStack {
             List {
@@ -77,23 +79,31 @@ struct MapLayersView: View {
                 }
                 Section("Saved areas & imported maps") {
                     if maps.savedMaps.isEmpty { Text("No offline maps saved yet").font(.subheadline).foregroundStyle(palette.inkDim) }
-                    ForEach(maps.savedMaps) { map in
+                    ForEach(orderedMaps) { map in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(map.name).font(.headline)
-                            Text("\(map.complete ? "Ready" : "Partial · resume to finish") · zoom \(map.minZoom)–\(map.maxZoom)")
+                            Text("\(areaStatus(map)) · zoom \(map.minZoom)–\(map.maxZoom)")
                                 .font(.caption).foregroundStyle(palette.inkDim)
                                 .accessibilityIdentifier("saved-map-status-\(map.name)")
-                            HStack {
+                            if let details = maps.areaDetails[map.id] {
+                                Text("\(details.tiles) of \(map.expectedTiles) tiles stored · \(ByteCountFormatter.string(fromByteCount: details.bytes, countStyle: .file)) on device")
+                                    .font(.caption).foregroundStyle(palette.inkDim).accessibilityIdentifier("saved-map-details-\(map.name)")
+                            }
+                            if let date = map.updatedAt { Text("Updated " + date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(palette.inkDim) }
+                            LazyVGrid(columns: [.init(.adaptive(minimum: 120), alignment: .leading)], alignment: .leading, spacing: 4) {
                                 if map.layerKey != "dem" {
                                     Button("Show map") { maps.setLayer(map.imported ? "mbtiles:" + map.id : map.layerKey!); onShow(map); dismiss() }
                                         .accessibilityIdentifier("show-map-\(map.name)")
+                                        .frame(minHeight: 44, alignment: .leading)
                                 }
-                                if !map.complete && !map.imported {
-                                    Button("Resume") { maps.resume(map) }.disabled(maps.activeDownload != nil || maps.preferences.offlineOnly)
+                                if !map.imported {
+                                    Button(map.complete ? "Update" : "Resume") { if map.complete { maps.refreshArea(map) } else { maps.resume(map) } }
+                                        .disabled(maps.activeDownload != nil || maps.preferences.offlineOnly)
+                                        .frame(minHeight: 44, alignment: .leading).accessibilityIdentifier("update-map-\(map.name)")
                                 }
-                                Spacer()
+                                Button("Rename") { renaming = map }.frame(minHeight: 44, alignment: .leading).accessibilityIdentifier("rename-map-\(map.name)")
                                 Button("Delete", role: .destructive) { deleting = map }
-                                    .disabled(maps.activeDownload == map.id)
+                                    .frame(minHeight: 44, alignment: .leading).disabled(maps.activeDownload == map.id || maps.activeDownload == "preparing")
                             }.buttonStyle(.borderless)
                         }.padding(.vertical, 6)
                     }
@@ -114,11 +124,20 @@ struct MapLayersView: View {
             .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
                 if case let .success(urls) = result, let url = urls.first { Task { await maps.importMap(url) } }
             }
+            .sheet(item: $renaming) { MapAreaRenameView(map: $0) }
             .alert("Delete saved map?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
                 Button("Delete", role: .destructive) { if let deleting { Task { await maps.delete(deleting) } }; deleting = nil }
                 Button("Keep map", role: .cancel) { deleting = nil }
             } message: { Text("This removes the saved map from this device.") }
         }.fieldSheetAppearance()
+    }
+    private func areaStatus(_ map: SavedMap) -> String {
+        if maps.activeDownload == map.id { return map.refreshPending == true ? "Updating" : "Downloading" }
+        if map.refreshPending == true { return "Update unfinished · resume to retry" }
+        if let details = maps.areaDetails[map.id], details.tiles < map.expectedTiles, map.complete {
+            return map.imported ? "Tiles missing · reimport map" : "Tiles missing · update to restore"
+        }
+        return map.complete ? "Ready" : "Partial · resume to finish"
     }
     private func propose(_ layer: RasterLayer) {
         do {
