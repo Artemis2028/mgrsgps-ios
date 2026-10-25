@@ -8,7 +8,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","waypoints"]; app.launch()
     }
     private func paste(_ xml: String) {
-        app.buttons["Waypoint actions"].tap(); app.buttons["Paste text"].tap(); app.buttons["Paste KML"].tap()
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Paste text"]); tapNativeMenuItem(app.buttons["Paste KML"])
         let input = app.textViews["gpx-import-text"]; XCTAssertTrue(input.waitForExistence(timeout: 8)); input.tap(); input.typeText(xml)
         app.buttons["preview-interchange"].tap()
     }
@@ -18,7 +18,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["edit-waypoint-Mission marker"].waitForExistence(timeout: 5))
     }
     private func exportAndReopen(_ format: String,_ base: String) {
-        app.buttons["Waypoint actions"].tap(); app.buttons["Export"].tap(); app.buttons["Export " + format].tap()
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export " + format])
         let filename = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(filename.waitForExistence(timeout: 10),app.debugDescription)
         let name = "gridfix-package-ui-" + UUID().uuidString.prefix(8)
         filename.tap(); filename.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: base.count)+name)

@@ -121,8 +121,8 @@ final class WaypointWorkflowTests: XCTestCase {
         <gpx xmlns="http://www.topografix.com/GPX/1/1"><rte><name>Patrol</name><rtept lat="24.4539" lon="54.3773"/><rtept lat="24.4549" lon="54.3783"/></rte><trk><name>Recorded walk</name><trkseg><trkpt lat="24.4539" lon="54.3773"/><trkpt lat="24.4545" lon="54.3790"/></trkseg></trk></gpx>
         """
         app.buttons["Waypoint actions"].tap()
-        app.buttons["Paste text"].tap()
-        app.buttons["Paste GPX"].tap()
+        tapNativeMenuItem(app.buttons["Paste text"])
+        tapNativeMenuItem(app.buttons["Paste GPX"])
         let text = app.textViews["gpx-import-text"]
         XCTAssertTrue(text.waitForExistence(timeout: 5))
         text.tap(); text.typeText(xml)

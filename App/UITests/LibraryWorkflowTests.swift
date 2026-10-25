@@ -40,7 +40,7 @@ final class LibraryWorkflowTests: XCTestCase {
         capture("library-after-batch-delete")
     }
     func testRenameFolderMovesAllRecordTypesThenKeepContentsInBase() {
-        folder("Recon"); app.buttons["Folder options"].tap(); app.buttons["Rename folder"].tap()
+        folder("Recon"); app.buttons["Folder options"].tap(); tapNativeMenuItem(app.buttons["Rename folder"])
         let name = app.textFields["library-folder-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap()
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: (name.value as? String ?? "").count)+"Patrol")
         app.buttons["library-folder-save"].tap()
@@ -48,7 +48,7 @@ final class LibraryWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch(); folder("Patrol")
         XCTAssertTrue(app.buttons["edit-waypoint-Bravo"].exists)
-        app.buttons["Folder options"].tap(); app.buttons["Delete folder"].tap(); app.buttons["Keep contents in Base"].tap()
+        app.buttons["Folder options"].tap(); tapNativeMenuItem(app.buttons["Delete folder"]); app.buttons["Keep contents in Base"].tap()
         capture("library-folder-after-keep")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: app.buttons["Patrol"])
         XCTAssertEqual(XCTWaiter.wait(for: [gone],timeout: 5),.completed,app.debugDescription)
@@ -93,7 +93,7 @@ final class LibraryWorkflowTests: XCTestCase {
         app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
         folder("Recon"); selectAll(); selected(3); capture("library-night-selection")
         app.buttons["library-selection-done"].tap()
-        app.buttons["Folder options"].tap(); app.buttons["Rename folder"].tap()
+        app.buttons["Folder options"].tap(); tapNativeMenuItem(app.buttons["Rename folder"])
         XCTAssertTrue(app.textFields["library-folder-name"].waitForExistence(timeout: 5)); capture("library-night-folder-form")
         app.buttons["Cancel"].tap()
     }

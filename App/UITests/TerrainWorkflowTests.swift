@@ -13,13 +13,13 @@ final class TerrainWorkflowTests: XCTestCase {
         reveal(source)
         let sourceReady = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"),object: source)
         XCTAssertEqual(XCTWaiter.wait(for: [sourceReady],timeout: 5),.completed)
-        source.tap()
+        tapNativeMenuItem(source)
         let option = app.buttons["terrain-\(prefix)-source-waypoint"]
-        XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
+        XCTAssertTrue(option.waitForExistence(timeout: 5)); tapNativeMenuItem(option)
         let waypoint = app.buttons["terrain-\(prefix)-waypoint"]
-        XCTAssertTrue(waypoint.waitForExistence(timeout: 5)); reveal(waypoint); waypoint.tap()
+        XCTAssertTrue(waypoint.waitForExistence(timeout: 5)); reveal(waypoint); tapNativeMenuItem(waypoint)
         let choice = app.buttons["terrain-\(prefix)-choice-\(name)"].firstMatch
-        XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
+        XCTAssertTrue(choice.waitForExistence(timeout: 5)); tapNativeMenuItem(choice)
     }
     private func reveal(_ element: XCUIElement) {
         for _ in 0..<8 {

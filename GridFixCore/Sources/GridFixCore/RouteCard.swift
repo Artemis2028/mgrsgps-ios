@@ -20,7 +20,7 @@ public enum RouteCard {
             func corrected(_ bearing: Double, at point: GeoPoint) -> Double? {
                 let correction: Double
                 switch northReference {
-                case 1: guard let d = declination(point) else { return nil }; correction = d
+                case 1: guard let d = declination(point), d.isFinite else { return nil }; correction = d
                 case 2: guard (-80...84).contains(point.lat) else { return nil }; correction = UTM.gridConvergence(lat: point.lat, lon: point.lon)
                 default: correction = 0
                 }

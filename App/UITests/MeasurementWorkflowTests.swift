@@ -9,7 +9,9 @@ final class MeasurementWorkflowTests: XCTestCase {
     override func tearDownWithError() throws { XCUIDevice.shared.orientation = .portrait }
     private func choose(_ id: String) {
         let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
-        app.buttons[id].tap()
+        tapNativeMenuItem(app.buttons[id])
+        let ready = id == "measure-area" ? app.buttons["measurement-done"] : app.staticTexts["ruler-distance"]
+        XCTAssertTrue(ready.waitForExistence(timeout: 8),app.debugDescription)
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     private func points(_ count: Int) {

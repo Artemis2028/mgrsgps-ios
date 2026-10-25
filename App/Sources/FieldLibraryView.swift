@@ -154,16 +154,20 @@ struct RouteDetailView: View {
     @EnvironmentObject private var navigation: NavigationSession
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var routeRequest: RouteEditorRequest?
     @State private var status: String?
     private var route: Backup.Graphic? { fieldData.document.graphics.first { $0.id == routeID } }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
-    private func legs(_ route: Backup.Graphic) -> [RouteCard.Leg] {
-        RouteCard.legs(points: route.points.map { GeoPoint(lat: $0.lat, lon: $0.lon) }, northReference: settings.northRef.rawValue,
-                       pacePer100m: settings.pacePer100m) { point in
-            DeclinationService(overrideDegrees: settings.declinationOverride).declination(lat: point.lat, lon: point.lon, isCurrentPosition: false).degreesEast
-        }
-    }
+    private struct Prepared { let request: RouteCardRequest; let report: RouteCard.Report }
+    @State private var prepared: Prepared?
+    @State private var reportError: String?
+    @State private var pdfRequest: RoutePDFPreviewRequest?
+    @State private var pdfTask: Task<Void,Never>?
+    @State private var pdfGeneration = UUID()
+    @State private var buildingPDF = false
+    private var input: RouteCardRequest? { route.map { RouteCardRequest(route: $0,settings: settings) } }
+    private var ready: RouteCard.Report? { prepared?.request == input ? prepared?.report : nil }
 
     var body: some View {
         List {
@@ -180,26 +184,37 @@ struct RouteDetailView: View {
                     Button("Generate waypoints") { perform { try generate(route); status = "Route waypoints updated" } }
                         .accessibilityIdentifier("generate-route-waypoints")
                     NavigationLink("Elevation profile") { RouteTerrainProfileView(route: route) }.accessibilityIdentifier("route-terrain-profile")
-                    ShareLink("Share route card", item: cardText(route))
+                    if let ready { ShareLink("Share route card",item: ready.shareText).accessibilityIdentifier("share-route-card") }
+                    Button(buildingPDF ? "Preparing PDF…" : "Strip map PDF") { preparePDF() }
+                        .disabled(buildingPDF || ready == nil).accessibilityIdentifier("prepare-strip-map-pdf")
+                    if buildingPDF { ProgressView("Preparing complete route card") }
+                    if let reportError { Text(reportError).font(.footnote).foregroundStyle(palette.warn) }
                 }
                 Section("Route card · \(settings.northRef.letter)") {
-                    ForEach(legs(route), id: \.index) { leg in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Leg \(leg.index)").font(.headline)
-                            Text("AZ \(angle(leg.forward))  ·  BACK \(angle(leg.reverse))")
-                                .font(.system(.subheadline, design: .monospaced))
-                            Text("\(Format.distance(meters: leg.distanceMeters, unit: settings.units)) · \(leg.paces) paces")
-                                .font(.subheadline)
-                            Text(leg.destinationGrid).font(.system(.caption, design: .monospaced))
-                            Button("Navigate to vertex \(leg.index + 1)") {
-                                perform {
-                                    try generate(route)
-                                    guard let target = waypoints.waypoints.first(where: { $0.sourceRouteId == routeID && $0.sourceRoutePointIndex == leg.index }) else { return }
-                                    waypoints.select(target.id); onNavigate()
+                    if let ready {
+                        Text("START  "+ready.startGrid).font(.system(.caption,design: .monospaced)).accessibilityIdentifier("route-card-start")
+                        ForEach(ready.rows,id: \.index) { leg in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Leg \(leg.index)").font(.headline)
+                                Text("AZ \(leg.azimuth)  ·  BACK \(leg.backAzimuth)")
+                                    .font(.system(.subheadline, design: .monospaced))
+                                Text("\(leg.distance) · \(leg.paces) paces")
+                                    .font(.subheadline)
+                                Text(leg.destinationGrid).font(.system(.caption, design: .monospaced))
+                                Button("Navigate to vertex \(leg.index + 1)") {
+                                    perform {
+                                        try generate(route)
+                                        guard let target = waypoints.waypoints.first(where: { $0.sourceRouteId == routeID && $0.sourceRoutePointIndex == leg.index }) else { return }
+                                        waypoints.select(target.id); onNavigate()
+                                    }
                                 }
-                            }
-                        }.padding(.vertical, 6)
-                    }
+                            }.padding(.vertical, 6)
+                        }
+                        Text("TOTAL  \(ready.totalDistance) · \(ready.totalPaces) paces").font(.headline).accessibilityIdentifier("route-card-total")
+                        Text("Pace \(ready.configuration.pacePer100m)/100 m · \(ready.dtg)").font(.caption)
+                        Text("Azimuth from leg start; back-azimuth from leg end.").font(.footnote)
+                        ForEach(Array(ready.notes.enumerated()),id: \.offset) { _,note in Text(note).font(.footnote).foregroundStyle(palette.warn) }
+                    } else if reportError == nil { ProgressView("Calculating route card") }
                 }
                 Button("Delete route", role: .destructive) { perform { try fieldData.deleteGraphic(route.id); dismiss() } }
             }
@@ -208,6 +223,10 @@ struct RouteDetailView: View {
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(route?.name ?? "Route")
+        .task(id: input) { await prepareReport() }
+        .onDisappear { cancelPDF() }
+        .onChange(of: scenePhase) { phase in if phase != .active { cancelPDF() } }
+        .sheet(item: $pdfRequest) { RoutePDFPreview(request: $0) }
         .sheet(item: $routeRequest) { request in RouteEditor(route: request.route) { changed in
             try fieldData.saveGraphic(changed); waypoints.addFolder(changed.folder)
         } }
@@ -216,11 +235,41 @@ struct RouteDetailView: View {
         try waypoints.replaceRouteWaypoints(routeID: route.id, name: route.name, points: route.points.map { GeoPoint(lat: $0.lat, lon: $0.lon) }, folder: route.folder)
     }
     private func perform(_ action: () throws -> Void) { do { try action() } catch { status = error.localizedDescription } }
-    private func angle(_ value: Double?) -> String { value.map { Format.angle(degrees: $0, unit: settings.angleUnit) } ?? "—" }
-    private func cardText(_ route: Backup.Graphic) -> String {
-        ([route.name, "North: \(settings.northRef.letter)"] + legs(route).map {
-            "Leg \($0.index): \(angle($0.forward)), back \(angle($0.reverse)), \(Format.distance(meters: $0.distanceMeters, unit: settings.units)), \($0.paces) paces, \($0.destinationGrid)"
-        }).joined(separator: "\n")
+    private func prepareReport() async {
+        guard let request = input else { prepared = nil; return }
+        reportError = nil
+        let worker = Task.detached(priority: .userInitiated) { try RouteCardOutput.report(request) }
+        do {
+            let report = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+            guard !Task.isCancelled, input == request else { return }
+            prepared = .init(request: request,report: report)
+        } catch {
+            guard !Task.isCancelled, input == request else { return }
+            reportError = "Route card unavailable: "+error.localizedDescription
+        }
+    }
+    private func cancelPDF() { pdfTask?.cancel(); pdfTask = nil; pdfGeneration = UUID(); buildingPDF = false }
+    private func preparePDF() {
+        guard let request = input, !buildingPDF else { return }
+        cancelPDF(); buildingPDF = true; reportError = nil
+        let token = pdfGeneration
+        pdfTask = Task {
+            let worker = Task.detached(priority: .userInitiated) {
+                let report = try RouteCardOutput.report(request)
+                return (report,try StripMapPDF.render(report))
+            }
+            do {
+                let (report,data) = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+                guard !Task.isCancelled, pdfGeneration == token else { return }
+                buildingPDF = false; pdfTask = nil
+                guard request.matches(route), input == request else { reportError = "The route or settings changed. Export again for the current route."; return }
+                prepared = .init(request: request,report: report)
+                pdfRequest = .init(name: report.name,data: data)
+            } catch {
+                guard !Task.isCancelled, pdfGeneration == token else { return }
+                buildingPDF = false; pdfTask = nil; reportError = "PDF failed: "+error.localizedDescription
+            }
+        }
     }
 }
 

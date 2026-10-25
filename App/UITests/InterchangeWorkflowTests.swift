@@ -7,7 +7,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","waypoints"]; app.launch()
     }
     private func paste(_ format: String,_ text: String) {
-        app.buttons["Waypoint actions"].tap(); app.buttons["Paste text"].tap(); app.buttons["Paste " + format].tap()
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Paste text"]); tapNativeMenuItem(app.buttons["Paste " + format])
         let input = app.textViews["gpx-import-text"]; XCTAssertTrue(input.waitForExistence(timeout: 10),app.debugDescription)
         input.tap(); input.typeText(text)
         app.buttons["preview-interchange"].tap()
@@ -41,9 +41,9 @@ final class InterchangeWorkflowTests: XCTestCase {
         XCTAssertEqual(app.staticTexts["map-field-overlays"].label,"1 routes · 0 tracks")
         capture("geojson-map-import")
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["Waypoint actions"].tap()
-        app.buttons["Export"].tap()
+        tapNativeMenuItem(app.buttons["Export"])
         XCTAssertTrue(app.buttons["Export CSV"].exists); XCTAssertTrue(app.buttons["Export GeoJSON"].exists)
-        app.buttons["Export GeoJSON"].tap()
+        tapNativeMenuItem(app.buttons["Export GeoJSON"])
         let filename = app.textFields["DOCPicker.filenameTextField"]
         XCTAssertTrue(filename.waitForExistence(timeout: 10),app.debugDescription)
         capture("geojson-export-files")

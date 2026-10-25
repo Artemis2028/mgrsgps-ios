@@ -18,3 +18,7 @@ App/Resources/Info.generated.plist
 __pycache__/
 
 Watch/Info.generated.plist
+
+# Generated PDF review artifacts and rendered pages.
+tmp/
+output/
