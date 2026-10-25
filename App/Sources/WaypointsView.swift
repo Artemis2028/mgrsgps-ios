@@ -10,6 +10,8 @@ struct WaypointsView: View {
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var maps: MapLayerStore
 
+    private var preparingOutput: Bool { fieldExport.format != nil || backupTransfer.phase == .exporting }
+    private var exportUnavailable: Bool { fieldExport.format != nil || backupTransfer.phase != nil || exportFile != nil }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     @State private var editorRequest: WaypointEditorRequest?
     var onNavigate: () -> Void = {}
@@ -54,6 +56,7 @@ struct WaypointsView: View {
     @State private var backtrackingID: String?
     @State private var backtrackWork: Task<Void,Never>?
     @StateObject private var backupTransfer = BackupTransfer()
+    @StateObject private var fieldExport = FieldExportTransfer()
 
     private var libraryFolders: [FolderInfo] { listing.snapshot?.folders ?? [] }
     private var listedWaypoints: [Waypoint] { listing.snapshot?.waypoints ?? [] }
@@ -68,7 +71,7 @@ struct WaypointsView: View {
         ZStack {
             FieldScreenBackground()
             VStack(alignment: .leading, spacing: 0) {
-                header
+                header.disabled(preparingOutput)
                 Button { showingLibrary = true } label: {
                     HStack {
                         Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
@@ -78,10 +81,19 @@ struct WaypointsView: View {
                         Image(systemName: "chevron.right").font(.caption)
                     }.padding(.horizontal, 20).frame(minHeight: 44)
                         .contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityIdentifier("open-field-library")
-                folderPicker
-                searchControls
-                libraryCaption
+                }.buttonStyle(.plain).disabled(preparingOutput).accessibilityIdentifier("open-field-library")
+                folderPicker.disabled(preparingOutput)
+                searchControls.disabled(preparingOutput)
+                libraryCaption.disabled(preparingOutput)
+                if let format = fieldExport.format {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text("Preparing " + format.label + "…").font(.footnote)
+                        Spacer()
+                        Button("Cancel") { fieldExport.cancel(); status = "Export cancelled" }
+                            .frame(minHeight: 44).accessibilityIdentifier("field-export-cancel")
+                    }.padding(.horizontal,20).accessibilityIdentifier("field-export-progress")
+                }
                 if let phase = backupTransfer.phase {
                     HStack {
                         ProgressView().tint(palette.accent)
@@ -106,7 +118,7 @@ struct WaypointsView: View {
                 } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
                     empty
                 } else {
-                    list
+                    list.disabled(preparingOutput)
                 }
             }
             .padding(.bottom, 12)
@@ -114,7 +126,7 @@ struct WaypointsView: View {
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
         .onAppear { listing.activate() }
-        .onDisappear { listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel() }
+        .onDisappear { listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
         .onReceive(store.$waypoints) { listing.setWaypoints($0) }
         .onReceive(store.$folders) { listing.setFolders($0) }
         .onReceive(fieldData.$document) { listing.setField(graphics: $0.graphics,tracks: $0.tracks) }
@@ -134,7 +146,7 @@ struct WaypointsView: View {
             }
         }
         .sheet(isPresented: $choosingLibraryActions,onDismiss: runLibraryAction) {
-            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title,enabled: $0 != .backup || backupTransfer.phase == nil) },night: settings.nightMode) { id in
+            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title,enabled: ($0 != .backup || backupTransfer.phase == nil) && ($0 != .export || !exportUnavailable)) },night: settings.nightMode) { id in
                 pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
             }
         }
@@ -157,13 +169,13 @@ struct WaypointsView: View {
             }
         }
         .confirmationDialog("Export",isPresented: $choosingExportFormat,titleVisibility: .visible) {
-            Button("Export backup") { exportBackup() }.disabled(backupTransfer.phase != nil)
-            Button("Export GPX") { exportGpx() }
-            Button("Export CSV") { exportOther(.csv) }
-            Button("Export GeoJSON") { exportOther(.geojson) }
-            Button("Export KML") { exportOther(.kml) }
-            Button("Export KMZ") { exportOther(.kmz) }
-            Button("Export ATAK package") { exportOther(.atak) }
+            Button("Export backup") { exportBackup() }.disabled(exportUnavailable)
+            Button("Export GPX") { exportOther(.gpx) }.disabled(exportUnavailable)
+            Button("Export CSV") { exportOther(.csv) }.disabled(exportUnavailable)
+            Button("Export GeoJSON") { exportOther(.geojson) }.disabled(exportUnavailable)
+            Button("Export KML") { exportOther(.kml) }.disabled(exportUnavailable)
+            Button("Export KMZ") { exportOther(.kmz) }.disabled(exportUnavailable)
+            Button("Export ATAK package") { exportOther(.atak) }.disabled(exportUnavailable)
         }
         .sheet(item: $folderRequest) { request in
             LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
@@ -593,7 +605,7 @@ struct WaypointsView: View {
     private func perform(_ action: () throws -> Void) { do { try action(); status = nil } catch { status = error.localizedDescription } }
 
     private func exportBackup() {
-        guard backupTransfer.phase == nil else { return }
+        guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
         let doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
         status = nil
         backupTransfer.export(doc) { result in
@@ -606,33 +618,18 @@ struct WaypointsView: View {
         }
     }
 
-    private func exportGpx() {
-        do {
-            let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name, points: try fieldData.points(for: $0.id)) }
-            let xml = GPX.build(waypoints: store.waypoints, routes: fieldData.document.graphics, tracks: tracks)
-            exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
-            status = "GPX ready"
-        } catch { status = "Export failed: \(error.localizedDescription)" }
-    }
-
     private func exportOther(_ format: TextInterchangeFormat) {
-        do {
-            if format == .csv {
-                exportFile = FieldExportDocumentFile(data: Data(CSV.build(store.waypoints).utf8),contentType: .commaSeparatedText)
-            } else if format == .atak {
-                let routes = fieldData.document.graphics.filter { $0.type == "route" }
-                exportFile = FieldExportDocumentFile(data: try ATAKPackage.build(waypoints: store.waypoints,routes: routes),contentType: .zip,filename: "gridfix-datapackage")
-            } else {
-                let tracks = try fieldData.document.tracks.map { GPX.Track(name: $0.name,points: try fieldData.points(for: $0.id)) }
-                if format == .kmz {
-                    exportFile = FieldExportDocumentFile(data: try KMZ.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks),contentType: .gridFixKMZ)
-                } else {
-                    let text = try format == .kml ? KML.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks) : GeoJSON.build(waypoints: store.waypoints,graphics: fieldData.document.graphics,tracks: tracks)
-                    exportFile = FieldExportDocumentFile(data: Data(text.utf8),contentType: format == .kml ? .gridFixKML : .gridFixGeoJSON)
-                }
+        guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
+        searchFocused = false; status = nil
+        prepareExport(.library(format,store.waypoints,fieldData.document))
+    }
+    private func prepareExport(_ request: FieldExportRequest) {
+        fieldExport.start(request) { result in
+            switch result {
+            case .success(let prepared): exportFile = FieldExportDocumentFile(prepared); status = prepared.format.label + " ready"
+            case .failure(let error): status = "Export failed: " + error.localizedDescription
             }
-            status = format.label + " ready"
-        } catch { status = "Export failed: \(error.localizedDescription)" }
+        }
     }
 
     private func runSelectionAction() {
@@ -665,7 +662,7 @@ struct WaypointsView: View {
                     .init(id: "backtrack",title: backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route",
                           accessibilityIdentifier: "backtrack-track-"+track.name,enabled: backtrackingID == nil && track.pointCount >= 2),
                     .init(id: "visibility",title: track.visible ? "Hide on map" : "Make visible on map"),
-                    .init(id: "export",title: "Export GPX"),.init(id: "delete",title: "Delete",destructive: true)]
+                    .init(id: "export",title: "Export GPX",enabled: !exportUnavailable),.init(id: "delete",title: "Delete",destructive: true)]
         return choices
     }
     private func runTrackAction() {
@@ -679,10 +676,10 @@ struct WaypointsView: View {
         case "move": movingTrack = track
         case "backtrack": if backtrackingID == nil && track.pointCount >= 2 { backtrack(track) }
         case "visibility": perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) }
-        case "export": perform {
-            let xml = GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])
-            exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
-        }
+        case "export":
+            guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
+            searchFocused = false; status = nil
+            prepareExport(.track(track,fieldData.document.trackFiles[track.id] ?? Data()))
         case "delete": selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true
         default: break
         }
@@ -711,19 +708,6 @@ struct BackupDocumentFile: FileDocument {
     }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
-    }
-}
-
-struct GPXDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.gridFixGPX, .xml] }
-    var text: String
-    init(text: String) { self.text = text }
-    init(configuration: ReadConfiguration) throws {
-        let d = configuration.file.regularFileContents ?? Data()
-        text = String(data: d, encoding: .utf8) ?? ""
-    }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }
 

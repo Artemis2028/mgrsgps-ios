@@ -11,6 +11,18 @@ struct FieldExportDocumentFile: FileDocument {
     init(data: Data,contentType: UTType,filename: String = "gridfix") {
         self.data = data; self.contentType = contentType; self.filename = filename
     }
+    init(_ prepared: PreparedFieldExport) {
+        let type: UTType
+        switch prepared.format {
+        case .gpx: type = .gridFixGPX
+        case .csv: type = .commaSeparatedText
+        case .geojson: type = .gridFixGeoJSON
+        case .kml: type = .gridFixKML
+        case .kmz: type = .gridFixKMZ
+        case .atak: type = .zip
+        }
+        self.init(data: prepared.data,contentType: type,filename: prepared.filename)
+    }
     init(configuration: ReadConfiguration) throws {
         guard let bytes = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
         data = bytes; contentType = configuration.contentType; filename = configuration.file.preferredFilename ?? "gridfix"

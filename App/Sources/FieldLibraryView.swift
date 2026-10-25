@@ -283,7 +283,8 @@ struct TrackDetailView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @State private var status: String?
-    @State private var export: GPXDocumentFile?
+    @State private var export: FieldExportDocumentFile?
+    @StateObject private var exportTransfer = FieldExportTransfer()
     @State private var confirmingDelete = false
     @State private var backtracking = false
     @State private var backtrackWork: Task<Void,Never>?
@@ -299,7 +300,14 @@ struct TrackDetailView: View {
                     perform { try fieldData.setTrackVisible(trackID, visible: visible) }
                 }))
                 Button("Export GPX") {
-                    perform { export = GPXDocumentFile(text: GPX.build(waypoints: [], tracks: [.init(name: track.name, points: try fieldData.points(for: trackID))])) }
+                    guard let current = fieldData.document.tracks.first(where: { $0.id == trackID }), export == nil else { return }
+                    status = nil
+                    exportTransfer.start(.track(current,fieldData.document.trackFiles[trackID] ?? Data())) { result in
+                        switch result {
+                        case .success(let prepared): export = FieldExportDocumentFile(prepared)
+                        case .failure(let error): status = "Export failed: " + error.localizedDescription
+                        }
+                    }
                 }
                 Button(backtracking ? "Building backtrack…" : "Create backtrack route") {
                     backtracking = true
@@ -322,13 +330,25 @@ struct TrackDetailView: View {
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(track?.name ?? "Track")
-        .onDisappear { backtrackWork?.cancel(); backtrackWork = nil; backtracking = false }
+        .disabled(exportTransfer.format != nil)
+        .safeAreaInset(edge: .top) {
+            if exportTransfer.format != nil {
+                HStack {
+                    ProgressView().tint(palette.accent)
+                    Text("Preparing GPX…").font(.footnote)
+                    Spacer()
+                    Button("Cancel") { exportTransfer.cancel(); status = "Export cancelled" }
+                        .frame(minHeight: 44).accessibilityIdentifier("field-export-cancel")
+                }.padding(.horizontal,16).foregroundStyle(palette.ink).tint(palette.accent).accessibilityIdentifier("field-export-progress")
+            }
+        }
+        .onDisappear { exportTransfer.cancel(); backtrackWork?.cancel(); backtrackWork = nil; backtracking = false }
         .alert("Delete \(track?.name ?? "track")?",isPresented: $confirmingDelete) {
             Button("Delete",role: .destructive) { perform { try fieldData.deleteTrack(trackID); dismiss() } }
             Button("Cancel",role: .cancel) {}
         } message: { Text("The finished track and its saved point log will be removed.") }
         .fileExporter(isPresented: Binding(get: { export != nil }, set: { if !$0 { export = nil } }), document: export,
-                      contentType: .gridFixGPX, defaultFilename: "track") { result in
+                      contentType: .gridFixGPX, defaultFilename: export?.filename ?? "track") { result in
             if case let .failure(error) = result { status = error.localizedDescription }
             export = nil
         }

@@ -112,9 +112,9 @@ See test results for the current run.
 KML/KMZ and ATAK are now implemented in the same preview flow; see
 [KML and mission-package behavior](kml-atak-interchange.md).
 [Route-card PDF output](route-card-pdf.md) and [ZIP64 support](zip64-containers.md)
-are implemented and documented separately. Synchronous non-backup
-export encoding, other library edits, full provider/device validation and storage
-pressure remain open.
+are implemented and documented separately. Cancellable [field export preparation](export-preparation.md) now captures and
+encodes library/track snapshots off the UI thread. Other library edits, full
+provider/device validation and storage pressure remain open.
 
 Worker-commit tests additionally cover cancellation before start and after the
 track phase, complete track-log durability, invalid-plan rejection before any

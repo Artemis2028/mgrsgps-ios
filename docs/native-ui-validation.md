@@ -117,3 +117,31 @@ inspected. All 119 app integration tests and the combined unsigned phone/watch R
 build pass locally; hosted
 CI, physical providers/storage pressure and synchronous non-backup exports/other
 library edits remain separate work.
+
+## Snapshot-based field exports
+
+Library GPX/CSV/GeoJSON/KML/KMZ/ATAK and single-track GPX now capture value
+snapshots and decode/encode them on workers. Format policy and hidden-record
+inclusion remain unchanged. Preparation has progress/cancellation, refuses
+competing requests and rejects late results after cancellation or navigation.
+Backup and field preparation share the library Files presenter exclusively;
+reading/restoring a backup retains concurrent editing/rebase behavior.
+
+All 127 app integration tests pass locally. Export tests reparse all six formats,
+verify type/name/geometry rules, retain a captured track after actual stores edit
+and delete data, propagate malformed required logs, cancel late encoders and
+exercise overlapping requests and failure-callback retry. A 5,000-waypoint/
+1,000-route/50,000-track-point GPX encoded in 1.406 seconds with 719 main-actor
+pulses and a 0.004-second largest observed gap. This is a model observation,
+not a physical-device/UI timing gate.
+
+Native Files workflows pass large GPX export/reopen with all 5,000 waypoints and
+1,000 routes; GPX from both the track detail and mixed-library menu, each reopening
+as exactly one track in night mode; existing GeoJSON, KML, KMZ and ATAK package
+round trips; and the night-mode backup export/delete/restore/relaunch regression.
+The final large-GPX and backup checks pass again after presenter-busy controls
+were unified. Day/night attachments were exported from closed bundles and
+inspected. The combined unsigned iPhone/embedded-watch Release build passes.
+See [field export preparation](export-preparation.md). Hosted CI, other synchronous
+library edits, dense-map profiling and physical provider/storage/memory/battery
+checks remain separate work.
