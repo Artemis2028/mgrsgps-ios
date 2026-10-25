@@ -26,6 +26,7 @@ public struct InterchangePreview: Sendable {
     public let format: TextInterchangeFormat
     public let document: Backup.Document
     public let skipped: Int
+    public var contents: InterchangeContents? = nil
     public var recordCount: Int { document.waypoints.count+document.graphics.count+document.tracks.count }
 }
 public enum TextInterchange {
@@ -68,6 +69,6 @@ public enum TextInterchange {
         }
         let document = try content.document(now: now,knownFolders: knownFolders)
         try Task.checkCancellation()
-        return .init(format: format,document: document,skipped: content.skipped)
+        return .init(format: format,document: document,skipped: content.skipped,contents: content)
     }
 }

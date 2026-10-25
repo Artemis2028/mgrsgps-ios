@@ -69,3 +69,22 @@ reference behavior, invalid inputs/distance limits, Android astronomy fixtures,
 manual/zero/missing/expired/polar declination, native date navigation, projected
 waypoint save/edit/relaunch, original-coordinate preservation and day/night
 screenshots. Physical field/compass/model comparisons remain release checks.
+
+## Position local/Zulu solar rows
+
+Android `4db6b21` adds four Position events: BMNT, sunrise (SR), sunset (SS) and
+EENT, each showing `HHMML HHMMZ`. iOS now provides them beneath Lensatic/Dial and
+in the scrollable Glance details, including compact landscape details. L uses
+the phone's current time zone and its local date, not a guessed zone at the GPS
+coordinate. The zone identifier is visible. Missing polar crossings show ----.
+The separate planning tool retains its local/Zulu sun and moon events.
+
+The readout caches by Android's hundredth-degree location bucket and ten-minute
+time window, and refreshes when the phone zone changes. It uses the existing
+solar model, independent of heading and movement source. Retained fixes still
+carry the screen's existing stale-position warning. App tests compare the four
+formatted rows against the existing Android-verified planner, including polar
+absence and a different phone zone. Native real-CoreLocation checks pass on Lensatic, Dial and Glance, including
+night Glance. All four rows were asserted and day/night screenshots were
+inspected. The complete 159-test app integration suite passes. Physical
+landscape, large-text and outdoor checks remain required.

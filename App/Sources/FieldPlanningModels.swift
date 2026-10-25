@@ -63,3 +63,25 @@ struct DeclinationDiagramReading {
 private extension GeoPoint {
     var validPlanningPoint: Bool { lat.isFinite && lon.isFinite && (-90...90).contains(lat) && (-180...180).contains(lon) }
 }
+
+/// The four compact Position events in Android 4db6b21. L is the phone's zone,
+/// not an inferred time zone at the fix. The planning tool retains moon events.
+struct PositionSunReadout: Equatable {
+    struct Event: Identifiable, Equatable {
+        let id:String
+        let value:String
+    }
+    let zone:String
+    let events:[Event]
+    init(point:GeoPoint,date:Date,timeZone:TimeZone) {
+        zone=timeZone.identifier
+        var calendar=Calendar(identifier:.gregorian);calendar.timeZone=timeZone
+        let components=calendar.dateComponents([.year,.month,.day],from:date)
+        let y=components.year ?? 2000,m=components.month ?? 1,d=components.day ?? 1
+        let sun=SunMoon.sunTimes(y:y,m:m,d:d,lat:point.lat,lon:point.lon)
+        events=[("BMNT",sun.bmnt),("SR",sun.sunrise),("SS",sun.sunset),("EENT",sun.eent)].map { name,hour in
+            let text=hour.map { SunMoon.formatLocal($0,y:y,m:m,d:d,timeZone:timeZone)+"L "+SunMoon.formatZulu($0) } ?? "----"
+            return Event(id:name,value:text)
+        }
+    }
+}

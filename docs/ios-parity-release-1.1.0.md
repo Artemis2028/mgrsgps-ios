@@ -79,6 +79,27 @@ cadence. Android backup keys/defaults/bounds persist across staged restore while
 local Live Activities consent stays separate. The complete core suite passes
 362 tests and all 158 app integration tests pass. A native settings workflow
 passes persistence, reminder selection and day/night inspection. See
-[lane startup and cues](navigation-lanes.md). Android's L/Z time rows and
-duplicate-import prompt, phone-to-watch status, physical field checks and the
-other performance/distribution gates remain open.
+[lane startup and cues](navigation-lanes.md). L/Z time rows and duplicate-import review are now implemented as described
+below. Phone-to-watch status, physical field checks and the other
+performance/distribution gates remain open.
+
+
+Position now shows BMNT/SR/SS/EENT in phone-local and Zulu time on Lensatic,
+Dial and scrollable Glance details, with the phone zone identified and polar
+absence preserved. The existing planning tool already shows local/Zulu sun and
+moon events. Duplicate interchange review now follows Android's committed
+`eacf084` indexed name/place and track name/count/length policy, with
+Skip/Import all/Cancel, worker preparation and stable filtered content IDs.
+Incoming files queue behind the current review. See [import review](import-review.md)
+and [Position solar rows](field-planning.md).
+
+All 366 core tests and 159 app integration tests pass. The existing native CSV
+cancel/import/Skip/relaunch regression and three expanded native workflows pass,
+covering Cancel/Import all/stable retry, mixed Skip/night/relaunch and real-GPS
+solar readouts on all three faces plus night Glance. Exported day/night screens
+were inspected. Both duplicate-review workflows pass again after final copy
+refinement, and the final unsigned phone/watch/activity-extension Release build
+passes. Test-owned simulators are stopped. Physical external-file/provider/queue and outdoor/large-text
+checks remain open. The newer Android `eacf084` lane geometry, backup-presence
+and related review changes are tracked in the source audit as the next parity
+pass; they are implementation work, not iOS restrictions.

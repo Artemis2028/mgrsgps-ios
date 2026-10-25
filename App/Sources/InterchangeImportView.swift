@@ -8,11 +8,20 @@ struct TextImportRequest: Identifiable {
 }
 
 struct InterchangeImportView: View {
+    @EnvironmentObject private var store: WaypointStore
+    @EnvironmentObject private var field: FieldDataStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
     let request: TextImportRequest
     let knownFolders: [String]
     let onImport: (Backup.Document) async throws -> InterchangeCoordinator.Result
+    private struct DuplicateReview: Sendable {
+        let total:Int
+        let count:Int
+        let all:Backup.Document
+        let filtered:Backup.Document
+    }
+    @State private var duplicateReview:DuplicateReview?
     @State private var text = ""
     @State private var preview: InterchangePreview?
     @State private var message: String?
@@ -51,7 +60,7 @@ struct InterchangeImportView: View {
                                 .accessibilityIdentifier("interchange-counts")
                             if preview.skipped > 0 { Text("\(preview.skipped) invalid or unsupported entries/coordinates skipped. Check the source before importing.") }
                             if preview.recordCount == 0 { Text("No supported records found. Nothing will be imported.") }
-                            Text("Existing records and settings are kept. Importing this unchanged content again adds no duplicates.")
+                            Text("Existing records and settings are kept. Matching records are reviewed before import. Reimporting unchanged content keeps saved edits.")
                             Text(preview.format.importNote).font(.footnote)
                             Text("Use a GridFix backup to preserve library symbols and settings.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
@@ -68,7 +77,7 @@ struct InterchangeImportView: View {
                     if let preview {
                         Button("Import") {
                             commit(preview)
-                        }.disabled(importing || preview.recordCount == 0).accessibilityIdentifier("confirm-gpx-import")
+                        }.disabled(working || importing || preview.recordCount == 0).accessibilityIdentifier("confirm-gpx-import")
                     } else {
                         Button("Preview") { prepare() }.disabled(working || (request.url == nil && text.isEmpty))
                             .accessibilityIdentifier("preview-interchange")
@@ -79,6 +88,13 @@ struct InterchangeImportView: View {
         }
         .foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent).fieldSheetAppearance()
         .onAppear { importCommit.setPresented(true); if request.url != nil { prepare() } }
+        .alert("Already here",isPresented:Binding(get:{duplicateReview != nil},set:{if !$0 {duplicateReview=nil}}),presenting:duplicateReview) { review in
+            Button("Skip \(review.count)") { finishImport(review.filtered) }
+            Button("Import all") { finishImport(review.all) }
+            Button("Cancel",role:.cancel) { duplicateReview=nil;message="Import cancelled. Nothing was added." }
+        } message: { review in
+            Text("\(review.count) of \(review.total) items match your library. Skip the matches, or import them too? Saved records won’t be overwritten.")
+        }
         .interactiveDismissDisabled(importing)
         .onDisappear { importCommit.setPresented(false); invalidate() }
     }
@@ -88,13 +104,36 @@ struct InterchangeImportView: View {
         // through disappearance so ordered publication can finish and report.
         guard !importing else { return }
         importCommit.clearFailure()
-        task?.cancel(); task = nil; generation = UUID(); preview = nil; message = nil; working = false
+        task?.cancel(); task = nil; generation = UUID(); preview = nil; duplicateReview=nil; message = nil; working = false
     }
     private func commit(_ preview: InterchangePreview) {
-        guard !working, preview.recordCount > 0 else { return }
-        editing = false; message = nil
-        importCommit.start(preview.document,apply: onImport) { result in
-            if result.completed { dismiss() } else { message = result.message }
+        guard !working,!importing,preview.recordCount>0 else {return}
+        editing=false;message=nil;working=true
+        let token=generation,waypoints=store.waypoints,graphics=field.document.graphics,tracks=field.document.tracks,folders=store.folders.map(\.name)
+        task=Task {
+            let checker=Task.detached(priority:.userInitiated) { () throws -> DuplicateReview in
+                guard let contents=preview.contents else {throw BackupError.notABackup("Preview this file again before importing.")}
+                let check=try ImportDuplicates.check(contents,waypoints:waypoints,graphics:graphics,tracks:tracks)
+                // Rebuild the filtered content's Android namespace/ordinals, rather
+                // than assigning random IDs or reusing mismatched filtered ordinals.
+                let filtered=check.duplicates>0 ? try check.withoutDuplicates.document(now:preview.document.exportedAt,knownFolders:folders) : preview.document
+                return DuplicateReview(total:check.total,count:check.duplicates,all:preview.document,filtered:filtered)
+            }
+            do {
+                let review=try await withTaskCancellationHandler(operation:{try await checker.value},onCancel:{checker.cancel()})
+                guard !Task.isCancelled,generation==token else {return}
+                working=false;task=nil
+                if review.count>0 {duplicateReview=review} else {finishImport(review.all)}
+            } catch {
+                guard !Task.isCancelled,generation==token else {return}
+                working=false;task=nil;message=error.localizedDescription
+            }
+        }
+    }
+    private func finishImport(_ document:Backup.Document) {
+        duplicateReview=nil
+        importCommit.start(document,apply:onImport) { result in
+            if result.completed {dismiss()} else {message=result.message}
         }
     }
 

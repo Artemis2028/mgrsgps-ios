@@ -28,6 +28,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         paste("CSV",csv); confirm()
         XCTAssertTrue(app.buttons["edit-waypoint-CSV Alpha"].waitForExistence(timeout: 5))
         paste("CSV",csv); confirm()
+        XCTAssertTrue(app.alerts["Already here"].waitForExistence(timeout:10));app.alerts["Already here"].buttons["Skip 1"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@","Nothing new to import")).firstMatch.waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         XCTAssertEqual(app.buttons.matching(identifier: "edit-waypoint-CSV Alpha").count,1)

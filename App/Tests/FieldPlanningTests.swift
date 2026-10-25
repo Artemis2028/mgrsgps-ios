@@ -44,4 +44,21 @@ final class FieldPlanningTests: XCTestCase {
         XCTAssertNil(polar.convergence); XCTAssertNil(polar.gridMagneticAngle); XCTAssertEqual(polar.magnetic,10)
         XCTAssertNil(DeclinationDiagramReading.at(.init(lat: 24,lon: 54),date: date,override: .nan).magnetic)
     }
+    func testPositionSolarRowsUsePhoneLocalDayAndExplicitLocalZuluSuffixes() throws {
+        let zone=try XCTUnwrap(TimeZone(identifier:"Asia/Dubai"))
+        let point=GeoPoint(lat:24.4539,lon:54.3773),date=day(2026,1,15,zone)
+        let readout=PositionSunReadout(point:point,date:date,timeZone:zone)
+        let plan=try SunMoonPlan(point:point,date:date,timeZone:zone)
+        XCTAssertEqual(readout.events.map(\.id),["BMNT","SR","SS","EENT"])
+        for (row,event) in zip(readout.events,[plan.sun[0],plan.sun[2],plan.sun[3],plan.sun[5]]) {
+            XCTAssertEqual(row.value,event.local+"L "+event.zulu)
+        }
+        let polar=PositionSunReadout(point:.init(lat:89,lon:0),date:day(2026,6,21,zone),timeZone:zone)
+        XCTAssertTrue(polar.events.allSatisfy{$0.value == "----"})
+        let utc=TimeZone(secondsFromGMT:0)!
+        let zulu=PositionSunReadout(point:point,date:date,timeZone:utc)
+        XCTAssertNotEqual(zulu.zone,readout.zone)
+        XCTAssertNotEqual(zulu.events.first?.value,readout.events.first?.value)
+    }
+
 }

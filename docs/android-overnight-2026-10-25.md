@@ -178,3 +178,19 @@ remain implementation gaps. Complete cached lane overlays are implemented on
 both watches; live phone-guidance status and watch background guidance remain
 open. The earlier audit paragraphs describe the state at their source snapshot,
 not the current implementation status.
+
+### New review commit discovered during the interchange pass
+
+Android has committed `eacf084` (merged into the current TAK development checkout
+at `86eb25f`). This is newer than the `4db6b21` lane-settings port. Its indexed,
+worker-based duplicate check, including track name/count/length matching, is the
+reference for the current iOS import-review work. iOS is not changing the other
+checkout's uncommitted TAK files.
+
+Still to port/audit from that review: lane geometry orientation and objective
+handling, refusal of self-returning/meeting limits, entered-state retention on
+same-lane reshaping, returning behind a crossed limit to not-yet, warnings obeying
+cue switches, dragged-point sanitization, preserving absent settings from old
+backups, and the offline/lasso/protected-export fixes. Existing iOS protections
+must be inspected individually before deciding which changes are actually
+missing. These are implementation/audit work, not platform limitations.

@@ -98,7 +98,11 @@ struct PositionView: View {
                     } else {
                         switch settings.face {
                         case .glance: glance
-                        case .lensatic, .dial: instrument
+                        case .lensatic, .dial:
+                            VStack(spacing:12) {
+                                instrument
+                                if let f=location.fix { PositionSunRows(point:.init(lat:f.lat,lon:f.lon),night:settings.nightMode) }
+                            }
                         }
                     }
                 }
@@ -279,6 +283,7 @@ struct PositionView: View {
                 row("UTM", Format.utm(UTM.coordinate(lat: f.lat, lon: f.lon)))
                 row("LAT/LON", Format.latLon(lat: f.lat, lon: f.lon, format: settings.latLonFormat))
                 row("DTG", Format.dtg(f.timestamp))
+                PositionSunRows(point:.init(lat:f.lat,lon:f.lon),night:settings.nightMode)
             }
         } else {
             row(headingLabel, headingLine).accessibilityElement(children: .combine).accessibilityIdentifier("position-heading-readout")
