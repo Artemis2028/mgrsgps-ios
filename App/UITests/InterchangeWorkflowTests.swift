@@ -54,8 +54,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         saveNativeFile(in: app)
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); app.buttons["import-field-file"].tap()
-        let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",String(name))).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 15),app.debugDescription); file.tap()
+        openSavedNativeFile(String(name),in: app)
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)
         XCTAssertEqual(app.staticTexts["interchange-counts"].label,"1 waypoints · 2 graphics/routes · 0 tracks")
         capture("geojson-file-import-preview"); app.buttons["Cancel"].tap()

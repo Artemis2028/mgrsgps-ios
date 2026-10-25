@@ -61,8 +61,8 @@ struct FieldLibraryView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(item: $routeRequest) { request in
                 RouteEditor(route: request.route) { route in
-                    try fieldData.saveGraphic(route); waypoints.addFolder(route.folder)
-                }
+                    _ = try await FieldEditAction.saveGraphic(route,original: request.route,field: fieldData,waypoints: waypoints)
+                }.id(request.id)
             }
         }.foregroundStyle(palette.ink).tint(palette.accent)
     }
@@ -79,15 +79,17 @@ struct RouteEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
     private let original: Backup.Graphic?
-    let onSave: (Backup.Graphic) throws -> Void
+    let onSave: (Backup.Graphic) async throws -> Void
     @State private var name: String
+    @State private var draftID: String
     @State private var folder: String
     @State private var points: [Backup.GraphicPoint]
-    @State private var error: String?
+    @StateObject private var mutation = FieldMutation()
     @FocusState private var focusedField: String?
 
-    init(route: Backup.Graphic?, onSave: @escaping (Backup.Graphic) throws -> Void) {
+    init(route: Backup.Graphic?, onSave: @escaping (Backup.Graphic) async throws -> Void) {
         original = route; self.onSave = onSave
+        _draftID = State(initialValue: route?.id ?? UUID().uuidString.lowercased())
         _name = State(initialValue: route?.name ?? "")
         _folder = State(initialValue: route?.folder ?? Folders.defaultFolder)
         _points = State(initialValue: route?.points ?? [])
@@ -121,8 +123,10 @@ struct RouteEditor: View {
                         .disabled(waypoints.waypoints.isEmpty)
                         .accessibilityIdentifier("append-route-waypoint")
                 } header: { Text("Vertices · in travel order") } footer: { Text("At least two vertices are required. Repeated vertices can close a route. Swipe a vertex to remove it.") }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let label = mutation.label { ProgressView(label) }
+                if let error = mutation.error { Text(error).foregroundStyle(.red) }
             }
+            .disabled(mutation.working)
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
             .onSubmit { focusedField = nil }
             .navigationTitle(original == nil ? "New route" : "Edit route").navigationBarTitleDisplayMode(.inline)
@@ -131,19 +135,21 @@ struct RouteEditor: View {
                     Spacer()
                     Button("Hide keyboard") { focusedField = nil }
                 }
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(mutation.working) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        var route = original ?? Backup.Graphic(id: UUID().uuidString.lowercased(), name: "", type: "route", points: [], createdAt: Int64(Date().timeIntervalSince1970 * 1000))
+                        var route = original ?? Backup.Graphic(id: draftID, name: "", type: "route", points: [], createdAt: Int64(Date().timeIntervalSince1970 * 1000))
                         route.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         route.folder = Folders.canonical(folder); route.points = points
-                        do { try onSave(route); dismiss() }
-                        catch { self.error = error.localizedDescription }
-                    }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || points.count < 2)
+                        focusedField = nil
+                        mutation.run("Saving route…",action: { try await onSave(route) },completion: { if $0 { dismiss() } })
+                    }.disabled(mutation.working || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || points.count < 2)
                         .accessibilityIdentifier("save-route")
                 }
             }
         }.foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent)
+            .interactiveDismissDisabled(mutation.working)
+            .onAppear { mutation.setPresented(true) }.onDisappear { mutation.setPresented(false) }
     }
 }
 
@@ -158,6 +164,7 @@ struct RouteDetailView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var routeRequest: RouteEditorRequest?
     @State private var status: String?
+    @StateObject private var mutation = FieldMutation()
     private var route: Backup.Graphic? { fieldData.document.graphics.first { $0.id == routeID } }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     private struct Prepared { let request: RouteCardRequest; let report: RouteCard.Report }
@@ -175,8 +182,7 @@ struct RouteDetailView: View {
             if let route {
                 Section {
                     Toggle("Visible on map", isOn: Binding(get: { self.route?.visible ?? false }, set: { visible in
-                        var changed = route; changed.visible = visible
-                        perform { try fieldData.saveGraphic(changed) }
+                        mutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(route.id,visible),to: fieldData) })
                     }))
                     Button("Edit route") { routeRequest = RouteEditorRequest(route: route) }
                     Button("Follow route automatically") { navigation.follow(route); if navigation.error == nil { onNavigate() } }
@@ -217,20 +223,26 @@ struct RouteDetailView: View {
                         ForEach(Array(ready.notes.enumerated()),id: \.offset) { _,note in Text(note).font(.footnote).foregroundStyle(palette.warn) }
                     } else if reportError == nil { ProgressView("Calculating route card") }
                 }
-                Button("Delete route", role: .destructive) { perform { try fieldData.deleteGraphic(route.id); dismiss() } }
+                Button("Delete route", role: .destructive) {
+                    mutation.run("Deleting route…",action: { try await FieldEditAction.apply(.deleteGraphic(route.id),to: fieldData) },completion: { if $0 { dismiss() } })
+                }
             }
+            if let label = mutation.label { ProgressView(label).tint(palette.accent) }
+            if let error = mutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn) }
             if let status { Text(status).font(.footnote).foregroundStyle(palette.accent) }
         }
+        .disabled(mutation.working)
+        .onAppear { mutation.setPresented(true) }
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(route?.name ?? "Route")
         .task(id: input) { await prepareReport() }
-        .onDisappear { cancelPDF() }
+        .onDisappear { mutation.setPresented(false); cancelPDF() }
         .onChange(of: scenePhase) { phase in if phase != .active { cancelPDF() } }
         .sheet(item: $pdfRequest) { RoutePDFPreview(request: $0) }
         .sheet(item: $routeRequest) { request in RouteEditor(route: request.route) { changed in
-            try fieldData.saveGraphic(changed); waypoints.addFolder(changed.folder)
-        } }
+            _ = try await FieldEditAction.saveGraphic(changed,original: request.route,field: fieldData,waypoints: waypoints)
+        }.id(request.id) }
     }
     private func generate(_ route: Backup.Graphic) throws {
         try waypoints.replaceRouteWaypoints(routeID: route.id, name: route.name, points: route.points.map { GeoPoint(lat: $0.lat, lon: $0.lon) }, folder: route.folder)
@@ -283,6 +295,7 @@ struct TrackDetailView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     @State private var status: String?
+    @StateObject private var mutation = FieldMutation()
     @State private var export: FieldExportDocumentFile?
     @StateObject private var exportTransfer = FieldExportTransfer()
     @State private var confirmingDelete = false
@@ -297,7 +310,7 @@ struct TrackDetailView: View {
                 Text(Format.distance(meters: track.distanceM, unit: settings.units))
                 Text("Folder: \(track.folder)")
                 Toggle("Visible on map", isOn: Binding(get: { self.track?.visible ?? false }, set: { visible in
-                    perform { try fieldData.setTrackVisible(trackID, visible: visible) }
+                    mutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(trackID,visible),to: fieldData) })
                 }))
                 Button("Export GPX") {
                     guard let current = fieldData.document.tracks.first(where: { $0.id == trackID }), export == nil else { return }
@@ -325,12 +338,14 @@ struct TrackDetailView: View {
                 Text("Backtracking creates a reversed route, targeting 20 m shape detail and at most 64 vertices. Review it before following; navigation and haptics do not start automatically.").font(.footnote)
                 Button("Delete track", role: .destructive) { confirmingDelete = true }
             }
+            if let label = mutation.label { ProgressView(label).tint(palette.accent) }
+            if let error = mutation.error { Text(error).foregroundStyle(palette.warn) }
             if let status { Text(status).foregroundStyle(.red) }
         }
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
         .navigationTitle(track?.name ?? "Track")
-        .disabled(exportTransfer.format != nil)
+        .disabled(exportTransfer.format != nil || mutation.working)
         .safeAreaInset(edge: .top) {
             if exportTransfer.format != nil {
                 HStack {
@@ -342,9 +357,10 @@ struct TrackDetailView: View {
                 }.padding(.horizontal,16).foregroundStyle(palette.ink).tint(palette.accent).accessibilityIdentifier("field-export-progress")
             }
         }
-        .onDisappear { exportTransfer.cancel(); backtrackWork?.cancel(); backtrackWork = nil; backtracking = false }
+        .onAppear { mutation.setPresented(true) }
+        .onDisappear { mutation.setPresented(false); exportTransfer.cancel(); backtrackWork?.cancel(); backtrackWork = nil; backtracking = false }
         .alert("Delete \(track?.name ?? "track")?",isPresented: $confirmingDelete) {
-            Button("Delete",role: .destructive) { perform { try fieldData.deleteTrack(trackID); dismiss() } }
+            Button("Delete",role: .destructive) { mutation.run("Deleting track…",action: { try await FieldEditAction.apply(.deleteTrack(trackID),to: fieldData) },completion: { if $0 { dismiss() } }) }
             Button("Cancel",role: .cancel) {}
         } message: { Text("The finished track and its saved point log will be removed.") }
         .fileExporter(isPresented: Binding(get: { export != nil }, set: { if !$0 { export = nil } }), document: export,

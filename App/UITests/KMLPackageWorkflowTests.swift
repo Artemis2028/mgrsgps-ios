@@ -26,8 +26,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
         saveNativeFile(in: app)
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); app.buttons["import-field-file"].tap()
-        let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",String(name))).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 15),app.debugDescription); file.tap()
+        openSavedNativeFile(String(name),in: app)
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)
     }
     private func capture(_ name: String) { let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = name; shot.lifetime = .keepAlways; add(shot) }

@@ -29,72 +29,96 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         return try TrackCodec.decode(bytes)
     }
 
-    public func saveGraphic(_ graphic: Backup.Graphic) throws {
-        lock.lock(); defer { lock.unlock() }
-        var next = document
-        if let index = next.graphics.firstIndex(where: { $0.id == graphic.id }) { next.graphics[index] = graphic }
-        else { next.graphics.append(graphic) }
-        try commit(next)
+    public enum Edit: Sendable {
+        case saveGraphic(Backup.Graphic)
+        case createGraphic(Backup.Graphic)
+        case editGraphic(original: Backup.Graphic,updated: Backup.Graphic)
+        case deleteGraphic(String)
+        case setGraphicVisible(String,Bool)
+        case setTrackVisible(String,Bool)
+        case deleteTrack(String)
+        case libraryBatch(graphicIDs: Set<String>,trackIDs: Set<String>,action: LibraryBatchAction)
+        case changeLibraryFolder(from: String,to: String?,deleteContents: Bool)
+        case moveTrack(String,String)
     }
 
-    public func deleteGraphic(_ id: String) throws {
-        lock.lock(); defer { lock.unlock() }
-        var next = document; next.graphics.removeAll { $0.id == id }; try commit(next)
-    }
-
-    public func setTrackVisible(_ id: String, visible: Bool) throws {
-        lock.lock(); defer { lock.unlock() }
-        var next = document
-        guard let index = next.tracks.firstIndex(where: { $0.id == id }) else { return }
-        next.tracks[index].visible = visible
-        try commit(next)
-    }
-
-    public func deleteTrack(_ id: String) throws {
-        lock.lock(); defer { lock.unlock() }
-        var next = document
-        next.tracks.removeAll { $0.id == id }; next.trackFiles.removeValue(forKey: id)
-        try commit(next)
-    }
-
+    public func saveGraphic(_ graphic: Backup.Graphic) throws { try edit(.saveGraphic(graphic)) }
+    public func deleteGraphic(_ id: String) throws { try edit(.deleteGraphic(id)) }
+    public func setTrackVisible(_ id: String,visible: Bool) throws { try edit(.setTrackVisible(id,visible)) }
+    public func deleteTrack(_ id: String) throws { try edit(.deleteTrack(id)) }
     public func applyLibraryBatch(graphicIDs: Set<String>,trackIDs: Set<String>,action: LibraryBatchAction) throws {
-        guard !graphicIDs.isEmpty || !trackIDs.isEmpty else { return }
-        lock.lock(); defer { lock.unlock() }
-        var next = document
-        switch action {
-        case .swapVisibility:
-            for i in next.graphics.indices where graphicIDs.contains(next.graphics[i].id) { next.graphics[i].visible.toggle() }
-            for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible.toggle() }
-        case .delete:
-            next.graphics.removeAll { graphicIDs.contains($0.id) }; next.tracks.removeAll { trackIDs.contains($0.id) }
-            for id in trackIDs { next.trackFiles.removeValue(forKey: id) }
-        }
-        try commit(next)
+        try edit(.libraryBatch(graphicIDs: graphicIDs,trackIDs: trackIDs,action: action))
     }
-
     public func changeLibraryFolder(from: String,to: String?,deleteContents: Bool = false) throws {
-        guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { return }
+        try edit(.changeLibraryFolder(from: from,to: to,deleteContents: deleteContents))
+    }
+    public func moveTrack(_ id: String,to folder: String) throws { try edit(.moveTrack(id,folder)) }
+
+    private func edit(_ edit: Edit) throws {
         lock.lock(); defer { lock.unlock() }
-        var next = document
-        if deleteContents {
-            let removedTracks = Set(next.tracks.filter { $0.folder.caseInsensitiveCompare(from) == .orderedSame }.map(\.id))
-            next.graphics.removeAll { $0.folder.caseInsensitiveCompare(from) == .orderedSame }
-            next.tracks.removeAll { removedTracks.contains($0.id) }
-            for id in removedTracks { next.trackFiles.removeValue(forKey: id) }
-        } else {
-            let target = Folders.canonical(to)
-            for i in next.graphics.indices where next.graphics[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.graphics[i].folder = target }
-            for i in next.tracks.indices where next.tracks[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.tracks[i].folder = target }
-        }
-        try commit(next)
+        if let next = try Self.applying(edit,to: document) { try commit(next) }
     }
 
-    public func moveTrack(_ id: String,to folder: String) throws {
-        lock.lock(); defer { lock.unlock() }
+    private static func applying(_ edit: Edit,to document: Backup.Document) throws -> Backup.Document? {
         var next = document
-        guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return }
-        next.tracks[i].folder = Folders.canonical(folder)
-        try commit(next)
+        switch edit {
+        case .saveGraphic(let graphic):
+            if let index = next.graphics.firstIndex(where: { $0.id == graphic.id }) { next.graphics[index] = graphic }
+            else { next.graphics.append(graphic) }
+        case .createGraphic(let graphic):
+            guard !next.graphics.contains(where: { $0.id == graphic.id }) else { return nil }
+            next.graphics.append(graphic)
+        case let .editGraphic(original,updated):
+            guard original.id == updated.id, let i = next.graphics.firstIndex(where: { $0.id == original.id }) else {
+                throw BackupError.notABackup("This graphic is no longer saved. Your draft is kept.")
+            }
+            // Like Android's scoped rename/updatePoints/setVisible operations,
+            // preserve current fields the editor did not change. Use exact bytes
+            // for strings: Swift equality folds canonical Unicode equivalents.
+            func changed(_ a: String,_ b: String) -> Bool { !a.utf8.elementsEqual(b.utf8) }
+            if changed(original.name,updated.name) { next.graphics[i].name = updated.name }
+            if changed(original.folder,updated.folder) { next.graphics[i].folder = updated.folder }
+            if changed(original.type,updated.type) { next.graphics[i].type = updated.type }
+            if changed(original.affiliation,updated.affiliation) { next.graphics[i].affiliation = updated.affiliation }
+            if changed(original.echelon,updated.echelon) { next.graphics[i].echelon = updated.echelon }
+            if original.points != updated.points { next.graphics[i].points = updated.points }
+            if original.visible != updated.visible { next.graphics[i].visible = updated.visible }
+        case .deleteGraphic(let id): next.graphics.removeAll { $0.id == id }
+        case let .setGraphicVisible(id,visible):
+            guard let i = next.graphics.firstIndex(where: { $0.id == id }) else { return nil }
+            next.graphics[i].visible = visible
+        case let .setTrackVisible(id,visible):
+            guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return nil }
+            next.tracks[i].visible = visible
+        case .deleteTrack(let id):
+            next.tracks.removeAll { $0.id == id }; next.trackFiles.removeValue(forKey: id)
+        case let .libraryBatch(graphicIDs,trackIDs,action):
+            guard !graphicIDs.isEmpty || !trackIDs.isEmpty else { return nil }
+            switch action {
+            case .swapVisibility:
+                for i in next.graphics.indices where graphicIDs.contains(next.graphics[i].id) { next.graphics[i].visible.toggle() }
+                for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible.toggle() }
+            case .delete:
+                next.graphics.removeAll { graphicIDs.contains($0.id) }; next.tracks.removeAll { trackIDs.contains($0.id) }
+                for id in trackIDs { next.trackFiles.removeValue(forKey: id) }
+            }
+        case let .changeLibraryFolder(from,to,deleteContents):
+            guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { return nil }
+            if deleteContents {
+                let removed = Set(next.tracks.filter { $0.folder.caseInsensitiveCompare(from) == .orderedSame }.map(\.id))
+                next.graphics.removeAll { $0.folder.caseInsensitiveCompare(from) == .orderedSame }
+                next.tracks.removeAll { removed.contains($0.id) }
+                for id in removed { next.trackFiles.removeValue(forKey: id) }
+            } else {
+                let target = Folders.canonical(to)
+                for i in next.graphics.indices where next.graphics[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.graphics[i].folder = target }
+                for i in next.tracks.indices where next.tracks[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.tracks[i].folder = target }
+            }
+        case let .moveTrack(id,folder):
+            guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return nil }
+            next.tracks[i].folder = Folders.canonical(folder)
+        }
+        return next
     }
 
     /// Final publication is idempotent after a crash between archive commit and
@@ -148,6 +172,14 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let identity: UUID
         fileprivate let destination: URL
 
+        /// Prepare an ordinary edit without borrowing the live repository lock.
+        public func prepare(edit: Edit) throws -> PreparedEdit {
+            try Task.checkCancellation()
+            let next = try FieldDataStore.applying(edit,to: document)
+            let file = try next.map { try PreparedAtomicFile(data: Backup.exportZip($0),destination: destination,lockCompatible: true) }
+            return PreparedEdit(document: next,revision: revision,identity: identity,file: file)
+        }
+
         /// May run on a worker. Does not read or mutate the live store.
         public func prepare(_ incoming: Backup.Document) throws -> PreparedRestore {
             try Backup.validate(incoming)
@@ -158,6 +190,24 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             else { file = nil }
             return PreparedRestore(document: next,result: result,revision: revision,identity: identity,file: file)
         }
+    }
+
+    public struct PreparedEdit: Sendable {
+        fileprivate let document: Backup.Document?
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile?
+    }
+
+    /// False means the source changed; reapply the intent to a fresh snapshot.
+    public func publishEdit(_ prepared: PreparedEdit) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw BackupError.notABackup("Prepared field edit belongs to a different store") }
+        guard prepared.revision == revision else { prepared.file?.discard(); return false }
+        if let file = prepared.file, let next = prepared.document {
+            try file.publish(); document = next
+        }
+        return true
     }
 
     public struct PreparedRestore: Sendable {

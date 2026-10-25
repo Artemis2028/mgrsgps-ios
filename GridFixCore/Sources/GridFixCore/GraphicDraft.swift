@@ -3,11 +3,12 @@ import Foundation
 /// Editable control measure; unrelated to the permitted-area crossing monitor.
 public struct GraphicDraft: Equatable, Sendable {
     public var graphic: Backup.Graphic
+    public private(set) var original: Backup.Graphic?
     public var selected: Int?
     public init(type: String) {
         graphic = .init(id: UUID().uuidString.lowercased(), name: GraphicTypes.label(type), type: type, points: [], createdAt: Int64(Date().timeIntervalSince1970 * 1000))
     }
-    public init(_ graphic: Backup.Graphic) { self.graphic = graphic }
+    public init(_ graphic: Backup.Graphic) { self.graphic = graphic; original = graphic }
     public var vertices: [GeoPoint] { graphic.points.map { .init(lat: $0.lat, lon: $0.lon) } }
     public var canAppend: Bool { graphic.points.count < (GraphicTypes.fixedPoints(graphic.type) ?? 4096) }
     public var validationMessage: String? {

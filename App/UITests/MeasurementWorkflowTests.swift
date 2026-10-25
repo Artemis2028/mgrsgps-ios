@@ -57,6 +57,8 @@ final class MeasurementWorkflowTests: XCTestCase {
         let name = app.textFields["graphic-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap()
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: (name.value as? String ?? "").count)+"Training area")
         app.buttons["Done"].tap(); app.buttons["save-graphic"].tap()
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: app.buttons["save-graphic"])
+        XCTAssertEqual(XCTWaiter.wait(for: [saved],timeout: 10),.completed,app.debugDescription)
         XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         app.buttons["map-graphics"].tap()

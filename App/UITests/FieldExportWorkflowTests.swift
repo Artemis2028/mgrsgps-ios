@@ -22,8 +22,7 @@ final class FieldExportWorkflowTests: XCTestCase {
         }
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["import-field-file"])
-        let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",name)).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 15),app.debugDescription); file.tap()
+        openSavedNativeFile(name,in: app)
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)
     }
     private func counts(_ expected: String) {

@@ -179,6 +179,8 @@ final class WaypointWorkflowTests: XCTestCase {
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true AND enabled == true"),object: save)
         XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 5),.completed)
         save.tap()
+        let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: save)
+        XCTAssertEqual(XCTWaiter.wait(for: [saved],timeout: 10),.completed,app.debugDescription)
         XCTAssertTrue(app.buttons["route-Training"].waitForExistence(timeout: 5))
         app.buttons["route-Training"].tap()
         app.buttons["generate-route-waypoints"].tap()

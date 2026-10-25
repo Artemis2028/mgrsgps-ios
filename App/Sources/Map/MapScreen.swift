@@ -43,6 +43,7 @@ struct MapScreen: View {
     @State private var rulerAnchor: GeoPoint?
     @State private var rulerTarget = GeoPoint(lat: 24.4539,lon: 54.3773)
     @State private var graphicError: String?
+    @StateObject private var graphicMutation = FieldMutation()
     @State private var routeWaypointOffer: Backup.Graphic?
     @State private var showingRouteWaypointOffer = false
     @State private var routeWaypointError: String?
@@ -96,12 +97,12 @@ struct MapScreen: View {
                              if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
                          },
                          graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
-                         onGraphicPoint: { graphicDraft?.append($0) },
-                         onGraphicSelect: { graphicDraft?.selected = $0 },
-                         onGraphicInsert: { index, point in graphicDraft?.selected = index; graphicDraft?.insert(point) },
-                         onGraphicMove: { graphicDraft?.move($0,to: $1) },
-                         onGraphicRemove: { index in graphicDraft?.selected = index; graphicDraft?.removeSelected() },
-                         onGraphicPick: { selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
+                         onGraphicPoint: { if !graphicMutation.working { graphicDraft?.append($0) } },
+                         onGraphicSelect: { if !graphicMutation.working { graphicDraft?.selected = $0 } },
+                         onGraphicInsert: { index, point in if !graphicMutation.working { graphicDraft?.selected = index; graphicDraft?.insert(point) } },
+                         onGraphicMove: { if !graphicMutation.working { graphicDraft?.move($0,to: $1) } },
+                         onGraphicRemove: { index in if !graphicMutation.working { graphicDraft?.selected = index; graphicDraft?.removeSelected() } },
+                         onGraphicPick: { guard !graphicMutation.working else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
                          cameraRequest: cameraRequest,
@@ -173,16 +174,20 @@ struct MapScreen: View {
                 }
                 if let draft = graphicDraft {
                     GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),measuringArea: $measuringArea,
-                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError,
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError ?? graphicMutation.error,saving: graphicMutation.working,
                         save: {
                             guard let draft = graphicDraft, draft.validationMessage == nil else { return }
-                            do {
-                                let isNew = !fieldData.document.graphics.contains { $0.id == draft.graphic.id }
-                                try fieldData.saveGraphic(draft.saved); store.addFolder(draft.saved.folder)
-                                graphicDraft = nil; graphicError = nil; measuringArea = false
-                                if isNew && draft.graphic.type == "route" { routeWaypointOffer = draft.saved; showingRouteWaypointOffer = true }
-                            }
-                            catch { graphicError = error.localizedDescription }
+                            graphicError = nil; routeWaypointOffer = nil
+                            let isNew = draft.original == nil
+                            graphicMutation.run("Saving graphic…",action: {
+                                let saved = try await FieldEditAction.saveGraphic(draft.saved,original: draft.original,field: fieldData,waypoints: store)
+                                if graphicDraft?.graphic.id == draft.graphic.id {
+                                    graphicDraft = nil; graphicError = nil; measuringArea = false
+                                    if isNew && saved.type == "route" { routeWaypointOffer = saved }
+                                }
+                            },completion: { presented in
+                                if presented && isNew && routeWaypointOffer != nil { showingRouteWaypointOffer = true }
+                            })
                         },cancel: { graphicDraft = nil; graphicError = nil; measuringArea = false })
                 }
                 if let waypoint = selected, boundaryDraft == nil && graphicDraft == nil {
@@ -227,6 +232,7 @@ struct MapScreen: View {
                     .accessibilityLabel("Add waypoint at map centre")
                 } }
             }
+            .disabled(graphicMutation.working)
             .padding(.horizontal, 16).padding(.top, 8)
             // The edge-to-edge UIKit map extends beneath the custom field bar.
             // Reserve its control row explicitly for the overlaid map actions.
@@ -236,7 +242,8 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
-        .onAppear { if let request = maps.focusRequest { cameraRequest = request } }
+        .onAppear { graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request } }
+        .onDisappear { graphicMutation.setPresented(false) }
         .onChange(of: maps.focusRequest?.id) { _ in if let request = maps.focusRequest { cameraRequest = request } }
         .onChange(of: terrain.viewshed?.id) { _ in
             if let shade = terrain.viewshed {
@@ -281,7 +288,7 @@ struct MapScreen: View {
         }
         .sheet(isPresented: $showingGraphics) {
             GraphicPanel(onDraw: { draft in
-                selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = draft
+                graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = draft
                 if !draft.vertices.isEmpty { cameraRequest = MapCameraRequest(action: .showBoundary(draft.graphic.mapExtentPoints)) }
             },onShow: { graphic in cameraRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)) },onNavigate: onNavigate)
         }

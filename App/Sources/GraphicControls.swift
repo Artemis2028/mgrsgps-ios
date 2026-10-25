@@ -6,7 +6,7 @@ struct GraphicPanel: View {
     @EnvironmentObject private var waypoints: WaypointStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
-    @State private var error: String?
+    @StateObject private var mutation = FieldMutation()
     @State private var deleting: Backup.Graphic?
     var onDraw: (GraphicDraft) -> Void
     var onShow: (Backup.Graphic) -> Void
@@ -36,7 +36,7 @@ struct GraphicPanel: View {
                                 }.accessibilityIdentifier("graphic-route-card-\(graphic.name)")
                             }
                             Toggle("Visible on map", isOn: Binding(get: { field.document.graphics.first { $0.id == graphic.id }?.visible ?? false }, set: { value in
-                                var changed = graphic; changed.visible = value; perform { try field.saveGraphic(changed) }
+                                mutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(graphic.id,value),to: field) })
                             })).accessibilityIdentifier("graphic-visible-\(graphic.name)")
                             HStack {
                                 Button("Show") { onShow(graphic); dismiss() }.accessibilityIdentifier("show-graphic-\(graphic.name)")
@@ -47,18 +47,19 @@ struct GraphicPanel: View {
                         }.padding(.vertical, 4)
                     }
                 }
-                if let error { Text(error).foregroundStyle(palette.warn) }
-            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                if let label = mutation.label { ProgressView(label).tint(palette.accent) }
+                if let error = mutation.error { Text(error).foregroundStyle(palette.warn) }
+            }.disabled(mutation.working).scrollContentBackground(.hidden).background { FieldScreenBackground() }
                 .foregroundStyle(palette.ink).tint(palette.accent)
                 .navigationTitle("Graphics & routes").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.disabled(mutation.working) } }
                 .alert("Delete graphic?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
-                    Button("Delete", role: .destructive) { if let deleting { perform { try field.deleteGraphic(deleting.id) } }; deleting = nil }
+                    Button("Delete", role: .destructive) { if let deleting { mutation.run("Deleting graphic…",action: { try await FieldEditAction.apply(.deleteGraphic(deleting.id),to: field) }) }; deleting = nil }
                     Button("Keep", role: .cancel) { deleting = nil }
                 }
-        }.fieldSheetAppearance()
+        }.fieldSheetAppearance().interactiveDismissDisabled(mutation.working)
+            .onAppear { mutation.setPresented(true) }.onDisappear { mutation.setPresented(false) }
     }
-    private func perform(_ action: () throws -> Void) { do { try action() } catch { self.error = error.localizedDescription } }
 }
 
 struct GraphicDrawingControls: View {
@@ -66,6 +67,7 @@ struct GraphicDrawingControls: View {
     @Binding var measuringArea: Bool
     let centre: GeoPoint
     let error: String?
+    var saving = false
     var save: () -> Void
     var cancel: () -> Void
     @State private var properties = false
@@ -95,8 +97,9 @@ struct GraphicDrawingControls: View {
             if verticalSizeClass != .compact && !measuringArea, let i = draft.selected, draft.graphic.points.indices.contains(i) {
                 Text(String(format: "%.6f, %.6f", draft.graphic.points[i].lat, draft.graphic.points[i].lon)).font(.system(.caption, design: .monospaced)).accessibilityIdentifier("graphic-selected-coordinate")
             }
+            if saving { ProgressView("Saving graphic…") }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
-        }.padding(verticalSizeClass == .compact ? 8 : 12).fieldChrome()
+        }.disabled(saving).padding(verticalSizeClass == .compact ? 8 : 12).fieldChrome()
             .sheet(isPresented: $measureResults,onDismiss: {
                 if convertMeasurement { convertMeasurement = false; properties = true }
             }) {

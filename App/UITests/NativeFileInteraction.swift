@@ -1,6 +1,53 @@
 import XCTest
 
 extension XCTestCase {
+    /// A saved export is not necessarily indexed in Recents. Hosted iOS 26.5
+    /// starts the backup picker there with an empty list; browse the local
+    /// provider used by these native save/reopen fixtures instead.
+    func openSavedNativeFile(_ name: String,in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+        let item = app.cells.containing(NSPredicate(format: "label CONTAINS %@",name)).firstMatch
+        let browse = app.tabBars["DOC.browsingModeTabBar"].buttons["Browse"]
+        XCTAssertTrue(browse.waitForExistence(timeout: 10),app.debugDescription,file: file,line: line)
+        browse.tap()
+        if !item.waitForExistence(timeout: 3) {
+            let local = app.cells.containing(.staticText,identifier: "On My iPhone").firstMatch
+            XCTAssertTrue(local.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
+            local.tap()
+        }
+        let files = app.collectionViews["File View"]
+        XCTAssertTrue(files.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
+        let navigation = app.navigationBars["FullDocumentManagerViewControllerNavigationBar"]
+        let tabs = app.tabBars["DOC.browsingModeTabBar"]
+        func unobscured() -> Bool {
+            guard item.exists && item.isHittable else { return false }
+            let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
+            let bottom = tabs.exists ? tabs.frame.minY : files.frame.maxY
+            return item.frame.midY > top+8 && item.frame.midY < bottom-8
+        }
+        func scroll(down: Bool) {
+            let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
+            let bottom = tabs.exists ? tabs.frame.minY : files.frame.maxY
+            let height = bottom-top, origin = app.frame.origin
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.midX-origin.x,dy: top+height*(down ? 0.25 : 0.75)-origin.y))
+            let end = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.midX-origin.x,dy: top+height*(down ? 0.75 : 0.25)-origin.y))
+            // A fast swipe leaves the target moving after XCTest's idle wait.
+            // Drag only in the unobscured viewport, then hold before releasing.
+            start.press(forDuration: 0.1,thenDragTo: end,withVelocity: .slow,thenHoldForDuration: 0.3)
+        }
+        // File cells are virtualized; saved documents beyond the first page
+        // may not enter the accessibility tree until the browser scrolls.
+        for _ in 0..<16 {
+            if unobscured() { break }
+            let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
+            scroll(down: item.exists && item.frame.midY < top+8)
+        }
+        XCTAssertTrue(item.exists,app.debugDescription,file: file,line: line)
+        XCTAssertTrue(unobscured(),app.debugDescription,file: file,line: line)
+        // Files can report a stale activation point after scrolling a recycled
+        // cell. Use its current visible frame, as with native menu controls.
+        tapNativeMenuItem(item,file: file,line: line)
+    }
+
     func saveNativeFile(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
         let identified = app.buttons["DOCPicker.actionButton"]
         if identified.exists { identified.tap(); return }

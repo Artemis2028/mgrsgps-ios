@@ -57,6 +57,7 @@ struct WaypointsView: View {
     @State private var backtrackWork: Task<Void,Never>?
     @StateObject private var backupTransfer = BackupTransfer()
     @StateObject private var fieldExport = FieldExportTransfer()
+    @StateObject private var fieldMutation = FieldMutation()
 
     private var libraryFolders: [FolderInfo] { listing.snapshot?.folders ?? [] }
     private var listedWaypoints: [Waypoint] { listing.snapshot?.waypoints ?? [] }
@@ -71,7 +72,7 @@ struct WaypointsView: View {
         ZStack {
             FieldScreenBackground()
             VStack(alignment: .leading, spacing: 0) {
-                header.disabled(preparingOutput)
+                header.disabled(preparingOutput || fieldMutation.working)
                 Button { showingLibrary = true } label: {
                     HStack {
                         Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
@@ -81,10 +82,12 @@ struct WaypointsView: View {
                         Image(systemName: "chevron.right").font(.caption)
                     }.padding(.horizontal, 20).frame(minHeight: 44)
                         .contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(preparingOutput).accessibilityIdentifier("open-field-library")
-                folderPicker.disabled(preparingOutput)
-                searchControls.disabled(preparingOutput)
-                libraryCaption.disabled(preparingOutput)
+                }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("open-field-library")
+                folderPicker.disabled(preparingOutput || fieldMutation.working)
+                searchControls.disabled(preparingOutput || fieldMutation.working)
+                libraryCaption.disabled(preparingOutput || fieldMutation.working)
+                if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
+                if let error = fieldMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20) }
                 if let format = fieldExport.format {
                     HStack {
                         ProgressView().tint(palette.accent)
@@ -118,15 +121,15 @@ struct WaypointsView: View {
                 } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
                     empty
                 } else {
-                    list.disabled(preparingOutput)
+                    list.disabled(preparingOutput || fieldMutation.working)
                 }
             }
             .padding(.bottom, 12)
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .onAppear { listing.activate() }
-        .onDisappear { listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
+        .onAppear { fieldMutation.setPresented(true); listing.activate() }
+        .onDisappear { fieldMutation.setPresented(false); listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
         .onReceive(store.$waypoints) { listing.setWaypoints($0) }
         .onReceive(store.$folders) { listing.setFolders($0) }
         .onReceive(fieldData.$document) { listing.setField(graphics: $0.graphics,tracks: $0.tracks) }
@@ -181,7 +184,7 @@ struct WaypointsView: View {
             LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
         }
         .sheet(item: $movingTrack) { track in
-            LibraryTrackFolderPicker(track: track,folders: libraryFolders) { try fieldData.moveTrack(track.id,to: $0) }
+            LibraryTrackFolderPicker(track: track,folders: libraryFolders) { folder in try await FieldEditAction.apply(.moveTrack(track.id,folder),to: fieldData) }.id(track.id)
         }
         .sheet(item: $routeDetail) { route in
             NavigationStack {
@@ -452,7 +455,7 @@ struct WaypointsView: View {
             Menu {
                 Button("Show on map") { showGraphic(graphic) }
                 if graphic.type == "route" { Button("Route card") { routeDetail = graphic } }
-                Button(graphic.visible ? "Hide on map" : "Make visible on map") { perform { try fieldData.applyLibraryBatch(graphicIDs: [graphic.id],trackIDs: [],action: .swapVisibility) } }
+                Button(graphic.visible ? "Hide on map" : "Make visible on map") { fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(graphic.id,!graphic.visible),to: fieldData) }) }
                 Button("Delete",role: .destructive) { selection = LibrarySelection(); selection.graphics = [graphic.id]; deleteSelection = true }
             } label: { Image(systemName: "ellipsis").frame(width: 44,height: 44) }.accessibilityLabel("Actions for graphic \(graphic.name)")
         }.padding(12).fieldContentSurface(night: settings.nightMode)
@@ -675,7 +678,7 @@ struct WaypointsView: View {
         case "stop": maps.viewedTrackID = nil
         case "move": movingTrack = track
         case "backtrack": if backtrackingID == nil && track.pointCount >= 2 { backtrack(track) }
-        case "visibility": perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) }
+        case "visibility": fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(track.id,!track.visible),to: fieldData) })
         case "export":
             guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
             searchFocused = false; status = nil

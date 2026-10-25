@@ -145,3 +145,64 @@ inspected. The combined unsigned iPhone/embedded-watch Release build passes.
 See [field export preparation](export-preparation.md). Hosted CI, other synchronous
 library edits, dense-map profiling and physical provider/storage/memory/battery
 checks remain separate work.
+
+## Worker-prepared field edits and hosted picker regression
+
+Normal graphic/route saves, panel/detail graphic/route/track visibility and
+deletion, library-row graphic/track visibility, track-folder moves and backtrack
+graphic publication now stage their
+archive edits on workers. Changed-field patches preserve concurrent geometry or
+metadata; deleted originals are not recreated. New route editors retain their
+identity across retry. Folder registration uses the staged waypoint merge and
+reports a graphic already saved if its second store fails. Core tests cover
+atomic/stale/owner/failure behavior and intact logs/history; app tests cover the
+production path, partial folder failure, selection, ownership and concurrent
+large-archive edits. The milestone passes 310 core and 133 app integration tests.
+
+The first native matrix passes all 18 drawing/library/measurement/route-creation
+workflows. A focused follow-up passes night-mode route edit/visibility/delete and
+graphic/track visibility/delete with relaunch, plus strengthened drawing/area/
+route tests that wait for save acknowledgement before terminating the app.
+Snapshots and tests do not establish physical large-archive map performance.
+See [field edit preparation](field-edit-preparation.md) for remaining synchronous
+waypoint, mixed-folder/batch, recording-finalization and course-result paths.
+
+Hosted run 40168664266's actual closed xcresult reports 163 passed / 1 failed,
+with zero skips. Its lone failure is BackupWorkflowTests at saved-file selection.
+The hierarchy shows the system document picker on an empty Recents tab, and its
+video shows the preceding export saved under On My iPhone. This is a native Files
+test navigation assumption, not evidence of a restore data failure. The artifact
+exceeded the connector's 512 MiB limit and was retrieved through GitHub CLI.
+Round-trip tests now explicitly use Browse → the local provider and scroll its
+virtualized File View before selecting the exact saved filename. The backup
+regression deliberately visits Recents first. Record/restore assertions remain.
+The first helper revision exposed offscreen file cells in the populated local
+simulator; scoped browser scrolling fixes that without deleting prior files.
+
+That hosted integration/UI step took about 58 minutes before the added large-data
+and edit/export coverage. The outer CI budget is now 90 minutes so all assertions,
+separate real-location workflows and diagnostic upload retain their gates.
+Local passes do not establish that the updated hosted run is green.
+
+The corrected native Files helper passes all six backup/large-GPX/GeoJSON/
+KML/ATAK/KMZ cases in the closed `gridfix-field-edit-picker-scroll.xcresult`
+bundle (six passes, zero failures/skips). It uses a slow drag confined between
+the Files navigation bar and tab bar, holds before release to stop momentum,
+then taps the validated current cell frame. A preceding KMZ run caught a cell
+moving behind the navigation bar after a fast swipe; its visibility assertion
+prevented a misleading tap. A clean local rebuild was required to stop callers
+executing older incremental helper bodies. No saved exports were removed and no
+restore/count assertions were weakened to obtain the pass.
+
+Route-edit and track-detail night screenshots and the area-measurement sheet were
+exported and visually inspected. The current core suite passes 331 tests,
+including an explicit-hide/concurrent-hide-and-rename regression and 20 new
+Android navigation-lane geometry/guide/model cases. The final unsigned
+phone/embedded-watch Release build passes. Lane UI, persistence and active
+guidance remain pending; see the [overnight audit](android-overnight-2026-10-25.md).
+
+After the explicit library-row visibility fix, the closed
+`gridfix-field-edit-final-ownership.xcresult` passes all 133 app integration
+tests and both native night-mode field-edit/relaunch cases: 135 passed,
+zero failures/skips. Individual Hide applies the requested visibility even if
+another edit already hid the record; mixed batch swaps remain swaps.

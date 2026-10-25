@@ -19,7 +19,7 @@ enum TrackBacktrackAction {
         route.name = String(("Back "+current.name).prefix(20))
         route.folder = try waypoints.createLibraryFolder(current.folder)
         try waypoints.setLibraryFolderVisible(route.folder,visible: true)
-        try field.saveGraphic(route)
+        try await FieldEditAction.apply(.createGraphic(route),to: field)
         return route
     }
 }

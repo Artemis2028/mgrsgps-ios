@@ -120,7 +120,10 @@ Unicode ties, moved coordinates, edits, folder collation and mixed IDs. App test
 hold workers across newer queries, source deletion and screen reactivation.
 The large-library native fixture uses actual saved stores and production listing
 with 5,000 waypoints, 100 folders and 1,000 routes. This does not establish physical
-storage/battery performance or remove synchronous edit/interchange work.
+storage/battery performance. Interchange publication and normal graphic/track
+edits now use worker-prepared writes; waypoint edits and mixed-store folder/
+batch operations still have synchronous paths. See
+[field edit preparation](field-edit-preparation.md).
 
 The stress workflow exposed repeated map hierarchy rebuilds during individual
 marker insertion. Map marker differences now publish through batched removal and

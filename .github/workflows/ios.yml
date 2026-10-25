@@ -18,9 +18,10 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    # Run 40158734078 used 39 minutes for UI alone, with nine early failures.
-    # Keep every assertion plus the separate GPS workflows within the job budget.
-    timeout-minutes: 75
+    # Run 40168664266 needed 58 minutes for the integration/UI step alone.
+    # Preserve all assertions, added large-library/edit/export coverage and the
+    # separate real-location workflows, with time left to upload diagnostics.
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v4

@@ -44,8 +44,8 @@ struct LibraryFolderEditor: View {
 struct LibraryTrackFolderPicker: View {
     let track: Backup.TrackMeta
     let folders: [FolderInfo]
-    var move: (String) throws -> Void
-    @State private var error: String?
+    var move: (String) async throws -> Void
+    @StateObject private var mutation = FieldMutation()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
     var body: some View {
@@ -53,7 +53,7 @@ struct LibraryTrackFolderPicker: View {
             List {
                 ForEach(folders) { folder in
                     Button {
-                        do { try move(folder.name); dismiss() } catch { self.error = error.localizedDescription }
+                        mutation.run("Moving track…",action: { try await move(folder.name) },completion: { if $0 { dismiss() } })
                     } label: {
                         HStack {
                             Text(folder.name == track.folder ? "\(folder.name) (current)" : folder.name)
@@ -61,11 +61,13 @@ struct LibraryTrackFolderPicker: View {
                         }.frame(maxWidth: .infinity,minHeight: 44).contentShape(Rectangle())
                     }.buttonStyle(.plain).disabled(folder.name == track.folder).accessibilityIdentifier("move-track-to-\(folder.name)")
                 }
-                if let error { Text(error).foregroundStyle(FieldPalette(night: night).warn) }
-            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                if let label = mutation.label { ProgressView(label) }
+                if let error = mutation.error { Text(error).foregroundStyle(FieldPalette(night: night).warn) }
+            }.disabled(mutation.working).scrollContentBackground(.hidden).background { FieldScreenBackground() }
                 .foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent)
                 .navigationTitle("Move \(track.name)").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
-        }.fieldSheetAppearance()
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(mutation.working) } }
+        }.fieldSheetAppearance().interactiveDismissDisabled(mutation.working)
+            .onAppear { mutation.setPresented(true) }.onDisappear { mutation.setPresented(false) }
     }
 }

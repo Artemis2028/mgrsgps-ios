@@ -81,7 +81,9 @@ long routes beyond 64 points and bound off-screen obstacle work. UI workflows
 exercise map drawing, midpoint-handle insertion/dragging, save/edit/relaunch, ring/sector
 completion, route snapping and generation, and isolation from boundary alerts.
 
-The ruler/area-measure mode, terrain readouts, profiles, line-of-sight and viewshed
-are separate remaining tools. This milestone does not implement those tools.
+The separate [ruler/area-measure tools](map-measurement.md) and
+[terrain readouts, profiles, line-of-sight and viewshed](terrain-visibility.md)
+are now implemented in later milestones. Normal graphic/route saves, visibility
+and deletion also use [worker-prepared archive edits](field-edit-preparation.md).
 Physical outdoor readability and large field-library performance still need a
 device check; neither is a claim that missing tools are restricted by iOS.

@@ -24,8 +24,10 @@ final class BackupWorkflowTests: XCTestCase {
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5)); tapNativeMenuItem(confirmation.buttons["Delete"])
         XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5))
         actions.tap(); tapNativeMenuItem(app.buttons["Import backup"])
-        let file = app.cells.containing(NSPredicate(format: "label CONTAINS %@",String(name))).firstMatch
-        XCTAssertTrue(file.waitForExistence(timeout: 15),app.debugDescription); file.tap()
+        let recents = app.tabBars["DOC.browsingModeTabBar"].buttons["Recents"]
+        XCTAssertTrue(recents.waitForExistence(timeout: 10),app.debugDescription); recents.tap()
+        capture("backup-picker-recents",app)
+        openSavedNativeFile(String(name),in: app)
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","Restored"),object: app.staticTexts["library-status"])
         XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 15),.completed,app.debugDescription)
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
