@@ -5,12 +5,14 @@ import Foundation
 ///
 /// File-backed JSON (not Core Data) so the on-disk shape stays close to the
 /// backup document and a restore can merge by id without a schema migration.
-/// Thread-safe enough for the main-actor UI: every mutation rewrites the file
-/// atomically.
+/// Editor and restore workflows prepare immutable snapshots on workers, then
+/// atomically publish on the UI executor. Legacy mutation helpers remain for
+/// setup and the remaining non-editor workflows.
 public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     @Published public private(set) var waypoints: [Waypoint] = [] { didSet { revision &+= 1 } }
     @Published public private(set) var folders: [FolderInfo] = [] { didSet { revision &+= 1 } }
+    @Published public private(set) var loadError: String?
     @Published public private(set) var selectedId: String? { didSet { revision &+= 1 } }
 
     private let fileURL: URL
@@ -176,6 +178,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     }
 
     private func publishLibraryLocked(_ next: [Waypoint],folders: [FolderInfo],selection: String?) throws {
+        if let loadError { throw BackupError.notABackup(loadError) }
         let nextFolders = Self.mergeFolderList(stored: folders,referenced: next.map(\.folder))
         let data = try JSONEncoder().encode(Snapshot(waypoints: next,folders: nextFolders,selectedId: selection))
         try data.write(to: fileURL,options: .atomic)
@@ -243,6 +246,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     @discardableResult
     public func restore(waypoints incoming: [Waypoint], folders incomingFolders: [FolderInfo]) throws -> Int {
         lock.lock(); defer { lock.unlock() }
+        if let loadError { throw BackupError.notABackup(loadError) }
         let base = Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId)
         let (next,added) = Self.merged(base,waypoints: incoming,folders: incomingFolders)
         try JSONEncoder().encode(next).write(to: fileURL,options: .atomic)
@@ -275,8 +279,60 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
         fileprivate let destination: URL
+        fileprivate let loadError: String?
+        fileprivate let allowsDefaultSelection: Bool
+
+        public func prepare(edit: Edit) throws -> PreparedEdit {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            var next = base
+            let draft: WaypointDraft
+            switch edit { case .create(_,_,let value), .update(_,let value): draft = value }
+            guard !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  TrackCodec.validCoordinates(draft.lat,draft.lon), draft.rotation.isFinite else { throw EditFailure.invalid }
+            let names = base.folders.map(\.name) + base.waypoints.map(\.folder)
+            let folder = Folders.match(known: names,raw: draft.folder)
+            let saved: Waypoint
+            switch edit {
+            case let .create(id,createdAt,draft):
+                guard !id.isEmpty else { throw EditFailure.invalid }
+                if let existing = base.waypoints.first(where: { $0.id == id }) {
+                    return .init(snapshot: base,waypoint: existing,revision: revision,identity: identity,file: nil)
+                }
+                saved = Waypoint(id: id,name: draft.name,lat: draft.lat,lon: draft.lon,createdAt: createdAt,folder: folder,
+                                 symbol: draft.symbol,affiliation: draft.affiliation,echelon: draft.echelon,designation: draft.designation,
+                                 kind: draft.kind,rotation: draft.rotation,metadata: draft.metadata ?? .init())
+                next.waypoints.append(saved)
+                // Android add selects its new point only if no target exists.
+                // A running practice course retains its explicit target lock.
+                if next.selectedId == nil, allowsDefaultSelection { next.selectedId = saved.id }
+            case let .update(original,draft):
+                guard let index = next.waypoints.firstIndex(where: { $0.id == original.id }) else { throw EditFailure.removed }
+                var value = next.waypoints[index]
+                func changed(_ a: String,_ b: String) -> Bool { !a.utf8.elementsEqual(b.utf8) }
+                if changed(original.name,draft.name) { value.name = draft.name }
+                if original.lat != draft.lat || original.lon != draft.lon { value.lat = draft.lat; value.lon = draft.lon }
+                if changed(original.folder,draft.folder) { value.folder = folder }
+                if changed(original.symbol,draft.symbol) { value.symbol = draft.symbol }
+                if changed(original.affiliation,draft.affiliation) { value.affiliation = draft.affiliation }
+                if changed(original.echelon,draft.echelon) { value.echelon = draft.echelon }
+                if changed(original.designation,draft.designation) { value.designation = draft.designation }
+                if changed(original.kind,draft.kind) { value.kind = draft.kind }
+                if original.rotation != draft.rotation { value.rotation = draft.rotation }
+                if let metadata = draft.metadata {
+                    if metadata.color != original.metadata.color { value.metadata.color = metadata.color }
+                    if metadata.milgpsSymbolCode != original.metadata.milgpsSymbolCode { value.metadata.milgpsSymbolCode = metadata.milgpsSymbolCode }
+                    if metadata.elevationMeters != original.metadata.elevationMeters { value.metadata.elevationMeters = metadata.elevationMeters }
+                    if metadata.timestampMillis != original.metadata.timestampMillis { value.metadata.timestampMillis = metadata.timestampMillis }
+                }
+                next.waypoints[index] = value; saved = value
+            }
+            next.folders = WaypointStore.mergeFolderList(stored: base.folders,referenced: next.waypoints.map(\.folder))
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
+            return .init(snapshot: next,waypoint: saved,revision: revision,identity: identity,file: file)
+        }
 
         public func prepare(waypoints: [Waypoint],folders: [FolderInfo]) throws -> PreparedRestore {
+            if let loadError { throw BackupError.notABackup(loadError) }
             let (next,count) = WaypointStore.merged(base,waypoints: waypoints,folders: folders)
             let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
             return PreparedRestore(snapshot: next,count: count,revision: revision,identity: identity,file: file)
@@ -293,7 +349,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     public func restoreSnapshot() -> RestoreSnapshot {
         lock.lock(); defer { lock.unlock() }
-        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL)
+        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL,loadError: loadError,allowsDefaultSelection: !practiceNavigationLocked)
     }
 
     /// Publish on the UI executor. Nil requests a fresh merge after an edit.
@@ -308,10 +364,45 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         return prepared.count
     }
 
+    /// Immutable editor intent. A create ID/time belongs to the presentation,
+    /// so rebasing or retrying a failed write cannot create duplicate points.
+    public enum Edit: Sendable {
+        case create(id: String,createdAt: Int64,draft: WaypointDraft)
+        case update(original: Waypoint,draft: WaypointDraft)
+    }
+    public struct PreparedEdit: Sendable {
+        fileprivate let snapshot: Snapshot
+        fileprivate let waypoint: Waypoint
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile?
+    }
+    public enum EditFailure: LocalizedError {
+        case invalid,removed,wrongStore
+        public var errorDescription: String? {
+            switch self {
+            case .invalid: return "Enter a name and valid coordinates before saving."
+            case .removed: return "This waypoint is no longer saved."
+            case .wrongStore: return "This waypoint save belongs to a different library."
+            }
+        }
+    }
+    public func publishEdit(_ prepared: PreparedEdit) throws -> Waypoint? {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw EditFailure.wrongStore }
+        guard prepared.revision == revision else { prepared.file?.discard(); return nil }
+        if let file = prepared.file {
+            try file.publish()
+            waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders; selectedId = prepared.snapshot.selectedId
+        }
+        return prepared.waypoint
+    }
+
     /// Port of Android replaceRouteWaypoints: owner ID/index establish identity;
     /// names never do. Duplicate legacy owners are retained as standalone points.
     public func replaceRouteWaypoints(routeID: String, name: String, points: [GeoPoint], folder: String,
                                       now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) throws {
+        if let loadError { throw BackupError.notABackup(loadError) }
         guard !routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               points.allSatisfy({ TrackCodec.validCoordinates($0.lat, $0.lon) }) else { throw BackupError.notABackup("Invalid route") }
         lock.lock(); defer { lock.unlock() }
@@ -357,10 +448,14 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     private func load() {
         lock.lock(); defer { lock.unlock() }
-        guard let data = try? Data(contentsOf: fileURL),
-              let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else {
-            folders = [FolderInfo(name: Folders.defaultFolder)]
-            return
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            folders = [FolderInfo(name: Folders.defaultFolder)]; return
+        }
+        let snap: Snapshot
+        do { snap = try JSONDecoder().decode(Snapshot.self,from: Data(contentsOf: fileURL)) }
+        catch {
+            loadError = "Cannot read saved waypoints. The original file has been kept."
+            folders = [FolderInfo(name: Folders.defaultFolder)]; return
         }
         waypoints = snap.waypoints.map {
             var w = $0
@@ -377,6 +472,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     }
 
     private func persistLocked() {
+        guard loadError == nil else { return }
         let snap = Snapshot(waypoints: waypoints, folders: folders, selectedId: selectedId)
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)

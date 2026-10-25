@@ -17,7 +17,10 @@ struct WaypointEditor: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var waypoints: WaypointStore
     private let waypoint: Waypoint?
-    private let onSave: (WaypointDraft) -> Void
+    private let onSave: (Waypoint) -> Void
+    @StateObject private var mutation = FieldMutation()
+    @State private var creationID = UUID().uuidString
+    @State private var creationTime = Int64(Date().timeIntervalSince1970 * 1000)
     private enum InputField: Hashable { case name, folder, grid, latitude, longitude, designation, azimuth, distance }
     @FocusState private var focusedInput: InputField?
     @State private var name: String
@@ -58,7 +61,7 @@ struct WaypointEditor: View {
     private var rowBackground: Color { night ? .black : Color(uiColor: .secondarySystemGroupedBackground) }
 
     init(waypoint: Waypoint? = nil, lat: Double? = nil, lon: Double? = nil,
-         onSave: @escaping (WaypointDraft) -> Void) {
+         onSave: @escaping (Waypoint) -> Void) {
         self.waypoint = waypoint
         self.onSave = onSave
         _name = State(initialValue: waypoint?.name ?? "")
@@ -76,6 +79,14 @@ struct WaypointEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
+                    Button("Repair test storage") {
+                        let blocked = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                        if (try? FileManager.default.contentsOfDirectory(atPath: blocked.path))?.isEmpty == true { try? FileManager.default.removeItem(at: blocked) }
+                    }.accessibilityIdentifier("waypoint-repair-test-storage")
+                }
+                #endif
                 Section("Waypoint") {
                     TextField("Name", text: $name, prompt: Text("Name").foregroundColor(secondaryInk)).focused($focusedInput,equals: .name).accessibilityIdentifier("waypoint-name")
                     TextField("Folder", text: $folder, prompt: Text("Folder").foregroundColor(secondaryInk)).focused($focusedInput,equals: .folder).accessibilityIdentifier("waypoint-folder")
@@ -181,6 +192,19 @@ struct WaypointEditor: View {
                 }.listRowBackground(rowBackground)
             }
             .autocorrectionDisabled()
+            .safeAreaInset(edge: .top,spacing: 0) {
+                if mutation.error != nil || mutation.label != nil {
+                    VStack(alignment: .leading,spacing: 8) {
+                        if let error = mutation.error {
+                            let reason = error.hasSuffix(".") ? error : error + "."
+                            Text("Could not save waypoint. " + reason + " Your draft is kept.")
+                                .foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-save-error")
+                        }
+                        if let label = mutation.label { HStack { ProgressView(); Text(label) }.accessibilityIdentifier("waypoint-save-progress") }
+                    }.font(.footnote).frame(maxWidth: .infinity,alignment: .leading).padding(12).background(palette.background)
+                }
+            }
+            .disabled(mutation.working)
             .onSubmit { focusedInput = nil }
             .foregroundStyle(palette.ink)
             .scrollContentBackground(.hidden)
@@ -189,15 +213,18 @@ struct WaypointEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focusedInput = nil }.accessibilityIdentifier("waypoint-keyboard-done") }
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(mutation.working) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedPosition == nil)
+                        .disabled(mutation.working || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedPosition == nil)
                         .accessibilityIdentifier("waypoint-save")
                 }
             }
             .tint(palette.accent)
         }.fieldSheetAppearance()
+        .interactiveDismissDisabled(mutation.working)
+        .onAppear { mutation.setPresented(true) }
+        .onDisappear { mutation.setPresented(false) }
         .onChange(of: symbol) { value in
             focusedInput = nil
             if markerMetadata != nil { markerMetadata?.color = nil; markerMetadata?.milgpsSymbolCode = nil }
@@ -242,9 +269,16 @@ struct WaypointEditor: View {
         guard let position = selectedPosition else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        onSave(WaypointDraft(name: trimmed, lat: position.lat, lon: position.lon, folder: folder,
-                             symbol: symbol, affiliation: affiliation, echelon: echelon,
-                             designation: designation, kind: kind, rotation: rotation, metadata: markerMetadata))
-        dismiss()
+        let draft = WaypointDraft(name: trimmed, lat: position.lat, lon: position.lon, folder: folder,
+                                  symbol: symbol, affiliation: affiliation, echelon: echelon,
+                                  designation: designation, kind: kind, rotation: rotation, metadata: markerMetadata)
+        let edit = waypoint.map { WaypointStore.Edit.update(original: $0,draft: draft) }
+            ?? .create(id: creationID,createdAt: creationTime,draft: draft)
+        var result: Waypoint?
+        focusedInput = nil
+        mutation.run("Saving waypoint…",action: { result = try await WaypointEditAction.save(edit,to: waypoints) },completion: { presented in
+            guard presented,let result else { return }
+            onSave(result); dismiss()
+        })
     }
 }

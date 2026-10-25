@@ -36,6 +36,14 @@ struct MGRSGPSApp: App {
         #endif
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {
+            if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailureNight") { settingsStore.nightMode = true }
+            if !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+                try? FileManager.default.createDirectory(at: directory.appendingPathComponent("waypoints-v1.json"),withIntermediateDirectories: false)
+            }
+        }
+        #endif
         OrientationState.shared.prepare(settingsStore.orientation)
         #if DEBUG
         WatchPhoneBridge.seedUITest(store: waypointStore, settings: settingsStore)

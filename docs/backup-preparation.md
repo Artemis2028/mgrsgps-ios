@@ -38,3 +38,8 @@ Optional [password protection](protected-backups.md) wraps this same archive
 and restore order. Key derivation/encryption/decryption run on workers; protected
 files are authenticated and fully parsed before any commit begins. Ordinary ZIP
 export remains available.
+
+Ordinary map/library waypoint editor saves now use their own revision-checked
+[worker preparation and durable retry](waypoint-editor-persistence.md). The
+remaining synchronous operations are non-editor batches, folders and session
+selection/finalization paths, rather than the ordinary editor.

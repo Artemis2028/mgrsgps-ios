@@ -351,8 +351,7 @@ struct MapScreen: View {
             MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
         }
         .sheet(item: $editorRequest) { request in
-            WaypointEditor(lat: request.lat, lon: request.lon) { draft in
-                let waypoint = store.add(draft)
+            WaypointEditor(lat: request.lat, lon: request.lon) { waypoint in
                 selectedID = waypoint.id
             }
         }

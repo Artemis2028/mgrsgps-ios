@@ -78,6 +78,10 @@ struct WaypointsView: View {
             FieldScreenBackground()
             VStack(alignment: .leading, spacing: 0) {
                 header.disabled(preparingOutput || fieldMutation.working)
+                if let error = store.loadError {
+                    Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20).padding(.vertical,8)
+                        .accessibilityIdentifier("waypoint-library-load-error")
+                }
                 Button { showingLibrary = true } label: {
                     HStack {
                         Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
@@ -228,9 +232,7 @@ struct WaypointsView: View {
             Button("Cancel",role: .cancel) {}
         } message: { name in Text("Remove \(name) and move its waypoints, graphics and finished tracks to Base, or delete them with the folder. Active recording is kept.") }
         .sheet(item: $editorRequest) { request in
-            WaypointEditor(waypoint: request.waypoint, lat: request.lat, lon: request.lon) { draft in
-                if let editing = request.waypoint { store.update(id: editing.id, draft: draft) }
-                else { store.add(draft) }
+            WaypointEditor(waypoint: request.waypoint, lat: request.lat, lon: request.lon) { _ in
                 status = nil
             }
         }
