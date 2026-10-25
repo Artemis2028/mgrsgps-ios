@@ -81,8 +81,10 @@ final class AppSettings: ObservableObject {
 
     private let fileURL: URL
     private var ready = false
+    private var revision: UInt64 = 0
+    private let identity = UUID()
 
-    private struct Snapshot: Codable {
+    private struct Snapshot: Codable, Sendable {
         var nightMode: Bool
         var mgrsDigits: Int
         var gridSystem: Int?
@@ -175,6 +177,11 @@ final class AppSettings: ObservableObject {
     }
 
     func applyBackup(_ s: Backup.AppSettings) throws {
+        try Self.encodeBackup(s).write(to: fileURL,options: .atomic)
+        installBackup(s)
+    }
+
+    nonisolated private static func encodeBackup(_ s: Backup.AppSettings) throws -> Data {
         var check = Backup.Document(settings: s)
         check.hasSettings = true
         try Backup.validate(check)
@@ -186,7 +193,10 @@ final class AppSettings: ObservableObject {
         snapshot.gridSystem = s.gridSystem
         snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
         snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM
-        try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
+        return try JSONEncoder().encode(snapshot)
+    }
+
+    private func installBackup(_ s: Backup.AppSettings) {
         ready = false
         gridSystem = s.gridSystem
         nightMode = s.nightMode; mgrsDigits = s.mgrsDigits
@@ -200,7 +210,39 @@ final class AppSettings: ObservableObject {
         ready = true
     }
 
+    struct RestoreSnapshot: Sendable {
+        fileprivate let destination: URL
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        func prepare(_ settings: Backup.AppSettings) throws -> PreparedRestore {
+            let file = try PreparedAtomicFile(data: AppSettings.encodeBackup(settings),destination: destination)
+            return PreparedRestore(settings: settings,revision: revision,identity: identity,file: file)
+        }
+    }
+
+    struct PreparedRestore: Sendable {
+        fileprivate let settings: Backup.AppSettings
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile
+    }
+
+    func restoreSnapshot() -> RestoreSnapshot {
+        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity)
+    }
+
+    func publishRestore(_ prepared: PreparedRestore) throws -> Bool {
+        guard prepared.identity == identity else {
+            throw BackupError.notABackup("Prepared settings restore belongs to a different store")
+        }
+        guard prepared.revision == revision else { prepared.file.discard(); return false }
+        try prepared.file.publish()
+        installBackup(prepared.settings)
+        return true
+    }
+
     private func persist() {
+        revision &+= 1
         guard ready else { return }
         var snap = Snapshot(
             nightMode: nightMode,

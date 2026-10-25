@@ -53,7 +53,7 @@ final class BackupTransferTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let points = WaypointStore(directory: directory), field = FieldDataStore(directory: directory), settings = AppSettings(directory: directory)
         XCTAssertTrue(transfer.restore(try fixture(),apply: { document in
-            BackupCoordinator.restore(document,waypoints: points,fieldData: field,settings: settings)
+            await BackupCoordinator.restore(document,waypoints: points,fieldData: field,settings: settings)
         },completion: { message in XCTAssertFalse(message.contains("stopped"),message); done.fulfill() }))
         await fulfillment(of: [entered],timeout: 3)
         XCTAssertEqual(transfer.phase,.reading)
@@ -103,6 +103,24 @@ final class BackupTransferTests: XCTestCase {
         let canceled = transfer.cancel()
         await suspended.finish(Backup.Document())
         await canceled?.value
+        XCTAssertNil(transfer.phase)
+    }
+
+    func testRestorePublicationContinuesAfterOwnerTriesToCancel() async throws {
+        let entered = expectation(description: "commit started"), done = expectation(description: "commit reported")
+        let suspended = SuspendedBackupRead(entered: entered)
+        let document = try InterchangeFileReader.backup(fixture())
+        let transfer = BackupTransfer(reader: { _ in document })
+        XCTAssertTrue(transfer.restore(try fixture(),apply: { _ in
+            _ = await suspended.read()
+            return "Restored"
+        },completion: { XCTAssertEqual($0,"Restored"); done.fulfill() }))
+        await fulfillment(of: [entered],timeout: 3)
+        XCTAssertEqual(transfer.phase,.restoring)
+        XCTAssertNil(transfer.cancel(),"An ordered commit already underway must finish/report")
+        XCTAssertEqual(transfer.phase,.restoring)
+        await suspended.finish(document)
+        await fulfillment(of: [done],timeout: 3)
         XCTAssertNil(transfer.phase)
     }
 

@@ -3,7 +3,7 @@ import Foundation
 import GridFixCore
 
 /// Provider access, decompression and encoding never borrow the UI executor.
-/// Store commits remain ordered on the main actor and merge into current data.
+/// Publication remains ordered on the main actor and merges into current data.
 enum BackupPreparation {
     static func read(_ url: URL, reader: @escaping @Sendable (URL) throws -> Backup.Document = { try InterchangeFileReader.backup($0) }) async throws -> Backup.Document {
         let worker = Task.detached(priority: .userInitiated) {
@@ -52,11 +52,11 @@ final class BackupTransfer: ObservableObject {
     }
 
     @discardableResult
-    func restore(_ url: URL, apply: @escaping (Backup.Document) -> String, completion: @escaping (String) -> Void) -> Bool {
+    func restore(_ url: URL, apply: @escaping (Backup.Document) async -> String, completion: @escaping (String) -> Void) -> Bool {
         let reader = reader
         return start(.reading,prepare: { try await reader(url) },commit: { document in
             self.phase = .restoring
-            completion(apply(document))
+            completion(await apply(document))
         },failure: { completion("Import failed: \($0.localizedDescription)") })
     }
 
@@ -67,7 +67,7 @@ final class BackupTransfer: ObservableObject {
     }
 
     /// The returned handle lets an owner await canceled provider work if needed.
-    /// A commit already in progress is synchronous and must finish its reporting.
+    /// A restore already committing must finish its ordered progress reporting.
     @discardableResult
     func cancel() -> Task<Void,Never>? {
         guard phase != .restoring else { return nil }
@@ -78,7 +78,7 @@ final class BackupTransfer: ObservableObject {
     }
 
     private func start<Value: Sendable>(_ phase: Phase,prepare: @escaping @Sendable () async throws -> Value,
-                                        commit: @escaping (Value) -> Void,failure: @escaping (Error) -> Void) -> Bool {
+                                        commit: @escaping (Value) async -> Void,failure: @escaping (Error) -> Void) -> Bool {
         guard self.phase == nil else { return false }
         let token = UUID(); generation = token; self.phase = phase
         work = Task {
@@ -86,7 +86,7 @@ final class BackupTransfer: ObservableObject {
                 let result = try await prepare()
                 try Task.checkCancellation()
                 guard generation == token else { return }
-                commit(result)
+                await commit(result)
             } catch {
                 guard generation == token else { return }
                 if !(error is CancellationError) { failure(error) }

@@ -5,10 +5,12 @@ import Foundation
 /// single atomic archive. An interrupted import never publishes half a batch.
 /// Live recording is deliberately separate from this finished-data store.
 public final class FieldDataStore: ObservableObject, @unchecked Sendable {
-    @Published public private(set) var document = Backup.Document()
+    @Published public private(set) var document = Backup.Document() { didSet { revision &+= 1 } }
     @Published public private(set) var loadError: String?
     private let fileURL: URL
     private let lock = NSRecursiveLock()
+    private var revision: UInt64 = 0
+    private let identity = UUID()
 
     public init(directory: URL? = nil) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -21,8 +23,10 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     }
 
     public func points(for trackID: String) throws -> [TrackPoint] {
-        lock.lock(); defer { lock.unlock() }
-        return try TrackCodec.decode(document.trackFiles[trackID] ?? Data())
+        lock.lock()
+        let bytes = document.trackFiles[trackID] ?? Data()
+        lock.unlock()
+        return try TrackCodec.decode(bytes)
     }
 
     public func saveGraphic(_ graphic: Backup.Graphic) throws {
@@ -115,7 +119,14 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     public func restore(_ incoming: Backup.Document) throws -> Backup.RestoreResult {
         try Backup.validate(incoming)
         lock.lock(); defer { lock.unlock() }
-        var next = document
+        let (next,result) = Self.merged(document,incoming)
+        if result.graphics == 0 && result.tracks == 0 && next.courseHistory == document.courseHistory { return result }
+        try commit(next)
+        return result
+    }
+
+    private static func merged(_ current: Backup.Document,_ incoming: Backup.Document) -> (Backup.Document,Backup.RestoreResult) {
+        var next = current
         let graphicIDs = Set(next.graphics.map(\.id)), trackIDs = Set(next.tracks.map(\.id))
         let graphics = incoming.graphics.filter { !graphicIDs.contains($0.id) }
         let tracks = incoming.tracks.filter { !trackIDs.contains($0.id) }
@@ -128,11 +139,54 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             keys.insert(HistoryKey(started: $0.started, name: $0.name)).inserted
         }.sorted { $0.started == $1.started ? $0.name.utf16.lexicographicallyPrecedes($1.name.utf16) : $0.started < $1.started }.suffix(30))
         let courseAdded = next.courseHistory.filter { !oldKeys.contains(HistoryKey(started: $0.started, name: $0.name)) }.count
-        if graphics.isEmpty && tracks.isEmpty && next.courseHistory == document.courseHistory {
-            return Backup.RestoreResult(waypoints: 0,graphics: 0,tracks: 0,course: 0,settingsApplied: false)
+        return (next,Backup.RestoreResult(waypoints: 0,graphics: graphics.count,tracks: tracks.count,course: courseAdded,settingsApplied: false))
+    }
+
+    public struct RestoreSnapshot: Sendable {
+        fileprivate let document: Backup.Document
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let destination: URL
+
+        /// May run on a worker. Does not read or mutate the live store.
+        public func prepare(_ incoming: Backup.Document) throws -> PreparedRestore {
+            try Backup.validate(incoming)
+            let (next,result) = FieldDataStore.merged(document,incoming)
+            let changed = result.graphics != 0 || result.tracks != 0 || next.courseHistory != document.courseHistory
+            let file: PreparedAtomicFile?
+            if changed { file = try PreparedAtomicFile(data: Backup.exportZip(next),destination: destination,lockCompatible: true) }
+            else { file = nil }
+            return PreparedRestore(document: next,result: result,revision: revision,identity: identity,file: file)
         }
-        try commit(next)
-        return Backup.RestoreResult(waypoints: 0, graphics: graphics.count, tracks: tracks.count, course: courseAdded, settingsApplied: false)
+    }
+
+    public struct PreparedRestore: Sendable {
+        fileprivate let document: Backup.Document
+        fileprivate let result: Backup.RestoreResult
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile?
+    }
+
+    public func restoreSnapshot() throws -> RestoreSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
+        return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL)
+    }
+
+    /// Nil means a concurrent mutation won; discard this preparation and merge
+    /// again. Invoke on the publication executor (the main actor in the app).
+    public func publishRestore(_ prepared: PreparedRestore) throws -> Backup.RestoreResult? {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else {
+            throw BackupError.notABackup("Prepared field restore belongs to a different store")
+        }
+        guard prepared.revision == revision else { prepared.file?.discard(); return nil }
+        if let file = prepared.file {
+            try file.publish()
+            document = prepared.document
+        }
+        return prepared.result
     }
 
     public func backup(waypoints: [Waypoint], folders: [FolderInfo], settings: Backup.AppSettings) -> Backup.Document {

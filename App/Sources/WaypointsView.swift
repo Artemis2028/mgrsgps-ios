@@ -349,11 +349,11 @@ struct WaypointsView: View {
                     SectionLabel(text: "Waypoints · \(listedWaypoints.count)")
                     ForEach(listedWaypoints) { point in
                         if selecting {
-                            selectionRow(id: point.id,name: point.name,kind: "waypoint",ids: $selection.waypoints) {
+                            selectionRow(id: point.id,name: point.name,kind: "waypoint",visible: point.visible,ids: $selection.waypoints) {
                                 HStack(spacing: 12) {
                                     MilitaryMarker(symbol: point.symbol,affiliation: point.affiliation,echelon: point.echelon,rotation: point.rotation,metadata: point.metadata).frame(width: 40,height: 44).accessibilityHidden(true)
                                     waypointSummary(point)
-                                }.opacity(point.visible ? 1 : 0.5)
+                                }
                             }
                         } else { row(point) }
                     }
@@ -362,7 +362,7 @@ struct WaypointsView: View {
                     SectionLabel(text: "Graphics · \(listedGraphics.count)")
                     ForEach(listedGraphics) { graphic in
                         if selecting {
-                            selectionRow(id: graphic.id,name: graphic.name,kind: "graphic",ids: $selection.graphics) { graphicSummary(graphic).opacity(graphic.visible ? 1 : 0.5) }
+                            selectionRow(id: graphic.id,name: graphic.name,kind: "graphic",visible: graphic.visible,ids: $selection.graphics) { graphicSummary(graphic) }
                         } else { graphicRow(graphic) }
                     }
                     if let folderFilter, listedGraphics.count > 1 {
@@ -375,7 +375,7 @@ struct WaypointsView: View {
                     SectionLabel(text: "Tracks · \(listedTracks.count)")
                     ForEach(listedTracks) { track in
                         if selecting {
-                            selectionRow(id: track.id,name: track.name,kind: "track",ids: $selection.tracks) { trackSummary(track).opacity(track.visible ? 1 : 0.5) }
+                            selectionRow(id: track.id,name: track.name,kind: "track",visible: track.visible,ids: $selection.tracks) { trackSummary(track) }
                         } else { trackRow(track) }
                     }
                 }
@@ -386,7 +386,7 @@ struct WaypointsView: View {
         }.accessibilityIdentifier("library-list")
     }
 
-    private func selectionRow<Content: View>(id: String,name: String,kind: String,ids: Binding<Set<String>>,@ViewBuilder content: () -> Content) -> some View {
+    private func selectionRow<Content: View>(id: String,name: String,kind: String,visible: Bool,ids: Binding<Set<String>>,@ViewBuilder content: () -> Content) -> some View {
         let selected = ids.wrappedValue.contains(id)
         return Button {
             if selected { ids.wrappedValue.remove(id) } else { ids.wrappedValue.insert(id) }
@@ -394,8 +394,10 @@ struct WaypointsView: View {
             HStack(spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(selected ? palette.accent : palette.inkDim).frame(width: 28)
                 content().frame(maxWidth: .infinity,alignment: .leading)
+                if !visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map") }
             }.padding(12).fieldContentSurface(night: settings.nightMode)
         }.buttonStyle(.plain).accessibilityLabel("\(selected ? "Deselect" : "Select") \(kind) \(name)")
+            .accessibilityValue(visible ? "Map visibility on" : "Map visibility off")
             .accessibilityIdentifier("select-\(kind)-\(id)").accessibilityAddTraits(selected ? .isSelected : [])
     }
     private func waypointSummary(_ point: Waypoint) -> some View {
@@ -419,7 +421,7 @@ struct WaypointsView: View {
     }
     private func graphicRow(_ graphic: Backup.Graphic) -> some View {
         HStack {
-            Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()).opacity(graphic.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
+            Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
             if !graphic.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-graphic-hidden-\(graphic.name)") }
             Menu {
                 Button("Show on map") { showGraphic(graphic) }
@@ -431,7 +433,7 @@ struct WaypointsView: View {
     }
     private func trackRow(_ track: Backup.TrackMeta) -> some View {
         HStack {
-            Button { showTrack(track) } label: { trackSummary(track).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()).opacity(track.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-track-\(track.name)")
+            Button { showTrack(track) } label: { trackSummary(track).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityIdentifier("library-track-\(track.name)")
             if !track.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-track-hidden-\(track.name)") }
             Button { trackActions = track } label: {
                 Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
@@ -447,7 +449,11 @@ struct WaypointsView: View {
                 .accessibilityHidden(true)
             Button { beginEdit(wp) } label: {
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack { Text(wp.name).font(.headline).foregroundStyle(wp.visible ? palette.ink : palette.inkDim); if wp.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") } }
+                    HStack {
+                        Text(wp.name).font(.headline).foregroundStyle(palette.ink)
+                        if wp.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") }
+                        if !wp.visible { Image(systemName: "eye.slash").foregroundStyle(palette.ink).accessibilityLabel("Hidden on map").accessibilityIdentifier("library-waypoint-hidden-\(wp.name)") }
+                    }
                     Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
                     if folderFilter == nil { Text(wp.folder).font(.caption).foregroundStyle(palette.inkDim) }
@@ -673,7 +679,7 @@ struct WaypointsView: View {
             guard backupTransfer.phase == nil else { return }
             status = nil
             backupTransfer.restore(url,apply: { document in
-                BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings)
+                await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings)
             },completion: { status = $0 })
         } catch { status = "Import failed: \(error.localizedDescription)" }
     }

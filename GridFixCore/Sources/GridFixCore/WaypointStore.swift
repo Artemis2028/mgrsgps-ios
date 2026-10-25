@@ -9,14 +9,16 @@ import Foundation
 /// atomically.
 public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
-    @Published public private(set) var waypoints: [Waypoint] = []
-    @Published public private(set) var folders: [FolderInfo] = []
-    @Published public private(set) var selectedId: String?
+    @Published public private(set) var waypoints: [Waypoint] = [] { didSet { revision &+= 1 } }
+    @Published public private(set) var folders: [FolderInfo] = [] { didSet { revision &+= 1 } }
+    @Published public private(set) var selectedId: String? { didSet { revision &+= 1 } }
 
     private let fileURL: URL
     private let lock = NSLock()
+    private var revision: UInt64 = 0
+    private let identity = UUID()
 
-    private struct Snapshot: Codable {
+    fileprivate struct Snapshot: Codable, Sendable {
         var waypoints: [Waypoint]
         var folders: [FolderInfo]
         var selectedId: String?
@@ -241,26 +243,69 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     @discardableResult
     public func restore(waypoints incoming: [Waypoint], folders incomingFolders: [FolderInfo]) throws -> Int {
         lock.lock(); defer { lock.unlock() }
-        var ids = Set(waypoints.map(\.id))
-        var vertices = Set(waypoints.compactMap(\.routeVertexKey))
-        var next = waypoints
+        let base = Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId)
+        let (next,added) = Self.merged(base,waypoints: incoming,folders: incomingFolders)
+        try JSONEncoder().encode(next).write(to: fileURL,options: .atomic)
+        waypoints = next.waypoints; folders = next.folders
+        return added
+    }
+
+    private static func merged(_ base: Snapshot,waypoints incoming: [Waypoint],folders incomingFolders: [FolderInfo]) -> (Snapshot,Int) {
+        var ids = Set(base.waypoints.map(\.id))
+        var vertices = Set(base.waypoints.compactMap(\.routeVertexKey))
+        var next = base.waypoints
+        let knownFolders = base.folders.map(\.name) + incomingFolders.map(\.name)
         for var waypoint in incoming {
             guard ids.insert(waypoint.id).inserted else { continue }
             if let vertex = waypoint.routeVertexKey, !vertices.insert(vertex).inserted { continue }
-            waypoint.folder = Folders.match(known: folders.map(\.name) + incomingFolders.map(\.name), raw: waypoint.folder)
+            waypoint.folder = Folders.match(known: knownFolders,raw: waypoint.folder)
             next.append(waypoint)
         }
-        var mergedFolders = folders
+        var mergedFolders = base.folders
         for var folder in incomingFolders {
             folder.name = Folders.canonical(folder.name)
             if !mergedFolders.contains(where: { $0.name.caseInsensitiveCompare(folder.name) == .orderedSame }) { mergedFolders.append(folder) }
         }
         let nextFolders = Self.mergeFolderList(stored: mergedFolders, referenced: next.map(\.folder))
-        let snapshot = Snapshot(waypoints: next, folders: nextFolders, selectedId: selectedId)
-        try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
-        let added = next.count - waypoints.count
-        waypoints = next; folders = nextFolders
-        return added
+        return (Snapshot(waypoints: next,folders: nextFolders,selectedId: base.selectedId),next.count-base.waypoints.count)
+    }
+
+    public struct RestoreSnapshot: Sendable {
+        fileprivate let base: Snapshot
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let destination: URL
+
+        public func prepare(waypoints: [Waypoint],folders: [FolderInfo]) throws -> PreparedRestore {
+            let (next,count) = WaypointStore.merged(base,waypoints: waypoints,folders: folders)
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
+            return PreparedRestore(snapshot: next,count: count,revision: revision,identity: identity,file: file)
+        }
+    }
+
+    public struct PreparedRestore: Sendable {
+        fileprivate let snapshot: Snapshot
+        fileprivate let count: Int
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile
+    }
+
+    public func restoreSnapshot() -> RestoreSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL)
+    }
+
+    /// Publish on the UI executor. Nil requests a fresh merge after an edit.
+    public func publishRestore(_ prepared: PreparedRestore) throws -> Int? {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else {
+            throw BackupError.notABackup("Prepared waypoint restore belongs to a different store")
+        }
+        guard prepared.revision == revision else { prepared.file.discard(); return nil }
+        try prepared.file.publish()
+        waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders
+        return prepared.count
     }
 
     /// Port of Android replaceRouteWaypoints: owner ID/index establish identity;

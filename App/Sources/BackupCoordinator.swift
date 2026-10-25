@@ -2,40 +2,66 @@ import GridFixCore
 
 @MainActor
 enum BackupCoordinator {
-    /// Match Android's ordered, additive restore. Report any sections already
-    /// committed when a later write fails; retrying never replaces current IDs.
-    static func restore(_ document: Backup.Document, waypoints: WaypointStore,
-                        fieldData: FieldDataStore, settings: AppSettings) -> String {
+    /// Once publication starts, finish/report ordered phases even if the caller
+    /// goes away, like Android's NonCancellable restore. Worker tasks do not
+    /// inherit cancellation. Each stale snapshot is rebuilt from current data.
+    static func restore(_ document: Backup.Document,waypoints: WaypointStore,
+                        fieldData: FieldDataStore,settings: AppSettings) async -> String {
         var applied: [String] = []
         do {
-            try Backup.validate(document)
+            try await Task.detached(priority: .userInitiated) { try Backup.validate(document) }.value
             if !document.tracks.isEmpty {
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
-                let count = try fieldData.restore(tracks).tracks
+                let count = try await restoreField(tracks,into: fieldData).tracks
                 if count > 0 { applied.append("\(count) tracks") }
             }
-            var folders = document.folders
-            for name in Set(document.graphics.map(\.folder) + document.tracks.map(\.folder)) where !folders.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-                folders.append(FolderInfo(name: name))
+            let folders = await Task.detached(priority: .userInitiated) {
+                var folders = document.folders
+                for name in Set(document.graphics.map(\.folder)+document.tracks.map(\.folder)) where !folders.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+                    folders.append(FolderInfo(name: name))
+                }
+                return folders
+            }.value
+            while true {
+                let snapshot = waypoints.restoreSnapshot()
+                let prepared = try await Task.detached(priority: .userInitiated) {
+                    try snapshot.prepare(waypoints: document.waypoints,folders: folders)
+                }.value
+                if let count = try waypoints.publishRestore(prepared) {
+                    if count > 0 { applied.append("\(count) waypoints") }
+                    break
+                }
             }
-            let count = try waypoints.restore(waypoints: document.waypoints, folders: folders)
-            if count > 0 { applied.append("\(count) waypoints") }
             if !document.graphics.isEmpty {
                 var graphics = Backup.Document(); graphics.hasSettings = false; graphics.graphics = document.graphics
-                let count = try fieldData.restore(graphics).graphics
+                let count = try await restoreField(graphics,into: fieldData).graphics
                 if count > 0 { applied.append("\(count) graphics/routes") }
             }
             if !document.courseHistory.isEmpty {
                 var course = Backup.Document(); course.hasSettings = false; course.courseHistory = document.courseHistory
-                let count = try fieldData.restore(course).course
+                let count = try await restoreField(course,into: fieldData).course
                 if count > 0 { applied.append("\(count) course results") }
             }
-            if document.hasSettings { try settings.applyBackup(document.settings); applied.append("settings") }
-            return applied.isEmpty ? "Nothing new to restore" : "Restored " + applied.joined(separator: ", ")
+            if document.hasSettings {
+                while true {
+                    let snapshot = settings.restoreSnapshot()
+                    let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(document.settings) }.value
+                    if try settings.publishRestore(prepared) { applied.append("settings"); break }
+                }
+            }
+            return applied.isEmpty ? "Nothing new to restore" : "Restored "+applied.joined(separator: ", ")
         } catch {
-            let progress = applied.isEmpty ? "No records added." : "Already restored: " + applied.joined(separator: ", ") + "."
+            let progress = applied.isEmpty ? "No records added." : "Already restored: "+applied.joined(separator: ", ")+"."
             return "Restore stopped: \(error.localizedDescription). \(progress) You can retry."
+        }
+    }
+
+    private static func restoreField(_ document: Backup.Document,into store: FieldDataStore) async throws -> Backup.RestoreResult {
+        while true {
+            let snapshot = try store.restoreSnapshot()
+            let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(document) }.value
+            if let result = try store.publishRestore(prepared) { return result }
         }
     }
 }
