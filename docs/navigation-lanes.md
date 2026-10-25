@@ -177,8 +177,8 @@ fixes place the user inside every applicable limit by more than the three-metre
 return margin. Behind the start does not count as entry. The first confirmed
 entry gives the optional inside tick. Once entered, the existing accuracy-aware
 crossing confirmation, backstop priority and return hysteresis apply. Changing
-the lane or its linked geometry starts a new entry state; changing a checkpoint
-within the same route lane retains it.
+to a different lane starts a new entry state; reshaping an already-entered lane
+and changing checkpoints within the same route lane retain entered state.
 
 Guide settings now provide independent side-limit, backstop, inside-tick and
 position-loss switches (all default on), plus a not-in-lane reminder: Off,
@@ -186,8 +186,8 @@ position-loss switches (all default on), plus a not-in-lane reminder: Off,
 selectable. The reminder is long-short-long, timed from the first distinct fix
 and repeated at the selected interval while entry is still unconfirmed. Early
 warning retains its separate Off/25/50 m preference and approach rearming.
-Disabling side/backstop crossing cues does not disable an explicitly enabled
-approach warning. Route checkpoint and arrival cues are independent.
+The newer eacf084 review makes approach warnings obey the corresponding
+side/backstop switch as well. Route checkpoint and arrival cues are independent.
 
 Position lost in lane mode plays three taps once, then no more than once a
 minute while enabled, replacing the earlier four-second cadence. Fresh usable
@@ -212,3 +212,46 @@ switches, the reminder menu, relaunch persistence and night mode. Day/night
 screenshots were inspected: controls, current choice and explanations remain
 readable. Only one phone simulator was used and it was shut down afterward.
 Physical haptic feel, locked-screen delivery and battery use remain required.
+
+
+## Reviewed geometry and guidance · Android eacf084
+
+The objective (checkpoint or final route point) now identifies the near side of
+the backstop. Without an available objective, length-weighted samples of both
+limits determine it. Endpoint orientation uses the signed side of the backstop;
+left/right uses which side of each oriented limit contains the lane, not the
+number or spacing of vertices. Editor validation, serial save, map shading,
+watch overlay preparation and active guidance share this resolver, including
+hidden objectives.
+
+Lanes that turn back across the distant backstop extension, or whose final
+side-limit rays cross before the backstop, are refused with actionable messages.
+An objective on the backstop is refused. Drawn points are sanitized for finite
+coordinates, latitude range and wrapped longitude before capturing a lane line.
+
+After an entered lane is reshaped, guidance retains entered state and can
+reconfirm an outside crossing in two distinct fixes. Renaming/hiding is not a
+geometry change. An objective move revalidates geometry. Walking out past a side
+limit and then behind its start now returns to Not in the lane yet, without a
+false inside tick; the reminder interval restarts. Approach warnings now obey
+the side/backstop cue switches, following the newer Android review policy.
+
+The core suite passes 373 tests, including Android's U-turn/funnel, dense and
+reversed lines, length-weighted near-side inference, objective, behind-start,
+warning-switch and drag-sanitization cases, plus sparse-backup presence semantics.
+The final clean native bundle passes all 161 app integration tests and the new
+objective-on-backstop rejection/correction test in day and night modes. The
+existing drawing/dragging, linked-line edit/hide/relaunch/delete, hidden-lane
+backup/PDF and mixed backup Files workflows pass in the preceding native matrix.
+Day/night maps, restored library and explicit disabled-save error screens were
+exported and inspected. The test checkpoint fixture now lies before its backstop;
+a separate deliberately invalid checkpoint tests the rejection. The final
+unsigned phone/watch/activity-extension Release build passes. Only one phone
+simulator was used and it is stopped; no watch was booted for this model/UI pass.
+
+Sparse settings restore preserves missing local values, including edits made
+after an older preparation. Explicit values and null declination still apply.
+Programmatically changing a parsed sparse plan marks the changed keys explicit,
+without turning all missing fields into default-valued writes. Files failures,
+ordered partial retry and existing lane edits retain their existing tests.
+Physical GPS/notification/haptic/storage checks remain open.

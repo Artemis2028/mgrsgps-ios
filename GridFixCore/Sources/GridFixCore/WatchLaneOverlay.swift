@@ -32,8 +32,8 @@ public struct WatchLaneOverlay: Codable, Equatable, Sendable, Identifiable {
         }
         return first
     }
-    public static func build(_ lane: NavLane,graphics: [Backup.Graphic]) -> Self? {
-        guard let resolved = try? NavLanes.resolve(lane,graphics: graphics) else { return nil }
+    public static func build(_ lane: NavLane,graphics: [Backup.Graphic],waypoints:[Waypoint] = []) -> Self? {
+        guard let resolved = try? NavLanes.resolve(lane,graphics: graphics,waypoints:waypoints) else { return nil }
         let lines = resolved.shape.mapLines(), swapped = resolved.shape.leftWasDrawnAsRight
         let value = Self(id: lane.id,name: String(lane.name.prefix(80)),left: lines.left,right: lines.right,backstop: lines.backstop,outline: resolved.shape.outline(),
                          leftLabel: String(NavLanes.label(swapped ? lane.right : lane.left,graphics: graphics,fallback: "Left limit").prefix(80)),

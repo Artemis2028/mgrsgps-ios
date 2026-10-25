@@ -225,7 +225,7 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertFalse(fix(&g,1400,0,100).reminder)
         XCTAssertEqual(LanePulse.notInLane.waveform,[0,300,150,80,150,300])
     }
-    func testCueSwitchesSuppressTheirOwnCuesAndPreserveIndependentApproachWarning() {
+    func testCueSwitchesSuppressTheirOwnCuesAndAssociatedApproachWarning() {
         var c=LaneCueCadence();c.cues.sides=false;c.cues.backstop=false;c.cues.insideTick=false;c.cues.reminder=false
         func d(_ state:LaneState,back:Bool=false,warning:LaneLimit?=nil,reminder:Bool=false)->LaneDecision {
             .init(state:state,changed:true,backInside:back,warning:warning,reading:nil,reminder:reminder)
@@ -233,7 +233,7 @@ final class NavigationLaneTests: XCTestCase {
         for state in [LaneState.outLeft,.outRight,.overshot] { XCTAssertNil(c.next(decision:d(state),now:0)) }
         XCTAssertNil(c.next(decision:d(.inside,back:true),now:1))
         XCTAssertNil(c.next(decision:d(.notYet,reminder:true),now:2))
-        XCTAssertEqual(c.next(decision:d(.inside,warning:.left),now:3),.turnRight)
+        XCTAssertNil(c.next(decision:d(.inside,warning:.left),now:3))
         c.cues.sides=true;XCTAssertEqual(c.next(decision:d(.outLeft),now:4),.turnRight)
     }
     func testLaneCueSettingsBackupRoundTripLegacyDefaultsAndBounds() throws {
@@ -246,6 +246,50 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertTrue(defaults.laneInsideTick);XCTAssertTrue(defaults.laneGpsAlert);XCTAssertEqual(defaults.laneReminderMin,5)
         doc.settings.laneReminderMin=121;XCTAssertThrowsError(try Backup.validate(doc))
         doc.settings.laneReminderMin = -1;XCTAssertThrowsError(try Backup.validate(doc))
+    }
+
+    func testReviewedGeometryRejectsUTurnAndLimitsMeetingBeforeBackstop() throws {
+        XCTAssertThrowsError(try LaneShape(leftDrawn:line((-50,0),(-50,550),(350,550),(350,0)),rightDrawn:line((50,0),(50,450),(250,450),(250,0)),backstopDrawn:line((200,50),(400,50)))) {error in
+            XCTAssertTrue(error.localizedDescription.contains("turns back"))
+        }
+        XCTAssertThrowsError(try LaneShape(leftDrawn:line((-50,0),(-5,300)),rightDrawn:line((50,0),(5,300)),backstopDrawn:back)) {error in
+            XCTAssertTrue(error.localizedDescription.contains("meet before"))
+        }
+    }
+    func testReviewedOrientationIgnoresVertexDensityAndRespectsObjective() throws {
+        let dense=(0...50).map{at(-50,Double($0)*10)}
+        let original=try LaneShape(leftDrawn:dense,rightDrawn:right,backstopDrawn:back,objective:at(0,450))
+        let swapped=try LaneShape(leftDrawn:right,rightDrawn:Array(dense.reversed()),backstopDrawn:Array(back.reversed()),objective:at(0,450))
+        XCTAssertFalse(original.leftWasDrawnAsRight);XCTAssertTrue(swapped.leftWasDrawnAsRight)
+        XCTAssertEqual(try XCTUnwrap(original.read(at(-70,250)).left),20,accuracy:0.3)
+        XCTAssertEqual(try XCTUnwrap(swapped.read(at(-70,250)).left),20,accuracy:0.3)
+        XCTAssertEqual(try XCTUnwrap(swapped.read(at(65,250)).right),15,accuracy:0.3)
+        XCTAssertEqual(try XCTUnwrap(swapped.read(at(0,550)).backstop),30,accuracy:0.3)
+        XCTAssertNil(swapped.read(at(0,-1)).left)
+        let denseFarEnd=[at(-50,0),at(-50,500)]+(0...50).map {at(-50,550+Double($0))}
+        let lengthWeighted=try LaneShape(leftDrawn:denseFarEnd,rightDrawn:right,backstopDrawn:back)
+        XCTAssertEqual(try XCTUnwrap(lengthWeighted.read(at(0,550)).backstop),30,accuracy:0.3)
+        XCTAssertThrowsError(try LaneShape(leftDrawn:left,rightDrawn:right,backstopDrawn:back,objective:at(0,520)))
+    }
+    func testReturningBehindCrossedLimitRestartsNotYetWithoutFalseInsideTick() throws {
+        var config=LaneGuideConfiguration();config.notInLaneReminderSeconds=120
+        var g=LaneGuideState(shape:try shape(),configuration:config,entered:true)
+        _=fix(&g,1,-70,250);XCTAssertEqual(fix(&g,2,-70,250).state,.outLeft)
+        _=fix(&g,3,-70,-30);let behind=fix(&g,4,-70,-30)
+        XCTAssertEqual(behind.state,.notYet);XCTAssertFalse(behind.backInside)
+        XCTAssertFalse(fix(&g,123,-70,-30).reminder)
+        XCTAssertTrue(fix(&g,124,-70,-30).reminder)
+        _=fix(&g,125,0,100);XCTAssertTrue(fix(&g,126,0,100).backInside)
+    }
+    func testReviewedWarningSwitchesAndSanitizedDraggedPoints() {
+        var c=LaneCueCadence();c.cues.sides=false
+        let side=LaneDecision(state:.inside,changed:false,backInside:false,warning:.right,reading:nil)
+        let back=LaneDecision(state:.inside,changed:false,backInside:false,warning:.backstop,reading:nil)
+        XCTAssertNil(c.next(decision:side,now:0));XCTAssertEqual(c.next(decision:back,now:1),.overshot)
+        c.cues.sides=true;c.cues.backstop=false
+        XCTAssertNil(c.next(decision:back,now:2));XCTAssertEqual(c.next(decision:side,now:3),.turnLeft)
+        let clean=NavLanes.sanitizedDrawnPoints([.init(lat:35,lon:181),.init(lat:95,lon:-541),.init(lat:.nan,lon:0),.init(lat:35,lon:.infinity)])
+        XCTAssertEqual(clean,[.init(lat:35,lon:-179),.init(lat:90,lon:179)])
     }
 
 }

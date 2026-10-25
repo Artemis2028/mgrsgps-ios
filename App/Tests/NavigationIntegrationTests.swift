@@ -75,7 +75,7 @@ final class NavigationIntegrationTests: XCTestCase {
         func send(_ x: Double) { date += 1; up += 1; let p = lanePoint(x,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         send(0); send(0); send(-80); send(-80); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
         graphic.points = [lanePoint(-150,0),lanePoint(-150,500)].map { .init(lat: $0.lat,lon: $0.lon) }
-        try field.saveGraphic(graphic); send(-80); XCTAssertEqual(nav.laneDecision?.state,.notYet)
+        try field.saveGraphic(graphic); send(-80); XCTAssertEqual(nav.laneDecision?.state,.inside,"Same-lane reshaping retains entered state")
         send(-80); XCTAssertEqual(nav.laneDecision?.state,.inside)
         try await lanes.setVisible(value.id,false); send(0)
         XCTAssertEqual(nav.lane?.visible,false); XCTAssertEqual(nav.laneDecision?.state,.inside)
@@ -157,6 +157,24 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertEqual(AppSettings(directory:directory).backupSettings,saved)
         XCTAssertTrue(settings.liveActivitiesEnabled)
     }
+    func testObjectiveChangeRevalidatesLaneAndSameLaneReshapingKeepsCrossingActive() async throws {
+        let (directory,store,field,settings)=try setup(),driver=GuideTestDriver(),feedback=GuideTestFeedback()
+        let objective=lanePoint(0,1000),wp=store.add(.init(name:"OBJ",lat:objective.lat,lon:objective.lon));store.select(wp.id)
+        let lanes=NavigationLaneStore(directory:directory);var value=lane(wp.id)
+        _=try await lanes.save(value,graphics:[],waypoints:store.waypoints)
+        var date=1000.0,up=100.0
+        let nav=NavigationSession(directory:directory,store:store,field:field,settings:settings,driver:driver,feedback:feedback,lanes:lanes,now:{Date(timeIntervalSince1970:date)},uptime:{up},foreground:{true},scheduleTicks:false)
+        nav.startGuide();try await wait {nav.running}
+        func send(_ x:Double) {date+=1;up+=1;let p=lanePoint(x,100);driver.onLocations?([fix(p.lat,p.lon,date,accuracy:5)])}
+        send(0);send(0);send(-80);send(-80);XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        let original=value;value.left.points=[lanePoint(-60,0),lanePoint(-60,500)]
+        _=try await lanes.save(value,original:original,graphics:[],waypoints:store.waypoints)
+        nav.tick();send(-80);XCTAssertEqual(nav.laneDecision?.state,.outLeft,"A reshaped entered lane must not wait silently for entry")
+        let bad=lanePoint(0,1600);store.update(id:wp.id,draft:.init(name:"OBJ",lat:bad.lat,lon:bad.lon));nav.tick()
+        XCTAssertTrue(nav.laneProblem?.contains("on the backstop") == true);XCTAssertNil(nav.laneDecision)
+        nav.stop()
+    }
+
     private func setup() throws -> (URL,WaypointStore,FieldDataStore,AppSettings) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir,withIntermediateDirectories: true)

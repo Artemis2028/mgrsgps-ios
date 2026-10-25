@@ -27,6 +27,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history | Larger-library storage and physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining waypoint/mixed-folder/session edits and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
+| Live TAK (user follow-on) | Existing ATAK file interchange; local OpenTAKServer/Colima stack verified running and Android live protocol inspected | iOS live CoT/TLS transport, certificate package import, sharing controls, remote overlays and bidirectional server integration tests; see [server setup](tak-server-interoperability.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs with local regression evidence | Full hosted CI pass, app icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
 See [backup preparation and restore order](backup-preparation.md) for cancellation, progress and the remaining persistence work.
@@ -103,3 +104,17 @@ passes. Test-owned simulators are stopped. Physical external-file/provider/queue
 checks remain open. The newer Android `eacf084` lane geometry, backup-presence
 and related review changes are tracked in the source audit as the next parity
 pass; they are implementation work, not iOS restrictions.
+
+
+Android eacf084's reviewed lane geometry/guidance and sparse-setting restore are
+now ported. Objective-aware resolution is shared by editor, save, map, watch
+scene preparation and guidance. Length weighting, U-turn/funnel rejection,
+behind-start return, retained entry on same-lane reshaping, warning switches
+and drawn-point sanitization are covered. The core suite passes 373 tests;
+the final clean native bundle passes all 161 app integration tests plus the new
+day/night invalid-objective correction case. The existing four native
+lane/backup workflows pass in the preceding matrix. Screenshots were inspected,
+the unsigned phone/watch/activity-extension Release build passes, and the
+single test phone is shut down. Remaining eacf084 offline/lasso/protected-file
+review details need audit. Live TAK is explicitly requested and next; it is
+not yet implemented. The existing server was inspected without changing it.

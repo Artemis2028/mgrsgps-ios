@@ -8,6 +8,7 @@ final class NavigationLaneMapOverlay {
     private weak var style: MLNStyle?
     private var previous: [NavLane] = []
     private var previousGraphics: [Backup.Graphic] = []
+    private var previousWaypoints:[Waypoint] = []
     private var previousFolders: [FolderInfo] = []
     private var previousDraft: NavLane?
     private var previousNight: Bool?
@@ -42,10 +43,11 @@ final class NavigationLaneMapOverlay {
             style.addLayer(labels)
         }
         let night = previousNight ?? false; previousNight = nil
-        update(lanes: previous,draft: previousDraft,graphics: previousGraphics,folders: previousFolders,night: night)
+        update(lanes: previous,draft: previousDraft,graphics: previousGraphics,folders: previousFolders,waypoints:previousWaypoints,night: night)
     }
-    func update(lanes: [NavLane],draft: NavLane?,graphics: [Backup.Graphic],folders: [FolderInfo],night: Bool) {
-        guard lanes != previous || draft != previousDraft || graphics != previousGraphics || folders != previousFolders || night != previousNight else { return }
+    func update(lanes: [NavLane],draft: NavLane?,graphics: [Backup.Graphic],folders: [FolderInfo],waypoints:[Waypoint],night: Bool) {
+        guard waypoints != previousWaypoints || lanes != previous || draft != previousDraft || graphics != previousGraphics || folders != previousFolders || night != previousNight else { return }
+        previousWaypoints=waypoints
         previous = lanes; previousDraft = draft; previousGraphics = graphics; previousFolders = folders; previousNight = night
         var features: [[String:Any]] = []
         points = []
@@ -54,7 +56,7 @@ final class NavigationLaneMapOverlay {
         }
         if let draft { visible.append(draft) }
         for lane in visible {
-            let resolved = try? NavLanes.resolve(lane,graphics: graphics)
+            let resolved = try? NavLanes.resolve(lane,graphics: graphics,waypoints:waypoints)
             let display = resolved?.shape.mapLines()
             if let resolved,let first = resolved.shape.outline().first {
                 let ring = resolved.shape.outline()

@@ -93,7 +93,7 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
         result.lanes = []
         var laneIDs = Set<String>()
         for lane in lanes where lane.visible && shown(lane.folder) {
-            guard result.laneOverlays.count < 8,laneIDs.insert(lane.id).inserted,let overlay = WatchLaneOverlay.build(lane,graphics: document.graphics) else { result.omittedItems += 1; continue }
+            guard result.laneOverlays.count < 8,laneIDs.insert(lane.id).inserted,let overlay = WatchLaneOverlay.build(lane,graphics: document.graphics,waypoints:source) else { result.omittedItems += 1; continue }
             result.lanes?.append(overlay)
         }
         var pointIDs = Set<String>(), featureIDs = Set<String>()

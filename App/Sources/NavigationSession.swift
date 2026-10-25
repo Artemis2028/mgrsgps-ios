@@ -19,7 +19,7 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var laneDecision: LaneDecision?
     @Published private(set) var laneProblem: String?
     private let laneStore: NavigationLaneStore?
-    private struct LaneKey: Equatable { var id: String; var left: [GeoPoint]; var right: [GeoPoint]; var backstop: [GeoPoint] }
+    private struct LaneKey: Equatable { var id: String; var left: [GeoPoint]; var right: [GeoPoint]; var backstop: [GeoPoint]; var objective:GeoPoint? }
     private var laneKey: LaneKey?
     private var laneGuide: LaneGuideState?
     private var laneCadence = LaneCueCadence()
@@ -307,9 +307,11 @@ final class NavigationSession: ObservableObject {
             guard let l = NavLanes.points(value.left,graphics: field.document.graphics),let r = NavLanes.points(value.right,graphics: field.document.graphics),let b = NavLanes.points(value.backstop,graphics: field.document.graphics) else {
                 throw LaneShapeErrorForApp("A linked lane line is missing.")
             }
-            let key = LaneKey(id: value.id,left: l,right: r,backstop: b)
+            let objective=NavLanes.objective(value,graphics:field.document.graphics,waypoints:store.waypoints)
+            let key = LaneKey(id: value.id,left: l,right: r,backstop: b,objective:objective)
             if key != laneKey {
-                laneGuide = LaneGuideState(shape: try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b))
+                let entered = laneKey?.id == value.id && laneGuide.map {$0.state != .notYet} == true
+                laneGuide = LaneGuideState(shape: try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b,objective:objective),entered:entered)
                 laneKey = key; laneCadence.reset(); laneUnavailableAt = 0; feedback.cancelPlayback()
             }
             var configuration = LaneGuideConfiguration(); configuration.warningMeters = Double(settings.laneWarningM); configuration.notInLaneReminderSeconds = Double(settings.laneReminderMin)*60

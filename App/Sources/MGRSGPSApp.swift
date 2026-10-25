@@ -114,8 +114,12 @@ struct MGRSGPSApp: App {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestLanes"),waypointStore.waypoints.isEmpty {
             func point(_ x: Double,_ y: Double) -> GeoPoint { .init(lat: 24.4539+y/111195,lon: 54.3773+x/(111195*cos(24.4539 * .pi/180))) }
-            let target = point(0,1000)
+            let target = point(0,450)
             _ = waypointStore.add(.init(name: "Lane OBJ",lat: target.lat,lon: target.lon))
+            if ProcessInfo.processInfo.arguments.contains("-uiTestLaneInvalidObjective") {
+                let backstop=point(0,520)
+                _=waypointStore.add(.init(name:"Checkpoint on backstop",lat:backstop.lat,lon:backstop.lon))
+            }
             for (id,name,points) in [("lane-left","Creek bank",[point(-50,0),point(-50,500)]),("lane-right","Right road",[point(50,0),point(50,500)]),("lane-backstop","Power line",[point(-100,520),point(100,520)])] {
                 try? fieldStore.saveGraphic(.init(id: id,name: name,type: "phase_line",points: points.map { .init(lat: $0.lat,lon: $0.lon) }))
             }

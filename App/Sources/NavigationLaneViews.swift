@@ -70,7 +70,7 @@ struct NavigationLaneLibraryView: View {
         let name = lane.scope == .route ? field.document.graphics.first { $0.id == lane.targetId }?.name : waypoints.waypoints.first { $0.id == lane.targetId }?.name
         return (lane.scope == .route ? "Whole route: " : "Checkpoint: ")+(name ?? "Target deleted")
     }
-    private func problem(_ lane: NavLane) -> String? { do { _ = try NavLanes.resolve(lane,graphics: field.document.graphics); return nil } catch { return error.localizedDescription } }
+    private func problem(_ lane: NavLane) -> String? { do { _ = try NavLanes.resolve(lane,graphics: field.document.graphics,waypoints:waypoints.waypoints); return nil } catch { return error.localizedDescription } }
 }
 
 struct LaneDrawingControls: View {
@@ -130,7 +130,7 @@ struct LaneDetailsView: View {
         return values.filter { search.isEmpty || $0.1.localizedCaseInsensitiveContains(search) }
     }
     private var problem: String? {
-        do { _ = try NavLanes.resolve(draft.lane,graphics: field.document.graphics) }
+        do { _ = try NavLanes.resolve(draft.lane,graphics: field.document.graphics,waypoints:waypoints.waypoints) }
         catch { return error.localizedDescription }
         if draft.lane.targetId.isEmpty { return "Choose a checkpoint or route." }
         if draft.lane.scope == .route && !field.document.graphics.contains(where: { $0.id == draft.lane.targetId && $0.type == "route" }) { return "Choose a saved route." }

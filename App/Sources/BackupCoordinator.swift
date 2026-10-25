@@ -44,7 +44,7 @@ enum BackupCoordinator {
             if document.hasSettings {
                 while true {
                     let snapshot = settings.restoreSnapshot()
-                    let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(document.settings) }.value
+                    let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(document.settings,presentKeys:document.settingsKeys) }.value
                     if try settings.publishRestore(prepared) { applied.append("settings"); break }
                 }
             }

@@ -89,7 +89,7 @@ struct MapScreen: View {
     var body: some View {
         ZStack {
             MapContainer(mapStore: maps, nightMode: chromeNight, fix: location.usableFix,
-                         waypoints: visible, navigationID: store.selectedId,
+                         waypoints: visible, laneWaypoints:store.waypoints, navigationID: store.selectedId,
                          document: fieldData.document, folders: store.folders, lanes: lanes.lanes, laneDraft: liveLaneDraft,
                          recordingPoints: recorder.active?.livePoints ?? [],
                          viewshed: terrain.viewshed,
@@ -394,7 +394,7 @@ struct MapScreen: View {
 
     private var liveLaneDraft: NavLane? {
         guard var draft = laneDraft else { return nil }
-        if draft.line.graphicId == nil,let graphicDraft { draft.line.points = graphicDraft.vertices }
+        if draft.line.graphicId == nil,let graphicDraft { draft.line.points = NavLanes.sanitizedDrawnPoints(graphicDraft.vertices) }
         return draft.lane
     }
     private func receiveLaneRequest() {
@@ -407,7 +407,7 @@ struct MapScreen: View {
     }
     private func captureLaneLine() {
         guard laneDraft?.line.graphicId == nil,let points = graphicDraft?.vertices else { return }
-        laneDraft?.line.points = points
+        laneDraft?.line.points = NavLanes.sanitizedDrawnPoints(points)
     }
     private func loadLaneLine() {
         guard let draft = laneDraft else { graphicDraft = nil; return }
@@ -446,7 +446,7 @@ struct MapScreen: View {
         }
         let savedValue = value
         graphicMutation.run("Saving lane…",action: {
-            let saved = try await lanes.save(savedValue,original: original,graphics: fieldData.document.graphics)
+            let saved = try await lanes.save(savedValue,original: original,graphics: fieldData.document.graphics,waypoints:store.waypoints)
             do { _ = try await LibraryRestoreCommit.waypoints([],folders: [.init(name: saved.folder)],into: store) }
             catch { throw LaneSaveFolderError(message: "Lane saved. Folder settings could not be finished: \(error.localizedDescription). Retry to finish.") }
             let extent = [saved.left,saved.right,saved.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }
@@ -521,6 +521,7 @@ private struct MapContainer: UIViewRepresentable {
     let nightMode: Bool
     let fix: Fix?
     let waypoints: [Waypoint]
+    let laneWaypoints:[Waypoint]
     let navigationID: String?
     let document: Backup.Document
     let folders: [FolderInfo]
@@ -616,7 +617,7 @@ private struct MapContainer: UIViewRepresentable {
         }
         coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
-        coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,night: nightMode)
+        coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,waypoints:laneWaypoints,night: nightMode)
         coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
         coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
         coordinator.overlay.nightMode = nightMode

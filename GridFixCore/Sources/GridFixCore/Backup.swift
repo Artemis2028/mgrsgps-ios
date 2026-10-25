@@ -110,13 +110,22 @@ public enum Backup {
         public var waypoints: [Waypoint]
         public var folders: [FolderInfo]
         public var graphics: [Graphic]
-        public var settings: AppSettings
+        public var settings: AppSettings {
+            didSet {
+                // Programmatic edits to a parsed sparse plan make only those
+                // changed settings explicit; do not discard its absence policy.
+                if settingsKeys != nil {settingsKeys?.formUnion(Backup.changedSettingsKeys(oldValue,settings))}
+            }
+        }
         public var tracks: [TrackMeta]
         public var courseHistory: [CourseResult]
         public var navLanes: [NavLane]
         /// Track id → raw points file bytes (lat lon time alt lines).
         public var trackFiles: [String: Data]
         public var hasSettings: Bool = true
+        /// Nil means a complete/programmatic settings value. Parsed older files
+        /// retain their actual keys so restore can preserve newer local settings.
+        public var settingsKeys: Set<String>? = nil
 
         public init(exportedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
                     waypoints: [Waypoint] = [],
@@ -201,37 +210,7 @@ public enum Backup {
                 "visible": g.visible,
             ]
         }
-        var settings: [String: Any] = [
-            "nightMode": doc.settings.nightMode,
-            "keepScreenOn": doc.settings.keepScreenOn,
-            "mgrsDigits": doc.settings.mgrsDigits,
-            "gridSystem": doc.settings.gridSystem,
-            "latLonFormat": doc.settings.latLonFormat,
-            "units": doc.settings.units,
-            "angleUnit": doc.settings.angleUnit,
-            "northRef": doc.settings.northRef,
-            "pacePer100m": doc.settings.pacePer100m,
-            "face": doc.settings.face,
-            "orientation": doc.settings.orientation,
-            "guideAllowance": doc.settings.guideAllowance,
-            "guideHoldOffSec": doc.settings.guideHoldOffSec,
-            "guideHeartbeatSec": doc.settings.guideHeartbeatSec,
-            "guideMode": doc.settings.guideMode,
-            "guideCorridorM": doc.settings.guideCorridorM,
-            "laneWarningM": doc.settings.laneWarningM,
-            "laneSideCues": doc.settings.laneSideCues,
-            "laneBackstopCue": doc.settings.laneBackstopCue,
-            "laneInsideTick": doc.settings.laneInsideTick,
-            "laneReminderMin": doc.settings.laneReminderMin,
-            "laneGpsAlert": doc.settings.laneGpsAlert,
-            "hiddenMapTools": MapTools.encode(doc.settings.hiddenMapTools),
-            "disclaimerAccepted": doc.settings.disclaimerAccepted,
-        ]
-        if let d = doc.settings.declinationOverride {
-            settings["declinationOverride"] = d
-        } else {
-            settings["declinationOverride"] = NSNull()
-        }
+        let settings=settingsJSON(doc.settings).filter {doc.settingsKeys?.contains($0.key) ?? true}
         if doc.hasSettings { root["settings"] = settings }
         root["tracks"] = doc.tracks.map { t -> [String: Any] in
             [
@@ -319,7 +298,9 @@ public enum Backup {
         let navLanes = try JSONDecoder().decode([NavLane].self,from: laneBytes)
         var document = Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
                                 graphics: graphics, settings: settings, tracks: tracks, courseHistory: course,navLanes: navLanes)
-        document.hasSettings = root["settings"] != nil
+        document.hasSettings = root["settings"] is [String:Any]
+        let keys=Set((root["settings"] as? [String:Any] ?? [:]).keys)
+        document.settingsKeys=Set(settingsJSON(AppSettings()).keys).isSubset(of:keys) ? nil : keys
         try validate(document, includingTrackFiles: false)
         return document
     }
@@ -461,6 +442,57 @@ public enum Backup {
             total: total,
             splits: splits
         )
+    }
+
+    private static func settingsJSON(_ s:AppSettings)->[String:Any] {
+        var settings: [String: Any] = [
+            "nightMode": s.nightMode,
+            "keepScreenOn": s.keepScreenOn,
+            "mgrsDigits": s.mgrsDigits,
+            "gridSystem": s.gridSystem,
+            "latLonFormat": s.latLonFormat,
+            "units": s.units,
+            "angleUnit": s.angleUnit,
+            "northRef": s.northRef,
+            "pacePer100m": s.pacePer100m,
+            "face": s.face,
+            "orientation": s.orientation,
+            "guideAllowance": s.guideAllowance,
+            "guideHoldOffSec": s.guideHoldOffSec,
+            "guideHeartbeatSec": s.guideHeartbeatSec,
+            "guideMode": s.guideMode,
+            "guideCorridorM": s.guideCorridorM,
+            "laneWarningM": s.laneWarningM,
+            "laneSideCues": s.laneSideCues,
+            "laneBackstopCue": s.laneBackstopCue,
+            "laneInsideTick": s.laneInsideTick,
+            "laneReminderMin": s.laneReminderMin,
+            "laneGpsAlert": s.laneGpsAlert,
+            "hiddenMapTools": MapTools.encode(s.hiddenMapTools),
+            "disclaimerAccepted": s.disclaimerAccepted,
+        ]
+        if let d = s.declinationOverride {
+            settings["declinationOverride"] = d
+        } else {
+            settings["declinationOverride"] = NSNull()
+        }
+        return settings
+    }
+
+    private static func changedSettingsKeys(_ before:AppSettings,_ after:AppSettings)->Set<String> {
+        let old=settingsJSON(before)
+        return Set(settingsJSON(after).compactMap {key,value in
+            (old[key] as? NSObject)?.isEqual(value) == true ? nil : key
+        })
+    }
+
+    public static func mergingSettings(_ incoming:AppSettings,presentKeys:Set<String>?,current:AppSettings) throws -> AppSettings {
+        guard let keys=presentKeys else {return incoming}
+        var merged=settingsJSON(current)
+        for (key,value) in settingsJSON(incoming) where keys.contains(key) {merged[key]=value}
+        let result=try decodeSettings(merged)
+        try validate(Document(settings:result))
+        return result
     }
 
     private static func decodeSettings(_ o: [String: Any]) throws -> AppSettings {

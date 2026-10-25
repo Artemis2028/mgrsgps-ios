@@ -116,7 +116,9 @@ Export includes all lane records, including hidden ones. The setting
 `laneWarningM` defaults to 0 and accepts 0–200 metres. Android `4db6b21`
 adds `laneSideCues`, `laneBackstopCue`, `laneInsideTick` and `laneGpsAlert`
 (default true), plus `laneReminderMin` (default 5; integer 0–120). Missing
-keys in older archives use those defaults. These are independent of iOS's
+keys have those defaults when parsed without a current store. During restore,
+Android eacf084 and iOS preserve the current local value for absent keys;
+explicit fields still replace it, and explicit null clears declination override. These are independent of iOS's
 local-only Live Activities consent. Lane restore runs after
 graphics and before course history/settings, merges by ID with existing records
 winning, and keeps successful earlier phases if a later phase fails. Runtime

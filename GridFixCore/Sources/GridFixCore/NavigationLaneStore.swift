@@ -22,8 +22,8 @@ public final class NavigationLaneStore: ObservableObject {
         catch { self.error = "Lane library could not be read: \(error.localizedDescription). Its file was kept."; throw error }
     }
     @discardableResult
-    public func save(_ lane: NavLane,original: NavLane? = nil,graphics: [Backup.Graphic]) async throws -> NavLane {
-        let result = try await change(.save(lane,original,graphics))
+    public func save(_ lane: NavLane,original: NavLane? = nil,graphics: [Backup.Graphic],waypoints:[Waypoint] = []) async throws -> NavLane {
+        let result = try await change(.save(lane,original,graphics,waypoints))
         guard let saved = result.lanes.first(where: { $0.id == lane.id }) else { throw LaneShapeError("This lane is no longer saved") }
         return saved
     }
@@ -50,7 +50,7 @@ public final class NavigationLaneStore: ObservableObject {
 
 private actor LaneLibraryFile {
     struct Snapshot: Sendable { var lanes: [NavLane]; var revision: UInt64; var added = 0 }
-    enum Edit: Sendable { case save(NavLane,NavLane?,[Backup.Graphic]),visible(String,Bool),delete(String),restore([NavLane]) }
+    enum Edit: Sendable { case save(NavLane,NavLane?,[Backup.Graphic],[Waypoint]),visible(String,Bool),delete(String),restore([NavLane]) }
     let url: URL
     private var current: [NavLane]?
     private var revision: UInt64 = 0
@@ -77,7 +77,7 @@ private actor LaneLibraryFile {
             guard checked.count <= 10_000,Set(checked.map(\.id)).count == checked.count else { throw LaneShapeError("Duplicate or oversized navigation lane restore") }
             let known = Set(next.map(\.id)), fresh = checked.filter { !known.contains($0.id) }
             added = fresh.count; next += fresh
-        case let .save(draft,original,graphics):
+        case let .save(draft,original,graphics,waypoints):
             let value: NavLane
             if let original {
                 guard original.id == draft.id,let index = next.firstIndex(where: { $0.id == draft.id }) else { throw LaneShapeError("This lane was deleted. Your draft is kept") }
@@ -97,7 +97,7 @@ private actor LaneLibraryFile {
             }
             // Round-trip validates programmatically constructed models too.
             let checked = try JSONDecoder().decode(NavLane.self,from: JSONEncoder().encode(value))
-            let normalized = try NavLanes.normalized(checked,graphics: graphics).lane
+            let normalized = try NavLanes.normalized(checked,graphics: graphics,waypoints:waypoints).lane
             if let i = next.firstIndex(where: { $0.id == normalized.id }) { next[i] = normalized }
             else { next.append(normalized) }
         case let .visible(id,value):

@@ -194,3 +194,17 @@ cue switches, dragged-point sanitization, preserving absent settings from old
 backups, and the offline/lasso/protected-export fixes. Existing iOS protections
 must be inspected individually before deciding which changes are actually
 missing. These are implementation/audit work, not platform limitations.
+
+
+### Reviewed lane and backup port update
+
+The eacf084 lane geometry/objective/orientation, U-turn/funnel refusal,
+same-lane entered-state retention, behind-start return, associated warning
+switches and drawn-point sanitization are now implemented. Sparse backup
+settings preserve absent keys against a fresh revision-checked local snapshot;
+explicit fields remain authoritative. Model and native evidence is in
+[navigation lanes](navigation-lanes.md). Other offline/lasso/protected-file
+review details still need individual audit. The user has now explicitly
+requested [live OpenTAKServer interoperability](tak-server-interoperability.md);
+Android's latest observed TAK commit is 6fc4733. File interchange is implemented,
+but live transport is the next implementation scope.

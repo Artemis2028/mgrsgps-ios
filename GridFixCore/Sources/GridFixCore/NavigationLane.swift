@@ -67,6 +67,13 @@ public struct ResolvedLane: Sendable {
 }
 
 public enum NavLanes {
+    public static func sanitizedDrawnPoints(_ points:[GeoPoint])->[GeoPoint] {
+        points.filter {$0.lat.isFinite && $0.lon.isFinite}.map {
+            var longitude=($0.lon+180).truncatingRemainder(dividingBy:360)
+            if longitude<0 {longitude+=360}
+            return .init(lat:min(90,max(-90,$0.lat)),lon:longitude-180)
+        }
+    }
     public static func canBeLimit(_ graphic: Backup.Graphic) -> Bool {
         !GraphicTypes.isArea(graphic.type) && graphic.points.count >= 2 && GraphicTypes.fixedPoints(graphic.type) == nil
     }
@@ -102,14 +109,18 @@ public enum NavLanes {
     private static func summary(_ lane: NavLane,lookup: (String) -> Backup.Graphic?) -> String {
         "L: \(label(lane.left,lookup: lookup,fallback: "left limit")) · R: \(label(lane.right,lookup: lookup,fallback: "right limit")) · BS: \(label(lane.backstop,lookup: lookup,fallback: "backstop"))"
     }
-    public static func resolve(_ lane: NavLane,graphics: [Backup.Graphic]) throws -> ResolvedLane {
+    public static func objective(_ lane:NavLane,graphics:[Backup.Graphic],waypoints:[Waypoint])->GeoPoint? {
+        if lane.scope == .route {return graphics.first {$0.id == lane.targetId}?.points.last.map {.init(lat:$0.lat,lon:$0.lon)}}
+        return waypoints.first {$0.id == lane.targetId}.map {.init(lat:$0.lat,lon:$0.lon)}
+    }
+    public static func resolve(_ lane: NavLane,graphics: [Backup.Graphic],waypoints:[Waypoint] = []) throws -> ResolvedLane {
         guard let l = points(lane.left,graphics: graphics) else { throw LaneShapeError("The left limit's line is missing") }
         guard let r = points(lane.right,graphics: graphics) else { throw LaneShapeError("The right limit's line is missing") }
         guard let b = points(lane.backstop,graphics: graphics) else { throw LaneShapeError("The backstop's line is missing") }
-        return try .init(lane: lane,shape: LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b),left: l,right: r,backstop: b)
+        return try .init(lane: lane,shape: LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b,objective:objective(lane,graphics:graphics,waypoints:waypoints)),left: l,right: r,backstop: b)
     }
-    public static func normalized(_ lane: NavLane,graphics: [Backup.Graphic]) throws -> (lane: NavLane,swapped: Bool) {
-        let resolved = try resolve(lane,graphics: graphics)
+    public static func normalized(_ lane: NavLane,graphics: [Backup.Graphic],waypoints:[Waypoint] = []) throws -> (lane: NavLane,swapped: Bool) {
+        let resolved = try resolve(lane,graphics: graphics,waypoints:waypoints)
         var saved = lane
         if resolved.shape.leftWasDrawnAsRight { saved.left = lane.right; saved.right = lane.left }
         return (saved,resolved.shape.leftWasDrawnAsRight)

@@ -255,7 +255,9 @@ final class AppSettings: ObservableObject {
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
         fileprivate let liveActivitiesEnabled: Bool
-        func prepare(_ settings: Backup.AppSettings) throws -> PreparedRestore {
+        fileprivate let current: Backup.AppSettings
+        func prepare(_ incoming: Backup.AppSettings,presentKeys:Set<String>? = nil) throws -> PreparedRestore {
+            let settings=try Backup.mergingSettings(incoming,presentKeys:presentKeys,current:current)
             let file = try PreparedAtomicFile(data: AppSettings.encodeBackup(settings,liveActivitiesEnabled:liveActivitiesEnabled),destination: destination)
             return PreparedRestore(settings: settings,revision: revision,identity: identity,file: file)
         }
@@ -269,7 +271,7 @@ final class AppSettings: ObservableObject {
     }
 
     func restoreSnapshot() -> RestoreSnapshot {
-        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity,liveActivitiesEnabled:liveActivitiesEnabled)
+        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity,liveActivitiesEnabled:liveActivitiesEnabled,current:backupSettings)
     }
 
     func publishRestore(_ prepared: PreparedRestore) throws -> Bool {

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Android nav-lane geometry, separate from the user's closed quiet perimeter.
-/// Local equirectangular metres match LaneGeometry.kt at Android 91cb68f.
+/// Local equirectangular metres match LaneGeometry.kt at Android eacf084.
 struct LaneXY: Equatable, Sendable {
     var x: Double, y: Double
     static func - (a: Self,b: Self) -> Self { .init(x: a.x-b.x,y: a.y-b.y) }
@@ -107,8 +107,8 @@ public struct LaneShape: Sendable {
     private let leftOutside: Double, rightOutside: Double, backstopOutside: Double
     public let leftWasDrawnAsRight: Bool
 
-    public init(leftDrawn: [GeoPoint],rightDrawn: [GeoPoint],backstopDrawn: [GeoPoint]) throws {
-        let all = leftDrawn+rightDrawn+backstopDrawn
+    public init(leftDrawn: [GeoPoint],rightDrawn: [GeoPoint],backstopDrawn: [GeoPoint],objective: GeoPoint? = nil) throws {
+        let all = leftDrawn+rightDrawn+backstopDrawn+(objective.map {[$0]} ?? [])
         guard all.allSatisfy({ $0.lat.isFinite && $0.lon.isFinite && abs($0.lat) <= 90 && abs($0.lon) <= 180 }) else {
             throw LaneShapeError("A lane point is not a valid position")
         }
@@ -116,25 +116,53 @@ public struct LaneShape: Sendable {
         let plane = LaneLocalPlane(origin: origin)
         let b = LanePlanePolyline(backstopDrawn.map(plane.project),extendStart: true,extendEnd: true)
         guard b.valid else { throw LaneShapeError("The backstop needs two points") }
-        var l = LanePlanePolyline(leftDrawn.map(plane.project),extendStart: false,extendEnd: true)
-        var r = LanePlanePolyline(rightDrawn.map(plane.project),extendStart: false,extendEnd: true)
-        guard l.valid else { throw LaneShapeError("The left limit needs two points") }
-        guard r.valid else { throw LaneShapeError("The right limit needs two points") }
-        func towardBackstop(_ p: LanePlanePolyline) -> LanePlanePolyline {
-            if abs(b.offset(p.points[0]).distance) < abs(b.offset(p.points.last!).distance) {
-                return .init(Array(p.points.reversed()),extendStart: false,extendEnd: true)
+        let l0 = LanePlanePolyline(leftDrawn.map(plane.project),extendStart: false,extendEnd: true)
+        let r0 = LanePlanePolyline(rightDrawn.map(plane.project),extendStart: false,extendEnd: true)
+        guard l0.valid else { throw LaneShapeError("The left limit needs two points") }
+        guard r0.valid else { throw LaneShapeError("The right limit needs two points") }
+        let nearSign: Double
+        if let objective {
+            let distance = b.offset(plane.project(objective)).distance
+            guard abs(distance) >= 1 else { throw LaneShapeError("The point is on the backstop; the backstop goes past the point") }
+            nearSign = distance > 0 ? 1 : -1
+        } else {
+            // Length-weighted samples prevent a densely drawn far end from
+            // deciding which side of the backstop is the approach side.
+            var weight = 0.0
+            for points in [l0.points,r0.points] {
+                for (p,q) in zip(points,points.dropFirst()) {
+                    let delta = q-p
+                    for i in 0..<8 {
+                        let distance = b.offset(p+delta*((Double(i)+0.5)/8)).distance
+                        if abs(distance)>0.5 { weight += delta.length/8*(distance>0 ? 1 : -1) }
+                    }
+                }
             }
-            return p
+            nearSign = weight>=0 ? 1 : -1
         }
-        l = towardBackstop(l); r = towardBackstop(r)
+        let backstopOutside = -nearSign
+        func beyond(_ point: LaneXY)->Double { b.offset(point).distance*backstopOutside }
+        let bLength = zip(b.points,b.points.dropFirst()).reduce(0) {$0+($1.1-$1.0).length}
+        let margin = max(100,bLength*0.5)
+        let drawnBackstop = LanePlanePolyline(b.points,extendStart:false,extendEnd:false)
+        for point in l0.points+r0.points where beyond(point)>1 {
+            if abs(drawnBackstop.offset(point).distance)-abs(b.offset(point).distance)>margin {
+                throw LaneShapeError("This lane turns back on itself, so the backstop line would cut across it. Use one lane per checkpoint for each leg.")
+            }
+        }
+        func nearFirst(_ line:LanePlanePolyline)->LanePlanePolyline {
+            beyond(line.points[0])<=beyond(line.points.last!) ? line : .init(Array(line.points.reversed()),extendStart:false,extendEnd:true)
+        }
+        let l=nearFirst(l0),r=nearFirst(r0)
+        guard beyond(l.points[0])<0 && beyond(r.points[0])<0 else {throw LaneShapeError("Both limits must start on the near side of the backstop")}
         if l.crosses(r) { throw LaneShapeError("The left and right limits cross each other") }
-        let start = (l.points[0]+r.points[0])*0.5, startSide = b.offset(start).distance
-        guard abs(startSide) >= 1 else { throw LaneShapeError("The backstop runs through the start of the lane") }
-        let backstopOutside = startSide > 0 ? -1.0 : 1.0
-        func beforeBackstop(_ p: LaneXY) -> Bool { b.offset(p).distance*backstopOutside < 0 }
-        guard beforeBackstop(l.points[0]) && beforeBackstop(r.points[0]) else {
-            throw LaneShapeError("Both limits must start on the near side of the backstop")
+        let start=(l.points[0]+r.points[0])*0.5
+        guard beyond(start)<=(-1) else {throw LaneShapeError("The backstop runs through the start of the lane")}
+        if let lHit=Self.rayHit(l.points,b.points),let rHit=Self.rayHit(r.points,b.points),beyond(l.points.last!)<0,beyond(r.points.last!)<0,
+           Self.segmentsCross(l.points.last!,lHit,r.points.last!,rHit) {
+            throw LaneShapeError("The limits meet before the backstop. End them at the backstop, a little apart.")
         }
+        func beforeBackstop(_ point:LaneXY)->Bool {beyond(point)<0}
         func insideSide(_ line: LanePlanePolyline,_ other: LanePlanePolyline) throws -> Double {
             var leftVotes = 0, rightVotes = 0
             for i in 0..<(other.points.count-1) {
@@ -153,14 +181,28 @@ public struct LaneShape: Sendable {
             return leftVotes > rightVotes ? 1 : -1
         }
         let lInside = try insideSide(l,r), rInside = try insideSide(r,l)
-        let travel = (l.points.last!+r.points.last!)*0.5-start
-        guard travel.length >= 1 else { throw LaneShapeError("The lane has no length") }
-        func centroid(_ line: LanePlanePolyline) -> LaneXY { line.points.reduce(.init(x: 0,y: 0),+)*(1/Double(line.points.count)) }
-        let ordered = travel.cross(centroid(l)-start) >= travel.cross(centroid(r)-start)
+        guard lInside != rInside else {throw LaneShapeError("Can't tell the left limit from the right; draw the limits side by side")}
+        let ordered = lInside<0
         self.plane = plane; self.backstop = b; self.backstopOutside = backstopOutside
         self.left = ordered ? l : r; self.right = ordered ? r : l
         self.leftOutside = ordered ? -lInside : -rInside; self.rightOutside = ordered ? -rInside : -lInside
         self.leftWasDrawnAsRight = !ordered
+    }
+
+    private static func segmentsCross(_ a:LaneXY,_ b:LaneXY,_ c:LaneXY,_ d:LaneXY)->Bool {
+        let ab=b-a,cd=d-c
+        return ab.cross(c-a)*ab.cross(d-a)<0 && cd.cross(a-c)*cd.cross(b-c)<0
+    }
+    private static func rayHit(_ points:[LaneXY],_ line:[LaneXY])->LaneXY? {
+        let a=points[points.count-2],direction=points.last!-a
+        var best:LaneXY?,bestT=Double.infinity
+        for i in 0..<(line.count-1) {
+            let c=line[i],segment=line[i+1]-c,denominator=direction.cross(segment)
+            if abs(denominator)<1e-12 {continue}
+            let t=(c-a).cross(segment)/denominator,u=(c-a).cross(direction)/denominator
+            if (u>=0 || i==0) && (u<=1 || i==line.count-2) && t>=1 && t<bestT {bestT=t;best=a+direction*t}
+        }
+        return best
     }
 
     public func read(_ position: GeoPoint) -> LaneReading {

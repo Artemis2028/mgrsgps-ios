@@ -101,6 +101,21 @@ final class StagedBackupIntegrationTests: XCTestCase {
         // Timing is recorded, not a hardware-dependent CI pass threshold. This
         // does not measure rendering a large library's actual SwiftUI cards.
     }
+    func testSparseBackupPreservesNewerSettingsAndRebasesAfterLocalEdit() async throws {
+        let dir=try directory(),points=WaypointStore(directory:dir),field=FieldDataStore(directory:dir),settings=AppSettings(directory:dir)
+        settings.laneSideCues=false;settings.laneReminderMin=10;settings.liveActivitiesEnabled=true;settings.declinationOverride=4
+        let old=try Backup.decodeManifest(Data(#"{"app":"GridFix","version":1,"settings":{"units":1,"nightMode":true}}"#.utf8))
+        let stale=try settings.restoreSnapshot().prepare(old.settings,presentKeys:old.settingsKeys)
+        settings.laneReminderMin=2
+        XCTAssertFalse(try settings.publishRestore(stale))
+        let result=await BackupCoordinator.restore(old,waypoints:points,fieldData:field,settings:settings)
+        XCTAssertFalse(result.contains("stopped"),result)
+        let reopened=AppSettings(directory:dir)
+        XCTAssertEqual(reopened.laneReminderMin,2);XCTAssertFalse(reopened.laneSideCues)
+        XCTAssertTrue(reopened.liveActivitiesEnabled);XCTAssertEqual(reopened.declinationOverride,4)
+        XCTAssertTrue(reopened.nightMode);XCTAssertEqual(reopened.backupSettings.units,1)
+    }
+
 }
 
 @MainActor
@@ -108,4 +123,6 @@ private final class RestoreHeartbeatState {
     var done = false
     var pulses = 0
     var maximumGap = 0.0
+
+
 }

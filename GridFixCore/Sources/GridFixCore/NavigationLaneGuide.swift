@@ -34,8 +34,8 @@ public struct LaneGuideState: Sendable {
     private var warned: Set<LaneLimit> = []
     private var warningPending: LaneLimit?
     private var warningCount = 0
-    public init(shape: LaneShape,configuration: LaneGuideConfiguration = .init()) {
-        self.shape = shape; self.configuration = configuration
+    public init(shape: LaneShape,configuration: LaneGuideConfiguration = .init(),entered: Bool = false) {
+        self.shape = shape; self.configuration = configuration; self.state = entered ? .inside : .notYet
     }
     public mutating func invalidateFix() { pending = nil; pendingCount = 0; warningPending = nil; warningCount = 0 }
     public mutating func update(position: GeoPoint,accuracy: Double,fixTime: TimeInterval) -> LaneDecision {
@@ -57,7 +57,9 @@ public struct LaneGuideState: Sendable {
         else {
             if pending == target { pendingCount += 1 } else { pending = target; pendingCount = 1 }
             if pendingCount >= max(1,configuration.fixesToConfirm) {
-                backInside = target == .inside; state = target; changed = true
+                backInside = target == .inside
+                if target == .notYet {waitingSince=fixTime;lastReminder=nil}
+                state = target; changed = true
                 pending = nil; pendingCount = 0; warningPending = nil; warningCount = 0
             }
         }
@@ -80,6 +82,8 @@ public struct LaneGuideState: Sendable {
         let crossed: LaneLimit?
         switch state { case .inside,.notYet: crossed = nil; case .outLeft: crossed = .left; case .outRight: crossed = .right; case .overshot: crossed = .backstop }
         if past(.backstop) || (crossed == .backstop && stillPast(.backstop)) { return .overshot }
+        if crossed == .left && r.left == nil {return .notYet}
+        if crossed == .right && r.right == nil {return .notYet}
         if crossed == .left && stillPast(.left) { return .outLeft }
         if crossed == .right && stillPast(.right) { return .outRight }
         let l = past(.left) ? r.left : nil, right = past(.right) ? r.right : nil
@@ -134,6 +138,10 @@ public struct LaneCueCadence: Sendable {
     private var nextAt = 0.0
     public init() {}
     public mutating func reset() { nextAt = 0 }
+    private func warningPulse(_ limit:LaneLimit?)->LanePulse? {
+        guard let limit,limit == .backstop ? cues.backstop : cues.sides else {return nil}
+        return LanePulse.warning(limit)
+    }
     public mutating func next(decision: LaneDecision,now: TimeInterval) -> LanePulse? {
         guard now.isFinite else { return nil }
         if decision.backInside { nextAt = 0; return cues.insideTick ? .backInside : nil }
@@ -144,10 +152,10 @@ public struct LaneCueCadence: Sendable {
         case .overshot: enabled=cues.backstop
         case .inside,.notYet: enabled=true
         }
-        if !enabled { nextAt=0;return decision.warning.map(LanePulse.warning) }
+        if !enabled { nextAt=0;return warningPulse(decision.warning) }
         let pulse: LanePulse
         switch decision.state {
-        case .inside,.notYet: nextAt = 0; return decision.warning.map(LanePulse.warning)
+        case .inside,.notYet: nextAt = 0; return warningPulse(decision.warning)
         case .outLeft: pulse = .turnRight
         case .outRight: pulse = .turnLeft
         case .overshot: pulse = .overshot

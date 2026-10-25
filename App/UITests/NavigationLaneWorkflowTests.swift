@@ -121,4 +121,24 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","3 points"),object: app.staticTexts["lane-point-count"])
         XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 8),.completed)
     }
+    func testObjectiveOnBackstopShowsErrorAndCanBeCorrectedInDayAndNight() {
+        app.terminate();app.launchArguments += ["-uiTestLaneInvalidObjective"];app.launch()
+        openLibrary();app.buttons["create-nav-lane"].tap()
+        link("lane-left");role("Right");link("lane-right");role("Backstop");link("lane-backstop")
+        app.buttons["review-nav-lane"].tap()
+        let bad=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@ AND label BEGINSWITH %@","lane-target-","Checkpoint on backstop")).firstMatch
+        for _ in 0..<5 {if bad.isHittable {break};app.swipeUp()}
+        bad.tap()
+        let error=app.staticTexts["The point is on the backstop; the backstop goes past the point"]
+        XCTAssertTrue(error.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["save-nav-lane"].isEnabled)
+        capture("lane-objective-backstop-error-day")
+        app.buttons["Back to map"].tap();app.buttons["Toggle map night mode"].tap();app.buttons["review-nav-lane"].tap()
+        XCTAssertTrue(error.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["save-nav-lane"].isEnabled)
+        capture("lane-objective-backstop-error-night")
+        let valid=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@ AND label BEGINSWITH %@","lane-target-","Lane OBJ")).firstMatch
+        for _ in 0..<5 {if valid.isHittable {break};app.swipeDown()}
+        valid.tap();XCTAssertTrue(app.buttons["save-nav-lane"].isEnabled);app.buttons["save-nav-lane"].tap()
+        XCTAssertFalse(app.buttons["save-nav-lane"].waitForExistence(timeout:2))
+    }
+
 }
