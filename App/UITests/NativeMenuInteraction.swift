@@ -18,6 +18,37 @@ extension XCTestCase {
         tapVisibleControl(element,horizontal: 0.9,file: file,line: line)
     }
 
+    /// Use iOS's native selection menu instead of a hardware Command-A event.
+    /// Hosted Xcode 26 can send that event without selecting the existing text.
+    func replaceTextInput(_ element: XCUIElement,_ value: String,file: StaticString = #filePath,line: UInt = #line) {
+        tapTextInput(element,file: file,line: line)
+        let app = XCUIApplication()
+        for _ in 0..<3 {
+            let old = element.value as? String ?? ""
+            if old.isEmpty { break }
+            // Form accessibility frames include the label. Press the actual
+            // trailing value, rather than the label-wide centre.
+            element.coordinate(withNormalizedOffset: .init(dx: 0.999,dy: 0.5)).press(forDuration: 1.1)
+            let selectAll = app.buttons["Select All"].firstMatch
+            let menuItem = app.menuItems["Select All"].firstMatch
+            if selectAll.waitForExistence(timeout: 1) { selectAll.tap() }
+            else if menuItem.exists { menuItem.tap() }
+            else {
+                // A short numeric value may offer no selection menu. A press
+                // at the label-wide centre can leave the caret before its last
+                // digit. Tap the trailing value edge before deleting backwards.
+                tapVisibleControl(element,horizontal: 0.999,file: file,line: line)
+            }
+            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: max(1,old.utf16.count)))
+            let remaining = element.value as? String ?? ""
+            if remaining.isEmpty || remaining == element.placeholderValue { break }
+        }
+        let remaining = element.value as? String ?? ""
+        XCTAssertTrue(remaining.isEmpty || remaining == element.placeholderValue,"Could not clear native input: \(remaining)",file: file,line: line)
+        element.typeText(value)
+        XCTAssertEqual(element.value as? String,value,file: file,line: line)
+    }
+
     func dismissFieldKeyboard(file: StaticString = #filePath,line: UInt = #line) {
         let app = XCUIApplication()
         for id in ["waypoint-keyboard-done","field-fix-keyboard-done"] {

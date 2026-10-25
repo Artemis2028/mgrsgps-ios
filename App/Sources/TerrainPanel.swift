@@ -136,10 +136,11 @@ private struct TerrainEndpoint: View {
     let centre: GeoPoint
     let prefix: String
     var body: some View {
-        Picker("Position source",selection: $mode) {
-            if position != nil { Text("My position").tag("me") }
-            Text("Map centre").tag("centre"); Text("Waypoint").tag("waypoint").accessibilityIdentifier("terrain-\(prefix)-source-waypoint"); Text("Coordinate").tag("coordinate")
-        }.accessibilityIdentifier("terrain-\(prefix)-source")
+        FieldChoicePicker(selection: $mode,title: "Position source",
+                          choices: (position != nil ? [FieldChoice(id: "me",title: "My position")] : []) + [
+                            .init(id: "centre",title: "Map centre"),
+                            .init(id: "waypoint",title: "Waypoint",accessibilityIdentifier: "terrain-\(prefix)-source-waypoint"),
+                            .init(id: "coordinate",title: "Coordinate")],identifier: "terrain-\(prefix)-source")
         if mode == "waypoint" {
             FieldPointPicker(selection: $id,
                              choices: [.init(id: "",name: "Choose waypoint")] + waypoints.map { .init(id: $0.id,name: $0.name,coordinate: .init(lat: $0.lat,lon: $0.lon)) },

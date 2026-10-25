@@ -24,11 +24,13 @@ final class FieldFixWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [selected],timeout: 5),.completed,app.debugDescription)
     }
     private func angle(_ index: Int,_ text: String) {
-        let field = app.textFields["field-fix-azimuth-\(index)"]; reveal(field); tapTextInput(field)
-        field.typeKey("a",modifierFlags: .command)
-        field.typeText(text)
+        let field = app.textFields["field-fix-azimuth-\(index)"]; reveal(field)
+        replaceTextInput(field,text)
         XCTAssertEqual(field.value as? String,text)
-        let done = app.buttons["Done"]; XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
+        let done = app.buttons["Done"]; XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertFalse(done.frame.intersects(field.frame),"Keyboard Done covers the azimuth input")
+        if index == 1 { capture("field-fix-azimuth-keyboard") }
+        done.tap()
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     func testIntersectionShowResectionSaveAndRelaunchWithoutStartingNavigation() {
@@ -57,7 +59,9 @@ final class FieldFixWorkflowTests: XCTestCase {
         let message = app.staticTexts["field-fix-message"]; reveal(message)
         XCTAssertTrue(message.label.contains("0 to 360")); XCTAssertFalse(app.buttons["field-fix-save"].isEnabled)
         // Return to the first input after inspecting the lower validation row.
-        app.swipeDown(); app.swipeDown()
+        let firstInput = app.textFields["field-fix-azimuth-1"]
+        for _ in 0..<6 { if firstInput.isHittable { break }; app.tables.firstMatch.swipeDown() }
+        XCTAssertTrue(firstInput.isHittable,app.debugDescription)
         angle(1,"260"); angle(2,"100")
         let warning = app.staticTexts["field-fix-poor-cut"]; reveal(warning)
         XCTAssertTrue(warning.waitForExistence(timeout: 8)); capture("field-fix-night-poor-cut")

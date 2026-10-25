@@ -33,17 +33,21 @@ final class OrientationWorkflowTests: XCTestCase {
         let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","Current window: Landscape"),object: actual)
         XCTAssertEqual(XCTWaiter.wait(for: [landscape],timeout: 8),.completed)
         capture("orientation-landscape",app)
+        XCUIDevice.shared.orientation = .landscapeLeft
         reveal(picker,in: app); picker.buttons["Flipped"].tap()
         let flipped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","Current window: Flipped"),object: actual)
         XCTAssertEqual(XCTWaiter.wait(for: [flipped],timeout: 10),.completed); capture("orientation-flipped",app)
+        XCUIDevice.shared.orientation = .portrait
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         let pinned = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.width > app.frame.height },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [pinned],timeout: 10),.completed)
+        XCUIDevice.shared.orientation = .landscapeRight
         app.buttons["Settings"].tap(); reveal(actual,in: app)
         XCTAssertEqual(actual.label,"Current window: Flipped")
         reveal(picker,in: app); picker.buttons["Portrait"].tap()
         let upright = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.height > app.frame.width },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [upright],timeout: 10),.completed)
+        XCUIDevice.shared.orientation = .portrait
         picker.buttons["Auto"].tap(); app.navigationBars.buttons["Done"].tap()
         XCUIDevice.shared.orientation = .landscapeLeft
         let auto = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.width > app.frame.height },object: app)

@@ -204,9 +204,7 @@ final class WaypointWorkflowTests: XCTestCase {
     }
 
     private func replace(_ field: XCUIElement, with text: String) {
-        tapTextInput(field)
-        field.typeKey("a",modifierFlags: .command)
-        field.typeText(text)
+        replaceTextInput(field,text)
         XCTAssertEqual(field.value as? String, text)
         dismissFieldKeyboard()
     }

@@ -13,9 +13,8 @@ final class ProjectionWorkflowTests: XCTestCase {
         }
     }
     private func field(_ id: String,_ value: String) {
-        let input = app.textFields[id]; reveal(input); tapTextInput(input)
-        input.typeKey("a",modifierFlags: .command)
-        input.typeText(value)
+        let input = app.textFields[id]; reveal(input)
+        replaceTextInput(input,value)
         XCTAssertEqual(input.value as? String,value)
         let done = app.buttons["waypoint-keyboard-done"]; XCTAssertTrue(done.waitForExistence(timeout: 5)); done.tap()
     }
@@ -43,7 +42,8 @@ final class ProjectionWorkflowTests: XCTestCase {
     }
     func testInvalidProjectionDisablesSaveAndCoordinateModeKeepsOriginalInNightMode() {
         app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
-        app.buttons["edit-waypoint-West observer"].tap()
+        // The padded summary must open the editor even when touched off-glyph.
+        app.buttons["edit-waypoint-West observer"].coordinate(withNormalizedOffset: .init(dx: 0.95,dy: 0.9)).tap()
         let preview = app.staticTexts["waypoint-coordinate-preview"]; reveal(preview); let original = preview.label
         app.swipeDown(); app.swipeDown()
         project(); field("projection-azimuth","90"); field("projection-distance","200001")

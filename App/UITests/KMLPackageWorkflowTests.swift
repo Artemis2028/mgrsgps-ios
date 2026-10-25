@@ -21,7 +21,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export " + format])
         let filename = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(filename.waitForExistence(timeout: 10),app.debugDescription)
         let name = "gridfix-package-ui-" + UUID().uuidString.prefix(8)
-        filename.tap(); filename.typeKey("a",modifierFlags: .command); filename.typeText(String(name))
+        replaceTextInput(filename,String(name))
         XCTAssertEqual(filename.value as? String,String(name))
         saveNativeFile(in: app)
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))

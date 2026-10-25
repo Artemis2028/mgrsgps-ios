@@ -52,9 +52,14 @@ struct LibraryTrackFolderPicker: View {
         NavigationStack {
             List {
                 ForEach(folders) { folder in
-                    Button(folder.name == track.folder ? "\(folder.name) (current)" : folder.name) {
+                    Button {
                         do { try move(folder.name); dismiss() } catch { self.error = error.localizedDescription }
-                    }.disabled(folder.name == track.folder).accessibilityIdentifier("move-track-to-\(folder.name)")
+                    } label: {
+                        HStack {
+                            Text(folder.name == track.folder ? "\(folder.name) (current)" : folder.name)
+                            Spacer()
+                        }.frame(maxWidth: .infinity,minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(folder.name == track.folder).accessibilityIdentifier("move-track-to-\(folder.name)")
                 }
                 if let error { Text(error).foregroundStyle(FieldPalette(night: night).warn) }
             }.scrollContentBackground(.hidden).background { FieldScreenBackground() }

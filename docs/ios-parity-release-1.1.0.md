@@ -3,6 +3,7 @@
 Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
+The release branch was rechecked on 25 October and still points to this commit.
 
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
@@ -18,7 +19,7 @@ It is not a claim of full Android parity.
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history | Larger-library storage and physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract, guide preferences in backup, bounded ZIP64 metadata/descriptor support and coordinated mapped backup reads | Physical provider/Open In and ATAK client validation, larger-container/library performance validation, physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
-| Release | Unsigned simulator/device builds, automated tests and draft PR | App icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
+| Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs with local regression evidence | Full hosted CI pass, app icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
 The recording-sheet contrast regression came from the map's light colour scheme
 leaking into dark field forms. Field-sheet presentation now explicitly selects

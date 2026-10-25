@@ -31,8 +31,11 @@ final class LibraryWorkflowTests: XCTestCase {
     }
     func testDeleteMixedFolderSelectionPersistsAndLeavesOtherFolderUntouched() {
         folder("Recon"); selectAll(); selected(3)
-        app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-delete-selected"]); app.alerts.buttons["Delete"].tap()
-        XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5))
+        app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-delete-selected"])
+        let confirmation = app.alerts.firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        tapNativeMenuItem(confirmation.buttons["Delete"])
+        XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5),app.debugDescription)
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         folder("Recon"); XCTAssertTrue(app.staticTexts["Nothing in Recon yet."].waitForExistence(timeout: 5))
         folder("Base"); XCTAssertTrue(app.buttons["edit-waypoint-Alpha"].exists)
@@ -42,7 +45,7 @@ final class LibraryWorkflowTests: XCTestCase {
     func testRenameFolderMovesAllRecordTypesThenKeepContentsInBase() {
         folder("Recon"); app.buttons["Folder options"].tap(); tapNativeMenuItem(app.buttons["Rename folder"])
         let name = app.textFields["library-folder-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap()
-        name.typeKey("a",modifierFlags: .command); name.typeText("Patrol")
+        replaceTextInput(name,"Patrol")
         XCTAssertEqual(name.value as? String,"Patrol")
         app.buttons["library-folder-save"].tap()
         XCTAssertTrue(app.buttons["Patrol"].waitForExistence(timeout: 5))
@@ -69,8 +72,16 @@ final class LibraryWorkflowTests: XCTestCase {
         XCTAssertTrue(overlays.waitForExistence(timeout: 10)); XCTAssertTrue(overlays.label.contains("1 tracks"))
         app.tabBars.buttons["Waypoints"].tap()
         reveal(actions); actions.tap(); XCTAssertTrue(app.buttons["Make visible on map"].exists)
-        app.buttons["Move to folder"].tap(); app.buttons["move-track-to-Base"].tap()
-        XCTAssertFalse(app.buttons["library-track-Recon track"].exists)
+        app.buttons["Move to folder"].tap()
+        let destination = app.buttons["move-track-to-Base"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        capture("library-track-folder-picker")
+        // Choosing a folder works across its entire row, outside the text.
+        destination.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: app.navigationBars["Move Recon track"])
+        XCTAssertEqual(XCTWaiter.wait(for: [closed],timeout: 5),.completed)
+        let movedOut = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: app.buttons["library-track-Recon track"])
+        XCTAssertEqual(XCTWaiter.wait(for: [movedOut],timeout: 5),.completed)
         folder("Base"); let moved = app.buttons["library-track-Recon track"]; reveal(moved); XCTAssertTrue(moved.exists)
         capture("library-track-moved")
     }

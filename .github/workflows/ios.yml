@@ -18,8 +18,9 @@ permissions:
 jobs:
   build:
     runs-on: macos-latest
-    # Full native/Files suite plus separate background GPS workflows.
-    timeout-minutes: 60
+    # Run 40158734078 used 39 minutes for UI alone, with nine early failures.
+    # Keep every assertion plus the separate GPS workflows within the job budget.
+    timeout-minutes: 75
 
     steps:
       - uses: actions/checkout@v4

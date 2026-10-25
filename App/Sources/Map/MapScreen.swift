@@ -343,9 +343,9 @@ struct MapScreen: View {
                 Spacer()
                 Button {
                     qrRequest = PositionQRRequest(title: waypoint.name, lat: waypoint.lat, lon: waypoint.lon, label: waypoint.name)
-                } label: { Image(systemName: "qrcode").frame(width: 44, height: 44) }
+                } label: { Image(systemName: "qrcode").frame(width: 44, height: 44).contentShape(Rectangle()) }
                     .buttonStyle(.plain).accessibilityLabel("Share waypoint as QR code").accessibilityIdentifier("map-waypoint-qr")
-                Button { selectedID = nil } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                Button { selectedID = nil } label: { Image(systemName: "xmark").frame(width: 44, height: 44).contentShape(Rectangle()) }
                     .buttonStyle(.plain).accessibilityLabel("Close waypoint")
             }
             Button {

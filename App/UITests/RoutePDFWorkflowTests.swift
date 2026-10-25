@@ -34,7 +34,7 @@ final class RoutePDFWorkflowTests: XCTestCase {
         app.buttons["export-strip-map-pdf"].tap()
         let name = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(name.waitForExistence(timeout: 10))
         let filename = "gridfix-pdf-ui-"+UUID().uuidString.prefix(8)
-        name.tap(); name.typeKey("a",modifierFlags: .command); name.typeText(String(filename))
+        replaceTextInput(name,String(filename))
         XCTAssertEqual(name.value as? String,String(filename))
         saveNativeFile(in: app)
         XCTAssertTrue(app.navigationBars["Strip map PDF"].waitForExistence(timeout: 10)); capture("strip-map-pdf-after-save")

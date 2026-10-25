@@ -15,6 +15,12 @@ struct WaypointsView: View {
     var onNavigate: () -> Void = {}
     var onShowMap: () -> Void = {}
     var onOrientation: () -> Void = {}
+    @State private var choosingLibraryActions = false
+    @State private var pendingLibraryAction: LibraryAction?
+    @State private var trackActions: Backup.TrackMeta?
+    @State private var pendingTrackAction: (id: String, action: String)?
+    @State private var choosingSelectionAction = false
+    @State private var pendingSelectionAction: String?
     @State private var choosingPasteFormat = false
     @State private var choosingExportFormat = false
     @State private var folderFilter: String?
@@ -95,6 +101,24 @@ struct WaypointsView: View {
         .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
         .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
+        .sheet(isPresented: $choosingLibraryActions,onDismiss: runLibraryAction) {
+            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title) },night: settings.nightMode) { id in
+                pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
+            }
+        }
+        .sheet(item: $trackActions,onDismiss: runTrackAction) { track in
+            FieldChoiceSheet(title: track.name,choices: trackChoices(track),night: settings.nightMode) { action in
+                pendingTrackAction = (track.id,action); trackActions = nil
+            }
+        }
+        .sheet(isPresented: $choosingSelectionAction,onDismiss: runSelectionAction) {
+            FieldChoiceSheet(title: "Selected item actions",choices: [
+                .init(id: "library-swap-visibility",title: "Swap map visibility"),
+                .init(id: "library-delete-selected",title: "Delete selected",destructive: true)
+            ],night: settings.nightMode) { action in
+                pendingSelectionAction = action; choosingSelectionAction = false
+            }
+        }
         .confirmationDialog("Paste text",isPresented: $choosingPasteFormat,titleVisibility: .visible) {
             ForEach(TextInterchangeFormat.allCases.filter { $0.canPaste },id: \.self) { format in
                 Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
@@ -180,19 +204,8 @@ struct WaypointsView: View {
                     .font(.subheadline).foregroundStyle(palette.inkDim)
             }
             Spacer()
-            Menu {
-                Button("Add at fix") { beginAdd(atFix: true) }
-                Button("Enter coordinates") { beginAdd(atFix: false) }
-                Button("Select items") { selecting = true; selection = LibrarySelection() }.accessibilityIdentifier("library-select")
-                Button("New folder") { folderRequest = LibraryFolderRequest() }
-                Button("Orientation",action: onOrientation).accessibilityIdentifier("library-orientation-shortcut")
-                Divider()
-                Button("Export") { choosingExportFormat = true }
-                Button("Import backup") { importKind = .backup; showingImporter = true }
-                Button("Import field file") { importKind = .text; showingImporter = true }.accessibilityIdentifier("import-field-file")
-                Button("Paste text") { choosingPasteFormat = true }
-            } label: {
-                Image(systemName: "ellipsis").frame(width: 44, height: 44)
+            Button { choosingLibraryActions = true } label: {
+                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
             }
             .fieldGlassButton()
             .accessibilityLabel("Waypoint actions")
@@ -284,10 +297,9 @@ struct WaypointsView: View {
                     selection = selection == listedSelection ? LibrarySelection() : listedSelection
                 } label: { Image(systemName: selection == listedSelection ? "checkmark.circle.fill" : "checkmark.circle").frame(minWidth: 44,minHeight: 44) }
                     .accessibilityLabel(selection == listedSelection ? "Select none" : "Select all").accessibilityIdentifier("library-select-all")
-                Menu {
-                    Button("Swap map visibility") { applyBatch(.swapVisibility) }.accessibilityIdentifier("library-swap-visibility")
-                    Button("Delete selected",role: .destructive) { deleteSelection = true }.accessibilityIdentifier("library-delete-selected")
-                } label: { Image(systemName: "ellipsis.circle").frame(minWidth: 44,minHeight: 44) }
+                Button { choosingSelectionAction = true } label: {
+                    Image(systemName: "ellipsis.circle").frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
+                }
                     .disabled(selection.count == 0).accessibilityLabel("Selected item actions")
                 Button("Done") { selecting = false; selection = LibrarySelection() }.accessibilityIdentifier("library-selection-done")
             } else {
@@ -390,7 +402,7 @@ struct WaypointsView: View {
     }
     private func graphicRow(_ graphic: Backup.Graphic) -> some View {
         HStack {
-            Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).opacity(graphic.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
+            Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()).opacity(graphic.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
             if !graphic.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-graphic-hidden-\(graphic.name)") }
             Menu {
                 Button("Show on map") { showGraphic(graphic) }
@@ -402,24 +414,11 @@ struct WaypointsView: View {
     }
     private func trackRow(_ track: Backup.TrackMeta) -> some View {
         HStack {
-            Button { showTrack(track) } label: { trackSummary(track).frame(maxWidth: .infinity,alignment: .leading).opacity(track.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-track-\(track.name)")
+            Button { showTrack(track) } label: { trackSummary(track).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()).opacity(track.visible ? 1 : 0.5) }.buttonStyle(.plain).accessibilityIdentifier("library-track-\(track.name)")
             if !track.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-track-hidden-\(track.name)") }
-            Menu {
-                Button("Show on map") { showTrack(track) }
-                Button("Details") { trackDetail = track }
-                if maps.viewedTrackID == track.id { Button("Stop viewing") { maps.viewedTrackID = nil } }
-                Button("Move to folder") { movingTrack = track }
-                Button(backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route") { backtrack(track) }
-                    .disabled(backtrackingID != nil || track.pointCount < 2).accessibilityIdentifier("backtrack-track-\(track.name)")
-                Button(track.visible ? "Hide on map" : "Make visible on map") { perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) } }
-                Button("Export GPX") {
-                    perform {
-                        let xml = GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])
-                        exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
-                    }
-                }
-                Button("Delete",role: .destructive) { selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true }
-            } label: { Image(systemName: "ellipsis").frame(width: 44,height: 44) }.accessibilityLabel("Actions for track \(track.name)")
+            Button { trackActions = track } label: {
+                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Actions for track \(track.name)")
         }.padding(12).fieldContentSurface(night: settings.nightMode)
     }
 
@@ -440,7 +439,7 @@ struct WaypointsView: View {
                         Text(Format.distance(meters: nav.distanceMeters, unit: settings.units))
                             .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
@@ -592,6 +591,59 @@ struct WaypointsView: View {
             }
             status = format.label + " ready"
         } catch { status = "Export failed: \(error.localizedDescription)" }
+    }
+
+    private func runSelectionAction() {
+        guard let action = pendingSelectionAction else { return }
+        pendingSelectionAction = nil
+        guard selection.count > 0 else { return }
+        if action == "library-swap-visibility" { applyBatch(.swapVisibility) }
+        else if action == "library-delete-selected" { deleteSelection = true }
+    }
+
+    private func runLibraryAction() {
+        guard let action = pendingLibraryAction else { return }
+        pendingLibraryAction = nil
+        switch action {
+        case .fix: beginAdd(atFix: true)
+        case .coordinates: beginAdd(atFix: false)
+        case .select: selecting = true; selection = LibrarySelection()
+        case .folder: folderRequest = LibraryFolderRequest()
+        case .orientation: onOrientation()
+        case .export: choosingExportFormat = true
+        case .backup: importKind = .backup; showingImporter = true
+        case .file: importKind = .text; showingImporter = true
+        case .paste: choosingPasteFormat = true
+        }
+    }
+    private func trackChoices(_ track: Backup.TrackMeta) -> [FieldChoice] {
+        var choices: [FieldChoice] = [.init(id: "show",title: "Show on map"),.init(id: "details",title: "Details")]
+        if maps.viewedTrackID == track.id { choices.append(.init(id: "stop",title: "Stop viewing")) }
+        choices += [.init(id: "move",title: "Move to folder"),
+                    .init(id: "backtrack",title: backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route",
+                          accessibilityIdentifier: "backtrack-track-"+track.name,enabled: backtrackingID == nil && track.pointCount >= 2),
+                    .init(id: "visibility",title: track.visible ? "Hide on map" : "Make visible on map"),
+                    .init(id: "export",title: "Export GPX"),.init(id: "delete",title: "Delete",destructive: true)]
+        return choices
+    }
+    private func runTrackAction() {
+        guard let pending = pendingTrackAction else { return }
+        pendingTrackAction = nil
+        guard let track = fieldData.document.tracks.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "show": showTrack(track)
+        case "details": trackDetail = track
+        case "stop": maps.viewedTrackID = nil
+        case "move": movingTrack = track
+        case "backtrack": if backtrackingID == nil && track.pointCount >= 2 { backtrack(track) }
+        case "visibility": perform { try fieldData.setTrackVisible(track.id,visible: !track.visible) }
+        case "export": perform {
+            let xml = GPX.build(waypoints: [],tracks: [.init(name: track.name,points: try fieldData.points(for: track.id))])
+            exportFile = FieldExportDocumentFile(data: Data(xml.utf8),contentType: .gridFixGPX)
+        }
+        case "delete": selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true
+        default: break
+        }
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {

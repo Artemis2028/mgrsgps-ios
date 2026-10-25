@@ -138,9 +138,9 @@ only disables map network requests.
 
 ## Parity with Android
 
-Field math is pinned to the shared golden fixture. Product surfaces are catching
-up toward `gridfix` **1.0.4** — see `docs/ios-parity-1.0.4.md` for the current
-checklist. `docs/parity-with-android.md` records the historical 0.9.32 baseline.
+Field math is pinned to the shared golden fixture. Product surfaces target
+`gridfix` **release/1.1.0** — see [the current checklist](docs/ios-parity-release-1.1.0.md).
+`docs/ios-parity-1.0.4.md` and `docs/parity-with-android.md` record earlier milestones.
 Waypoints, folders, route creation/cards, saved tracks/overlays, complete backup
 v1, live track recording/recovery, and GPX waypoint/route/track import/export are
 in. Recording uses dedicated background location and lock-compatible log files;
@@ -151,7 +151,8 @@ Editable [backstops and handrails](docs/backstops-handrails.md) define a closed
 perimeter with bends: quiet inside, one alert on a confirmed exit, re-arm on
 return. Dedicated background location and system notifications support locked
 screen use within iOS limits. Physical-device validation remains before release.
-Terrain field tools, practice courses, and KML/ATAK remain.
+Terrain field tools, practice courses, and KML/ATAK workflows are implemented;
+their validation and remaining device checks are linked in the current checklist.
 
 
 Automatic route following and haptic navigation now follow the release/1.1.0

@@ -49,6 +49,7 @@ struct FieldFixPanel: View {
     var body: some View {
         let result = resolution
         NavigationStack {
+            ScrollViewReader { scroll in
             Form {
                 Section {
                     Text(request.mode == .resection ? "Sight an azimuth to each of two known points. The back-azimuths locate you." : "Enter the azimuth to the target from each of two observation points.")
@@ -61,14 +62,14 @@ struct FieldFixPanel: View {
                         TextField("0",text: $azimuth1).keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
                             .focused($focused,equals: 1).accessibilityIdentifier("field-fix-azimuth-1")
                     }
-                }.listRowBackground(rowBackground)
+                }.listRowBackground(rowBackground).id(1)
                 Section(request.mode == .resection ? "Known point 2" : "Observer 2") {
                     pointPicker(selection: $second,index: 2)
                     LabeledContent("Azimuth (\(angleLabel) \(settings.northRef.letter))") {
                         TextField("0",text: $azimuth2).keyboardType(.numbersAndPunctuation).multilineTextAlignment(.trailing)
                             .focused($focused,equals: 2).accessibilityIdentifier("field-fix-azimuth-2")
                     }
-                }.listRowBackground(rowBackground)
+                }.listRowBackground(rowBackground).id(2)
                 Section("Calculated fix") {
                     if let fix = result.solution {
                         Text(fix.grid ?? "Outside \(settings.gridName) coverage").font(.system(.headline,design: .monospaced)).accessibilityIdentifier("field-fix-grid")
@@ -91,15 +92,27 @@ struct FieldFixPanel: View {
                     Button("Save waypoint") { if let fix = result.solution { save(fix) } }
                         .disabled(result.solution == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).accessibilityIdentifier("field-fix-save")
                     if let error { Text(error).foregroundStyle(palette.warn) }
-                }.listRowBackground(rowBackground)
+                }.listRowBackground(rowBackground).id(3)
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }.foregroundStyle(palette.ink)
+            .safeAreaInset(edge: .bottom,spacing: 0) {
+                if focused != nil {
+                    HStack {
+                        Spacer()
+                        Button { focused = nil } label: { Text("Done").frame(minHeight: 44) }
+                            .fieldGlassButton().accessibilityIdentifier("field-fix-keyboard-done")
+                    }.padding(.horizontal,16).padding(.vertical,4).background(palette.background)
+                }
+            }
             .navigationTitle(title).navigationBarTitleDisplayMode(.inline).autocorrectionDisabled()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = nil }.accessibilityIdentifier("field-fix-keyboard-done") }
             }
             .onAppear { prepare() }
+            .onChange(of: focused) { target in
+                if let target { scroll.scrollTo(target,anchor: .top) }
+            }
+            }
         }.tint(palette.accent).fieldSheetAppearance()
     }
     private func pointPicker(selection: Binding<String>,index: Int) -> some View {

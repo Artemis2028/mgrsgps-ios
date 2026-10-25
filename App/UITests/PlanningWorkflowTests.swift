@@ -11,7 +11,14 @@ final class PlanningWorkflowTests: XCTestCase {
         tapNativeMenuItem(app.buttons[id]); XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8),app.debugDescription)
     }
     private func reveal(_ element: XCUIElement) { for _ in 0..<6 { if element.isHittable { return }; app.swipeUp() } }
-    private func top() { app.swipeDown(); app.swipeDown(); app.swipeDown() }
+    private func top() {
+        // Stop as soon as the controls are reachable. Whole-app overscroll
+        // at the top dismisses the native worksheet instead of scrolling it.
+        let previous = app.buttons["planning-prev"]
+        let form = app.tables.firstMatch
+        for _ in 0..<6 { if previous.isHittable { return }; form.swipeDown() }
+        XCTAssertTrue(previous.isHittable,app.debugDescription)
+    }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     func testSunMoonDateNavigationLocalZuluAndDeclinationDiagram() {
         open("field-sunmoon","Sun & moon")

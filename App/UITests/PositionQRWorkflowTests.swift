@@ -13,7 +13,9 @@ final class PositionQRWorkflowTests: XCTestCase {
         app.buttons["Show all visible data"].tap()
         let marker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@", "map-waypoint-", "Alpha")).firstMatch
         XCTAssertTrue(marker.waitForExistence(timeout: 10),app.debugDescription); marker.tap()
-        let qr = app.buttons["map-waypoint-qr"]; XCTAssertTrue(qr.waitForExistence(timeout: 5)); qr.tap()
+        let qr = app.buttons["map-waypoint-qr"]; XCTAssertTrue(qr.waitForExistence(timeout: 5))
+        // The padding is part of the 44 pt target, even outside the QR glyph.
+        qr.coordinate(withNormalizedOffset: .init(dx: 0.1,dy: 0.1)).tap()
         XCTAssertTrue(app.images["position-qr-image"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["position-qr-caption"].label.isEmpty)
     }

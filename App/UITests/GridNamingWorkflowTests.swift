@@ -12,7 +12,7 @@ final class GridNamingWorkflowTests: XCTestCase {
         app.navigationBars.buttons["Done"].tap()
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["add-waypoint"].tap()
         let name = app.textFields["waypoint-name"]; tapTextInput(name); name.typeText("USNG Alpha")
-        let grid = app.textFields["waypoint-mgrs"]; tapTextInput(grid); grid.typeKey("a",modifierFlags: .command); grid.typeText("USNG: 40R BN 3412 0700")
+        let grid = app.textFields["waypoint-mgrs"]; replaceTextInput(grid,"USNG: 40R BN 3412 0700")
         app.buttons["waypoint-keyboard-done"].tap()
         XCTAssertTrue(app.segmentedControls.buttons["USNG"].exists)
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
