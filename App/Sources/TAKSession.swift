@@ -10,6 +10,7 @@ final class TAKSession: ObservableObject {
     @Published private(set) var connecting = false
     @Published private(set) var trustRequest: TAKServerTrust.Certificate?
     @Published private(set) var remoteItems: [TAKRemoteItem] = []
+    @Published private(set) var lastReceivedAt: Date?
     @Published private(set) var failure: String?
     @Published var sharePosition = false { didSet { if oldValue != sharePosition { updateLocationDemand(); lastPresence = nil; tick() } } }
     private let transport: TAKTransportDriving
@@ -113,6 +114,15 @@ final class TAKSession: ObservableObject {
         trustRequest = nil; connect()
     }
     func declineCertificate() { trustRequest = nil; disconnect() }
+    func resetServerTrust() {
+        disconnect()
+        guard let store else { failure = "Local TAK storage is unavailable"; return }
+        var next = profile; next.pin = nil
+        do {
+            try store.write(next); profile = next; failure = nil
+            status = "Server trust reset. Connect to verify the certificate."
+        } catch { failure = "Unable to reset the saved certificate pin" }
+    }
     func setForeground(_ active: Bool) {
         foreground = active
         if active { updateLocationDemand(); tick() }
@@ -148,7 +158,7 @@ final class TAKSession: ObservableObject {
         guard attempt == token, desired else { return }
         switch event {
         case .ready:
-            connected = true; connecting = false; failure = nil; status = "Connected"
+            connected = true; connecting = false; failure = nil; status = "Connected"; lastReceivedAt = nil
             backoff = 1; retryAt = nil; lastPing = nil; lastPresence = nil; lastShareCheck = nil; lastShareRefresh = nil; sharingBusy = false
             updateLocationDemand(); tick()
         case let .trustRequired(certificate):
@@ -162,6 +172,7 @@ final class TAKSession: ObservableObject {
             connected = false; connecting = false; status = "Reconnecting"; failure = reason
             retryAt = ProcessInfo.processInfo.systemUptime + backoff; backoff = min(60, backoff * 2)
         case let .xml(xml):
+            lastReceivedAt = Date()
             if let event = TAKCoT.parse(xml, ownUID: profile.uid, now: Date()) {
                 if scene.apply(event, now: Date(), uptime: ProcessInfo.processInfo.systemUptime) { remoteItems = scene.items }
             }
@@ -174,11 +185,10 @@ final class TAKSession: ObservableObject {
             self.retryAt = nil; beginAttempt()
         }
         guard connected else { return }
-        reconcileSharing(now: now, uptime: uptime)
         do {
-            if lastPing == nil || uptime - lastPing! >= 15 {
-                transport.send(try TAKCoT.ping(uid: profile.uid, now: now)); lastPing = uptime
-            }
+            // Announce device identity before other traffic on every connection.
+            // This deterministic ordering is not a workaround for OTS's unique
+            // callsign constraint: the caller must still use a unique callsign.
             let cadence: TimeInterval = sharePosition ? 10 : 60
             if lastPresence == nil || uptime - lastPresence! >= cadence {
                 var position: GeoPoint?, accuracy: Double = 9999999
@@ -195,6 +205,10 @@ final class TAKSession: ObservableObject {
                                                  now: now, position: position, accuracy: accuracy))
                 lastPresence = uptime
             }
+            if lastPing == nil || uptime - lastPing! >= 15 {
+                transport.send(try TAKCoT.ping(uid: profile.uid, now: now)); lastPing = uptime
+            }
+            reconcileSharing(now: now, uptime: uptime)
         } catch { failure = "Unable to encode TAK presence" }
     }
     private func reconcileSharing(now: Date, uptime: TimeInterval) {
@@ -255,6 +269,19 @@ final class TAKSession: ObservableObject {
         do { try store?.write(profile) } catch { failure = "Unable to save TAK preferences" }
     }
     #if DEBUG
+    func seedMapPreview() {
+        profile.host = "127.0.0.1"; profile.title = "Local rendering preview"
+        status = "Rendering preview · no server connection"
+        let now = Date()
+        let events = [
+            try? TAKCoT.marker(uid: "preview-wp", name: "ANDROID OP CAFÉ", affiliation: "hostile", position: .init(lat: 35.1384, lon: -78.9925), creatorUID: "preview", creatorCallsign: "PREVIEW", now: now),
+            try? TAKCoT.drawing(uid: "preview-line", name: "ANDROID TEST LINE", points: [.init(lat: 35.1378, lon: -78.9930), .init(lat: 35.1380, lon: -78.9920), .init(lat: 35.1376, lon: -78.9912)], closed: false, creatorUID: "preview", creatorCallsign: "PREVIEW", now: now)
+        ]
+        for xml in events.compactMap({ $0 }) {
+            if let event = TAKCoT.parse(xml, ownUID: profile.uid, now: now) { scene.apply(event, now: now, uptime: ProcessInfo.processInfo.systemUptime) }
+        }
+        remoteItems = scene.items
+    }
     func enableLocalValidation() {
         guard profile.host == "127.0.0.1", profile.port == 8089, profile.tls else { return }
         synthetic = .init(lat: 35.1388, lon: -78.9914)

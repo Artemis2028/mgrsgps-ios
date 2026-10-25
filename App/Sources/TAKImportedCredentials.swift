@@ -13,7 +13,7 @@ struct TAKImportedCredentials {
             let options = [kSecImportExportPassphrase as String: password ?? ""] as CFDictionary
             let status = SecPKCS12Import(data as CFData, options, &items)
             if status == errSecSuccess, (items as? [Any])?.isEmpty != false {
-                throw TAKCoT.Failure(message: "The certificate-only PKCS #12 trust store could not be read on iOS. Import an explicitly named DER or PEM server CA.")
+                throw TAKCoT.Failure(message: "The client PKCS #12 file contains no usable identity. Include the client certificate and its private key.")
             }
             guard status == errSecSuccess,
                   let values = items as? [[String: Any]], !values.isEmpty else {
@@ -36,11 +36,14 @@ struct TAKImportedCredentials {
                     anchors.append(certificate)
                 }
             } else {
-                for entry in try contents(data, password: package.caPassword, label: "server CA") {
-                    anchors += entry[kSecImportItemCertChain as String] as? [SecCertificate] ?? []
+                anchors = try PKCS12TrustStore.certificates(data, password: package.caPassword ?? "").map { bytes in
+                    guard let certificate = SecCertificateCreateWithData(nil, bytes as CFData) else {
+                        throw TAKCoT.Failure(message: "The server trust store contains an invalid X.509 certificate")
+                    }
+                    return certificate
                 }
             }
-            guard !anchors.isEmpty else { throw TAKCoT.Failure(message: "The trust store contains no certificates. A certificate-only PKCS #12 store needs an explicit DER or PEM CA export on iOS.") }
+            guard !anchors.isEmpty else { throw TAKCoT.Failure(message: "The server trust store contains no certificates") }
         }
         var identity: SecIdentity?
         if let data = package.clientPKCS12 {

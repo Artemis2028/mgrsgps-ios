@@ -19,6 +19,9 @@ final class TAKMapOverlay: UIView {
     override func draw(_ rect: CGRect) {
         guard let map, let context = UIGraphicsGetCurrentContext() else { return }
         for item in items {
+            // MapLibre uses Web Mercator; keep valid polar CoT points in the
+            // list but never project them into nonfinite screen coordinates.
+            guard item.points.allSatisfy({ abs($0.lat) <= 85.05112878 }) else { continue }
             var longitude = map.centerCoordinate.longitude
             let points = item.points.map { point -> CGPoint in
                 longitude += TerrainGeometry.wrap(point.lon - longitude)
@@ -40,11 +43,16 @@ final class TAKMapOverlay: UIView {
                 context.setLineWidth(3); context.setStrokeColor(color.cgColor); context.strokePath()
             }
             let label = (item.isContact ? "TAK · " : "") + item.callsign
-            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedSystemFont(ofSize: 12, weight: .semibold), .foregroundColor: night ? UIColor.systemRed : UIColor.white]
+            guard bounds.insetBy(dx: -80, dy: -80).contains(first), bounds.width > 20 else { continue }
+            let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingTail
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.monospacedSystemFont(ofSize: 12, weight: .semibold), .foregroundColor: night ? UIColor.systemRed : UIColor.white, .paragraphStyle: paragraph]
             let size = (label as NSString).size(withAttributes: attributes)
-            let box = CGRect(x: first.x - size.width / 2 - 4, y: first.y + 24, width: size.width + 8, height: size.height + 4)
+            let width = min(size.width + 8, bounds.width - 12)
+            let x = min(max(6, first.x - width / 2), bounds.width - width - 6)
+            let y = min(max(6, first.y + 24), max(6, bounds.height - size.height - 10))
+            let box = CGRect(x: x, y: y, width: width, height: size.height + 4)
             UIColor.black.withAlphaComponent(0.9).setFill(); UIBezierPath(roundedRect: box, cornerRadius: 3).fill()
-            (label as NSString).draw(at: CGPoint(x: box.minX + 4, y: box.minY + 2), withAttributes: attributes)
+            (label as NSString).draw(in: box.insetBy(dx: 4, dy: 2), withAttributes: attributes)
         }
     }
 }

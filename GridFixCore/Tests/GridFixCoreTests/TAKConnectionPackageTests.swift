@@ -15,6 +15,12 @@ final class TAKConnectionPackageTests:XCTestCase {
         XCTAssertFalse(result.needsEnrollment);XCTAssertEqual(result.caPKCS12,Data([1,2]));XCTAssertEqual(result.clientPKCS12,Data([3,4]))
         XCTAssertEqual(result.description,"Local TAK")
     }
+    func testCertificatePasswordsKeepMeaningfulWhitespaceAndUnicode() throws {
+        let data=archive(pref(["connectString0":"localhost:8089:ssl","caPassword":"  fixtüré🔭  ","clientPassword":"  client phrase  "]))
+        let result=try TAKConnectionPackage.read(data)
+        XCTAssertEqual(result.caPassword,"  fixtüré🔭  ")
+        XCTAssertEqual(result.clientPassword,"  client phrase  ")
+    }
     func testPlainTCPAndUnsupportedEnrollmentAreExplicit() throws {
         let tcp=try TAKConnectionPackage.read(archive(pref(["connectString0":"localhost:8088:tcp"])))
         XCTAssertFalse(tcp.usesTLS);XCTAssertFalse(tcp.needsEnrollment)

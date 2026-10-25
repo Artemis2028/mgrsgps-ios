@@ -48,7 +48,24 @@ struct MGRSGPSApp: App {
         let boundaryStore = BoundaryMonitor(directory: directory)
         _boundaries = StateObject(wrappedValue: boundaryStore)
         let fieldStore = FieldDataStore(directory: directory)
-        _tak = StateObject(wrappedValue: TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], waypoints: waypointStore, field: fieldStore))
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKSharing") {
+            if !waypointStore.waypoints.contains(where: { $0.name == "IOS OP CAFÉ" }) {
+                _ = waypointStore.add(.init(name: "IOS OP CAFÉ", lat: 35.1388, lon: -78.9914, folder: "TAK INTEROP", affiliation: "hostile"))
+            }
+            if !fieldStore.document.graphics.contains(where: { $0.id == "ios-interop-area" }) {
+                try? fieldStore.saveGraphic(.init(id: "ios-interop-area", name: "IOS TEST AREA", type: "objective", points: [
+                    .init(lat: 35.1392, lon: -78.9908), .init(lat: 35.1392, lon: -78.9900),
+                    .init(lat: 35.1386, lon: -78.9900), .init(lat: 35.1386, lon: -78.9908)
+                ], folder: "TAK INTEROP"))
+            }
+        }
+        #endif
+        let takSession = TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], waypoints: waypointStore, field: fieldStore)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKPreview") { takSession.seedMapPreview() }
+        #endif
+        _tak = StateObject(wrappedValue: takSession)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty, fieldStore.document.graphics.isEmpty {

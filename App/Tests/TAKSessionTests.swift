@@ -43,6 +43,8 @@ private final class TAKTestTransport: TAKTransportDriving {
         XCTAssertEqual(transport.starts, 1)
         transport.callback?(.ready); await drain()
         XCTAssertTrue(session.connected)
+        XCTAssertTrue(transport.sends.first?.contains("type=\"a-f-G-U-C\"") == true)
+        XCTAssertTrue(transport.sends.first?.contains("takv") == true, "The first wire event must identify the device before pings or items")
         XCTAssertEqual(location.starts, 0); XCTAssertEqual(location.requests, 0)
         XCTAssertTrue(transport.sends.contains { $0.contains("takv") && $0.contains("lat=\"0.0000000\" lon=\"0.0000000\"") })
         XCTAssertTrue(transport.sends.contains { $0.contains("t-x-c-t") })
@@ -96,8 +98,29 @@ private final class TAKTestTransport: TAKTransportDriving {
         defer { second.disconnect() }
         XCTAssertEqual(second.profile.uid, first.profile.uid); XCTAssertTrue(second.sharedFolders.isEmpty)
         second.connect(); await drain(); secondTransport.callback?(.ready); await drain()
+        XCTAssertTrue(secondTransport.sends.first?.contains("takv") == true, "Reconnect must announce before offline tombstones")
         XCTAssertEqual(secondTransport.sends.filter { $0.contains("type=\"t-x-d-d\"") }.count, 2)
         XCTAssertTrue(try local.readSent(profile: second.profile).isEmpty)
+    }
+    func testExplicitTrustResetDisconnectsStopsLocationAndDoesNotReconnectSilently() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = try TAKLocalStore(root: root)
+        var profile = try store.readProfile()
+        profile.host = "127.0.0.1"; profile.port = 8088; profile.tls = false; profile.pin = "synthetic-previous-pin"
+        try store.write(profile)
+        let parsedPackage = try TAKConnectionPackage.read(package())
+        try store.saveCredentials(.init(parsedPackage), uid: profile.uid)
+        let transport = TAKTestTransport(), location = TAKTestLocation()
+        let session = TAKSession(directory: root, transport: transport, driver: location, startTimer: false)
+        defer { session.disconnect(); try? store.deleteCredentials(profile.uid); try? FileManager.default.removeItem(at: root) }
+        session.connect(); await drain(); transport.callback?(.ready); await drain()
+        session.sharePosition = true; XCTAssertEqual(location.starts, 1)
+        let oldCallback = transport.callback
+        session.resetServerTrust(); await drain()
+        XCTAssertNil(session.profile.pin); XCTAssertNil(try store.readProfile().pin)
+        XCTAssertFalse(session.connected); XCTAssertFalse(session.sharePosition)
+        XCTAssertEqual(location.stops, 1); XCTAssertEqual(transport.starts, 1)
+        oldCallback?(.ready); await drain(); XCTAssertFalse(session.connected)
     }
     func testInstallIdentitySurvivesRelaunchAndIsExcludedFromBackup() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

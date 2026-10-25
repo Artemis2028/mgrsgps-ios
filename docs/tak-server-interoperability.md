@@ -30,7 +30,7 @@ checks, and a changed pinned certificate must be refused.
 ## Source and required behavior
 
 Android's TAK transport uses streamed UTF-8 CoT XML over TCP or certificate-based
-TLS. The observed committed source is now `5804dbe` (including flexible ISO 8601 parsing); recheck the final source
+TLS. The observed committed source is now `57f41f8` (including flexible ISO 8601 parsing and announcement-first ordering); recheck the final source
 and handoff before porting. It has connection status/backoff, server identity
 verification, presence/ping versus optional position sharing, folder-based
 marker/drawing sharing, UID replacement/delete/expiry, bounded stream parsing
@@ -48,14 +48,14 @@ checks under iOS permissions/scheduling. Live Activities are optional status
 surfaces and do not grant transport execution time.
 
 Live TAK work is now an explicit follow-on scope item alongside the ongoing
-main-app parity work. Bidirectional teammate position exchange is proven locally; complete live parity is not yet claimed.
+main-app parity work. Bidirectional teammate, shared waypoint/drawing, delete and reconnect exchange is proven locally; complete live parity is not yet claimed.
 
 ## Implementation checkpoint, 25 October 2026
 
 Implemented: bounded CoT writer/parser/UTF-8 framing, separate expiring remote
 scene, connection-package review/import, native Network.framework TCP/mutual TLS,
 app-scoped CA verification, explicit hostname-mismatch/fingerprint approval,
-persisted certificate pin and changed-pin refusal. No application sends happen
+persisted certificate pin, changed-pin refusal and explicit confirmed trust reset. No application sends happen
 before a verified connection is ready. The transport enforces bounded queues,
 a connection deadline and 45-second receive silence detection; session backoff
 is 1–60 seconds. Presence/pings are 60/15 seconds, shared position 10 seconds.
@@ -88,15 +88,43 @@ The test then enabled a clearly labelled synthetic position at
 35.1388, -78.9914 under callsign `IOS-LOCAL-TEST`. Claude independently confirmed
 that exact native iOS teammate on the Android map, with screenshot evidence at
 `/Users/apollo/AI Proj/tak-local/android-sees-ios-2026-10-25.png` and confirmation
-in the shared handoff. This proves position exchange in both directions;
-waypoint/drawing update, delete and reconnect rounds against Android remain.
+in the shared handoff. This proves position exchange in both directions.
 
-All **388 core tests** and a full **169-test native integration suite** pass.
-Four session tests also pass after the final sharing-journal guard, including
+Subsequent native rounds used the **original PKCS #12 CA package**, without the
+DER workaround. iOS shared hostile waypoint `IOS OP CAFÉ` and a closed
+four-corner `IOS TEST AREA` with position sharing off. Claude confirmed the name,
+affiliation, accent and rectangle on Android, then confirmed both disappeared
+on unshare and stayed gone after reconnect. The passing native UI bundle is
+`/tmp/gridfix-tak-sharing-unique-ui-20261025.xcresult`; Android screenshot
+`android-sees-ios-folder-2026-10-25.png` is in the handoff folder.
+
+For Android → iOS, Claude shared `ANDROID OP CAFÉ` (35.1384, -78.9925) and
+`ANDROID TEST LINE` with three vertices. The real native app listed and focused
+both on the map, then removed both after their relayed delete events while
+retaining `MGRS-ADA5`. It disconnected/reconnected using the saved pin and
+required a newly received stream timestamp, rather than merely cached markers.
+`/tmp/gridfix-tak-inbound-ui-20261025.xcresult` passes; exported point/line
+screenshots were inspected. Claude independently confirmed relayed delete UIDs.
+A final rendering-only preview regression, explicitly labelled as disconnected,
+verifies clearer focus framing and non-clipped labels in day/night and readable
+remote-list rows. This preview is not used as interoperability evidence.
+
+One failed sharing round exposed OpenTAKServer's **unique callsign** database
+constraint. New test UIDs had reused an earlier test callsign; the server silently
+refused registration and relay. Test callsigns now derive from their install UID,
+and the settings explain the unique-callsign requirement. The initial
+announcement-order diagnosis was disproven by Claude's fresh-UID registration
+experiments; it was not adopted as a protocol requirement. Both clients now
+announce themselves before pings as a deterministic ordering improvement.
+No server database cleanup or trust bypass was used.
+
+All **393 core tests** and a full **171-test native integration suite** pass.
+Session checks include
 no GPS demand/default positionless presence, explicit sharing/background stop,
 refused-certificate reconnect suppression, stale callback rejection, distinct
 backup-excluded install identities, and offline folder withdrawal across session
-recreation. Certificate tests cover names, SAN display, changed pins, CA,
+recreation, first-event announcement order, and explicit trust reset that stops
+location/disconnects without reconnecting silently. Certificate tests cover names, SAN display, changed pins, CA,
 validity/expiry and malformed metadata. Core tests include every-byte UTF-8 and
 hostile declaration splits, stale caps, geometry caps, scene expiry, folder
 visibility, change planning, and resend/deletion behavior.
@@ -108,12 +136,17 @@ use the same simulator signing configuration. No distribution identity is used.
 ### Package compatibility and server changes
 
 The original CA-only PKCS #12 bag returns success with zero items from iOS
-`SecPKCS12Import`. **Reading certificate-only PKCS #12 stores remains an
-implementation gap**, not a completed generic ATAK package capability. Explicit
-DER/PEM server CAs are supported; Claude supplied the separate local DER package
-whose preference explicitly names `ca.cer`. The app does not silently substitute
-a random ZIP certificate or the client chain's CA. Certificate enrollment is
-also still unimplemented and is reported explicitly on import.
+`SecPKCS12Import`. The new [bounded trust-store reader](pkcs12-trust-store.md)
+verifies its password MAC before extracting certificates and supports common
+legacy RC2/3DES and modern PBES2/AES formats. Independent OpenSSL and Java
+KeyStore fixtures verify exact DER, SHA/PRF variants, empty/Unicode passwords,
+tampering rejection and work limits. Meaningful password whitespace is retained
+by the preference importer. Native identity import still uses Security.framework.
+The original local package is now proven end-to-end in the real iOS app.
+Explicit DER/PEM CAs remain supported, and the app never substitutes a random ZIP
+certificate or a client-chain CA. Signed-only/unauthenticated PKCS #12, unsupported
+algorithms and indefinite-length BER fail explicitly. Certificate enrollment
+is still unimplemented and is reported explicitly on import.
 
 Apple correctly refused the original ten-year server leaf's validity period.
 Claude reissued a 365-day leaf from the same CA and restarted only the TLS
@@ -125,6 +158,8 @@ explicit review/pin test. Certificate changes are coordinated in the handoff.
 Incoming drawings exceeding 500 vertices are rejected whole rather than
 truncated into misleading geometry. Supported Android drawing types and
 coordinate/time variants otherwise follow the shared contract. Physical
-locked-screen connectivity, broader malformed-network tests, full Android
-sharing/deletion/reconnect validation, trust management UI, and watch TAK layer
-synchronization remain to be checked or implemented.
+locked-screen connectivity, sustained/reliability and broader malformed-network
+tests, official TAK Server and ATAK/iTAK client interoperability, enrollment,
+and watch TAK layer synchronization remain to be checked or implemented.
+Polar points remain readable in the remote list but are labelled outside Web
+Mercator map coverage; they are not projected into nonfinite screen coordinates.

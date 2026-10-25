@@ -77,7 +77,10 @@ private final class TAKPreferenceReader:NSObject,XMLParserDelegate {
     }
     func parser(_ parser:XMLParser,didEndElement name:String,namespaceURI:String?,qualifiedName:String?) {
         if name=="entry",entryDepth==depth {
-            if let key {values[key]=text.trimmingCharacters(in:.whitespacesAndNewlines)}
+            if let key {
+                let passwordKeys:Set<String>=["caPassword","caPassword0","clientPassword","clientPassword0"]
+                values[key]=passwordKeys.contains(key) ? text:text.trimmingCharacters(in:.whitespacesAndNewlines)
+            }
             key=nil;entryDepth=nil;text=""
         }
         depth-=1

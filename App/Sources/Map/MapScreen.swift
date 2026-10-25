@@ -346,7 +346,7 @@ struct MapScreen: View {
         .sheet(isPresented: $showingGoTo) {
             MapGoToView(centre: .init(lat: centre.latitude,lon: centre.longitude)) { point in selectedID = nil; cameraRequest = .init(action: .goTo(point.lat,point.lon)) }
         }
-        .sheet(isPresented: $showingTAK) { TAKSettingsView(onShow: { item in cameraRequest = .init(action: .showBoundary(item.points)) }) }
+        .sheet(isPresented: $showingTAK) { TAKSettingsView(onShow: { item in cameraRequest = .init(action: .showTAK(item.points)) }) }
         .sheet(isPresented: $showingLayers) {
             MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
         }
@@ -519,7 +519,7 @@ struct MapScreen: View {
 }
 
 struct MapCameraRequest {
-    enum Action { case locate(Double, Double), goTo(Double,Double), fitData, showBounds(MapBounds), showBoundary([GeoPoint]) }
+    enum Action { case locate(Double, Double), goTo(Double,Double), fitData, showBounds(MapBounds), showBoundary([GeoPoint]), showTAK([GeoPoint]) }
     let id = UUID()
     let action: Action
 }
@@ -653,6 +653,17 @@ private struct MapContainer: UIViewRepresentable {
                     if bounds.south == bounds.north && bounds.west == bounds.east {
                         view.setCenter(CLLocationCoordinate2D(latitude: first.lat,longitude: first.lon),zoomLevel: 16,animated: true)
                     } else { view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 210,left: 65,bottom: 350,right: 65),animated: true,completionHandler: nil) }
+                }
+            case let .showTAK(points):
+                if points.allSatisfy({ abs($0.lat) <= 85.05112878 }), let bounds = FieldMapGeometry.bounds(points), let first = points.first {
+                    if points.count == 1 {
+                        view.setCenter(CLLocationCoordinate2D(latitude: first.lat, longitude: first.lon), zoomLevel: 16, animated: true)
+                    } else {
+                        let compact = view.bounds.width > view.bounds.height
+                        let padding = UIEdgeInsets(top: compact ? 110 : min(430, view.bounds.height * 0.5), left: 32,
+                                                   bottom: compact ? 140 : min(220, view.bounds.height * 0.25), right: 32)
+                        view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: padding, animated: true, completionHandler: nil)
+                    }
                 }
             case let .showBounds(bounds):
                 view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: UIEdgeInsets(top: 180, left: 30, bottom: 220, right: 30), animated: true, completionHandler: nil)

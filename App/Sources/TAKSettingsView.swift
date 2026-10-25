@@ -8,6 +8,7 @@ struct TAKSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var importer = false
     @State private var importing = false
+    @State private var resetTrust = false
     @State private var callsign = ""
     var onShow: ((TAKRemoteItem) -> Void)?
     private var palette: FieldPalette { .init(night: settings.nightMode) }
@@ -16,21 +17,30 @@ struct TAKSettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(tak.status).font(.headline).accessibilityIdentifier("tak-status")
+                    if let received = tak.lastReceivedAt {
+                        Text("Last received " + received.formatted(date: .omitted, time: .standard)).font(.caption).foregroundStyle(palette.inkDim)
+                            .accessibilityIdentifier("tak-last-received").accessibilityValue(String(received.timeIntervalSince1970))
+                    }
                     if let error = tak.failure { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("tak-error") }
                     Button(importing ? "Importing…" : "Import connection package") { importer = true }
                         .disabled(importing).accessibilityIdentifier("tak-import")
                     if tak.configured {
                         Text(tak.profile.title).font(.headline)
-                        Text("\(tak.profile.host):\(tak.profile.port) · \(tak.profile.tls ? "TLS" : "Unencrypted TCP")")
+                        Text("\(tak.profile.host):\(String(tak.profile.port)) · \(tak.profile.tls ? "TLS" : "Unencrypted TCP")")
                             .font(.system(.footnote, design: .monospaced)).textSelection(.enabled)
                         if !tak.profile.tls { Text("This connection is unencrypted. Its traffic can be read or changed on the network.").foregroundStyle(palette.warn) }
                         TextField("Callsign", text: $callsign).textInputAutocapitalization(.characters)
                             .autocorrectionDisabled().accessibilityIdentifier("tak-callsign")
                             .onSubmit { tak.setCallsign(callsign) }
+                        Text("Choose a unique callsign on your server. OpenTAKServer may refuse relaying when another device already uses it.").font(.footnote).foregroundStyle(palette.inkDim)
                         Button(tak.connected || tak.connecting ? "Disconnect" : "Connect") {
                             tak.setCallsign(callsign)
                             if tak.connected || tak.connecting { tak.disconnect() } else { tak.connect() }
                         }.accessibilityIdentifier("tak-connect")
+                        if let pin = tak.profile.pin {
+                            Text("Trusted server SHA-256\n" + pin).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            Button("Reset server trust", role: .destructive) { resetTrust = true }.accessibilityIdentifier("tak-reset-trust")
+                        }
                         Toggle("Share my position", isOn: $tak.sharePosition).tint(palette.accent).accessibilityIdentifier("tak-share-position")
                         Text("Off by default. Connecting announces your callsign without a position. Sharing uses location and may continue while locked after you start it here. iOS can suspend receive-only connections; they resume when you return.")
                             .font(.footnote).foregroundStyle(palette.inkDim)
@@ -52,7 +62,7 @@ struct TAKSettingsView: View {
                         SectionLabel(text: "Shared folders")
                         Text("None shared by default. Shares visible waypoints, lines and areas. Hiding an item or closing its folder eye withdraws it, including after reconnecting. Rings, sectors and text labels stay local.").font(.footnote).foregroundStyle(palette.inkDim)
                         ForEach(tak.availableFolders, id: \.self) { folder in
-                            Toggle(folder, isOn: Binding(get: { tak.sharedFolders.contains(folder) }, set: { tak.setFolderShared(folder, shared: $0) })).tint(palette.accent)
+                            Toggle(folder, isOn: Binding(get: { tak.sharedFolders.contains(folder) }, set: { tak.setFolderShared(folder, shared: $0) })).tint(palette.accent).accessibilityIdentifier("tak-folder-\(folder)")
                         }
                         SectionLabel(text: "Remote items · \(tak.remoteItems.count)")
                         Text("Read-only server layer. Items expire automatically and are not added to your saved waypoints.").font(.footnote).foregroundStyle(palette.inkDim)
@@ -61,11 +71,12 @@ struct TAKSettingsView: View {
                                 HStack {
                                     Text(item.callsign).font(.headline)
                                     Spacer()
-                                    if let onShow { Button("Show on map") { onShow(item); dismiss() } }
+                                    if let onShow, item.points.allSatisfy({ abs($0.lat) <= 85.05112878 }) { Button("Show on map") { onShow(item); dismiss() }.accessibilityLabel("Show \(item.callsign) on map") }
                                 }
+                                if item.points.contains(where: { abs($0.lat) > 85.05112878 }) { Text("Outside map coverage").font(.caption).foregroundStyle(palette.inkDim) }
                                 Text(item.isContact ? "Contact · \(item.affiliation)" : item.points.count == 1 ? "Marker · \(item.affiliation)" : item.closed ? "Area" : "Line").font(.caption).foregroundStyle(palette.inkDim)
                                 if let point = item.points.first { Text(MGRS.parts(lat: point.lat, lon: point.lon, digits: settings.mgrsDigits)?.full ?? String(format: "%.7f, %.7f", point.lat, point.lon)).font(.system(.caption, design: .monospaced)) }
-                            }.padding().fieldChrome().accessibilityIdentifier("tak-remote-\(item.id)")
+                            }.padding().fieldChrome()
                         }
                         Text(tak.profile.uid).font(.system(.caption2, design: .monospaced)).textSelection(.enabled).accessibilityIdentifier("tak-device-uid")
                     }
@@ -77,7 +88,15 @@ struct TAKSettingsView: View {
                         Button("Load local validation package") {
                             let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tak-local-validation.zip")
                             Task {
-                                if let bytes = try? Data(contentsOf: file) { await tak.importPackage(bytes); tak.enableLocalValidation(); callsign = "IOS-LOCAL-TEST"; tak.setCallsign(callsign) }
+                                do {
+                                    let bytes = try Data(contentsOf: file)
+                                    let package = try TAKConnectionPackage.read(bytes)
+                                    guard package.host == "127.0.0.1", package.port == 8089, package.usesTLS else {
+                                        tak.reportImportFailure("Local validation refuses any other endpoint"); return
+                                    }
+                                    await tak.importPackage(bytes); tak.enableLocalValidation()
+                                    callsign = "IOS-TEST-" + String(tak.profile.uid.suffix(8)); tak.setCallsign(callsign)
+                                } catch { tak.reportImportFailure(error.localizedDescription) }
                             }
                         }.accessibilityIdentifier("tak-local-validation")
                     }
@@ -89,6 +108,12 @@ struct TAKSettingsView: View {
                 .tint(palette.accent)
         }.preferredColorScheme(.dark)
             .onAppear { callsign = tak.profile.callsign }
+            .confirmationDialog("Reset the trusted server certificate?", isPresented: $resetTrust, titleVisibility: .visible) {
+                Button("Reset server trust", role: .destructive) { tak.resetServerTrust() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Disconnects and clears the saved fingerprint. Your next connection must pass CA and validity checks, and a name mismatch requires fresh approval.")
+            }
             .fileImporter(isPresented: $importer, allowedContentTypes: [.zip, .data]) { result in
                 guard case let .success(url) = result else { return }
                 importing = true
