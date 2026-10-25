@@ -163,3 +163,13 @@ tests, official TAK Server and ATAK/iTAK client interoperability, enrollment,
 and watch TAK layer synchronization remain to be checked or implemented.
 Polar points remain readable in the remote list but are labelled outside Web
 Mercator map coverage; they are not projected into nonfinite screen coordinates.
+
+## Shared peer fixtures, 25 October follow-up
+
+The Android peer's 14 shared sample events and `expected.json` now run verbatim
+against the Swift parser, both directly and through fragmented/concatenated
+streams. The hosting kit's friendly-name/Oracle trusted-key-usage CA store also
+passes exact-DER comparison; a public synthetic equivalent stays in regression
+coverage. No contract or production parser change was needed. See
+[fixture provenance and validation](tak-shared-fixtures.md). This extends parser
+coverage; it does not replace the real two-app tests or the physical checks above.

@@ -54,3 +54,8 @@ SHA-512 PRFs, and legacy RC2 with an empty password. Regenerate with
 The generator only reads the public expected certificate; it never creates or
 imports a private key. These fixtures independently check Java/Android's format
 as well as OpenSSL's.
+
+The `jdktrust` fixture additionally uses `-caname 'GridFix public synthetic CA'
+-jdktrust anyExtendedKeyUsage`, matching the hosting kit's certificate bag
+attributes. Unknown bag attributes do not change the extracted DER or its later
+native trust checks. See [shared TAK fixtures](tak-shared-fixtures.md).

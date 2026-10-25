@@ -7,7 +7,7 @@ final class PKCS12TrustStoreTests: XCTestCase {
     }
     func testOpenSSLGoldenCAOnlyStoresLegacyAndPBES2YieldExactDER() throws {
         let expected = try fixture("p12-ca-expected", ext: "cer")
-        for name in ["aes256", "aes192", "aes128-sha512", "3des", "rc2-40", "rc2-128", "plain", "jca-aes-sha1-prf", "jca-aes-sha512-prf"] {
+        for name in ["aes256", "aes192", "aes128-sha512", "3des", "rc2-40", "rc2-128", "plain", "jca-aes-sha1-prf", "jca-aes-sha512-prf", "jdktrust"] {
             XCTAssertEqual(try PKCS12TrustStore.certificates(fixture("p12-ca-" + name), password: "fixture-password"), [expected], name)
         }
         XCTAssertEqual(try PKCS12TrustStore.certificates(fixture("p12-ca-unicode"), password: "fixtüré🔭"), [expected])

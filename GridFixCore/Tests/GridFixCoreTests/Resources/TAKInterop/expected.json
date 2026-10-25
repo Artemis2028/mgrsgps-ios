@@ -1,0 +1,196 @@
+{
+ "ownUid": "MGRSGPS-OWN-TEST",
+ "now": "2026-10-25T15:30:00Z",
+ "coordinateTolerance": 1e-06,
+ "cases": {
+  "android-position.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68",
+   "callsign": "MGRS-ADA5",
+   "affiliation": "friendly",
+   "contact": true,
+   "points": [
+    [
+     35.1388,
+     -78.9914
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:32:00Z"
+  },
+  "android-presence.xml": {
+   "kind": "ignored",
+   "why": "0,0 presence (connected, position not shared) is never drawn"
+  },
+  "android-marker-hostile.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68-wp-54dd6cf2-c767-3b71-91a2-6127ce1a3741",
+   "callsign": "ANDROID OP CAFÉ",
+   "affiliation": "hostile",
+   "contact": false,
+   "creator": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68",
+   "points": [
+    [
+     35.1384,
+     -78.9925
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "android-line.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68-g-ff0da643-5bb3-3c0c-b412-e9b2499086f7",
+   "callsign": "ANDROID TEST LINE",
+   "affiliation": "unknown",
+   "contact": false,
+   "creator": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68",
+   "points": [
+    [
+     35.1378,
+     -78.993
+    ],
+    [
+     35.138,
+     -78.992
+    ],
+    [
+     35.1376,
+     -78.9912
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "android-area.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68-g-area-1",
+   "callsign": "AA ANDROID",
+   "affiliation": "unknown",
+   "contact": false,
+   "creator": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68",
+   "points": [
+    [
+     35.138,
+     -78.992
+    ],
+    [
+     35.138,
+     -78.989
+    ],
+    [
+     35.1395,
+     -78.989
+    ]
+   ],
+   "closed": true,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "android-delete.xml": {
+   "kind": "delete",
+   "target": "MGRSGPS-ada5b85d-498a-483f-a558-e19bdc80ea68-wp-54dd6cf2-c767-3b71-91a2-6127ce1a3741"
+  },
+  "ios-style-marker.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-4443A316-A2A9-4AE6-A262-CC4C4B393ACE-wp-1",
+   "callsign": "IOS OP CAFÉ",
+   "affiliation": "hostile",
+   "contact": false,
+   "creator": "MGRSGPS-4443A316-A2A9-4AE6-A262-CC4C4B393ACE",
+   "points": [
+    [
+     35.1388,
+     -78.9914
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "ios-style-area.xml": {
+   "kind": "item",
+   "uid": "MGRSGPS-4443A316-A2A9-4AE6-A262-CC4C4B393ACE-g-1",
+   "callsign": "IOS TEST AREA",
+   "affiliation": "unknown",
+   "contact": false,
+   "creator": "MGRSGPS-4443A316-A2A9-4AE6-A262-CC4C4B393ACE",
+   "points": [
+    [
+     35.1386,
+     -78.9908
+    ],
+    [
+     35.1386,
+     -78.99
+    ],
+    [
+     35.1392,
+     -78.99
+    ],
+    [
+     35.1392,
+     -78.9908
+    ]
+   ],
+   "closed": true,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "time-offset.xml": {
+   "kind": "item",
+   "uid": "OTHER-1",
+   "callsign": "OFFSET",
+   "affiliation": "neutral",
+   "contact": false,
+   "points": [
+    [
+     35.1,
+     -79.0
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:40:00Z"
+  },
+  "time-7-digits.xml": {
+   "kind": "item",
+   "uid": "WINTAK-1",
+   "callsign": "SEVEN",
+   "affiliation": "unknown",
+   "contact": false,
+   "points": [
+    [
+     35.1,
+     -79.0
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T15:40:00.123Z"
+  },
+  "stale-far-ahead.xml": {
+   "kind": "item",
+   "uid": "FAR-1",
+   "callsign": "FAR",
+   "affiliation": "friendly",
+   "contact": false,
+   "points": [
+    [
+     35.1,
+     -79.0
+    ]
+   ],
+   "closed": false,
+   "staleAt": "2026-10-25T16:30:00Z",
+   "note": "stale capped at now + 1 h (now = 2026-10-25T15:30:00Z)"
+  },
+  "refuse-doctype.xml": {
+   "kind": "refused",
+   "why": "any DOCTYPE"
+  },
+  "own-echo.xml": {
+   "kind": "ignored",
+   "why": "our own item echoed back (uid starts with <ownUid>- and p-p creator is us)"
+  },
+  "ping.xml": {
+   "kind": "ignored",
+   "why": "keep-alive"
+  }
+ }
+}
