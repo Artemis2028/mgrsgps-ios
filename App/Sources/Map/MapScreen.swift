@@ -641,19 +641,25 @@ private struct MapContainer: UIViewRepresentable {
             self.navigationID = navigationID
             self.night = night
             let ids = Set(waypoints.map(\.id))
+            var removed: [WaypointAnnotation] = [], added: [WaypointAnnotation] = []
             for id in Array(annotations.keys) where !ids.contains(id) {
-                if let old = annotations.removeValue(forKey: id) { map.removeAnnotation(old) }
+                if let old = annotations.removeValue(forKey: id) { removed.append(old) }
             }
             for waypoint in waypoints {
                 if let old = annotations[waypoint.id], old.waypoint == waypoint {
                     (map.view(for: old) as? WaypointMarkerView)?.configure(waypoint, selected: navigationID == waypoint.id, night: night)
                 } else {
-                    if let old = annotations.removeValue(forKey: waypoint.id) { map.removeAnnotation(old) }
+                    if let old = annotations.removeValue(forKey: waypoint.id) { removed.append(old) }
                     let annotation = WaypointAnnotation(waypoint)
                     annotations[waypoint.id] = annotation
-                    map.addAnnotation(annotation)
+                    added.append(annotation)
                 }
             }
+            // MapLibre reconciles its annotation views on each call. Individual
+            // insertion repeatedly rebuilds the growing hierarchy for a large
+            // library; commit the complete diff in two operations instead.
+            if !removed.isEmpty { map.removeAnnotations(removed) }
+            if !added.isEmpty { map.addAnnotations(added) }
         }
 
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {

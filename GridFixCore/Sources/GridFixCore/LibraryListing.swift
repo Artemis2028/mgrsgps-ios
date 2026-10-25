@@ -30,10 +30,20 @@ public enum LibraryListing {
                 || point.designation.lowercased().contains(q)
                 || (compact.utf16.count >= 3 && (MGRS.string(lat: point.lat,lon: point.lon,digits: 10)?.lowercased().replacingOccurrences(of: " ",with: "").contains(compact) ?? false))
         }
-        return listed.enumerated().map { index,point -> (Int,Waypoint,Int,[UInt32]) in
+        return ordered(listed.enumerated().map { OrderingEntry(index: $0.offset,point: $0.element,nameKey: caseInsensitiveKey($0.element.name)) },origin: origin,sort: sort)
+    }
+
+    struct OrderingEntry: Sendable {
+        let index: Int
+        let point: Waypoint
+        let nameKey: [UInt32]
+    }
+    static func ordered(_ entries: [OrderingEntry],origin: GeoPoint?,sort: WaypointSort) -> [Waypoint] {
+        return entries.map { entry -> (Int,Waypoint,Int,[UInt32]) in
+            let point = entry.point
             let metres: Float? = sort == .distance ? origin.map { Float(Geodesy.navInfo(fromLat: $0.lat,fromLon: $0.lon,toLat: point.lat,toLon: point.lon).distanceMeters) } : nil
             let bucket = metres.flatMap { $0.isFinite ? Int($0/25) : nil } ?? Int.max
-            return (index,point,bucket,caseInsensitiveKey(point.name))
+            return (entry.index,point,bucket,entry.nameKey)
         }.sorted { a,b in
             if a.1.favorite != b.1.favorite { return a.1.favorite }
             if sort == .distance, origin != nil, a.2 != b.2 { return a.2 < b.2 }
@@ -45,7 +55,7 @@ public enum LibraryListing {
     /// Java CASE_INSENSITIVE_ORDER uses simple upper-then-lower case mapping,
     /// including supplementary code points. Avoid locale collation, expansion of ß to SS and
     /// canonical-equivalence comparisons changing Android's stable ties.
-    private static func caseInsensitiveKey(_ value: String) -> [UInt32] {
+    static func caseInsensitiveKey(_ value: String) -> [UInt32] {
         var result = ""
         for scalar in value.unicodeScalars {
             let upper = String(scalar).uppercased()

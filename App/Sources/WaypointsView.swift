@@ -23,10 +23,19 @@ struct WaypointsView: View {
     @State private var pendingSelectionAction: String?
     @State private var choosingPasteFormat = false
     @State private var choosingExportFormat = false
-    @State private var folderFilter: String?
+    @StateObject private var listing = LibraryPresentation()
+    @State private var prunedSourceRevision: UInt64?
+    private var folderFilter: String? {
+        get { listing.folder }
+        nonmutating set { listing.setFolder(newValue) }
+    }
+    @ScaledMetric(relativeTo: .subheadline) private var folderPickerHeight: CGFloat = 60
     @FocusState private var searchFocused: Bool
-    @State private var searchQuery = ""
-    @State private var waypointSort: WaypointSort = .distance
+    private var searchQuery: String { listing.query }
+    private var waypointSort: WaypointSort {
+        get { listing.sort }
+        nonmutating set { listing.setSort(newValue) }
+    }
     @State private var choosingSort = false
     @State private var status: String?
     @State private var showingLibrary = false
@@ -46,26 +55,12 @@ struct WaypointsView: View {
     @State private var backtrackWork: Task<Void,Never>?
     @StateObject private var backupTransfer = BackupTransfer()
 
-    private var libraryFolders: [FolderInfo] {
-        var folders = store.folders
-        for name in fieldData.document.graphics.map(\.folder)+fieldData.document.tracks.map(\.folder) {
-            if !folders.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) { folders.append(.init(name: name)) }
-        }
-        return folders.sorted { a,b in
-            if a.name == Folders.defaultFolder { return b.name != Folders.defaultFolder }
-            if b.name == Folders.defaultFolder { return false }
-            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
-        }
-    }
-    private var listedWaypoints: [Waypoint] {
-        LibraryListing.waypoints(store.waypoints,folder: folderFilter,origin: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) },query: searchQuery,sort: waypointSort)
-    }
+    private var libraryFolders: [FolderInfo] { listing.snapshot?.folders ?? [] }
+    private var listedWaypoints: [Waypoint] { listing.snapshot?.waypoints ?? [] }
     private var query: String { searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-    private var listedGraphics: [Backup.Graphic] { fieldData.document.graphics.filter { (folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame) && (query.isEmpty || $0.name.lowercased().contains(query)) } }
-    private var listedTracks: [Backup.TrackMeta] { fieldData.document.tracks.filter { (folderFilter == nil || $0.folder.caseInsensitiveCompare(folderFilter!) == .orderedSame) && (query.isEmpty || $0.name.lowercased().contains(query)) } }
-    private var listedSelection: LibrarySelection {
-        var ids = LibrarySelection(); ids.waypoints = Set(listedWaypoints.map(\.id)); ids.graphics = Set(listedGraphics.map(\.id)); ids.tracks = Set(listedTracks.map(\.id)); return ids
-    }
+    private var listedGraphics: [Backup.Graphic] { listing.snapshot?.graphics ?? [] }
+    private var listedTracks: [Backup.TrackMeta] { listing.snapshot?.tracks ?? [] }
+    private var listedSelection: LibrarySelection { listing.snapshot?.selection ?? LibrarySelection() }
 
     private enum ImportKind { case backup, text }
 
@@ -78,7 +73,7 @@ struct WaypointsView: View {
                     HStack {
                         Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                         Spacer()
-                        Text("\(fieldData.document.graphics.filter { $0.type == "route" }.count) routes · \(fieldData.document.tracks.count) tracks")
+                        Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
                             .font(.caption).foregroundStyle(palette.inkDim)
                         Image(systemName: "chevron.right").font(.caption)
                     }.padding(.horizontal, 20).frame(minHeight: 44)
@@ -98,7 +93,15 @@ struct WaypointsView: View {
                         }
                     }.padding(.horizontal,20).accessibilityIdentifier("backup-progress")
                 }
-                if !query.isEmpty && listedSelection.count == 0 {
+                if listing.updating || listing.snapshot == nil && listing.error == nil {
+                    ProgressView("Updating library…").tint(palette.accent)
+                        .frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-updating")
+                } else if let error = listing.error {
+                    VStack(spacing: 12) {
+                        Text(error)
+                        Button("Retry") { listing.retry() }
+                    }.frame(maxWidth: .infinity,maxHeight: .infinity)
+                } else if !query.isEmpty && listedSelection.count == 0 {
                     Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
                 } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
                     empty
@@ -110,10 +113,20 @@ struct WaypointsView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .onDisappear { searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel() }
-        .onChange(of: store.waypoints.map(\.id)) { _ in pruneSelection() }
-        .onChange(of: fieldData.document.graphics.map(\.id)) { _ in pruneSelection() }
-        .onChange(of: fieldData.document.tracks.map(\.id)) { _ in pruneSelection() }
+        .onAppear { listing.activate() }
+        .onDisappear { listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel() }
+        .onReceive(store.$waypoints) { listing.setWaypoints($0) }
+        .onReceive(store.$folders) { listing.setFolders($0) }
+        .onReceive(fieldData.$document) { listing.setField(graphics: $0.graphics,tracks: $0.tracks) }
+        .onReceive(location.$usableFix) { listing.setOrigin($0.map { .init(lat: $0.lat,lon: $0.lon) }) }
+        .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in listing.refreshLocale(.current) }
+        .onReceive(listing.$snapshot) { snapshot in
+            guard let snapshot, prunedSourceRevision != listing.acceptedSourceRevision else { return }
+            prunedSourceRevision = listing.acceptedSourceRevision
+            selection.retain(waypoints: snapshot.allIDs.waypoints,graphics: snapshot.allIDs.graphics,tracks: snapshot.allIDs.tracks)
+            if let id = maps.viewedTrackID, !snapshot.allIDs.tracks.contains(id) { maps.viewedTrackID = nil }
+            if let folderFilter, !snapshot.folderNames.contains(folderFilter) { self.folderFilter = nil }
+        }
         .sheet(isPresented: $choosingSort) {
             FieldChoiceSheet(title: "Sort waypoints",choices: WaypointSort.allCases.map { .init(id: $0.rawValue,title: $0.label) },selectedID: waypointSort.rawValue,night: settings.nightMode) { id in
                 if let order = WaypointSort(rawValue: id) { waypointSort = order }
@@ -257,7 +270,7 @@ struct WaypointsView: View {
 
     private var folderPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            LazyHStack(spacing: 8) {
                 folderChip("All", selected: folderFilter == nil) { folderFilter = nil }
                 ForEach(libraryFolders) { folder in
                     folderChip(folder.name, selected: folderFilter == folder.name) { folderFilter = folder.name }
@@ -271,7 +284,7 @@ struct WaypointsView: View {
                 }
                 Button { folderRequest = LibraryFolderRequest() } label: { Label("Folder",systemImage: "folder.badge.plus").padding(10) }.accessibilityIdentifier("library-new-folder")
             }.padding(.horizontal, 20).padding(.vertical, 8)
-        }
+        }.frame(height: folderPickerHeight)
     }
 
     private func folderChip(_ name: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -289,12 +302,11 @@ struct WaypointsView: View {
     private var searchControls: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(palette.inkDim)
-            TextField("Search name, folder or grid",text: $searchQuery)
+            TextField("Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }))
                 .textInputAutocapitalization(.never).autocorrectionDisabled().focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
                 .accessibilityIdentifier("library-search")
-                .onChange(of: searchQuery) { value in if value.count > 60 { searchQuery = String(value.prefix(60)) } }
             if !searchQuery.isEmpty {
-                Button { searchQuery = "" } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44,minHeight: 44) }
+                Button { listing.setQuery("") } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44,minHeight: 44) }
                     .accessibilityLabel("Clear library search").accessibilityIdentifier("library-search-clear")
             }
             Button { searchFocused = false; choosingSort = true } label: {
@@ -311,13 +323,14 @@ struct WaypointsView: View {
                 Text("\(selection.count) selected").font(.caption.bold()).accessibilityIdentifier("library-selected-count")
                 Spacer()
                 Button {
+                    guard listing.isReady else { return }
                     selection = selection == listedSelection ? LibrarySelection() : listedSelection
                 } label: { Image(systemName: selection == listedSelection ? "checkmark.circle.fill" : "checkmark.circle").frame(minWidth: 44,minHeight: 44) }
-                    .accessibilityLabel(selection == listedSelection ? "Select none" : "Select all").accessibilityIdentifier("library-select-all")
+                    .accessibilityLabel(selection == listedSelection ? "Select none" : "Select all").accessibilityIdentifier("library-select-all").disabled(!listing.isReady)
                 Button { choosingSelectionAction = true } label: {
                     Image(systemName: "ellipsis.circle").frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
                 }
-                    .disabled(selection.count == 0).accessibilityLabel("Selected item actions")
+                    .disabled(selection.count == 0 || !listing.isReady).accessibilityLabel("Selected item actions")
                 Button("Done") { selecting = false; selection = LibrarySelection() }.accessibilityIdentifier("library-selection-done")
             } else {
                 Text("\(waypointSort.label) · \(listedWaypoints.count) waypoints · \(listedGraphics.count) graphics · \(listedTracks.count) tracks")
@@ -389,6 +402,7 @@ struct WaypointsView: View {
     private func selectionRow<Content: View>(id: String,name: String,kind: String,visible: Bool,ids: Binding<Set<String>>,@ViewBuilder content: () -> Content) -> some View {
         let selected = ids.wrappedValue.contains(id)
         return Button {
+            guard listing.isReady else { return }
             if selected { ids.wrappedValue.remove(id) } else { ids.wrappedValue.insert(id) }
         } label: {
             HStack(spacing: 12) {
@@ -491,6 +505,7 @@ struct WaypointsView: View {
     }
 
     private func navigate(to waypoint: Waypoint) {
+        guard store.waypoints.contains(where: { $0.id == waypoint.id }) else { status = "This waypoint is no longer saved."; return }
         store.select(waypoint.id)
         onNavigate()
     }
@@ -508,13 +523,13 @@ struct WaypointsView: View {
     }
 
     private func beginEdit(_ wp: Waypoint) {
-        editorRequest = WaypointEditorRequest(waypoint: wp)
+        guard let current = store.waypoints.first(where: { $0.id == wp.id }) else { status = "This waypoint is no longer saved."; return }
+        editorRequest = WaypointEditorRequest(waypoint: current)
     }
 
     private func pruneSelection() {
         selection.retain(waypoints: Set(store.waypoints.map(\.id)),graphics: Set(fieldData.document.graphics.map(\.id)),tracks: Set(fieldData.document.tracks.map(\.id)))
         if let id = maps.viewedTrackID, !fieldData.document.tracks.contains(where: { $0.id == id }) { maps.viewedTrackID = nil }
-        if let folderFilter, !libraryFolders.contains(where: { $0.name == folderFilter }) { self.folderFilter = nil }
     }
 
     /// Like Android, repositories commit independently. Completed IDs leave the
@@ -549,7 +564,8 @@ struct WaypointsView: View {
         } catch { status = error.localizedDescription }
     }
     private func showGraphic(_ graphic: Backup.Graphic) {
-        maps.focusRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)); onShowMap()
+        guard let current = fieldData.document.graphics.first(where: { $0.id == graphic.id }) else { status = "This graphic is no longer saved."; return }
+        maps.focusRequest = MapCameraRequest(action: .showBoundary(current.mapExtentPoints)); onShowMap()
     }
     private func showTrack(_ track: Backup.TrackMeta) {
         perform {

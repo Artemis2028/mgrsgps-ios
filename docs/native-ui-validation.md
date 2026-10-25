@@ -55,3 +55,34 @@ Restore merging, encoding and full file writes now run on workers, with store-in
 A recorded model benchmark restores an accepted 5,000-waypoint/1,000-route/50,000-track-point backup while the main actor edits and selects a local waypoint. One local run took 0.848 seconds with 432 main-actor timer pulses and a 0.004-second largest observed gap; a subsequent run took 0.874 seconds with a 0.004-second gap. These measurements do not cover rendering a large SwiftUI library, physical storage latency or locked-device behavior. See [backup preparation](backup-preparation.md).
 
 Screenshot review also found that hidden records lost too much text contrast. Library names now retain their normal ink and use explicit eye-slash markers, including mixed selection, rather than fading the complete record. Map visibility flags are unchanged. The native backup/night and mixed visibility/cancel workflows pass; their screenshots were inspected. The combined unsigned phone/embedded-watch Release build passes.
+
+## Cached library listing and batched map markers
+
+The library now builds search keys, folder/catalog metadata, ordering and mixed
+result IDs on a coalescing background worker. Superseded query/source generations
+cannot publish stale results or drive selection; GPS-only reorder samples keep
+the accepted list usable. Reused name keys require byte-identical names because
+Swift's canonical string equality is broader than Android's code-point ordering.
+
+Local evidence on iPhone 16e / iOS 26.5: 300 core tests and 112 app integration
+tests pass. Focused native runs pass all eight LibraryWorkflow tests, all three
+LibrarySearchWorkflow tests, the night Files backup export/delete/restore/relaunch
+workflow, and the new 5,000-waypoint/100-folder/1,000-route workflow. The large test
+checks favourites, name/folder and displayed MGRS search, selection replacement
+across filters, map entry, night toggle and return to readable results. The first
+fixture runs exposed count-format/selection-mode assertion mistakes, which were
+corrected without removing those behavior checks. Day and night attachments were
+exported from closed result bundles and inspected.
+
+The large test also exposed a real map stall: individual `addAnnotation` calls
+repeatedly rebuilt the growing view hierarchy. A process sample identified the
+main thread inside MapLibre insertion. The coordinator now batches annotation
+removals/additions while retaining unchanged markers. The same full-data native
+workflow passes afterward. Dense map accessibility queries remain expensive;
+this does not establish physical map/battery performance. The unsigned combined
+phone/embedded-watch Release build is checked separately. Full hosted CI remains
+a distinct gate; these focused results are not a claim that hosted CI is green.
+
+The existing coordinate-entry → map marker selection → navigation → folder
+hide/show native regression passes after marker batching. The final unsigned
+combined phone/embedded-watch Release build passes as well.

@@ -95,3 +95,34 @@ validation. Finished field data currently retains the existing archive storage
 budget; this milestone does not remove that separate limitation.
 [Practice courses](practice-courses.md) are implemented separately; additional
 interchange formats remain on the parity checklist.
+
+## Background listing
+
+`LibraryPresentation` owns one coalescing worker for immutable library snapshots.
+`LibraryListing.Index` caches ten-digit compact MGRS and Java-compatible name
+keys; metadata-only edits reuse coordinate keys while installing the new record.
+`Catalog` merges folders and caches full-source IDs and route counts. Search,
+folder matching, mixed-result IDs and ordering run off the main actor. Android
+release/1.1.0's favourites-first, 25 m Float distance buckets, newest/name order,
+three-character compact-grid threshold and stable name ties remain unchanged.
+
+Structural changes (query, folder, sort or saved records) disable selection and
+show an updating state until a matching generation arrives. A superseded query
+or deleted record cannot publish an old result. Ordinary fresh GPS movement
+coalesces into the latest pending origin while the previously accepted cards
+remain usable; losing or regaining a usable fix invalidates the distance order.
+Name/newest sorting does not rebuild for GPS changes. Leaving the screen cancels
+its worker; an old task cannot overwrite or clear a reactivated screen's task.
+The folder strip is lazy and has a Dynamic Type-scaled height.
+
+Tests compare indexed results with the existing Android-policy fixtures, including
+Unicode ties, moved coordinates, edits, folder collation and mixed IDs. App tests
+hold workers across newer queries, source deletion and screen reactivation.
+The large-library native fixture uses actual saved stores and production listing
+with 5,000 waypoints, 100 folders and 1,000 routes. This does not establish physical
+storage/battery performance or remove synchronous edit/interchange work.
+
+The stress workflow exposed repeated map hierarchy rebuilds during individual
+marker insertion. Map marker differences now publish through batched removal and
+addition calls; no waypoint is dropped to meet the fixture. Dense map rendering
+and accessibility still warrant further profiling and physical validation.

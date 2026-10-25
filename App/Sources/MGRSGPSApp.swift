@@ -62,6 +62,21 @@ struct MGRSGPSApp: App {
             }
             _ = try? fieldStore.restore(fixture)
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLargeLibrary"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty {
+            // Real stores and production listing; no synthetic UI result path.
+            let folders = (0..<100).map { FolderInfo(name: String(format: "Folder %03d",$0)) }
+            var points: [Waypoint] = []
+            for i in 0..<5000 {
+                points.append(.init(id: "large-point-\(i)",name: String(format: "Point %04d",i),lat: 24.4539+Double(i%100)*0.0001,lon: 54.3773+Double(i/100)*0.0001,createdAt: Int64(i),folder: folders[i%100].name,favorite: i == 4999))
+            }
+            try? waypointStore.restore(waypoints: points,folders: folders)
+            var fixture = Backup.Document(); fixture.hasSettings = false
+            fixture.graphics = (0..<1000).map { i in
+                .init(id: "large-route-\(i)",name: String(format: "Route %04d",i),type: "route",points: [.init(lat: 24.4539,lon: 54.3773),.init(lat: 24.455,lon: 54.379)],folder: folders[i%100].name)
+            }
+            _ = try? fieldStore.restore(fixture)
+        }
         #endif
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting") && (ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")), waypointStore.waypoints.isEmpty {
