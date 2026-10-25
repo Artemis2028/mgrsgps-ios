@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 /// One native Files presenter for every field export. Separate fileExporter
 /// modifiers on the same view can suppress one another on older SwiftUI.
 struct FieldExportDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.data,.zip,.gridFixGPX,.commaSeparatedText,.gridFixGeoJSON,.gridFixKML,.gridFixKMZ] }
+    static var readableContentTypes: [UTType] { [.data,.zip,.gridFixProtectedBackup,.gridFixGPX,.commaSeparatedText,.gridFixGeoJSON,.gridFixKML,.gridFixKMZ] }
     var data: Data
     var contentType: UTType
     var filename: String

@@ -61,15 +61,22 @@ enum InterchangeCoordinator {
 enum InterchangeFileReader {
     /// Keep provider coordination/security access alive while reading mapped ZIP
     /// pages, rather than returning a mapping after provider access is released.
-    static func backup(_ url: URL) throws -> Backup.Document {
+    static func backup(_ url: URL,password: String? = nil) throws -> Backup.Document {
         try coordinated(url) { source in
             let handle = try FileHandle(forReadingFrom: source)
             defer { try? handle.close() }
-            let limit = KMZ.inputByteLimit
+            let head = try handle.read(upToCount: 12) ?? Data()
+            let limit = BackupCrypto.isSealed(head) ? BackupCrypto.maximumSealedBytes : KMZ.inputByteLimit
             guard try handle.seekToEnd() <= UInt64(limit) else { throw BackupError.notABackup("Backup container exceeds \(limit/(1024*1024)) MB") }
             try Task.checkCancellation()
             let bytes = try Data(contentsOf: source,options: .mappedIfSafe)
             guard bytes.count <= limit else { throw BackupError.notABackup("Backup container exceeds \(limit/(1024*1024)) MB") }
+            if BackupCrypto.isSealed(bytes) {
+                guard let password else { throw BackupCrypto.Failure.passwordRequired }
+                let plain = try BackupCrypto.open(bytes,password: password)
+                try Task.checkCancellation()
+                return try Backup.importZip(plain)
+            }
             return try Backup.importZip(bytes)
         }
     }

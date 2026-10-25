@@ -33,3 +33,8 @@ The staged-restore milestone passes 296 core tests and 107 app integration tests
 Non-backup library and single-track exports now use their own cancellable
 [worker preparation](export-preparation.md) and share the library’s native Files
 presenter exclusively with backup output.
+
+Optional [password protection](protected-backups.md) wraps this same archive
+and restore order. Key derivation/encryption/decryption run on workers; protected
+files are authenticated and fully parsed before any commit begins. Ordinary ZIP
+export remains available.

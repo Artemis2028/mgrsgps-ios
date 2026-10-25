@@ -119,3 +119,7 @@ winning, and keeps successful earlier phases if a later phase fails. Runtime
 lane storage and restore use a serial worker and atomic replacement; retries do
 not duplicate or overwrite existing lane edits. Active lane-guidance sessions
 are not restored or started by importing a backup.
+
+Optional password-protected `.mgrsgps` files wrap this unchanged ZIP in the
+Android `MGRSGPS-ENC1` envelope. See [protected backups](protected-backups.md)
+for the exact layout, work factors, limits and independent JCA fixtures.

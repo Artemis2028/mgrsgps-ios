@@ -254,3 +254,32 @@ screenshots were also inspected for readable text and controls. The unsigned
 phone/embedded-watch Release build passes.
 Watch lane synchronization, protected backups and later Android cue switches
 remain implementation work; this does not prove physical lock-screen delivery.
+
+## Protected-backup validation
+
+The complete core suite passes 353 tests. A clean iOS 26.5 bundle,
+`gridfix-protected-backup-native-final.xcresult`, passes 150 tests with zero
+failures/skips: all 147 app integration cases, ordinary backup Files round trip,
+protected backup export/wrong-password rejection/retry/relaunch and the existing
+hidden-lane backup/route-card/PDF workflow. The first protected picker attempt
+exposed a missing extension/disabled file. Protected export now supplies an
+explicit `.mgrsgps` filename, and the backup picker accepts generic data as well
+as ZIP/protected types while validating contents before publication.
+
+Artifact review found a missing FileDocument writable type. It is now declared
+explicitly. The subsequent clean `gridfix-protected-backup-type-labels.xcresult`
+passes nine focused cases (all eight field-export integration tests and the
+protected native workflow), and the content-type warning is gone. Password and
+confirmation retain visible labels; exported empty/filled night prompts, native
+Files save, error text and restored mixed-record screenshots were inspected.
+The actual native export also authenticates/decrypts in Java JCA with its
+manifest and recorded track intact. The final unsigned phone/embedded-watch
+Release build passes.
+
+The focused simulator bundle still reports one “Invalid frame dimension
+(negative or non-finite)” runtime warning without a source location. The native
+workflow completes and inspected screens remain readable; the warning remains
+an investigation item, not an asserted iOS limitation. Physical Android/iPhone
+provider transfers and storage-pressure checks remain open. See
+[protected backups](protected-backups.md) for format, cancellation and fixture
+scope. This does not complete the broader parity/release goal.

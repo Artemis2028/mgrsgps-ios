@@ -53,6 +53,13 @@ targets:
         CFBundleDisplayName: MGRS GPS
         GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
         UTExportedTypeDeclarations:
+          - UTTypeIdentifier: app.gridfix.protected-backup
+            UTTypeDescription: Protected GridFix backup
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mgrsgps
           - UTTypeIdentifier: app.gridfix.gpx
             UTTypeDescription: GPS Exchange Format
             UTTypeConformsTo:
@@ -99,6 +106,7 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
             LSItemContentTypes:
+              - app.gridfix.protected-backup
               - app.gridfix.gpx
               - app.gridfix.geojson
               - public.comma-separated-values-text

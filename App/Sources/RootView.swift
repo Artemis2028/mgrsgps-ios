@@ -11,6 +11,7 @@ struct RootView: View {
     @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var practice: PracticeSession
     @EnvironmentObject private var navigation: NavigationSession
+    @EnvironmentObject private var lanes: NavigationLaneStore
     @State private var showingOrientationPicker = false
     @State private var pendingOrientation: ScreenOrientation?
     @Environment(\.scenePhase) private var scenePhase
@@ -20,6 +21,9 @@ struct RootView: View {
     @State private var importRequest: TextImportRequest?
     @State private var importStatus: String?
     @State private var showingPractice = false
+    @StateObject private var incomingBackup = BackupTransfer()
+    @State private var backupPasswordRequest: BackupPasswordRequest?
+    @State private var pendingBackup: (URL,String)?
 
     init() {
         // The standalone screenshot script picks a tab with a launch argument;
@@ -52,10 +56,19 @@ struct RootView: View {
             }
             if let url = incomingFile {
                 HStack {
-                    Button { importRequest = TextImportRequest(url: url) } label: { Label("Review " + url.lastPathComponent,systemImage: "doc.badge.plus").lineLimit(1).frame(minHeight: 44) }
+                    Button {
+                        if url.pathExtension.lowercased() == "mgrsgps" { backupPasswordRequest = .init(url: url) }
+                        else { importRequest = TextImportRequest(url: url) }
+                    } label: { Label("Review " + url.lastPathComponent,systemImage: "doc.badge.plus").lineLimit(1).frame(minHeight: 44) }
                     Spacer()
                     Button("Dismiss") { incomingFile = nil }.font(.caption)
-                }.padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner")
+                }.padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner").disabled(incomingBackup.phase != nil)
+            }
+            if let phase = incomingBackup.phase {
+                HStack {
+                    ProgressView(); Text(phase.title).font(.caption)
+                    if phase != .restoring { Button("Cancel") { incomingBackup.cancel() } }
+                }.padding(.horizontal,16)
             }
             if let importStatus {
                 HStack { Text(importStatus).font(.caption); Spacer(); Button("Done") { self.importStatus = nil } }.padding(.horizontal,16)
@@ -115,6 +128,18 @@ struct RootView: View {
         }
         .onOpenURL { url in
             if url.isFileURL { incomingFile = url; importStatus = nil }
+        }
+        .sheet(item: $backupPasswordRequest,onDismiss: {
+            guard let (url,password) = pendingBackup else { return }
+            pendingBackup = nil
+            incomingBackup.restore(url,password: password,apply: { document in
+                await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes)
+            },completion: { message in importStatus = message; if incomingFile == url && (message.hasPrefix("Restored") || message == "Nothing new to restore") { incomingFile = nil } })
+        }) { request in
+            BackupPasswordSheet(exporting: false) { password in
+                if let url = request.url { pendingBackup = (url,password) }
+                backupPasswordRequest = nil
+            }
         }
         .sheet(item: $importRequest) { request in
             InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name)) { document in

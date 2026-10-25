@@ -48,6 +48,8 @@ struct WaypointsView: View {
     @State private var exportFile: FieldExportDocumentFile?
     @State private var showingImporter = false
     @State private var importKind: ImportKind = .backup
+    @State private var backupPasswordRequest: BackupPasswordRequest?
+    @State private var pendingProtectedBackup: (URL?,String)?
     @State private var selecting = false
     @State private var selection = LibrarySelection()
     @State private var deleteSelection = false
@@ -182,12 +184,18 @@ struct WaypointsView: View {
         }
         .confirmationDialog("Export",isPresented: $choosingExportFormat,titleVisibility: .visible) {
             Button("Export backup") { exportBackup() }.disabled(exportUnavailable)
+            Button("Export protected backup") { backupPasswordRequest = .init(url: nil) }.disabled(exportUnavailable)
             Button("Export GPX") { exportOther(.gpx) }.disabled(exportUnavailable)
             Button("Export CSV") { exportOther(.csv) }.disabled(exportUnavailable)
             Button("Export GeoJSON") { exportOther(.geojson) }.disabled(exportUnavailable)
             Button("Export KML") { exportOther(.kml) }.disabled(exportUnavailable)
             Button("Export KMZ") { exportOther(.kmz) }.disabled(exportUnavailable)
             Button("Export ATAK package") { exportOther(.atak) }.disabled(exportUnavailable)
+        }
+        .sheet(item: $backupPasswordRequest,onDismiss: finishProtectedBackup) { request in
+            BackupPasswordSheet(exporting: request.url == nil) { password in
+                pendingProtectedBackup = (request.url,password); backupPasswordRequest = nil
+            }
         }
         .sheet(item: $folderRequest) { request in
             LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
@@ -249,7 +257,7 @@ struct WaypointsView: View {
             exportFile = nil
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip] : [.gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip,.gridFixProtectedBackup,.data] : [.gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
@@ -619,20 +627,33 @@ struct WaypointsView: View {
     }
     private func perform(_ action: () throws -> Void) { do { try action(); status = nil } catch { status = error.localizedDescription } }
 
-    private func exportBackup() {
+    private func exportBackup(password: String? = nil) {
         guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
         guard lanes.ready else { status = lanes.error ?? "Loading navigation lanes. Try again in a moment."; return }
         var doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
         doc.navLanes = lanes.lanes
         status = nil
-        backupTransfer.export(doc) { result in
+        backupTransfer.export(doc,password: password) { result in
             switch result {
             case .success(let data):
-                exportFile = FieldExportDocumentFile(data: data,contentType: .zip,filename: "gridfix-backup")
+                exportFile = FieldExportDocumentFile(data: data,contentType: password == nil ? .zip : .gridFixProtectedBackup,filename: password == nil ? "gridfix-backup" : "gridfix-backup.mgrsgps")
                 status = "Backup ready"
             case .failure(let error): status = "Backup failed: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func restoreBackup(_ url: URL,password: String? = nil) {
+        backupTransfer.restore(url,password: password,passwordRequired: { backupPasswordRequest = .init(url: url) },apply: { document in
+            await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
+        },completion: { status = $0 })
+    }
+
+    private func finishProtectedBackup() {
+        guard let (url,password) = pendingProtectedBackup else { return }
+        pendingProtectedBackup = nil
+        if let url { restoreBackup(url,password: password) }
+        else { exportBackup(password: password) }
     }
 
     private func exportOther(_ format: TextInterchangeFormat) {
@@ -708,9 +729,7 @@ struct WaypointsView: View {
             if importKind == .text { textImport = TextImportRequest(url: url); return }
             guard backupTransfer.phase == nil else { return }
             status = nil
-            backupTransfer.restore(url,apply: { document in
-                await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
-            },completion: { status = $0 })
+            restoreBackup(url)
         } catch { status = "Import failed: \(error.localizedDescription)" }
     }
 

@@ -15,6 +15,19 @@ enum BackupPreparation {
         return try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
     }
 
+    static func read(_ url: URL,password: String) async throws -> Backup.Document {
+        try await read(url,reader: { try InterchangeFileReader.backup($0,password: password) })
+    }
+
+    static func protect(_ bytes: Data,password: String) async throws -> Data {
+        let worker = Task.detached(priority: .userInitiated) {
+            let data = try BackupCrypto.seal(bytes,password: password)
+            try Task.checkCancellation()
+            return data
+        }
+        return try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+    }
+
     static func encode(_ document: Backup.Document, writer: @escaping @Sendable (Backup.Document) throws -> Data = { try Backup.exportZip($0) }) async throws -> Data {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
@@ -52,18 +65,25 @@ final class BackupTransfer: ObservableObject {
     }
 
     @discardableResult
-    func restore(_ url: URL, apply: @escaping (Backup.Document) async -> String, completion: @escaping (String) -> Void) -> Bool {
+    func restore(_ url: URL,password: String? = nil,passwordRequired: (() -> Void)? = nil, apply: @escaping (Backup.Document) async -> String, completion: @escaping (String) -> Void) -> Bool {
         let reader = reader
-        return start(.reading,prepare: { try await reader(url) },commit: { document in
+        return start(.reading,prepare: { if let password { return try await BackupPreparation.read(url,password: password) }; return try await reader(url) },commit: { document in
             self.phase = .restoring
             completion(await apply(document))
-        },failure: { completion("Import failed: \($0.localizedDescription)") })
+        },failure: {
+            if ($0 as? BackupCrypto.Failure) == .passwordRequired,let passwordRequired { passwordRequired() }
+            else { completion("Import failed: \($0.localizedDescription)") }
+        })
     }
 
     @discardableResult
-    func export(_ snapshot: Backup.Document, completion: @escaping (Result<Data,Error>) -> Void) -> Bool {
+    func export(_ snapshot: Backup.Document,password: String? = nil, completion: @escaping (Result<Data,Error>) -> Void) -> Bool {
         let writer = writer
-        return start(.exporting,prepare: { try await writer(snapshot) },commit: { completion(.success($0)) },failure: { completion(.failure($0)) })
+        return start(.exporting,prepare: {
+            let bytes = try await writer(snapshot)
+            if let password { return try await BackupPreparation.protect(bytes,password: password) }
+            return bytes
+        },commit: { completion(.success($0)) },failure: { completion(.failure($0)) })
     }
 
     /// The returned handle lets an owner await canceled provider work if needed.

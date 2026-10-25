@@ -139,3 +139,11 @@ wrap across variable-height PDF rows. The complete core suite passes 347 tests
 and the app integration suite passes 143 tests. Four native Files/PDF workflows
 pass in a clean iOS 26.5 run; unsigned phone/embedded-watch Release builds pass.
 Physical locked-screen delivery remains unverified.
+
+The protected-backup milestone now implements the Android envelope with
+CommonCrypto PBKDF2 and CryptoKit AES-GCM, worker-based preparation, native
+password/confirmation prompts and content-based restore detection. Independent
+JCA fixtures match deterministic Swift ciphertext; fresh Swift exports also
+authenticate/decrypt in Java. Ordinary ZIP backup support is retained. See
+[protected backups](protected-backups.md) for source references, limits and
+validation scope. Physical cross-device/provider checks are still required.
