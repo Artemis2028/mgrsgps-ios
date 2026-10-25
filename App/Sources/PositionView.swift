@@ -7,6 +7,7 @@ struct PositionView: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
     @State private var showSettings = false
+    @State private var qrRequest: PositionQRRequest?
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -94,6 +95,7 @@ struct PositionView: View {
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
         .onAppear { location.start() }
+        .sheet(item: $qrRequest) { PositionQRView(request: $0, night: settings.nightMode) }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(settings)
@@ -116,6 +118,15 @@ struct PositionView: View {
                     .tracking(1.4)
                     .foregroundStyle(palette.inkDim)
             }
+            Button {
+                if let fix = location.usableFix {
+                    qrRequest = PositionQRRequest(title: "My position", lat: fix.lat, lon: fix.lon,
+                        label: "Position " + String(Format.dtg(Date()).prefix(7)), digits: settings.mgrsDigits)
+                }
+            } label: {
+                Image(systemName: "qrcode").frame(width: 44, height: 44)
+            }.buttonStyle(.plain).disabled(location.usableFix == nil)
+                .accessibilityLabel("Share position as QR code").accessibilityIdentifier("position-share-qr")
             Button {
                 showSettings = true
             } label: {
@@ -156,6 +167,8 @@ struct PositionView: View {
                     .font(Blackout.label(12, weight: .medium))
                     .foregroundStyle(palette.inkDim)
                     .padding(.top, 8)
+                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("position-phonetic")
             }
             .minimumScaleFactor(0.5)
             .lineLimit(1)
@@ -182,13 +195,13 @@ struct PositionView: View {
     }
 
     private var precisionPicker: some View {
-        Picker("MGRS precision", selection: Binding(get: { settings.mgrsDigits }, set: { settings.setMgrsDigits($0) })) {
+        Picker("\(settings.gridName) precision", selection: Binding(get: { settings.mgrsDigits }, set: { settings.setMgrsDigits($0) })) {
             ForEach([4, 6, 8, 10], id: \.self) { digits in
                 Text("\(digits) digits").tag(digits)
             }
         }
         .pickerStyle(.segmented)
-        .accessibilityLabel("MGRS precision")
+        .accessibilityLabel("\(settings.gridName) precision")
     }
 
     private var instrument: some View {

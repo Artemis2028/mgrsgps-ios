@@ -30,6 +30,11 @@ struct SettingsView: View {
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
                     section("Grid & units")
+                    Picker("Grid name", selection: $settings.gridSystem) {
+                        Text("MGRS").tag(0); Text("USNG").tag(1)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("grid-system")
+                    Text("MGRS and USNG use the same grid. This changes its name, not your coordinates.")
+                        .font(.footnote).foregroundStyle(palette.inkDim)
                     digitsBlock
                     latLonBlock
                     unitsBlock
@@ -100,7 +105,7 @@ struct SettingsView: View {
     }
 
     private var digitsBlock: some View {
-        block("MGRS precision") {
+        block("\(settings.gridName) precision") {
             BlackoutSegments(
                 options: ["4", "6", "8", "10"],
                 selected: [4, 6, 8, 10].firstIndex(of: settings.mgrsDigits) ?? 2,

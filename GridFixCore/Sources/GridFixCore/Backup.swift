@@ -13,6 +13,7 @@ public enum Backup {
         public var nightMode: Bool = false
         public var keepScreenOn: Bool = true
         public var mgrsDigits: Int = 10
+        public var gridSystem: Int = 0
         public var latLonFormat: Int = 1
         public var units: Int = 0
         public var angleUnit: Int = 0
@@ -194,6 +195,7 @@ public enum Backup {
             "nightMode": doc.settings.nightMode,
             "keepScreenOn": doc.settings.keepScreenOn,
             "mgrsDigits": doc.settings.mgrsDigits,
+            "gridSystem": doc.settings.gridSystem,
             "latLonFormat": doc.settings.latLonFormat,
             "units": doc.settings.units,
             "angleUnit": doc.settings.angleUnit,
@@ -323,7 +325,7 @@ public enum Backup {
         }
         let s = doc.settings
         if doc.hasSettings {
-            try require([4,6,8,10].contains(s.mgrsDigits) && (0...2).contains(s.latLonFormat)
+            try require((0...1).contains(s.gridSystem) && [4,6,8,10].contains(s.mgrsDigits) && (0...2).contains(s.latLonFormat)
                         && (0...2).contains(s.units) && (0...1).contains(s.angleUnit) && (0...2).contains(s.northRef)
                         && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
                         && (1...90).contains(s.guideAllowance) && (0...60).contains(s.guideHoldOffSec)
@@ -433,6 +435,7 @@ public enum Backup {
         s.nightMode = o["nightMode"] as? Bool ?? false
         s.keepScreenOn = o["keepScreenOn"] as? Bool ?? true
         s.mgrsDigits = int(o["mgrsDigits"]) ?? 10
+        s.gridSystem = int(o["gridSystem"]) ?? 0
         s.latLonFormat = int(o["latLonFormat"]) ?? 1
         s.units = int(o["units"]) ?? 0
         s.angleUnit = int(o["angleUnit"]) ?? 0

@@ -53,6 +53,8 @@ final class AppSettings: ObservableObject {
     @Published var nightMode: Bool = false { didSet { persist() } }
     /// 4 / 6 / 8 / 10, matching Android's ten-digit default.
     @Published var mgrsDigits: Int = 10 { didSet { persist() } }
+    @Published var gridSystem = 0 { didSet { persist() } }
+    var gridName: String { gridSystem == 1 ? "USNG" : "MGRS" }
     @Published var units: DistanceUnit = .metric { didSet { persist() } }
     @Published var latLonFormat: LatLonFormat = .degreesMinutes { didSet { persist() } }
     @Published var angleUnit: AngleUnit = .degrees { didSet { persist() } }
@@ -83,6 +85,7 @@ final class AppSettings: ObservableObject {
     private struct Snapshot: Codable {
         var nightMode: Bool
         var mgrsDigits: Int
+        var gridSystem: Int?
         var units: Int
         var latLonFormat: Int
         var angleUnit: Int
@@ -139,6 +142,7 @@ final class AppSettings: ObservableObject {
               let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
         nightMode = snap.nightMode
         mgrsDigits = [4, 6, 8, 10].contains(snap.mgrsDigits) ? snap.mgrsDigits : 10
+        gridSystem = snap.gridSystem == 1 ? 1 : 0
         units = DistanceUnit(rawValue: snap.units) ?? .metric
         latLonFormat = LatLonFormat(rawValue: snap.latLonFormat) ?? .degreesMinutes
         angleUnit = AngleUnit(rawValue: snap.angleUnit) ?? .degrees
@@ -160,6 +164,7 @@ final class AppSettings: ObservableObject {
 
     var backupSettings: Backup.AppSettings {
         var s = Backup.AppSettings()
+        s.gridSystem = gridSystem
         s.nightMode = nightMode; s.mgrsDigits = mgrsDigits; s.units = units.rawValue
         s.latLonFormat = latLonFormat.rawValue; s.angleUnit = angleUnit.rawValue; s.northRef = northRef.rawValue
         s.declinationOverride = declinationOverride; s.face = face.rawValue; s.keepScreenOn = keepScreenOn
@@ -178,10 +183,12 @@ final class AppSettings: ObservableObject {
                                 declinationOverride: s.declinationOverride, face: s.face,
                                 keepScreenOn: s.keepScreenOn, pacePer100m: s.pacePer100m,
                                 orientation: s.orientation, disclaimerAccepted: s.disclaimerAccepted)
+        snapshot.gridSystem = s.gridSystem
         snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
         snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM
         try JSONEncoder().encode(snapshot).write(to: fileURL, options: .atomic)
         ready = false
+        gridSystem = s.gridSystem
         nightMode = s.nightMode; mgrsDigits = s.mgrsDigits
         units = DistanceUnit(rawValue: s.units)!; latLonFormat = LatLonFormat(rawValue: s.latLonFormat)!
         angleUnit = AngleUnit(rawValue: s.angleUnit)!; northRef = NorthReference(rawValue: s.northRef)!
@@ -207,6 +214,7 @@ final class AppSettings: ObservableObject {
             keepScreenOn: keepScreenOn, pacePer100m: pacePer100m,
             orientation: orientation, disclaimerAccepted: disclaimerAccepted
         )
+        snap.gridSystem = gridSystem
         snap.guideAllowance = guideAllowance; snap.guideHoldOffSec = guideHoldOffSec; snap.guideHeartbeatSec = guideHeartbeatSec
         snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM
         guard let data = try? JSONEncoder().encode(snap) else { return }

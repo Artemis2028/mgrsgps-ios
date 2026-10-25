@@ -96,7 +96,7 @@ struct WaypointEditor: View {
                             set: { coordinate.changeFormat(to: $0) }
                         )) {
                             ForEach(WaypointCoordinateDraft.Format.allCases, id: \.self) { format in
-                                Text(format.rawValue).tag(format)
+                                Text(format == .mgrs ? settings.gridName : format.rawValue).tag(format)
                             }
                         }
                         .pickerStyle(.segmented)
@@ -104,7 +104,7 @@ struct WaypointEditor: View {
                             TextField("40R BN 34125 07001", text: $coordinate.grid, prompt: Text("40R BN 34125 07001").foregroundColor(secondaryInk)).focused($focusedInput,equals: .grid)
                                 .textInputAutocapitalization(.characters)
                                 .font(.system(.body, design: .monospaced))
-                                .accessibilityLabel("MGRS coordinate")
+                                .accessibilityLabel("\(settings.gridName) coordinate")
                                 .accessibilityIdentifier("waypoint-mgrs")
                         } else {
                             LabeledContent("Latitude") {
@@ -144,7 +144,7 @@ struct WaypointEditor: View {
                 .listRowBackground(rowBackground)
                 if let p = selectedPosition {
                     Section("Coordinate preview") {
-                        Text(MGRS.parts(lat: p.lat, lon: p.lon, digits: 10)?.full ?? "Outside MGRS coverage")
+                        Text(MGRS.parts(lat: p.lat, lon: p.lon, digits: 10)?.full ?? "Outside \(settings.gridName) coverage")
                             .font(.system(.body, design: .monospaced)).accessibilityIdentifier("waypoint-coordinate-preview")
                         Text(Format.latLon(lat: p.lat, lon: p.lon, format: .decimalDegrees))
                             .font(.system(.footnote, design: .monospaced))

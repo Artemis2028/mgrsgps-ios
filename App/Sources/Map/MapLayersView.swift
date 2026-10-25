@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct MapLayersView: View {
+    @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var maps: MapLayerStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
@@ -29,7 +30,7 @@ struct MapLayersView: View {
                     #endif
                 }
                 Section("Map overlays") {
-                    Toggle("MGRS grid", isOn: Binding(get: { maps.preferences.gridEnabled }, set: maps.setGrid))
+                    Toggle("\(settings.gridName) grid", isOn: Binding(get: { maps.preferences.gridEnabled }, set: maps.setGrid))
                     Toggle("Terrain shading", isOn: Binding(get: { maps.preferences.hillshade }, set: maps.setHillshade))
                         .disabled(maps.selectedMap != nil || !maps.layers.contains { $0.key == "hillshade" })
                     Toggle("Contour lines", isOn: Binding(get: { maps.preferences.contours }, set: maps.setContours))

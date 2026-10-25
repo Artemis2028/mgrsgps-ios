@@ -2,6 +2,7 @@ import GridFixCore
 import SwiftUI
 
 struct TerrainPanel: View {
+    @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var terrain: TerrainSession
     @EnvironmentObject private var waypoints: WaypointStore
     @EnvironmentObject private var field: FieldDataStore
@@ -102,7 +103,7 @@ struct TerrainPanel: View {
             if result.status == .visible { Text("Clear through sampled terrain at these heights. Unmodelled obstacles may still block the view.") }
             if let block = sight.blockPosition {
                 Text("First known obstruction: \(sight.profile.distances[result.blockIndex],specifier: "%.0f") m along path")
-                Text(MGRS.parts(lat: block.lat,lon: block.lon,digits: 10)?.full ?? "Outside MGRS coverage").font(.system(.caption,design: .monospaced))
+                Text(MGRS.parts(lat: block.lat,lon: block.lon,digits: 10)?.full ?? "Outside \(settings.gridName) coverage").font(.system(.caption,design: .monospaced))
             }
             if result.minClearance.isFinite { Text("Tightest clearance: \(result.minClearance,specifier: "%.1f") m at \(result.minClearanceDistance,specifier: "%.0f") m") }
             if result.clearObserverHeight.isFinite { Text("Observer height to clear sampled terrain: \(result.clearObserverHeight,specifier: "%.1f") m AGL") }
@@ -126,6 +127,7 @@ struct TerrainPanel: View {
 }
 
 private struct TerrainEndpoint: View {
+    @EnvironmentObject private var settings: AppSettings
     @Binding var mode: String
     @Binding var id: String
     @Binding var coordinate: WaypointCoordinateDraft
@@ -142,14 +144,14 @@ private struct TerrainEndpoint: View {
             Picker("Waypoint",selection: $id) { Text("Choose waypoint").tag(""); ForEach(waypoints) { Text($0.name).tag($0.id).accessibilityIdentifier("terrain-\(prefix)-choice-\($0.name)") } }.accessibilityIdentifier("terrain-\(prefix)-waypoint")
         } else if mode == "coordinate" {
             Picker("Format",selection: Binding(get: { coordinate.format },set: { coordinate.changeFormat(to: $0) })) {
-                Text("MGRS").tag(WaypointCoordinateDraft.Format.mgrs); Text("Lat / Lon").tag(WaypointCoordinateDraft.Format.decimal)
+                Text(settings.gridName).tag(WaypointCoordinateDraft.Format.mgrs); Text("Lat / Lon").tag(WaypointCoordinateDraft.Format.decimal)
             }.pickerStyle(.segmented)
-            if coordinate.format == .mgrs { TextField("MGRS",text: $coordinate.grid).textInputAutocapitalization(.characters).accessibilityIdentifier("terrain-\(prefix)-grid") }
+            if coordinate.format == .mgrs { TextField(settings.gridName,text: $coordinate.grid).textInputAutocapitalization(.characters).accessibilityIdentifier("terrain-\(prefix)-grid") }
             else { TextField("Latitude",text: $coordinate.latitude).keyboardType(.numbersAndPunctuation); TextField("Longitude",text: $coordinate.longitude).keyboardType(.numbersAndPunctuation) }
             if let error = coordinate.validationMessage { Text(error).font(.caption) }
         } else {
             let point = mode == "me" ? position : centre
-            if let point { Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: 10)?.full ?? "Outside MGRS coverage").font(.system(.caption,design: .monospaced)) }
+            if let point { Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: 10)?.full ?? "Outside \(settings.gridName) coverage").font(.system(.caption,design: .monospaced)) }
         }
     }
 }

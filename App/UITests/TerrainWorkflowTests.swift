@@ -15,11 +15,12 @@ final class TerrainWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [sourceReady],timeout: 5),.completed)
         tapNativeMenuItem(source)
         let option = app.buttons["terrain-\(prefix)-source-waypoint"]
-        XCTAssertTrue(option.waitForExistence(timeout: 5)); tapNativeMenuItem(option)
+        XCTAssertTrue(option.waitForExistence(timeout: 5)); option.tap()
         let waypoint = app.buttons["terrain-\(prefix)-waypoint"]
         XCTAssertTrue(waypoint.waitForExistence(timeout: 5)); reveal(waypoint); tapNativeMenuItem(waypoint)
         let choice = app.buttons["terrain-\(prefix)-choice-\(name)"].firstMatch
-        XCTAssertTrue(choice.waitForExistence(timeout: 5)); tapNativeMenuItem(choice)
+        XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
+        XCTAssertTrue(waypoint.label.contains(name),"The requested terrain endpoint must be selected before analysis.")
     }
     private func reveal(_ element: XCUIElement) {
         for _ in 0..<8 {
@@ -32,7 +33,7 @@ final class TerrainWorkflowTests: XCTestCase {
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     func testOfflineLineOfSightProfileAndViewshedUseRealEncodedTerrain() {
         launch(); pick("observer","West observer"); pick("target","East target")
-        let check = app.buttons["terrain-check"]; reveal(check); check.tap()
+        let check = app.buttons["terrain-check"]; reveal(check); XCTAssertTrue(check.isEnabled,"Valid selected endpoints must enable analysis"); check.tap()
         let status = app.staticTexts["terrain-sight-status"]
         // Older Form runtimes don't materialize result rows below the viewport
         // until they are scrolled into view, even after analysis has completed.
@@ -66,7 +67,7 @@ final class TerrainWorkflowTests: XCTestCase {
     }
     func testMissingOfflineElevationShowsUnavailableAndNeverInventsShade() {
         launch(missing: true); pick("observer","West observer"); pick("target","East target")
-        let check = app.buttons["terrain-check"]; reveal(check); check.tap()
+        let check = app.buttons["terrain-check"]; reveal(check); XCTAssertTrue(check.isEnabled,"Valid selected endpoints must enable analysis"); check.tap()
         let error = app.staticTexts["terrain-error"]; reveal(error); XCTAssertTrue(error.waitForExistence(timeout: 10))
         XCTAssertTrue(error.label.contains("No usable elevation")); XCTAssertFalse(app.staticTexts["terrain-sight-status"].exists)
         capture("terrain-missing-data")

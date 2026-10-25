@@ -50,6 +50,7 @@ Settings defaults and integer codes match Android:
 | nightMode | false | angleUnit | 0 |
 | keepScreenOn | true | northRef | 0 |
 | mgrsDigits | 10 | pacePer100m | 65 |
+| gridSystem | 0 (MGRS); 1 = USNG | | |
 | latLonFormat | 1 | face | 1 |
 | units | 0 | orientation | 0 |
 | disclaimerAccepted | false | declinationOverride | null |

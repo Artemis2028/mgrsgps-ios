@@ -71,7 +71,7 @@ struct FieldFixPanel: View {
                 }.listRowBackground(rowBackground)
                 Section("Calculated fix") {
                     if let fix = result.solution {
-                        Text(fix.grid ?? "Outside MGRS coverage").font(.system(.headline,design: .monospaced)).accessibilityIdentifier("field-fix-grid")
+                        Text(fix.grid ?? "Outside \(settings.gridName) coverage").font(.system(.headline,design: .monospaced)).accessibilityIdentifier("field-fix-grid")
                         Text("Ranges: \(Format.distance(meters: fix.range1,unit: settings.units)) / \(Format.distance(meters: fix.range2,unit: settings.units))")
                             .font(.system(.subheadline,design: .monospaced)).accessibilityIdentifier("field-fix-ranges")
                         Text(String(format: "Angle of cut: %.0f°",fix.cutAngle)).accessibilityIdentifier("field-fix-cut")

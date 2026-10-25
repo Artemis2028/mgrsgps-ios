@@ -22,6 +22,7 @@ struct MapScreen: View {
     @State private var hasFieldPoints = false
     @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
     @State private var selectedID: String?
+    @State private var qrRequest: PositionQRRequest?
     @State private var cameraRequest: MapCameraRequest?
     @State private var editorRequest: WaypointEditorRequest?
     @State private var showingLayers = false
@@ -113,7 +114,7 @@ struct MapScreen: View {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(MGRS.parts(lat: centre.latitude, lon: centre.longitude,
-                                        digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage")
+                                        digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
                             .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                             .accessibilityIdentifier("map-centre-grid")
                         Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
@@ -273,6 +274,7 @@ struct MapScreen: View {
         .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
             Button("OK") { routeWaypointError = nil }
         } message: { Text(routeWaypointError ?? "") }
+        .sheet(item: $qrRequest) { PositionQRView(request: $0, night: settings.nightMode) }
         .sheet(item: $planningRequest) { request in
             switch request.kind {
             case .sunMoon: SunMoonPlanningView(request: request)
@@ -330,6 +332,10 @@ struct MapScreen: View {
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(mapInkDim)
                 }
                 Spacer()
+                Button {
+                    qrRequest = PositionQRRequest(title: waypoint.name, lat: waypoint.lat, lon: waypoint.lon, label: waypoint.name)
+                } label: { Image(systemName: "qrcode").frame(width: 44, height: 44) }
+                    .buttonStyle(.plain).accessibilityLabel("Share waypoint as QR code").accessibilityIdentifier("map-waypoint-qr")
                 Button { selectedID = nil } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
                     .buttonStyle(.plain).accessibilityLabel("Close waypoint")
             }

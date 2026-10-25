@@ -33,7 +33,9 @@ public struct WaypointCoordinateDraft {
     public var position: Position? {
         switch format {
         case .mgrs:
-            let compact = grid.uppercased().filter { !$0.isWhitespace }
+            let compact = grid.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                .replacingOccurrences(of: "^(MGRS|USNG)[:\\s]*", with: "", options: .regularExpression)
+                .filter { !$0.isWhitespace }
             guard compact.range(of: "^[0-9]{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}([0-9]{4}|[0-9]{6}|[0-9]{8}|[0-9]{10})$",
                                 options: .regularExpression) != nil else { return nil }
             if compact == originalGrid.filter({ !$0.isWhitespace }), let original {

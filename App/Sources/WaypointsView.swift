@@ -381,7 +381,7 @@ struct WaypointsView: View {
     private func waypointSummary(_ point: Waypoint) -> some View {
         VStack(alignment: .leading,spacing: 5) {
             HStack { Text(point.name).font(.headline); if point.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite") } }
-            Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage").font(.system(.caption,design: .monospaced))
+            Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage").font(.system(.caption,design: .monospaced))
             if folderFilter == nil { Text(point.folder).font(.caption).foregroundStyle(palette.inkDim) }
         }
     }
@@ -436,7 +436,7 @@ struct WaypointsView: View {
             Button { beginEdit(wp) } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack { Text(wp.name).font(.headline).foregroundStyle(wp.visible ? palette.ink : palette.inkDim); if wp.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") } }
-                    Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside MGRS coverage")
+                    Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
                     if folderFilter == nil { Text(wp.folder).font(.caption).foregroundStyle(palette.inkDim) }
                     if let f = location.usableFix {

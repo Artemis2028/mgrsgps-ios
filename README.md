@@ -174,3 +174,5 @@ Route cards include a complete leg table and a native, multi-page A4 strip-map P
 The map field-tools menu also includes [resection and intersection worksheets](docs/field-fixes.md), with per-point north-reference conversion, geometry warnings and show/save actions.
 
 [Field planning](docs/field-planning.md) includes waypoint projection (up to 200 km), local/Zulu sun and moon tables with date navigation, and the map-centre true/grid/magnetic north diagram. The map tools menu also opens practice courses and terrain line of sight.
+
+Position callouts, QR handoff and USNG naming: [behavior and validation](docs/position-sharing.md).

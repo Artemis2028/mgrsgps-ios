@@ -74,6 +74,7 @@ struct RouteEditorRequest: Identifiable {
 }
 
 struct RouteEditor: View {
+    @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var waypoints: WaypointStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
@@ -105,7 +106,7 @@ struct RouteEditor: View {
                     ForEach(Array(points.enumerated()), id: \.offset) { index, point in
                         HStack {
                             Text("\(index + 1)").monospacedDigit()
-                            Text(MGRS.parts(lat: point.lat, lon: point.lon, digits: 8)?.full ?? "Outside MGRS coverage")
+                            Text(MGRS.parts(lat: point.lat, lon: point.lon, digits: 8)?.full ?? "Outside \(settings.gridName) coverage")
                                 .font(.system(.caption, design: .monospaced))
                             Spacer()
                             Button { points.swapAt(index, index - 1) } label: { Image(systemName: "arrow.up").frame(minWidth: 44, minHeight: 44) }
