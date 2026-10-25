@@ -37,7 +37,7 @@ final class SystemNavigationFeedback: NavigationFeedback {
             let content = UNMutableNotificationContent()
             content.title = title
             content.body = name; content.sound = .default; content.interruptionLevel = .timeSensitive
-            let id = "navigation-\(token.uuidString)"+(laneEvent ? "-lane" : "")
+            let id = "navigation-\(token.uuidString)"+(laneEvent ? "-lane" : pulse == .laneNotEntered ? "-lane-reminder" : "")
             Task {
                 guard session == token else { return }
                 do {
@@ -61,6 +61,7 @@ final class SystemNavigationFeedback: NavigationFeedback {
             case .right,.laneLeftCrossing: bursts = [(0,0.07),(0.16,0.07)]
             case .left,.laneRightCrossing: bursts = [(0,0.3)]
             case .laneOvershot,.laneBackstopCrossing: bursts = [(0,0.3),(0.5,0.3),(1,0.3)]
+            case .laneNotEntered: bursts = [(0,0.3),(0.45,0.08),(0.68,0.3)]
             case .unavailable: bursts = [(0,0.12),(0.24,0.12),(0.48,0.12)]
             case .onCourse,.checkpoint,.laneReentered: bursts = [(0,0.05)]
             case .arrival,.complete: bursts = [(0,0.4),(0.6,0.4)]
@@ -75,7 +76,7 @@ final class SystemNavigationFeedback: NavigationFeedback {
         cancelPlayback()
         if let session {
             let id = "navigation-\(session.uuidString)"
-            center.removePendingNotificationRequests(withIdentifiers: [id,id+"-lane"]); center.removeDeliveredNotifications(withIdentifiers: [id,id+"-lane"])
+            center.removePendingNotificationRequests(withIdentifiers: [id,id+"-lane",id+"-lane-reminder"]); center.removeDeliveredNotifications(withIdentifiers: [id,id+"-lane",id+"-lane-reminder"])
         }
         session = nil
     }

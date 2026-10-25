@@ -72,6 +72,11 @@ final class AppSettings: ObservableObject {
     @Published var guideMode = 0 { didSet { persist() } }
     @Published var guideCorridorM = 0 { didSet { persist() } }
     @Published var laneWarningM = 0 { didSet { persist() } }
+    @Published var laneSideCues = true { didSet { persist() } }
+    @Published var laneBackstopCue = true { didSet { persist() } }
+    @Published var laneInsideTick = true { didSet { persist() } }
+    @Published var laneReminderMin = 5 { didSet { persist() } }
+    @Published var laneGpsAlert = true { didSet { persist() } }
     @Published var hiddenMapTools: Set<String> = [] { didSet { persist() } }
     @Published var liveActivitiesEnabled = false { didSet { persist() } }
     var guideConfiguration: GuideConfiguration {
@@ -105,6 +110,11 @@ final class AppSettings: ObservableObject {
         var guideMode: Int?
         var guideCorridorM: Int?
         var laneWarningM: Int?
+        var laneSideCues: Bool?
+        var laneBackstopCue: Bool?
+        var laneInsideTick: Bool?
+        var laneReminderMin: Int?
+        var laneGpsAlert: Bool?
         var hiddenMapTools: String?
         var liveActivitiesEnabled: Bool?
         var orientation: Int?
@@ -167,6 +177,11 @@ final class AppSettings: ObservableObject {
         guideHeartbeatSec = min(600,max(0,snap.guideHeartbeatSec ?? 30)); guideMode = snap.guideMode == 1 ? 1 : 0
         guideCorridorM = min(2000,max(0,snap.guideCorridorM ?? 0))
         laneWarningM = min(200,max(0,snap.laneWarningM ?? 0))
+        laneSideCues = snap.laneSideCues ?? true
+        laneBackstopCue = snap.laneBackstopCue ?? true
+        laneInsideTick = snap.laneInsideTick ?? true
+        laneReminderMin = min(120,max(0,snap.laneReminderMin ?? 5))
+        laneGpsAlert = snap.laneGpsAlert ?? true
         hiddenMapTools = MapTools.decode(snap.hiddenMapTools)
         liveActivitiesEnabled = snap.liveActivitiesEnabled ?? false
         orientation = (0...3).contains(snap.orientation ?? 0) ? (snap.orientation ?? 0) : 0
@@ -182,6 +197,11 @@ final class AppSettings: ObservableObject {
         s.pacePer100m = pacePer100m; s.orientation = orientation; s.disclaimerAccepted = disclaimerAccepted
         s.guideAllowance = guideAllowance; s.guideHoldOffSec = guideHoldOffSec; s.guideHeartbeatSec = guideHeartbeatSec
         s.guideMode = guideMode; s.guideCorridorM = guideCorridorM; s.laneWarningM = laneWarningM; s.hiddenMapTools = hiddenMapTools
+        s.laneSideCues = laneSideCues
+        s.laneBackstopCue = laneBackstopCue
+        s.laneInsideTick = laneInsideTick
+        s.laneReminderMin = laneReminderMin
+        s.laneGpsAlert = laneGpsAlert
         return s
     }
 
@@ -202,6 +222,11 @@ final class AppSettings: ObservableObject {
         snapshot.gridSystem = s.gridSystem
         snapshot.guideAllowance = s.guideAllowance; snapshot.guideHoldOffSec = s.guideHoldOffSec
         snapshot.guideHeartbeatSec = s.guideHeartbeatSec; snapshot.guideMode = s.guideMode; snapshot.guideCorridorM = s.guideCorridorM; snapshot.laneWarningM = s.laneWarningM; snapshot.hiddenMapTools = MapTools.encode(s.hiddenMapTools)
+        snapshot.laneSideCues = s.laneSideCues
+        snapshot.laneBackstopCue = s.laneBackstopCue
+        snapshot.laneInsideTick = s.laneInsideTick
+        snapshot.laneReminderMin = s.laneReminderMin
+        snapshot.laneGpsAlert = s.laneGpsAlert
         snapshot.liveActivitiesEnabled = liveActivitiesEnabled
         return try JSONEncoder().encode(snapshot)
     }
@@ -215,6 +240,11 @@ final class AppSettings: ObservableObject {
         declinationOverride = s.declinationOverride; face = PositionFace(rawValue: s.face)!
         keepScreenOn = s.keepScreenOn; pacePer100m = s.pacePer100m
         guideAllowance = s.guideAllowance; guideHoldOffSec = s.guideHoldOffSec; guideHeartbeatSec = s.guideHeartbeatSec
+        laneSideCues = s.laneSideCues
+        laneBackstopCue = s.laneBackstopCue
+        laneInsideTick = s.laneInsideTick
+        laneReminderMin = s.laneReminderMin
+        laneGpsAlert = s.laneGpsAlert
         guideMode = s.guideMode; guideCorridorM = s.guideCorridorM; laneWarningM = s.laneWarningM; hiddenMapTools = Set(s.hiddenMapTools.filter { MapTools.all.contains($0) })
         orientation = s.orientation; disclaimerAccepted = s.disclaimerAccepted
         ready = true
@@ -270,6 +300,11 @@ final class AppSettings: ObservableObject {
         snap.gridSystem = gridSystem
         snap.guideAllowance = guideAllowance; snap.guideHoldOffSec = guideHoldOffSec; snap.guideHeartbeatSec = guideHeartbeatSec
         snap.guideMode = guideMode; snap.guideCorridorM = guideCorridorM; snap.laneWarningM = laneWarningM; snap.hiddenMapTools = MapTools.encode(hiddenMapTools)
+        snap.laneSideCues = laneSideCues
+        snap.laneBackstopCue = laneBackstopCue
+        snap.laneInsideTick = laneInsideTick
+        snap.laneReminderMin = laneReminderMin
+        snap.laneGpsAlert = laneGpsAlert
         snap.liveActivitiesEnabled = liveActivitiesEnabled
         guard let data = try? JSONEncoder().encode(snap) else { return }
         try? data.write(to: fileURL, options: .atomic)

@@ -1,7 +1,7 @@
 import XCTest
 @testable import GridFixCore
 
-/// Numerical scenarios ported from Android LaneGuideTest (91cb68f).
+/// Numerical scenarios from Android LaneGuideTest, including 4db6b21 startup/cue policy.
 final class NavigationLaneTests: XCTestCase {
     func testBackgroundNotificationsAreTransitionsRatherThanRepeatingSteering() {
         for pulse in [NavigationPulse.right,.left,.laneOvershot,.onCourse,.unavailable] { XCTAssertNil(pulse.backgroundNotificationTitle); XCTAssertFalse(pulse.isLaneCrossingEvent) }
@@ -25,12 +25,17 @@ final class NavigationLaneTests: XCTestCase {
     private func fix(_ guide: inout LaneGuideState,_ t: Double,_ x: Double,_ y: Double,_ accuracy: Double = 5) -> LaneDecision {
         guide.update(position: at(x,y),accuracy: accuracy,fixTime: t)
     }
+    private func startedInside(_ shape: LaneShape,configuration: LaneGuideConfiguration = .init()) -> LaneGuideState {
+        var guide=LaneGuideState(shape:shape,configuration:configuration)
+        _=fix(&guide,-2,0,100);_=fix(&guide,-1,0,100)
+        return guide
+    }
     func testSignedOffsetsAndInsideSilence() throws {
         let s = try shape(), r = s.read(at(0,250))
         XCTAssertEqual(try XCTUnwrap(r.left),-50,accuracy: 0.2)
         XCTAssertEqual(try XCTUnwrap(r.right),-50,accuracy: 0.2)
         XCTAssertEqual(try XCTUnwrap(r.backstop),-270,accuracy: 0.2)
-        var g = LaneGuideState(shape: s), cadence = LaneCueCadence()
+        var g = startedInside(s), cadence = LaneCueCadence()
         for y in stride(from: 0,through: 500,by: 25) {
             let d = fix(&g,Double(y),Double(y%3-1)*30,Double(y))
             XCTAssertEqual(d.state,.inside); XCTAssertFalse(d.changed); XCTAssertFalse(d.backInside)
@@ -38,7 +43,7 @@ final class NavigationLaneTests: XCTestCase {
         }
     }
     func testCrossingsRequireTwoDistinctNewFixesAndBackstopWins() throws {
-        var g = LaneGuideState(shape: try shape())
+        var g = startedInside(try shape())
         XCTAssertEqual(fix(&g,1,-80,100).state,.inside)
         XCTAssertEqual(fix(&g,1,-80,100).state,.inside)
         XCTAssertEqual(fix(&g,0,-80,100).state,.inside)
@@ -50,7 +55,7 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertEqual(back.state,.outLeft); XCTAssertFalse(back.backInside)
     }
     func testRightCrossingAndReentryHysteresis() throws {
-        var g = LaneGuideState(shape: try shape())
+        var g = startedInside(try shape())
         _ = fix(&g,1,70,100)
         XCTAssertEqual(fix(&g,2,70,110).state,.outRight)
         for (i,x) in [50.0,48,45].enumerated() { XCTAssertEqual(fix(&g,Double(i+3),x,120).state,.outRight) }
@@ -59,7 +64,7 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertFalse(fix(&g,7,30,140).backInside)
     }
     func testAccuracyJitterAndPoorFixReset() throws {
-        var g = LaneGuideState(shape: try shape())
+        var g = startedInside(try shape())
         for (i,x) in [-58.0,-42,-55,-47,-57.9,-44,-50,-52,-41,-57].enumerated() {
             XCTAssertEqual(fix(&g,Double(i),x,100).state,.inside)
         }
@@ -68,12 +73,12 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertEqual(fix(&g,22,-80,100).state,.inside)
         XCTAssertEqual(fix(&g,23,-80,100).state,.outLeft)
         XCTAssertEqual(fix(&g,24,0,100,.nan).state,.outLeft)
-        var loose = LaneGuideState(shape: try shape()), tight = loose
+        var loose = startedInside(try shape()), tight = loose
         _ = fix(&loose,1,-62,100,10); XCTAssertEqual(fix(&loose,2,-62,105,10).state,.inside)
         _ = fix(&tight,1,-62,100,4); XCTAssertEqual(fix(&tight,2,-62,105,4).state,.outLeft)
     }
     func testAlternatingExcursionsDoNotConfirm() throws {
-        var g = LaneGuideState(shape: try shape())
+        var g = startedInside(try shape())
         for i in 0..<10 { XCTAssertEqual(fix(&g,Double(i),i%2 == 0 ? -80 : -30,200).state,.inside) }
     }
     func testBendsFollowActualLineAndVertexBisector() throws {
@@ -103,7 +108,7 @@ final class NavigationLaneTests: XCTestCase {
     }
     func testWalkingSouthSwapsLeftAndRight() throws {
         let s = try LaneShape(leftDrawn: left,rightDrawn: right,backstopDrawn: line((-100,-20),(100,-20)))
-        var g = LaneGuideState(shape: s)
+        var g = startedInside(s)
         _ = fix(&g,1,80,300)
         XCTAssertEqual(fix(&g,2,80,290).state,.outLeft)
     }
@@ -121,7 +126,7 @@ final class NavigationLaneTests: XCTestCase {
     }
     func testWarningOncePerApproachAndRearming() throws {
         var config = LaneGuideConfiguration(); config.warningMeters = 25
-        var g = LaneGuideState(shape: try shape(),configuration: config)
+        var g = startedInside(try shape(),configuration: config)
         XCTAssertNil(fix(&g,1,0,100).warning)
         XCTAssertNil(fix(&g,2,-30,105).warning)
         XCTAssertEqual(fix(&g,3,-31,110).warning,.left)
@@ -194,4 +199,53 @@ final class NavigationLaneTests: XCTestCase {
         XCTAssertEqual(LanePulse.overshot.waveform,[0,300,200,300,200,300])
         XCTAssertEqual(LanePulse.backInside.waveform,[0,50])
     }
+    func testStartupStaysQuietOutsideAndBehindStartThenConfirmsEntry() throws {
+        var g=LaneGuideState(shape:try shape()),c=LaneCueCadence()
+        for (t,x,y) in [(0.0,-80.0,100.0),(1,-80,100),(2,0,-40),(3,0,-40),(4,0,100)] {
+            let d=fix(&g,t,x,y);XCTAssertEqual(d.state,.notYet);XCTAssertNil(c.next(decision:d,now:t))
+        }
+        let d=fix(&g,5,0,100)
+        XCTAssertEqual(d.state,.inside);XCTAssertTrue(d.backInside)
+        XCTAssertEqual(c.next(decision:d,now:5),.backInside)
+        _=fix(&g,6,-80,100);XCTAssertEqual(fix(&g,7,-80,100).state,.outLeft)
+    }
+    func testStartupReminderTimingRepeatDisableAndNoDuplicateFix() throws {
+        var config=LaneGuideConfiguration();config.notInLaneReminderSeconds=120
+        var g=LaneGuideState(shape:try shape(),configuration:config),c=LaneCueCadence()
+        XCTAssertFalse(fix(&g,10,-80,100).reminder)
+        XCTAssertFalse(fix(&g,129,-80,100).reminder)
+        let first=fix(&g,130,-80,100)
+        XCTAssertTrue(first.reminder);XCTAssertEqual(c.next(decision:first,now:130),.notInLane)
+        XCTAssertFalse(fix(&g,130,-80,100).reminder)
+        XCTAssertFalse(fix(&g,249,-80,100).reminder)
+        XCTAssertTrue(fix(&g,250,-80,100).reminder)
+        config.notInLaneReminderSeconds=0;g.configuration=config
+        XCTAssertFalse(fix(&g,1000,-80,100).reminder)
+        _=fix(&g,1001,0,100);XCTAssertTrue(fix(&g,1002,0,100).backInside)
+        XCTAssertFalse(fix(&g,1400,0,100).reminder)
+        XCTAssertEqual(LanePulse.notInLane.waveform,[0,300,150,80,150,300])
+    }
+    func testCueSwitchesSuppressTheirOwnCuesAndPreserveIndependentApproachWarning() {
+        var c=LaneCueCadence();c.cues.sides=false;c.cues.backstop=false;c.cues.insideTick=false;c.cues.reminder=false
+        func d(_ state:LaneState,back:Bool=false,warning:LaneLimit?=nil,reminder:Bool=false)->LaneDecision {
+            .init(state:state,changed:true,backInside:back,warning:warning,reading:nil,reminder:reminder)
+        }
+        for state in [LaneState.outLeft,.outRight,.overshot] { XCTAssertNil(c.next(decision:d(state),now:0)) }
+        XCTAssertNil(c.next(decision:d(.inside,back:true),now:1))
+        XCTAssertNil(c.next(decision:d(.notYet,reminder:true),now:2))
+        XCTAssertEqual(c.next(decision:d(.inside,warning:.left),now:3),.turnRight)
+        c.cues.sides=true;XCTAssertEqual(c.next(decision:d(.outLeft),now:4),.turnRight)
+    }
+    func testLaneCueSettingsBackupRoundTripLegacyDefaultsAndBounds() throws {
+        var doc=Backup.Document();doc.settings.laneSideCues=false;doc.settings.laneBackstopCue=false
+        doc.settings.laneInsideTick=false;doc.settings.laneReminderMin=2;doc.settings.laneGpsAlert=false
+        let result=try Backup.importZip(Backup.exportZip(doc))
+        XCTAssertEqual(result.settings,doc.settings)
+        let defaults=try Backup.decodeManifest(Data(#"{"app":"GridFix","version":1,"settings":{}}"#.utf8)).settings
+        XCTAssertTrue(defaults.laneSideCues);XCTAssertTrue(defaults.laneBackstopCue)
+        XCTAssertTrue(defaults.laneInsideTick);XCTAssertTrue(defaults.laneGpsAlert);XCTAssertEqual(defaults.laneReminderMin,5)
+        doc.settings.laneReminderMin=121;XCTAssertThrowsError(try Backup.validate(doc))
+        doc.settings.laneReminderMin = -1;XCTAssertThrowsError(try Backup.validate(doc))
+    }
+
 }

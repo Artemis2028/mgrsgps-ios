@@ -113,8 +113,9 @@ prepare an indexed leg table. Changing limits or linked names invalidates an
 in-progress report/PDF. PDF rows measure and wrap their labels before pagination,
 retaining every leg and the final totals.
 
-Still pending: watch overlay/status synchronization, direct map-lane hit
-selection, and the uncommitted Android lane-start/reminder/cue switches.
+Still pending: phone-to-watch lane status and direct map-lane hit selection.
+Complete cached watch overlays and the committed Android lane-start/reminder/cue
+switches are implemented; see validation below.
 These are implementation gaps, not iOS permission restrictions.
 Physical thumb/compass/GPS/lock/storage-pressure/battery checks remain open.
 
@@ -167,3 +168,47 @@ screenshots were also inspected for readable text and controls. The unsigned
 phone/embedded-watch Release build passes.
 Watch lane synchronization, protected backups and later Android cue switches
 remain implementation work; this does not prove physical lock-screen delivery.
+
+
+## Lane startup and cue settings · Android 4db6b21
+
+Guidance starts in **Not in the lane yet**, silent until two distinct usable
+fixes place the user inside every applicable limit by more than the three-metre
+return margin. Behind the start does not count as entry. The first confirmed
+entry gives the optional inside tick. Once entered, the existing accuracy-aware
+crossing confirmation, backstop priority and return hysteresis apply. Changing
+the lane or its linked geometry starts a new entry state; changing a checkpoint
+within the same route lane retains it.
+
+Guide settings now provide independent side-limit, backstop, inside-tick and
+position-loss switches (all default on), plus a not-in-lane reminder: Off,
+2, 5 or 10 minutes (default 5). Imported values through 120 minutes remain
+selectable. The reminder is long-short-long, timed from the first distinct fix
+and repeated at the selected interval while entry is still unconfirmed. Early
+warning retains its separate Off/25/50 m preference and approach rearming.
+Disabling side/backstop crossing cues does not disable an explicitly enabled
+approach warning. Route checkpoint and arrival cues are independent.
+
+Position lost in lane mode plays three taps once, then no more than once a
+minute while enabled, replacing the earlier four-second cadence. Fresh usable
+GPS re-arms the loss alert. All five new settings persist locally and through
+the Android backup keys, with Android defaults when absent from old files.
+No backup starts guidance or changes local Live Activities consent.
+
+Foreground playback uses the Android timing contract. In the background, lane
+entry/crossing and the configured not-yet reminder request iOS notifications;
+repeating steering and GPS-loss haptics require the app open. Notification
+sound/pattern and delivery remain controlled by iOS settings and Focus. These
+are guidance settings, not quiet-inside perimeter settings.
+
+The full core suite passes 362 tests, including strict
+startup, behind-start exclusion, entry, reminder timing/disable/repeat, duplicate
+fixes, independent switches, legacy backup defaults and validation bounds.
+All 158 app integration tests pass, including live settings changes, background
+reminder requests, inside-tick suppression, side-cue suppression/re-enable,
+60-second lost-GPS cadence, lane continuity across route checkpoints and
+backup/local-consent isolation. The native settings workflow passes all four
+switches, the reminder menu, relaunch persistence and night mode. Day/night
+screenshots were inspected: controls, current choice and explanations remain
+readable. Only one phone simulator was used and it was shut down afterward.
+Physical haptic feel, locked-screen delivery and battery use remain required.

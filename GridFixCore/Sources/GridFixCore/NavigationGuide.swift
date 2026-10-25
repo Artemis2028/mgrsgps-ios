@@ -62,7 +62,7 @@ public struct NavigationArrivalState: Sendable {
 }
 public enum NavigationPulse: String, Equatable, Sendable {
     case right, left, unavailable, onCourse, arrival, checkpoint, complete
-    case laneLeftCrossing, laneRightCrossing, laneBackstopCrossing, laneReentered, laneOvershot
+    case laneLeftCrossing, laneRightCrossing, laneBackstopCrossing, laneReentered, laneOvershot, laneNotEntered
     public var backgroundNotificationTitle: String? {
         switch self {
         case .arrival: return "Arrived"
@@ -72,6 +72,7 @@ public enum NavigationPulse: String, Equatable, Sendable {
         case .laneRightCrossing: return "Past right limit · turn left"
         case .laneBackstopCrossing: return "Past backstop · turn back"
         case .laneReentered: return "Back inside lane"
+        case .laneNotEntered: return "Not in the lane yet"
         default: return nil
         }
     }

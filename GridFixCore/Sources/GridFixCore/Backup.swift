@@ -26,6 +26,11 @@ public enum Backup {
         public var guideMode = 0
         public var guideCorridorM = 0
         public var laneWarningM = 0
+        public var laneSideCues = true
+        public var laneBackstopCue = true
+        public var laneInsideTick = true
+        public var laneReminderMin = 5
+        public var laneGpsAlert = true
         public var hiddenMapTools: Set<String> = []
         public var orientation: Int = 0
         public var disclaimerAccepted: Bool = false
@@ -214,6 +219,11 @@ public enum Backup {
             "guideMode": doc.settings.guideMode,
             "guideCorridorM": doc.settings.guideCorridorM,
             "laneWarningM": doc.settings.laneWarningM,
+            "laneSideCues": doc.settings.laneSideCues,
+            "laneBackstopCue": doc.settings.laneBackstopCue,
+            "laneInsideTick": doc.settings.laneInsideTick,
+            "laneReminderMin": doc.settings.laneReminderMin,
+            "laneGpsAlert": doc.settings.laneGpsAlert,
             "hiddenMapTools": MapTools.encode(doc.settings.hiddenMapTools),
             "disclaimerAccepted": doc.settings.disclaimerAccepted,
         ]
@@ -352,7 +362,7 @@ public enum Backup {
                         && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
                         && (1...90).contains(s.guideAllowance) && (0...60).contains(s.guideHoldOffSec)
                         && (0...600).contains(s.guideHeartbeatSec) && (0...1).contains(s.guideMode) && (0...2000).contains(s.guideCorridorM)
-                        && (0...200).contains(s.laneWarningM)
+                        && (0...200).contains(s.laneWarningM) && (0...120).contains(s.laneReminderMin)
                         && (s.declinationOverride.map { $0.isFinite && (-180...180).contains($0) } ?? true), "Invalid settings in backup")
         }
         try require(doc.courseHistory.count <= 10_000 && doc.courseHistory.allSatisfy {
@@ -472,6 +482,11 @@ public enum Backup {
         s.guideMode = int(o["guideMode"]) ?? 0
         s.guideCorridorM = int(o["guideCorridorM"]) ?? 0
         s.laneWarningM = int(o["laneWarningM"]) ?? 0
+        s.laneSideCues = o["laneSideCues"] as? Bool ?? true
+        s.laneBackstopCue = o["laneBackstopCue"] as? Bool ?? true
+        s.laneInsideTick = o["laneInsideTick"] as? Bool ?? true
+        s.laneReminderMin = int(o["laneReminderMin"]) ?? 5
+        s.laneGpsAlert = o["laneGpsAlert"] as? Bool ?? true
         s.hiddenMapTools = MapTools.decode(o["hiddenMapTools"] as? String)
         s.disclaimerAccepted = o["disclaimerAccepted"] as? Bool ?? false
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {

@@ -10,7 +10,8 @@ lanes, protected backups, map-button preferences, fixes and the experimental
 TAK branch. Those additions are tracked separately from this pinned release.
 The first [navigation-lane UI and guidance integration](navigation-lanes.md)
 now includes optional lane backup/restore and shared screen/text/PDF leg limits;
-watch status and later Android cue switches remain implementation gaps. It does not replace the separate quiet-inside perimeter.
+watch status remains an implementation gap; Android 4db6b21 startup/cue switches
+are now implemented. It does not replace the separate quiet-inside perimeter.
 
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
@@ -18,7 +19,7 @@ watch status and later Android cue switches remain implementation gaps. It does 
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
-| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Phone-to-watch lane status and later Android cue switches; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
+| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Phone-to-watch lane status; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; persistent map-button visibility with active escape controls and coordinate Go to | Physical offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
@@ -69,3 +70,15 @@ execution remains a separate capability. Opt-in, session lifecycle and freshness
 presentation are implemented; recording and navigation native workflows pass.
 Recording Lock Screen day/night/stale presentation was inspected; physical
 checks and navigation Lock Screen inspection remain required. See [Live Activities](live-activities.md). [Apple ActivityKit guidance](https://developer.apple.com/documentation/activitykit/displaying-live-data-with-live-activities).
+
+
+Android `4db6b21` lane startup/cue settings now apply: quiet until confirmed
+between the limits, optional entry tick, Off/2/5/10-minute not-yet reminder,
+independent side/backstop/inside/GPS-loss switches and a one-minute lane GPS-loss
+cadence. Android backup keys/defaults/bounds persist across staged restore while
+local Live Activities consent stays separate. The complete core suite passes
+362 tests and all 158 app integration tests pass. A native settings workflow
+passes persistence, reminder selection and day/night inspection. See
+[lane startup and cues](navigation-lanes.md). Android's L/Z time rows and
+duplicate-import prompt, phone-to-watch status, physical field checks and the
+other performance/distribution gates remain open.

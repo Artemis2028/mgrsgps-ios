@@ -50,7 +50,7 @@ struct NavigationControlsView: View {
             if navigation.preparing { Button("Cancel start") { navigation.pause() } }
             Button("Guide settings") { showingSettings = true }.accessibilityIdentifier("guide-settings")
             if !navigation.feedbackStatus.isEmpty { Text(navigation.feedbackStatus).font(.caption).foregroundStyle(palette.inkDim) }
-            Text(navigation.lane != nil && navigation.laneProblem == nil ? "Lane: silent inside. Past left: two taps to turn right. Past right: one long pulse to turn left. Past backstop: three long pulses to turn back. One tick on reentry. Three short taps: position unavailable. Phone heading is not needed in lane mode." : "Phone top edge points ahead. Two taps: right. Long pulse: left. Three taps: unavailable. Two long pulses: arrival. Short tick: back on course or configured heartbeat. Silence does not confirm a bearing.")
+            Text(navigation.lane != nil && navigation.laneProblem == nil ? "Lane: silent until confirmed between the limits, then an optional entry tick. Optional reminder: long-short-long. Past left: two taps to turn right. Past right: one long pulse to turn left. Past backstop: three long pulses to turn back. Cues can be switched off in Guide settings. Position lost: three short taps once, then each minute if enabled. Phone heading is not needed in lane mode." : "Phone top edge points ahead. Two taps: right. Long pulse: left. Three taps: unavailable. Two long pulses: arrival. Short tick: back on course or configured heartbeat. Silence does not confirm a bearing.")
                 .font(.caption).foregroundStyle(palette.inkDim)
             Text("Steering patterns require the app open. Background route following and lane crossings use GPS and iOS notifications as permitted; continuous locked-screen steering buzzes are not promised.")
                 .font(.caption).foregroundStyle(palette.inkDim)
@@ -98,6 +98,14 @@ struct GuideSettingsView: View {
                     Picker("Early warning",selection: $settings.laneWarningM) {
                         ForEach(Array(Set([0,25,50,settings.laneWarningM])).sorted(),id: \.self) { Text($0 == 0 ? "Off" : "\($0) m inside").tag($0) }
                     }
+                    Toggle("Side-limit cues",isOn:$settings.laneSideCues).accessibilityIdentifier("lane-side-cues")
+                    Toggle("Backstop cue",isOn:$settings.laneBackstopCue).accessibilityIdentifier("lane-backstop-cue")
+                    Toggle("In-the-lane tick",isOn:$settings.laneInsideTick).accessibilityIdentifier("lane-inside-tick")
+                    Picker("Not in lane reminder",selection:$settings.laneReminderMin) {
+                        ForEach(Array(Set([0,2,5,10,settings.laneReminderMin])).sorted(),id: \.self) { Text($0 == 0 ? "Off" : "Every \($0) min").tag($0) }
+                    }.accessibilityIdentifier("lane-reminder")
+                    Toggle("Position lost alert",isOn:$settings.laneGpsAlert).accessibilityIdentifier("lane-gps-alert")
+                    Text("Starts silent until two distinct fixes confirm you are between the limits; behind the start does not count. The reminder is long-short-long. Position lost alerts sound once, then at most each minute. These switches do not change route checkpoint or arrival cues.").font(.footnote)
                     Text("One turn-away cue per approach. Crossing cues repeat while outside. Lane guidance replaces azimuth steering only when the selected checkpoint or route has a usable assigned lane.").font(.footnote)
                 }
                 Section { Text("These settings apply to navigation guidance only. Quiet-inside boundary monitoring has no heading tolerance, approach warning, heartbeat or steering cues.").font(.footnote) }

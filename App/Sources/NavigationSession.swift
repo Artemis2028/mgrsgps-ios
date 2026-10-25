@@ -312,19 +312,20 @@ final class NavigationSession: ObservableObject {
                 laneGuide = LaneGuideState(shape: try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b))
                 laneKey = key; laneCadence.reset(); laneUnavailableAt = 0; feedback.cancelPlayback()
             }
-            var configuration = LaneGuideConfiguration(); configuration.warningMeters = Double(settings.laneWarningM)
+            var configuration = LaneGuideConfiguration(); configuration.warningMeters = Double(settings.laneWarningM); configuration.notInLaneReminderSeconds = Double(settings.laneReminderMin)*60
             laneGuide?.configuration = configuration
             laneProblem = nil; decision = nil
             guard let fix else {
                 laneGuide?.invalidateFix(); laneDecision = nil
                 status = "Nav lane · unavailable · waiting for a fresh, accurate location"
-                if haptics && up >= laneUnavailableAt { feedback.emit(.unavailable,name: value.name); laneUnavailableAt = up+4 }
+                if haptics && settings.laneGpsAlert && up >= laneUnavailableAt { feedback.emit(.unavailable,name: value.name); laneUnavailableAt = up+60 }
                 feedbackStatus = feedback.status; return true
             }
             laneUnavailableAt = 0
             let result = laneGuide!.update(position: .init(lat: fix.coordinate.latitude,lon: fix.coordinate.longitude),accuracy: fix.horizontalAccuracy,fixTime: fixTime)
             laneDecision = result
             switch result.state {
+            case .notYet: status = "Not in the lane yet · silent until you’re between the limits"
             case .inside: status = "Inside lane · silent"
             case .outLeft: status = "Past left limit · turn right"
             case .outRight: status = "Past right limit · turn left"
@@ -334,6 +335,10 @@ final class NavigationSession: ObservableObject {
             }
             let arrived = arrival.update(target: target.id,distance: nav?.distanceMeters,accuracy: fix.horizontalAccuracy)
             if arrived { arrivals += 1 }
+            var switches=LaneCues()
+            switches.sides=settings.laneSideCues; switches.backstop=settings.laneBackstopCue
+            switches.insideTick=settings.laneInsideTick; switches.reminder=settings.laneReminderMin>0
+            laneCadence.cues=switches
             let pulse = laneCadence.next(decision: result,now: up)
             if haptics {
                 if arrived { feedback.emit(.arrival,name: target.name) }
@@ -344,6 +349,7 @@ final class NavigationSession: ObservableObject {
                     case .turnLeft: output = result.changed ? .laneRightCrossing : .left
                     case .overshot: output = result.changed ? .laneBackstopCrossing : .laneOvershot
                     case .backInside: output = .laneReentered
+                    case .notInLane: output = .laneNotEntered
                     }
                     feedback.emit(output,name: "\(value.name) · \(status)")
                 }

@@ -166,3 +166,15 @@ new released baseline. Wear's companion phone branch integrates pushed polish
 `e6bb5c5` and now exports lane maps. Both watch renderers show complete cached
 lanes; phone lane-status transfer remains pending. See
 [watch contract and evidence](watch-companion-parity.md).
+
+
+### Lane-settings port update
+
+The committed `4db6b21` startup/reminder/cue-switch behavior is now ported to iOS,
+including backup defaults and the one-minute lane GPS-loss cadence. See
+[navigation lanes](navigation-lanes.md) for the source-aligned policy and exact
+validation scope. The L/Z rows and duplicate-import prompt from the same commit
+remain implementation gaps. Complete cached lane overlays are implemented on
+both watches; live phone-guidance status and watch background guidance remain
+open. The earlier audit paragraphs describe the state at their source snapshot,
+not the current implementation status.

@@ -113,7 +113,11 @@ before store publication. Missing links/targets remain identifiable orphaned
 records; geometry is resolved against the current library during guidance.
 
 Export includes all lane records, including hidden ones. The setting
-`laneWarningM` defaults to 0 and accepts 0–200 metres. Lane restore runs after
+`laneWarningM` defaults to 0 and accepts 0–200 metres. Android `4db6b21`
+adds `laneSideCues`, `laneBackstopCue`, `laneInsideTick` and `laneGpsAlert`
+(default true), plus `laneReminderMin` (default 5; integer 0–120). Missing
+keys in older archives use those defaults. These are independent of iOS's
+local-only Live Activities consent. Lane restore runs after
 graphics and before course history/settings, merges by ID with existing records
 winning, and keeps successful earlier phases if a later phase fails. Runtime
 lane storage and restore use a serial worker and atomic replacement; retries do

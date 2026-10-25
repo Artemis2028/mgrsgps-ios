@@ -44,7 +44,9 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.startGuide(); try await wait { nav.running }
         feedback.pulses.removeAll() // Initial no-position cue precedes the first fix.
         func send(_ x: Double,_ y: Double) { date += 1; up += 1; let p = lanePoint(x,y); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
-        send(0,100); XCTAssertEqual(nav.laneDecision?.state,.inside); XCTAssertNil(nav.decision)
+        send(0,100); XCTAssertEqual(nav.laneDecision?.state,.notYet); XCTAssertTrue(feedback.pulses.isEmpty)
+        send(0,101); XCTAssertEqual(nav.laneDecision?.state,.inside); XCTAssertEqual(feedback.pulses.last,.laneReentered)
+        feedback.pulses.removeAll(); XCTAssertNil(nav.decision)
         XCTAssertTrue(feedback.pulses.isEmpty); XCTAssertTrue(nav.status.contains("silent"))
         let live=try XCTUnwrap(nav.liveActivitySession())
         XCTAssertNotNil(live.state.grid);XCTAssertTrue(live.state.hasFreshFix(at:Date(timeIntervalSince1970:date),uptime:up))
@@ -71,9 +73,10 @@ final class NavigationIntegrationTests: XCTestCase {
         let nav = NavigationSession(directory: directory,store: store,field: field,settings: settings,driver: driver,feedback: feedback,lanes: lanes,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
         nav.startGuide(); try await wait { nav.running }
         func send(_ x: Double) { date += 1; up += 1; let p = lanePoint(x,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
-        send(-80); send(-80); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        send(0); send(0); send(-80); send(-80); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
         graphic.points = [lanePoint(-150,0),lanePoint(-150,500)].map { .init(lat: $0.lat,lon: $0.lon) }
-        try field.saveGraphic(graphic); send(-80); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        try field.saveGraphic(graphic); send(-80); XCTAssertEqual(nav.laneDecision?.state,.notYet)
+        send(-80); XCTAssertEqual(nav.laneDecision?.state,.inside)
         try await lanes.setVisible(value.id,false); send(0)
         XCTAssertEqual(nav.lane?.visible,false); XCTAssertEqual(nav.laneDecision?.state,.inside)
         try field.deleteGraphic(graphic.id); nav.tick()
@@ -89,6 +92,7 @@ final class NavigationIntegrationTests: XCTestCase {
         var date = 1000.0, up = 100.0
         let nav = NavigationSession(directory: directory,store: store,field: field,settings: settings,driver: driver,feedback: feedback,lanes: lanes,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
         nav.follow(route); try await wait { nav.running }
+        for _ in 0..<2 { date += 1; up += 1; let p = lanePoint(0,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         for _ in 0..<2 { date += 1; up += 1; let p = lanePoint(-80,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         XCTAssertEqual(nav.laneDecision?.state,.outLeft)
         nav.movePoint(1); nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
@@ -97,7 +101,9 @@ final class NavigationIntegrationTests: XCTestCase {
         var cpLane = lane(checkpoint.id); cpLane.id = "checkpoint-lane"
         cpLane.left.points = [lanePoint(-150,0),lanePoint(-150,500)]
         _ = try await lanes.save(cpLane,graphics: [])
-        nav.tick(); XCTAssertEqual(nav.lane?.id,cpLane.id); XCTAssertEqual(nav.laneDecision?.state,.inside)
+        nav.tick(); XCTAssertEqual(nav.lane?.id,cpLane.id); XCTAssertEqual(nav.laneDecision?.state,.notYet)
+        date += 1;up += 1;let p=lanePoint(-80,100);driver.onLocations?([fix(p.lat,p.lon,date,accuracy:5)])
+        XCTAssertEqual(nav.laneDecision?.state,.inside)
         nav.pause(); XCTAssertNil(nav.lane); XCTAssertNil(nav.laneDecision)
     }
     func testLaneWarningPreferencePersistsAndBacksUp() throws {
@@ -108,6 +114,48 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertEqual(snapshot.laneWarningM,50)
         settings.laneWarningM = 0; try settings.applyBackup(snapshot)
         XCTAssertEqual(settings.laneWarningM,50); XCTAssertEqual(AppSettings(directory: directory).laneWarningM,50)
+    }
+
+    func testLaneStartupReminderSwitchesAndCalmerLostPositionCadence() async throws {
+        let (directory,store,field,settings)=try setup(),driver=GuideTestDriver(),feedback=GuideTestFeedback()
+        let p=lanePoint(0,1000),wp=store.add(.init(name:"OBJ",lat:p.lat,lon:p.lon));store.select(wp.id)
+        let lanes=NavigationLaneStore(directory:directory);_=try await lanes.save(lane(wp.id),graphics:[])
+        settings.laneReminderMin=2;settings.laneGpsAlert=false
+        var date=1000.0,up=100.0
+        var foreground=true
+        let foregroundNav=NavigationSession(directory:directory,store:store,field:field,settings:settings,driver:driver,feedback:feedback,lanes:lanes,now:{Date(timeIntervalSince1970:date)},uptime:{up},foreground:{foreground},scheduleTicks:false)
+        foregroundNav.startGuide();try await wait { foregroundNav.running }
+        feedback.pulses.removeAll()
+        func send(_ x:Double,_ y:Double,after:Double=1) {date+=after;up+=after;let p=lanePoint(x,y);driver.onLocations?([fix(p.lat,p.lon,date,accuracy:5)])}
+        send(-80,100);send(-80,100,after:119)
+        XCTAssertEqual(foregroundNav.laneDecision?.state,.notYet);XCTAssertTrue(feedback.pulses.isEmpty)
+        foreground=false;send(-80,100)
+        XCTAssertEqual(feedback.pulses.last,.laneNotEntered);XCTAssertNotNil(feedback.pulses.last?.backgroundNotificationTitle)
+        settings.laneInsideTick=false;send(0,100);send(0,101)
+        XCTAssertEqual(foregroundNav.laneDecision?.state,.inside)
+        let before=feedback.pulses.count
+        settings.laneSideCues=false;send(-80,100);send(-80,101)
+        XCTAssertEqual(foregroundNav.laneDecision?.state,.outLeft);XCTAssertEqual(feedback.pulses.count,before)
+        settings.laneSideCues=true;send(-80,102);XCTAssertEqual(feedback.pulses.last,.right)
+        up+=11;date+=11;foregroundNav.tick();XCTAssertNotEqual(feedback.pulses.last,.unavailable)
+        settings.laneGpsAlert=true;foregroundNav.tick();XCTAssertEqual(feedback.pulses.last,.unavailable)
+        let lost=feedback.pulses.count
+        up+=59;date+=59;foregroundNav.tick();XCTAssertEqual(feedback.pulses.count,lost)
+        up+=1;date+=1;foregroundNav.tick();XCTAssertEqual(feedback.pulses.count,lost+1)
+        foregroundNav.stop()
+    }
+    func testAllLaneCuePreferencesPersistAndRestoreWithoutChangingActivityConsent() throws {
+        let (directory,_,_,settings)=try setup()
+        settings.laneSideCues=false;settings.laneBackstopCue=false;settings.laneInsideTick=false
+        settings.laneReminderMin=10;settings.laneGpsAlert=false;settings.liveActivitiesEnabled=true
+        let saved=settings.backupSettings,reopened=AppSettings(directory:directory)
+        XCTAssertEqual(reopened.backupSettings,saved)
+        settings.laneReminderMin=0;settings.laneSideCues=true
+        let prepared=try settings.restoreSnapshot().prepare(saved)
+        XCTAssertTrue(try settings.publishRestore(prepared))
+        XCTAssertEqual(settings.backupSettings,saved)
+        XCTAssertEqual(AppSettings(directory:directory).backupSettings,saved)
+        XCTAssertTrue(settings.liveActivitiesEnabled)
     }
     private func setup() throws -> (URL,WaypointStore,FieldDataStore,AppSettings) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
