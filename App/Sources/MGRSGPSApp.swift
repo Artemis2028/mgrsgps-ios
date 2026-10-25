@@ -34,9 +34,16 @@ struct MGRSGPSApp: App {
             directory = testDirectory
         }
         #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecovery"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+            try? Data("SYNTHETIC unreadable CAFÉ waypoint library\n".utf8).write(to: directory.appendingPathComponent("waypoints-v1.json"), options: .atomic)
+        }
+        #endif
         let waypointStore = WaypointStore(directory: directory)
         let settingsStore = AppSettings(directory: directory)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKEnrollmentNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointWriteFailure") {

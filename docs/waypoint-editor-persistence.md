@@ -29,8 +29,9 @@ receive an already-saved waypoint and perform only their UI updates.
 
 An unreadable existing waypoint file sets `loadError`, displays a library
 warning, and is retained. Staged edits/restores and direct file writers refuse
-to overwrite it. There is no destructive reset or automatic empty replacement;
-an explicit recovery UI remains follow-up work. Some legacy non-editor mutation
+to overwrite it. There is no automatic empty replacement. The explicit [recovery screen](waypoint-recovery.md)
+can retry loading, preserve/share the original, or archive it before a confirmed
+empty-library replacement. Some legacy non-editor mutation
 APIs still update synchronously or ignore write errors, although the corrupt-file
 write guard applies to them. Their remaining performance/error work is tracked
 separately; this milestone does not claim all library/session I/O is asynchronous.
@@ -55,4 +56,4 @@ Validation:
   failure workflows pass again after the first-target/copy adjustment.
 
 Physical storage-pressure/provider checks, remaining legacy non-editor writes,
-explicit unreadable-library recovery and dense-map/library performance remain.
+and dense-map/library performance remain.

@@ -19,6 +19,7 @@ struct WaypointsView: View {
     var onShowMap: () -> Void = {}
     var onOrientation: () -> Void = {}
     @State private var choosingLibraryActions = false
+    @State private var showingRecovery = false
     @State private var pendingLibraryAction: LibraryAction?
     @State private var trackActions: Backup.TrackMeta?
     @State private var pendingTrackAction: (id: String, action: String)?
@@ -82,8 +83,10 @@ struct WaypointsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header.disabled(preparingOutput || fieldMutation.working)
                 if let error = store.loadError {
-                    Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20).padding(.vertical,8)
-                        .accessibilityIdentifier("waypoint-library-load-error")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-library-load-error")
+                        Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
+                    }.padding(.horizontal,20).padding(.vertical,8)
                 }
                 Button { showingLibrary = true } label: {
                     HStack {
@@ -171,6 +174,7 @@ struct WaypointsView: View {
                 pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
             }
         }
+        .sheet(isPresented: $showingRecovery) { WaypointRecoveryView() }
         .sheet(item: $trackActions,onDismiss: runTrackAction) { track in
             FieldChoiceSheet(title: track.name,choices: trackChoices(track),night: settings.nightMode) { action in
                 pendingTrackAction = (track.id,action); trackActions = nil
@@ -714,6 +718,7 @@ struct WaypointsView: View {
         case .backup: importKind = .backup; showingImporter = true
         case .file: importKind = .text; showingImporter = true
         case .paste: choosingPasteFormat = true
+        case .recovery: showingRecovery = true
         }
     }
     private func trackChoices(_ track: Backup.TrackMeta) -> [FieldChoice] {

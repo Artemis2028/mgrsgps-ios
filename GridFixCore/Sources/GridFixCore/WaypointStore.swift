@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 
 /// Local persistence for waypoints and folders.
@@ -474,6 +475,118 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     }
 
     // MARK: - Persistence
+
+    /// Recovery preparation runs on a worker. Publication checks both the
+    /// store revision and the original file before replacing anything.
+    public struct RecoverySnapshot: Sendable {
+        fileprivate let destination: URL
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        public func prepareReload() throws -> PreparedReload {
+            let stamp = try RecoveryStamp.read(destination)
+            let value = try JSONDecoder().decode(Snapshot.self, from: Data(contentsOf: destination, options: .mappedIfSafe))
+            guard try RecoveryStamp.read(destination) == stamp else { throw RecoveryFailure.changed }
+            let points = value.waypoints.map { point -> Waypoint in var point = point; point.folder = Folders.canonical(point.folder); return point }
+            let next = Snapshot(waypoints: points, folders: WaypointStore.mergeFolderList(stored: value.folders, referenced: points.map(\.folder)), selectedId: value.selectedId)
+            return .init(snapshot: next, stamp: stamp, revision: revision, identity: identity)
+        }
+        public func prepareFreshLibrary() throws -> PreparedRecovery {
+            let archive = try makeArchive()
+            let next = Snapshot(waypoints: [], folders: [.init(name: Folders.defaultFolder)], selectedId: nil)
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next), destination: destination)
+            return .init(snapshot: next, original: archive.original, stamp: archive.stamp, archiveStamp: archive.archiveStamp, revision: revision, identity: identity, file: file)
+        }
+        public func preserveOriginal() throws -> URL { try makeArchive().original }
+        private func makeArchive() throws -> (original: URL, stamp: RecoveryStamp, archiveStamp: RecoveryStamp) {
+            try Task.checkCancellation()
+            let stamp = try RecoveryStamp.read(destination)
+            let directory = destination.deletingLastPathComponent().appendingPathComponent("WaypointRecovery", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let original = directory.appendingPathComponent(UUID().uuidString.lowercased() + ".json")
+            guard FileManager.default.createFile(atPath: original.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw RecoveryFailure.archive }
+            var complete = false
+            defer { if !complete { try? FileManager.default.removeItem(at: original) } }
+            let input = try FileHandle(forReadingFrom: destination), output = try FileHandle(forWritingTo: original)
+            defer { try? input.close(); try? output.close() }
+            var digest = SHA256()
+            while let bytes = try input.read(upToCount: 64 * 1024), !bytes.isEmpty {
+                try Task.checkCancellation(); digest.update(data: bytes); try output.write(contentsOf: bytes)
+            }
+            try output.synchronize(); try output.close()
+            // The source may have been edited/replaced while it was copied.
+            let check = try FileHandle(forReadingFrom: destination); defer { try? check.close() }
+            var current = SHA256()
+            while let bytes = try check.read(upToCount: 64 * 1024), !bytes.isEmpty { try Task.checkCancellation(); current.update(data: bytes) }
+            guard try RecoveryStamp.read(destination) == stamp, Data(current.finalize()) == Data(digest.finalize()) else { throw RecoveryFailure.changed }
+            let archiveStamp = try RecoveryStamp.read(original)
+            complete = true
+            return (original, stamp, archiveStamp)
+        }
+    }
+    public struct PreparedReload: Sendable {
+        fileprivate let snapshot: Snapshot
+        fileprivate let stamp: RecoveryStamp
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+    }
+    public struct PreparedRecovery: Sendable {
+        fileprivate let snapshot: Snapshot
+        public let original: URL
+        fileprivate let stamp: RecoveryStamp
+        fileprivate let archiveStamp: RecoveryStamp
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile
+    }
+    public enum RecoveryFailure: LocalizedError {
+        case unavailable, changed, archive
+        public var errorDescription: String? {
+            switch self {
+            case .unavailable: return "The saved waypoint path is missing or is not a regular file. It has not been changed."
+            case .changed: return "The saved file or library changed during recovery. Retry before continuing."
+            case .archive: return "Unable to preserve the original waypoint file. The library has not been replaced."
+            }
+        }
+    }
+    fileprivate struct RecoveryStamp: Equatable, Sendable {
+        let size: Int64, inode: UInt64, volume: UInt64
+        let modified: Date
+        static func read(_ url: URL) throws -> Self {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            guard attributes[.type] as? FileAttributeType == .typeRegular,
+                  let size = attributes[.size] as? NSNumber, let modified = attributes[.modificationDate] as? Date else { throw RecoveryFailure.unavailable }
+            return .init(size: size.int64Value, inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0, modified: modified)
+        }
+    }
+    public func recoverySnapshot() throws -> RecoverySnapshot {
+        lock.lock(); defer { lock.unlock() }
+        guard loadError != nil else { throw RecoveryFailure.changed }
+        return .init(destination: fileURL, revision: revision, identity: identity)
+    }
+    public func publishReload(_ prepared: PreparedReload) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw EditFailure.wrongStore }
+        guard prepared.revision == revision, loadError != nil, try RecoveryStamp.read(fileURL) == prepared.stamp else { throw RecoveryFailure.changed }
+        waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders; selectedId = prepared.snapshot.selectedId; loadError = nil
+        return true
+    }
+    public func publishRecovery(_ prepared: PreparedRecovery) throws -> URL {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw EditFailure.wrongStore }
+        guard prepared.revision == revision, loadError != nil, try RecoveryStamp.read(fileURL) == prepared.stamp,
+              try RecoveryStamp.read(prepared.original) == prepared.archiveStamp else { throw RecoveryFailure.changed }
+        try prepared.file.publish()
+        waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders; selectedId = nil; loadError = nil
+        return prepared.original
+    }
+    public func recoveryFiles() throws -> [URL] {
+        let directory = fileURL.deletingLastPathComponent().appendingPathComponent("WaypointRecovery", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+            .filter { UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil && $0.pathExtension == "json" && (try? RecoveryStamp.read($0)) != nil }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
 
     private func load() {
         lock.lock(); defer { lock.unlock() }

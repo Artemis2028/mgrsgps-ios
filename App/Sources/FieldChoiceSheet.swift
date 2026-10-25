@@ -63,6 +63,7 @@ struct FieldChoicePicker: View {
 enum LibraryAction: String, CaseIterable {
     case fix = "library-add-fix", coordinates = "library-enter-coordinates", select = "library-select", folder = "library-new-folder-action"
     case orientation = "library-orientation-shortcut", export = "library-export", backup = "library-import-backup", file = "import-field-file", paste = "library-paste"
+    case recovery = "library-waypoint-recovery"
     var title: String {
         switch self {
         case .fix: return "Add at fix"
@@ -74,6 +75,7 @@ enum LibraryAction: String, CaseIterable {
         case .backup: return "Import backup"
         case .file: return "Import field file"
         case .paste: return "Paste text"
+        case .recovery: return "Waypoint file recovery"
         }
     }
 }
