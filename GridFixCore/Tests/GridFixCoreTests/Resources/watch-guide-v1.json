@@ -1,0 +1,89 @@
+[
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 1,
+    "at": 1792970000000,
+    "active": true,
+    "available": true,
+    "targetName": "OBJ CAFÉ",
+    "status": "Not in the lane yet",
+    "laneName": "Creek",
+    "laneState": "NOT_YET",
+    "crossedLine": null
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 2,
+    "at": 1792970000000,
+    "active": true,
+    "available": true,
+    "targetName": "OBJ CAFÉ",
+    "status": "Inside lane · silent",
+    "laneName": "Creek",
+    "laneState": "INSIDE",
+    "crossedLine": null
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 3,
+    "at": 1792970000000,
+    "active": true,
+    "available": true,
+    "targetName": "OBJ CAFÉ",
+    "status": "Past left limit · turn right",
+    "laneName": "Creek",
+    "laneState": "OUT_LEFT",
+    "crossedLine": "Creek bank"
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 4,
+    "at": 1792970000000,
+    "active": true,
+    "available": true,
+    "targetName": "OBJ CAFÉ",
+    "status": "Past right limit · turn left",
+    "laneName": "Creek",
+    "laneState": "OUT_RIGHT",
+    "crossedLine": "Road"
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 5,
+    "at": 1792970000000,
+    "active": true,
+    "available": true,
+    "targetName": "OBJ CAFÉ",
+    "status": "Past backstop · turn back",
+    "laneName": "Creek",
+    "laneState": "OVERSHOT",
+    "crossedLine": "Power line"
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 6,
+    "at": 1792970000000,
+    "active": true,
+    "available": false,
+    "targetName": "OBJ CAFÉ",
+    "status": "Unavailable: waiting for a fresh location",
+    "laneName": "Creek",
+    "laneState": "INSIDE",
+    "crossedLine": null
+  },
+  {
+    "version": 1,
+    "sourceID": "synthetic-phone",
+    "revision": 7,
+    "at": 1792970000000,
+    "active": false,
+    "available": false,
+    "status": "Phone guide off"
+  }
+]

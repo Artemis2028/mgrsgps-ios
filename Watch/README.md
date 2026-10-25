@@ -78,3 +78,12 @@ Navigation-lane maps now receive complete L/R/BS geometry and shading with
 landmark labels, visibility replacement and explicit whole-lane omissions.
 Limits are not simplified and no crossing detector runs on watch. See
 [shared contract and paired-simulator evidence](../docs/watch-companion-parity.md).
+
+## Phone guidance
+
+Navigate also shows a distinct read-only **Phone guidance** section with the
+phone's target, confirmed lane status and named crossed limit. Source evaluation
+and transport expiry gates prevent stale steering from appearing current. The
+phone owns these decisions; watch GPS still owns grid/map/target numbers, and
+quiet-inside boundaries remain separate. No watch alerts or background guidance
+are enabled by this display. See [contract and paired evidence](../docs/watch-phone-guidance.md).

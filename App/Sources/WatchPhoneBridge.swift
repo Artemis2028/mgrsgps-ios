@@ -10,6 +10,12 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private let field: FieldDataStore
     private let boundaries: BoundaryMonitor
     private let lanes: NavigationLaneStore?
+    private let navigation: NavigationSession?
+    private var context: [String:Any] = [:]
+    private var guideRevision: Int64 = 0
+    private var guideTimer: AnyCancellable?
+    private var previousGuide: WatchGuideSnapshot?
+    private var guideSentAt: Date?
     private var sourceID: String
     private var revision: Int64
     private var generation = 0
@@ -17,8 +23,9 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private var subscriptions = Set<AnyCancellable>()
     private var session: WCSession?
 
-    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor,lanes: NavigationLaneStore? = nil) {
-        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries; self.lanes = lanes
+    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor,lanes: NavigationLaneStore? = nil,navigation: NavigationSession? = nil) {
+        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries; self.lanes = lanes; self.navigation = navigation
+        guideRevision = max(0,(UserDefaults.standard.object(forKey:"watch.guide.revision") as? NSNumber)?.int64Value ?? 0)
         let defaults = UserDefaults.standard
         sourceID = defaults.string(forKey: "watch.map.source") ?? UUID().uuidString
         revision = max(0, (defaults.object(forKey: "watch.map.revision") as? NSNumber)?.int64Value ?? 0)
@@ -37,6 +44,11 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             boundaries.$displayedID.map { _ in () }.eraseToAnyPublisher(),
             boundaries.$activeID.map { _ in () }.eraseToAnyPublisher()
         ]
+        if let navigation {
+            navigation.objectWillChange.debounce(for:.milliseconds(100),scheduler:RunLoop.main)
+                .sink { [weak self] in self?.publishGuide() }.store(in:&subscriptions)
+        }
+        guideTimer = Timer.publish(every: 5,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.publishGuide(heartbeat:true) }
         if let lanes { sources.append(lanes.objectWillChange.map { _ in () }.eraseToAnyPublisher()) }
         Publishers.MergeMany(sources)
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
@@ -69,12 +81,30 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             let mapData = map.encoded()
             await MainActor.run { [weak self] in
                 guard let self, self.generation == token, session.activationState == .activated else { return }
-                var context: [String: Any] = [WatchSnapshot.contextKey: data]
-                if let mapData { context[WatchMapSnapshot.contextKey] = mapData }
-                else { context["gridfix.map.error"] = "Phone map snapshot unavailable" }
-                try? session.updateApplicationContext(context)
+                self.context[WatchSnapshot.contextKey] = data
+                self.context.removeValue(forKey:"gridfix.map.error")
+                if let mapData { self.context[WatchMapSnapshot.contextKey] = mapData }
+                else { self.context["gridfix.map.error"] = "Phone map snapshot unavailable" }
+                self.publishGuide(force:true)
             }
         }
+    }
+
+    private func publishGuide(heartbeat: Bool = false,force: Bool = false) {
+        guard let session,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled else { return }
+        var next = navigation?.watchGuideSnapshot(sourceID:sourceID,revision:guideRevision) ?? .init(sourceID:sourceID,revision:guideRevision,at:Int64(Date().timeIntervalSince1970*1000),active:false)
+        // Compare content without its heartbeat fields; rate-limit repeated unchanged evaluations.
+        var previous = previousGuide
+        previous?.at = next.at; previous?.revision = next.revision
+        guard force || previous != next || (heartbeat && next.active && Date().timeIntervalSince(guideSentAt ?? .distantPast) >= 4) else { return }
+        guard guideRevision < .max else { return }
+        guideRevision += 1; next.revision = guideRevision
+        guard next.isValid,let data = try? JSONEncoder().encode(next) else { return }
+        UserDefaults.standard.set(guideRevision,forKey:"watch.guide.revision")
+        previousGuide = next; guideSentAt = Date(); context[WatchGuideSnapshot.contextKey] = data
+        // Complete context handles disconnect/offline stop; a reachable watch also receives it immediately.
+        try? session.updateApplicationContext(context)
+        if session.isReachable { session.sendMessage([WatchGuideSnapshot.contextKey:data],replyHandler:nil,errorHandler:{ _ in }) }
     }
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
@@ -82,6 +112,10 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     }
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) { Task { @MainActor in self.publish() } }
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) { Task { @MainActor in self.publish() } }
+    nonisolated func session(_ session: WCSession,didReceiveMessage message: [String:Any]) {
+        guard message["gridfix.guide.request"] as? Bool == true else { return }
+        Task { @MainActor in self.publishGuide(force:true) }
+    }
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }

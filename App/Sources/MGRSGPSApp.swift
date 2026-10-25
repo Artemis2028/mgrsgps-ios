@@ -154,7 +154,6 @@ struct MGRSGPSApp: App {
             Task { _ = try? await laneStore.restore([fixture]) }
         }
         #endif
-        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore)
         _fieldData = StateObject(wrappedValue: fieldStore)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPractice"), waypointStore.waypoints.isEmpty {
@@ -180,8 +179,18 @@ struct MGRSGPSApp: App {
             try? fieldStore.saveGraphic(.init(id: "lane-route",name: "Lane patrol",type: "route",points: [point(0,0),point(0,300),point(0,500)].map { .init(lat: $0.lat,lon: $0.lon) }))
         }
         #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestWatchGuide"),!ProcessInfo.processInfo.arguments.contains("-keepUITestData") {
+            func p(_ x:Double,_ y:Double) -> GeoPoint { .init(lat:24.4539+y/111195,lon:54.3773+x/(111195*cos(24.4539 * .pi/180))) }
+            let point = p(0,450)
+            let target = waypointStore.add(.init(name:"SYNTHETIC GUIDE",lat:point.lat,lon:point.lon)); waypointStore.select(target.id)
+            let fixture = NavLane(id:"watch-guide-lane",name:"SYNTHETIC CREEK",left:.init(points:[p(-50,-200),p(-50,500)],label:"Creek bank"),right:.init(points:[p(50,-200),p(50,500)],label:"Road"),backstop:.init(points:[p(-100,520),p(100,520)],label:"Power line"),scope:.checkpoint,targetId:target.id)
+            Task { _ = try? await laneStore.save(fixture,graphics:fieldStore.document.graphics) }
+        }
+        #endif
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
+        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession)
         _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
         let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
         _recorder = StateObject(wrappedValue: recordingSession)

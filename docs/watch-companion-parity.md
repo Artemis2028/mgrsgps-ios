@@ -11,7 +11,7 @@ Wear OS and watchOS share this functional scope. Native controls may differ to f
 | References | Phone distance/angle units and true, magnetic or grid reference; unavailable magnetic reference is explicit |
 | Phone connection | Cached target/settings remain usable with their age and honest connection status |
 | Map | Read-only interactive map with pan/zoom/recenter, fresh watch position, cached visible waypoints and field geometry, sync age and explicit omission/simplification counts |
-| Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; no watch crossing detector or haptic lane guidance |
+| Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; no watch crossing detector or haptic lane guidance |
 | Night mode | Local Day/Night/Follow phone choice, independent of the precision override |
 
 Digit count describes coordinate formatting, not GPS accuracy. Both platforms display reported GPS accuracy separately. Neither companion currently promises a heading compass, haptic navigation, background tracking or navigation while the screen is locked. Those require their own platform-specific implementation and physical-device validation.
@@ -62,8 +62,19 @@ persisted a complete zero-lane/zero-feature/zero-waypoint replacement. Wear
 emulator day/night/zoom/info checks used a scene exported by the production
 phone adapter's unit fixture, not a claim of paired Data Layer delivery.
 
-Still pending: phone navigation-lane status synchronization, independent watch
-crossing detection/haptics, background watch navigation, offline packs/terrain,
+Phone navigation-lane status synchronization is now implemented; see
+[phone guidance](watch-phone-guidance.md). Independent watch crossing
+detection/haptics, background watch navigation, offline packs/terrain,
 and physical radio/GPS/battery/touch checks. All test simulators/emulators owned
 by this work were shut down after the runtime checks; future runs should boot
 only the device or pair they need.
+
+## Phone guidance milestone
+
+Both companions now show a distinct read-only Phone guidance section sourced
+from the phone runtime owner. The shared packet covers all five confirmed lane
+states, names and crossed limits, explicit stop and source/transport expiry.
+Watch GPS/target metrics and quiet-inside monitoring remain separate. The
+Wear phone branch now incorporates Android review `eacf084`; Claude confirmed
+the additive evaluation fields and reserved those lines to avoid parallel edits.
+See [contract and validation](watch-phone-guidance.md).

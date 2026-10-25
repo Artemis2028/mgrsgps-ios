@@ -34,6 +34,27 @@ final class NavigationIntegrationTests: XCTestCase {
     private func lane(_ target: String,scope: NavLane.Scope = .checkpoint) -> NavLane {
         .init(id: "lane",name: "Creek",left: .init(points: [lanePoint(-50,0),lanePoint(-50,500)]),right: .init(points: [lanePoint(50,0),lanePoint(50,500)]),backstop: .init(points: [lanePoint(-100,1600),lanePoint(100,1600)]),scope: scope,targetId: target,createdAt: 1)
     }
+    func testWatchExportsConfirmedLaneDecisionAndCannotRefreshSuspendedOrExpiredGuide() async throws {
+        let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let target = lanePoint(0,1000), waypoint = store.add(.init(name:"OBJ CAFÉ",lat:target.lat,lon:target.lon)); store.select(waypoint.id)
+        let lanes = NavigationLaneStore(directory:directory)
+        var value = lane(waypoint.id); value.left.label = "Creek bank"
+        _ = try await lanes.save(value,graphics:[])
+        var date = 1000.0, up = 100.0
+        let nav = NavigationSession(directory:directory,store:store,field:field,settings:settings,driver:driver,feedback:feedback,lanes:lanes,now:{ Date(timeIntervalSince1970:date) },uptime:{ up },foreground:{ true },scheduleTicks:false)
+        func export() -> WatchGuideSnapshot { nav.watchGuideSnapshot(sourceID:"synthetic",revision:1) }
+        XCTAssertFalse(export().active)
+        nav.startGuide(); try await wait { nav.running }; XCTAssertTrue(export().active); XCTAssertFalse(export().available)
+        func send(_ x: Double) { date += 1; up += 1; let p = lanePoint(x,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy:5)]) }
+        send(0); XCTAssertEqual(export().laneState,"NOT_YET")
+        send(0); XCTAssertEqual(export().laneState,"INSIDE"); XCTAssertTrue(export().available)
+        up += 3; date += 3
+        XCTAssertFalse(export().available,"Transport heartbeat must not extend a suspended owner loop")
+        nav.tick(); XCTAssertTrue(export().available)
+        send(-80); send(-80); XCTAssertEqual(export().laneState,"OUT_LEFT"); XCTAssertEqual(export().crossedLine,"Creek bank")
+        up += 11; date += 11; nav.tick(); XCTAssertFalse(export().available); XCTAssertNil(export().laneState)
+        nav.stop(); XCTAssertFalse(export().active); XCTAssertNil(export().targetName); XCTAssertNil(export().laneName)
+    }
     func testLaneIsSilentWithoutHeadingAndEmitsDistinctBackgroundCrossingEvents() async throws {
         let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
         let target = lanePoint(0,1000), waypoint = store.add(.init(name: "OBJ",lat: target.lat,lon: target.lon))

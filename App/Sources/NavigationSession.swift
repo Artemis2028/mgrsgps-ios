@@ -22,6 +22,8 @@ final class NavigationSession: ObservableObject {
     private struct LaneKey: Equatable { var id: String; var left: [GeoPoint]; var right: [GeoPoint]; var backstop: [GeoPoint]; var objective:GeoPoint? }
     private var laneKey: LaneKey?
     private var laneGuide: LaneGuideState?
+    private var laneLeftWasDrawnAsRight = false
+    private var guideEvaluatedAt: TimeInterval?
     private var laneCadence = LaneCueCadence()
     private var laneUnavailableAt = 0.0
     private let store: WaypointStore
@@ -266,6 +268,7 @@ final class NavigationSession: ObservableObject {
     }
     func tick() {
         guard running, let target else { return }
+        defer { guideEvaluatedAt = uptime() }
         if !permitted { pause(reason: "Navigation stopped because precise location permission changed."); return }
         let up = uptime(), config = settings.guideConfiguration
         let usable = fix.flatMap { l -> CLLocation? in
@@ -311,7 +314,9 @@ final class NavigationSession: ObservableObject {
             let key = LaneKey(id: value.id,left: l,right: r,backstop: b,objective:objective)
             if key != laneKey {
                 let entered = laneKey?.id == value.id && laneGuide.map {$0.state != .notYet} == true
-                laneGuide = LaneGuideState(shape: try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b,objective:objective),entered:entered)
+                let shape = try LaneShape(leftDrawn: l,rightDrawn: r,backstopDrawn: b,objective:objective)
+                laneLeftWasDrawnAsRight = shape.leftWasDrawnAsRight
+                laneGuide = LaneGuideState(shape: shape,entered:entered)
                 laneKey = key; laneCadence.reset(); laneUnavailableAt = 0; feedback.cancelPlayback()
             }
             var configuration = LaneGuideConfiguration(); configuration.warningMeters = Double(settings.laneWarningM); configuration.notInLaneReminderSeconds = Double(settings.laneReminderMin)*60
@@ -388,5 +393,28 @@ extension NavigationSession {
         let state=FieldActivityState(title:title,status:String(status.prefix(160)),detail:(distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
             grid:grid,fixDate:usable?.timestamp,fixExpiresAt:usable?.timestamp.addingTimeInterval(10),startedAt:nil,fixUptime:usable == nil ? nil : fixTime,night:settings.nightMode)
         return .init(id:progress.map { "route:"+$0.routeID } ?? "target:"+target.id,kind:"navigation",state:state)
+    }
+}
+
+// Export the owner's confirmed decision only. Transport heartbeats cannot make
+// a suspended loop, expired phone fix or unavailable heading appear usable.
+extension NavigationSession {
+    func watchGuideSnapshot(sourceID: String, revision: Int64) -> WatchGuideSnapshot {
+        let date = now()
+        let at = Int64(date.timeIntervalSince1970 * 1000)
+        guard running, let target else { return .init(sourceID: sourceID,revision: revision,at: at,active: false) }
+        let up = uptime()
+        let evaluated = guideEvaluatedAt.map { up >= $0 && up-$0 <= 2 } ?? false
+        let position = permitted && fix.map { NavigationFixPolicy.isUsable(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,accuracyMeters:$0.horizontalAccuracy,timestampUptime:fixTime,nowUptime:up) } == true
+        let hasLane = lane != nil && laneDecision != nil && laneProblem == nil
+        let state: String? = hasLane ? laneDecision.map {
+            switch $0.state { case .notYet: return "NOT_YET"; case .inside: return "INSIDE"; case .outLeft: return "OUT_LEFT"; case .outRight: return "OUT_RIGHT"; case .overshot: return "OVERSHOT" }
+        } : nil
+        var crossed: String?
+        if hasLane, let lane, let state {
+            let line: LaneLine? = state == "OUT_LEFT" ? (laneLeftWasDrawnAsRight ? lane.right : lane.left) : state == "OUT_RIGHT" ? (laneLeftWasDrawnAsRight ? lane.left : lane.right) : state == "OVERSHOT" ? lane.backstop : nil
+            if let line { crossed = String(NavLanes.label(line,graphics:field.document.graphics,fallback: state == "OVERSHOT" ? "backstop" : "side limit").prefix(120)) }
+        }
+        return .init(sourceID:sourceID,revision:revision,at:at,active:true,available:evaluated && position && (hasLane || decision.map { $0.cue != .unavailable } == true),targetName:String(target.name.prefix(120)),status:String(status.prefix(160)),laneName:hasLane ? String((lane?.name ?? "Nav lane").prefix(120)) : nil,laneState:state,crossedLine:crossed)
     }
 }

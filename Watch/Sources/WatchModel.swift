@@ -6,6 +6,7 @@ import WatchConnectivity
 @MainActor
 final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, WCSessionDelegate {
     @Published private(set) var snapshot = WatchSnapshot()
+    @Published private(set) var guideSnapshot: WatchGuideSnapshot?
     @Published private(set) var mapSnapshot: WatchMapSnapshot?
     @Published private(set) var mapSyncStatus = "No phone map sync yet"
     @Published private(set) var fix: CLLocation?
@@ -26,6 +27,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         if let data = UserDefaults.standard.data(forKey: WatchMapSnapshot.contextKey), let saved = WatchMapSnapshot.decode(data) {
             mapSnapshot = saved; mapSyncStatus = "Cached phone overlay"
         }
+        if let data = UserDefaults.standard.data(forKey:WatchGuideSnapshot.contextKey) { guideSnapshot = WatchGuideSnapshot.decode(data) }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 1
@@ -92,7 +94,18 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                                        nowUptime: ProcessInfo.processInfo.systemUptime)
     }
 
+    private func applyGuide(_ context: [String:Any]) {
+        guard let data = context[WatchGuideSnapshot.contextKey] as? Data,let incoming = WatchGuideSnapshot.decode(data),incoming.shouldApply(over:guideSnapshot) else { return }
+        guideSnapshot = incoming
+        UserDefaults.standard.set(data,forKey:WatchGuideSnapshot.contextKey)
+    }
+    private func requestGuide() {
+        let session = WCSession.default
+        guard session.activationState == .activated,session.isReachable else { return }
+        session.sendMessage(["gridfix.guide.request":true],replyHandler:nil,errorHandler:{ _ in })
+    }
     private func apply(_ context: [String: Any]) {
+        applyGuide(context)
         guard let data = context[WatchSnapshot.contextKey] as? Data,
               let incoming = WatchSnapshot.decode(data) else { return }
         // The map revision belongs to this complete context generation. Reject an old
@@ -119,10 +132,13 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         }
     }
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        Task { @MainActor in self.reachable = session.isReachable; self.apply(session.receivedApplicationContext) }
+        Task { @MainActor in self.reachable = session.isReachable; self.apply(session.receivedApplicationContext); self.requestGuide() }
     }
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        Task { @MainActor in self.reachable = session.isReachable }
+        Task { @MainActor in self.reachable = session.isReachable; self.requestGuide() }
+    }
+    nonisolated func session(_ session: WCSession,didReceiveMessage message: [String:Any]) {
+        Task { @MainActor in self.applyGuide(message) }
     }
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
         Task { @MainActor in self.apply(session.receivedApplicationContext) }

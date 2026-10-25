@@ -99,6 +99,7 @@ struct WatchGlanceView: View {
         Text(text).font(.custom("Antonio-Bold", size: size)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.55)
     }
     private func page(date: Date, navigation: Bool) -> some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
@@ -110,6 +111,7 @@ struct WatchGlanceView: View {
                     }
                 }
                 navigationContent(date: date)
+                phoneGuidance(date: date).id("phoneGuidance")
                 Divider().overlay(accent.opacity(0.3))
                 fixStatus(date: date)
                 connectionStatus(date: date)
@@ -117,6 +119,16 @@ struct WatchGlanceView: View {
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
         }
         .accessibilityElement(children: .contain)
+        #if DEBUG
+        .task {
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-watchUITesting"),args.contains("-watchPhoneGuide") {
+                try? await Task.sleep(nanoseconds:200_000_000)
+                proxy.scrollTo("phoneGuidance",anchor:.top)
+            }
+        }
+        #endif
+        }
     }
 
     private func mapLauncher(date: Date) -> some View {
@@ -262,6 +274,23 @@ struct WatchGlanceView: View {
             Text("No waypoint selected").font(.headline)
             label("SELECT ONE ON IPHONE")
         }
+    }
+
+    private func phoneGuidance(date: Date) -> some View {
+        VStack(alignment:.leading,spacing:3) {
+            Divider().overlay(accent.opacity(0.3))
+            label("PHONE GUIDANCE")
+            if let guide = model.guideSnapshot {
+                if guide.active,let name = guide.targetName { Text(name).font(.caption).fixedSize(horizontal:false,vertical:true) }
+                Text(guide.displayStatus(at:date)).font(.caption).fixedSize(horizontal:false,vertical:true)
+                if guide.isFresh(at:date),guide.active,guide.available {
+                    if let name = guide.laneName { Text(name).font(.caption2) }
+                    if let line = guide.crossedLine { Text("Limit: " + line).font(.caption2) }
+                }
+                label("PHONE · " + age(date.timeIntervalSince1970-Double(guide.at)/1000))
+            } else { Text("Open phone to sync guide").font(.caption) }
+            Text("Read-only · no watch alerts").font(.caption2).foregroundStyle(accent)
+        }.accessibilityIdentifier("watch-phone-guidance")
     }
 
     private func fixStatus(date: Date) -> some View {
