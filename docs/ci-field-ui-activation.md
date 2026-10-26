@@ -520,3 +520,47 @@ Both xcodebuild parents finalize exit 0, with no diagnostic interruption.
 Final Release passes in `/tmp/gridfix-ci97-native-presentation-release.log`.
 No case, shard, focus check, exact content count or text-edit assertion is
 removed. Full hosted confirmation of the repaired candidate remains open.
+
+
+## Run 98: native editor focus and first-use keyboard
+
+Hosted 40395046579 on d153810: map passes. Field completes 277 native cases
+with no failures (four unstaged checks skipped); its 36 UI cases have three
+failures: large GPX filename focus, cancellation's absent filename, and route-PDF
+filename focus. Library remains in progress at this checkpoint.
+
+Retrieved the full field xcresult and inspected screenshots plus cancellation
+video. Both focus failures show the actual editor selected; the full app AX tree
+contains the exact DOCPicker filename identifier with `Keyboard Focused`, even
+though the leaf query's description does not acknowledge it. The first GPX
+screenshot additionally shows the system keyboard's first-use slide-to-type
+introduction and Continue. The later cancellation video genuinely has no footer;
+it follows the failed/interrupted first export, so a clean replay is required.
+
+The shared UI helper now handles that specific native introduction and waits
+for it to dismiss. It positively checks focus on the exact filename identifier
+in a freshly resolved app tree, retaining the previous focus requirement.
+The existing exact clear/value, native Save, full-content reopen, cancellation,
+track identity and persisted-route assertions are unchanged.
+
+A freshly erased owned iOS 26.2 simulator passes all five FieldExport/RoutePDF
+workflows in `/tmp/gridfix-ci98-fresh-files.xcresult`. The log records the actual
+Continue tap before editing; large GPX reopens all 5,000 waypoints/1,000 routes,
+cancellation re-exports the complete 3-waypoint/1-route/1-track fixture, and both
+night single-track paths and PDF/native Save preserve their existing assertions.
+Screenshots inspected. The test parent exits 0 naturally. This local Xcode 27.1,
+iOS 26.2 23C52 check does not substitute for hosted Xcode 26.6 / 23C54 confirmation.
+
+
+Three additional regressions pass in
+`/tmp/gridfix-ci98-files-regression.xcresult`: native backup deletion/restore/night
+relaunch, protected-backup wrong-password/retry/restore, and protected-KML
+retry/cancel/import/night relaunch. No test or assertion is removed. The prior
+final product checks remain 492 core / 283 native, all 12 selected map and
+recording UI cases, and unsigned device Release; this follow-up changes only
+the shared UI input helper. Full hosted confirmation remains open.
+
+The supplementary three-case test parent finalized exit 0 after its exact owned
+post-test simctl diagnostic was shortened; all cases had already finished. The
+fresh five-case parent exited 0 naturally. Protected-backup restoration screenshot
+was inspected. No active test was stopped or duplicated.

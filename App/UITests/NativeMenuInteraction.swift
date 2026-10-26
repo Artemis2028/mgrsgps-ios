@@ -86,7 +86,23 @@ extension XCTestCase {
             for attempt in 0..<3 {
                 if attempt == 0 { element.tap() }
                 else { element.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap() }
-                let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in element.debugDescription.contains("Keyboard Focused") },object: nil)
+                let app = XCUIApplication()
+                // A fresh Files service can show the system keyboard tutorial
+                // over the editor. It is a real first-use step, not our dialog.
+                let tutorial = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@","Speed up your typing by sliding your finger")).firstMatch
+                if tutorial.exists,app.buttons["Continue"].exists {
+                    app.buttons["Continue"].tap()
+                    let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: tutorial)
+                    XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 5),.completed,file: file,line: line)
+                }
+                let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+                    // Hosted Files can return a stale leaf description while
+                    // the freshly resolved application tree reports this exact
+                    // native editor as focused. Keep the positive focus gate.
+                    app.debugDescription.split(separator: "\n").contains {
+                        $0.contains("identifier: 'DOCPicker.filenameTextField'") && $0.contains("Keyboard Focused")
+                    }
+                },object: nil)
                 if XCTWaiter.wait(for: [focused],timeout: 3) == .completed { return }
                 // A remote ShareLink followed by Files can leave XCTest's
                 // application snapshot bound to the dismissed share service.

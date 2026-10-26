@@ -544,3 +544,21 @@ activation. See [map evidence and limits](map-geometry-preparation.md).
 Hosted40395046579 on d153810: map passes, field fails three Files interactions,
 library still runs. These are being diagnosed; the local changes remain held to
 avoid cancelling the library run.
+
+
+## Fresh Files replay after run 98
+
+Retrieved hosted field screenshots and the complete xcresult. Both failed focus
+checks visibly show a selected filename; the root AX tree reports the exact
+native editor focused while its leaf description is stale. The first export
+also displays the system keyboard tutorial. The UI helper now dismisses that
+specific tutorial and positively checks the exact editor's focus in a fresh
+root snapshot. Exact filename replacement, native Save and complete reopening
+assertions remain unchanged.
+
+All five field-export/PDF workflows pass after erasing the owned test simulator;
+the log confirms the real Continue tap. Three ordinary/protected backup/KML
+regressions also pass. Day/night screenshots inspected. This test-only repair
+preserves the previously verified product source and Release build. The library
+shard remains live; full hosted green is still unproven. See
+[hosted evidence and replay](ci-field-ui-activation.md).
