@@ -83,8 +83,9 @@ extension XCTestCase {
         // another Form row. Dismiss it before resolving the next input frame.
         dismissFieldKeyboard(file: file,line: line)
         if element.identifier == "DOCPicker.filenameTextField" {
-            for _ in 0..<3 {
-                element.tap()
+            for attempt in 0..<3 {
+                if attempt == 0 { element.tap() }
+                else { element.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap() }
                 let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in element.debugDescription.contains("Keyboard Focused") },object: nil)
                 if XCTWaiter.wait(for: [focused],timeout: 3) == .completed { return }
             }
@@ -113,7 +114,12 @@ extension XCTestCase {
                 // A short numeric value may offer no selection menu. A press
                 // at the label-wide centre can leave the caret before its last
                 // digit. Tap the trailing value edge before deleting backwards.
-                tapVisibleControl(element,horizontal: 0.999,file: file,line: line)
+                if element.identifier == "DOCPicker.filenameTextField" {
+                    // UIKit's filename value is the whole field. Its native
+                    // caret remains usable through the selection-menu change,
+                    // even while app-level frame validation is transient.
+                    element.coordinate(withNormalizedOffset: .init(dx: 0.999,dy: 0.5)).tap()
+                } else { tapVisibleControl(element,horizontal: 0.999,file: file,line: line) }
             }
             element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: max(1,old.utf16.count)))
             let remaining = element.value as? String ?? ""

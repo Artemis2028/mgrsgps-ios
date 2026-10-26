@@ -38,6 +38,20 @@ final class FieldExportWorkflowTests: XCTestCase {
         counts("5000 waypoints · 1000 graphics/routes · 0 tracks")
         capture("large-gpx-export-file-preview"); app.buttons["Cancel"].tap()
     }
+    func testNativeExportCancellationAllowsAnotherCompleteExport() {
+        launch("-uiTestLibrary"); exportLibraryGPX()
+        let filename = app.textFields["DOCPicker.filenameTextField"]
+        XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
+        // Dismiss the actual Files sheet by its top grabber, without saving.
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.075)).press(forDuration: 0.1,thenDragTo: window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.88)))
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: filename)
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 10),.completed)
+        XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
+        exportLibraryGPX(); saveAndReview("cancel-retry-export-")
+        counts("3 waypoints · 1 graphics/routes · 1 tracks")
+        capture("field-export-after-native-cancel"); app.buttons["Cancel"].tap()
+    }
     func testTrackDetailAndLibraryMenuExportOnlyTheChosenTrackInNightMode() {
         launch("-uiTestLibrary")
         app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()

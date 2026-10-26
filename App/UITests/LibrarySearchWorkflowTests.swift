@@ -32,14 +32,14 @@ final class LibrarySearchWorkflowTests: XCTestCase {
         launch()
         tapNativeMenuItem(app.buttons["Actions for Bravo"])
         tapNativeMenuItem(app.buttons["toggle-favorite-Bravo"])
-        app.buttons["library-sort"].tap(); app.buttons["Name"].tap()
+        tapNativeMenuItem(app.buttons["library-sort"],revealing: app.buttons["Name"]); tapNativeMenuItem(app.buttons["Name"])
         let bravo = app.buttons["edit-waypoint-Bravo"], alpha = app.buttons["edit-waypoint-Alpha"]
         XCTAssertTrue(bravo.waitForExistence(timeout: 5)); XCTAssertLessThan(bravo.frame.minY,alpha.frame.minY)
         capture("library-favourite-first")
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         XCTAssertTrue(app.images["favorite-Bravo"].waitForExistence(timeout: 5))
         tapNativeMenuItem(app.buttons["Actions for Bravo"]); tapNativeMenuItem(app.buttons["toggle-favorite-Bravo"])
-        app.buttons["library-sort"].tap(); app.buttons["Name"].tap()
+        tapNativeMenuItem(app.buttons["library-sort"],revealing: app.buttons["Name"]); tapNativeMenuItem(app.buttons["Name"])
         XCTAssertLessThan(app.buttons["edit-waypoint-Alpha"].frame.minY,app.buttons["edit-waypoint-Bravo"].frame.minY)
     }
     func testNightSearchSortAndClearKeepFieldCardsReadable() {

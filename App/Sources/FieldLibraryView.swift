@@ -404,10 +404,13 @@ struct TrackDetailView: View {
                 protectedPassword = password; showingProtectedExport = false
             }
         }
-        .fileExporter(isPresented: Binding(get: { export != nil }, set: { if !$0 { export = nil } }), document: export,
-                      contentType: export?.contentType ?? .gridFixGPX, defaultFilename: export?.filename ?? "track") { result in
-            if case let .failure(error) = result { status = error.localizedDescription }
-            export = nil
+        .background {
+            if let export {
+                FieldFileExportPresentation(document: export,onDismiss: { self.export = nil }) { result in
+                    if case let .failure(error) = result { status = error.localizedDescription }
+                    self.export = nil
+                }
+            }
         }
     }
     private func prepareExport(password: String? = nil) {

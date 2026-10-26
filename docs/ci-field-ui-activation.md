@@ -424,3 +424,53 @@ record counts. The missing filename footer did not reproduce. This OS version
 matches the hosted runner, but its runtime build differs from hosted 23C54 and
 the local Xcode is newer; hosted run 40366024560 remains the full verification
 gate. Only the new owned phone was booted after the prior phone was shut down.
+
+## Hosted run 40366024560 on 90391ec
+
+All three shards completed with UI failures; core484 and native259 pass. Six of
+the previous eight failure cases now pass in hosted CI (backup/protected files,
+TAK preview, lane reopening and target selection). Seven cases fail in this run:
+large GPX export, the combined track export, PDF filename focus, favourite Name
+sorting, backtrack route-card opening, repeated route waypoint generation and
+lane backup export.
+
+Field recordings distinguish a real presentation symptom from harness issues:
+the large GPX Save picker opens without a filename footer, whereas the track
+case has a visible, focused filename and keyboard at the helper's frame failure.
+The lane backup hierarchy likewise has a Save picker but no filename field.
+Selected field videos/hierarchies were fetched using ZIP byte ranges into
+`/tmp/gridfix-ci96-field-ui/`; its large-file final frame is
+`/tmp/gridfix-ci96-large-failure.png`. The full ZIP download was superseded;
+its partial `/tmp/gridfix-ci96-field.zip` is not a complete artifact.
+
+The production candidate registers each complete field export document in a
+separate presenter before raising its presentation flag. It keeps filename/type/
+bytes immutable while Files closes, instead of changing the optional document
+and type from the presentation binding. This addresses a possible SwiftUI state
+lifetime race; the hosted-only missing-footer cause is not proven yet. PDF's
+existing fixed-document exporter stays unchanged. A real native cancellation/
+repeat-export workflow has been added to validate the new presenter lifecycle.
+
+The harness candidate uses native filename coordinates when selection menus
+change, preserves keyboard-focus and exact cleared/replacement value checks,
+and acknowledges sort/route-choice/route-card menu opening before continuing.
+No case, assertion, content count or test shard is excluded. Local replay and
+final hosted confirmation remain pending for this candidate.
+
+The full candidate replay in `/tmp/gridfix-ci96-native-export-repair.xcresult`
+passes all 268 native cases (four unstaged opt-in local skips) and all 13 selected
+UI cases. This includes all seven hosted failures, protected GPX/KML retry/cancel/
+import/relaunch, backup restoration and real native export cancellation followed
+by another saved/reopened file. Final Release passes in
+`/tmp/gridfix-ci96-native-export-release.log`. The cancellation review and night
+single-track preview screenshots were inspected. The new cancellation case now
+requires its exact complete fixture counts (three waypoints, one route, one
+track); that strengthened assertion is being replayed separately. Hosted
+confirmation of the missing-footer candidate remains open.
+
+The strengthened native-cancel case also passes at final source in
+`/tmp/gridfix-ci96-native-export-cancel-final.xcresult`: after dismissing Files
+without saving, the next export reopens with all three waypoints, one route and
+one track. No active test/diagnostic process was interrupted in either candidate
+run; both xcodebuild parents exit 0. Fake feed/link helpers stopped, simulator
+location cleared and the single owned phone was shut down before the push.

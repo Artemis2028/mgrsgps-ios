@@ -398,3 +398,27 @@ and real simulator drawing/direct dragging/background crossing and interrupted
 worker cold relaunch pass. Final Release passes. See
 [boundary startup evidence](boundary-startup.md). Physical locked-screen alerts,
 ordinary boundary writes and the other remaining gates are still open.
+
+## Native export presentation and hosted follow-up
+
+Hosted run 40366024560 finished failed with seven UI cases, while core484 and
+native259 pass. The earlier TAK preview, target selection, lane reopening and
+backup/protected-file failure cases now pass there. Field video confirms one
+Save picker without its filename footer and another with a visible, focused
+field rejected by the harness. The field export document/type/name now remain
+complete and immutable in a dedicated presenter before Files opens and while it
+closes. Menu/input acknowledgement repairs retain all original content checks.
+
+At final local source, all 268 native cases pass (four opt-in local skips), all
+13 selected UI cases pass, and the strengthened native cancellation/re-export
+case separately verifies exact complete fixture counts. Phone/watch/widget
+Release passes. Day/night import and cancellation review screenshots were
+inspected. Full hosted green and the hosted-only missing-footer explanation
+remain open; [CI evidence](ci-field-ui-activation.md) records the bounded claim.
+
+The Wear companion phone fork separately ports the agreed 30-second/1-km TAK
+sharing policy, rejecting unknown accuracy and nanosecond future/expiry edges
+and retaining actual CoT accuracy. It is pushed as e6a702f to the companion draft:
+458 phone and 34 watch tests, Debug and TAK-enabled unsigned Release builds pass.
+This is policy/build evidence, not a new live server exchange. The watch remains
+a read-only remote-layer receiver; physical and paired guidance gates remain.

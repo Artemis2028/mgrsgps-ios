@@ -281,17 +281,18 @@ struct WaypointsView: View {
                 return result
             }.id(request.id)
         }
-        .fileExporter(isPresented: Binding(
-            get: { exportFile != nil },
-            set: { if !$0 { exportFile = nil } }
-        ), document: exportFile, contentType: exportFile?.contentType ?? .data, defaultFilename: exportFile?.filename ?? "gridfix") { result in
-            if case .failure(let error) = result {
-                let failure = error as NSError
-                if failure.domain != NSCocoaErrorDomain || failure.code != NSUserCancelledError {
-                    status = "Export failed: " + error.localizedDescription
+        .background {
+            if let exportFile {
+                FieldFileExportPresentation(document: exportFile,onDismiss: { self.exportFile = nil }) { result in
+                    if case .failure(let error) = result {
+                        let failure = error as NSError
+                        if failure.domain != NSCocoaErrorDomain || failure.code != NSUserCancelledError {
+                            status = "Export failed: " + error.localizedDescription
+                        }
+                    }
+                    self.exportFile = nil
                 }
             }
-            exportFile = nil
         }
         .fileImporter(isPresented: $showingImporter,
                       allowedContentTypes: importKind == .backup ? [.zip,.gridFixProtectedBackup,.data] : [.gridFixProtectedBackup, .gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],

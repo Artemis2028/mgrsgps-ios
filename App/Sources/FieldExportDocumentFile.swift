@@ -32,3 +32,19 @@ struct FieldExportDocumentFile: FileDocument {
     }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
 }
+
+/// Register a complete, immutable document before asking SwiftUI to present
+/// Files. Clearing the owner's optional request must not change the document
+/// or content type while the native exporter is still completing its work.
+struct FieldFileExportPresentation: View {
+    let document: FieldExportDocumentFile
+    let onDismiss: () -> Void
+    let onCompletion: (Result<URL,Error>) -> Void
+    @State private var showing = false
+    var body: some View {
+        Color.clear.frame(width: 0,height: 0)
+            .fileExporter(isPresented: $showing,document: document,contentType: document.contentType,defaultFilename: document.filename,onCompletion: onCompletion)
+            .task { showing = true }
+            .onChange(of: showing) { if !$0 { onDismiss() } }
+    }
+}
