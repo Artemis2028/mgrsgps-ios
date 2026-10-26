@@ -13,6 +13,66 @@ public struct TrackPoint: Equatable, Sendable, Codable {
 }
 
 public enum TrackCodec {
+    public struct LocalSummary: Equatable, Sendable {
+        public let count: Int
+        public let distanceM: Double
+        public let last: TrackPoint?
+    }
+
+    /// Local logs are independent of the bounded external backup contract.
+    /// Statistics validate every row without retaining a second point array.
+    public static func summarizeLocal(_ data: Data) throws -> LocalSummary {
+        var count = 0,distance = 0.0,last: TrackPoint?
+        try visitLocal(data) { point in
+            if let previous = last {
+                distance += Geodesy.navInfo(fromLat: previous.lat,fromLon: previous.lon,toLat: point.lat,toLon: point.lon).distanceMeters
+            }
+            count += 1; last = point
+        }
+        return .init(count: count,distanceM: distance,last: last)
+    }
+
+    public static func decodeLocal(_ data: Data) throws -> [TrackPoint] {
+        var points: [TrackPoint] = []
+        try visitLocal(data) { points.append($0) }
+        return points
+    }
+
+    private static func visitLocal(_ data: Data,point: (TrackPoint) throws -> Void) throws {
+        try Task.checkCancellation()
+        try data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+            var start = 0,i = 0
+            func consume(_ end: Int) throws {
+                guard end > start else { return }
+                guard let line = String(bytes: bytes[start..<end],encoding: .utf8) else { throw BackupError.notABackup("Invalid track point file") }
+                if line.allSatisfy(\.isWhitespace) { return }
+                try point(parseLine(line[...]))
+            }
+            while i < bytes.count {
+                // Preserve the old String.isNewline reader, including legacy
+                // Unicode separators; canonical appends still use ASCII LF.
+                let length: Int
+                if (10...13).contains(bytes[i]) { length = 1 }
+                else if bytes[i] == 0xc2,i+1 < bytes.count,bytes[i+1] == 0x85 { length = 2 }
+                else if bytes[i] == 0xe2,i+2 < bytes.count,bytes[i+1] == 0x80,(0xa8...0xa9).contains(bytes[i+2]) { length = 3 }
+                else { length = 0 }
+                if length > 0 { try consume(i); i += length; start = i }
+                else { i += 1 }
+                if i % 65536 == 0 { try Task.checkCancellation() }
+            }
+            try consume(bytes.count)
+        }
+        try Task.checkCancellation()
+    }
+
+    private static func parseLine(_ line: Substring) throws -> TrackPoint {
+        let parts = line.split(whereSeparator: \.isWhitespace)
+        guard (3...4).contains(parts.count), let lat = Double(parts[0]), let lon = Double(parts[1]),
+              let time = Int64(parts[2]), time >= 0,
+              let altitude = parts.count == 4 ? Double(parts[3]) : -32768,
+              altitude.isFinite, validCoordinates(lat,lon) else { throw BackupError.notABackup("Malformed track point") }
+        return TrackPoint(lat: lat,lon: lon,time: time,altitudeMeters: altitude > -32767 ? altitude : nil)
+    }
     public static func validID(_ id: String) -> Bool {
         UUID(uuidString: id)?.uuidString.lowercased() == id
     }
@@ -23,14 +83,7 @@ public enum TrackCodec {
         }
         let lines = text.split(whereSeparator: \.isNewline).filter { !$0.allSatisfy(\.isWhitespace) }
         guard lines.count <= 250_000 else { throw BackupError.notABackup("Too many track points") }
-        return try lines.map { line in
-            let parts = line.split(whereSeparator: \.isWhitespace)
-            guard (3...4).contains(parts.count), let lat = Double(parts[0]), let lon = Double(parts[1]),
-                  let time = Int64(parts[2]), time >= 0,
-                  let altitude = parts.count == 4 ? Double(parts[3]) : -32768,
-                  altitude.isFinite, validCoordinates(lat, lon) else { throw BackupError.notABackup("Malformed track point") }
-            return TrackPoint(lat: lat, lon: lon, time: time, altitudeMeters: altitude > -32767 ? altitude : nil)
-        }
+        return try lines.map(parseLine)
     }
 
     public static func encode(_ points: [TrackPoint]) throws -> Data {

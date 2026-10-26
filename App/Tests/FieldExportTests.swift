@@ -4,6 +4,18 @@ import GridFixCore
 
 @MainActor
 final class FieldExportTests: XCTestCase {
+    func testIndividualLongTrackGPXExportsEveryPointBeyondBackupCountLimit() async throws {
+        let count = 250_001,id = UUID().uuidString.lowercased()
+        let bytes = Data(String(repeating: "24.0000000 54.0000000 0 -32768\n",count: count).utf8)
+        let track = Backup.TrackMeta(id: id,name: "Long CAFÉ & patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: count)
+        let result = try await FieldExportPreparation.prepare(.track(track,bytes))
+        let counter = ExportedTrackPointCounter(),parser = XMLParser(data: result.data)
+        parser.delegate = counter
+        XCTAssertTrue(parser.parse()); XCTAssertEqual(counter.points,count)
+        XCTAssertEqual(counter.tracks,1)
+        XCTAssertTrue(String(decoding: result.data,as: UTF8.self).contains("Long CAFÉ &amp; patrol"))
+        XCTAssertThrowsError(try TrackCodec.decode(bytes),"External backup decoder remains bounded")
+    }
     private func fixture() throws -> Backup.Document {
         var document = Backup.Document(); document.hasSettings = false
         document.waypoints = [.init(id: "point",name: "Hidden point",lat: 24,lon: 54,visible: false)]
@@ -188,6 +200,14 @@ final class FieldExportTests: XCTestCase {
         work.cancel(); gate.signal()
         do { _ = try await work.value; XCTFail("Cancelled encoding returned bytes") }
         catch { XCTAssertTrue(error is CancellationError) }
+    }
+}
+
+private final class ExportedTrackPointCounter: NSObject, XMLParserDelegate {
+    var points = 0,tracks = 0
+    func parser(_ parser: XMLParser,didStartElement elementName: String,namespaceURI: String?,qualifiedName qName: String?,attributes attributeDict: [String:String] = [:]) {
+        if elementName == "trkpt" { points += 1 }
+        if elementName == "trk" { tracks += 1 }
     }
 }
 

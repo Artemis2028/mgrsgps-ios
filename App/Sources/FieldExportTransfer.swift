@@ -40,7 +40,7 @@ enum FieldExportPreparation {
         let data: Data, filename: String
         switch request {
         case let .track(track,bytes):
-            let points = try TrackCodec.decode(bytes)
+            let points = try TrackCodec.decodeLocal(bytes)
             try Task.checkCancellation()
             data = Data(GPX.build(waypoints: [],tracks: [.init(name: track.name,points: points)]).utf8)
             let safe = track.name.replacingOccurrences(of: "[^A-Za-z0-9 _-]",with: "_",options: .regularExpression).trimmingCharacters(in: .whitespaces)

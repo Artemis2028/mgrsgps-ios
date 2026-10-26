@@ -33,15 +33,14 @@ enum FieldDataDisk {
             guard let ref = envelope.logs[id], validName(ref.name) else { throw BackupError.notABackup("Invalid saved track filename") }
             let path = directory.appendingPathComponent(ref.name)
             let attributes = try path.resourceValues(forKeys: [.fileSizeKey,.isRegularFileKey,.isSymbolicLinkKey])
-            guard attributes.isRegularFile == true, attributes.isSymbolicLink != true,
-                  (attributes.fileSize ?? Int.max) <= ZipArchive.entryLimit else { throw BackupError.notABackup("Invalid saved track file or track exceeds 16 MB") }
+            guard attributes.isRegularFile == true, attributes.isSymbolicLink != true else { throw BackupError.notABackup("Invalid saved track file") }
             let bytes = try Data(contentsOf: path,options: .mappedIfSafe)
             guard digest(bytes) == ref.sha256 else { throw BackupError.notABackup("Saved track checksum failed; original data was kept") }
-            let points = try TrackCodec.decode(bytes)
+            let summary = try TrackCodec.summarizeLocal(bytes)
             document.trackFiles[id] = bytes
             // Retain the old ZIP reader's authoritative recomputation policy.
-            document.tracks[i].pointCount = points.count
-            document.tracks[i].distanceM = TrackCodec.distance(points)
+            document.tracks[i].pointCount = summary.count
+            document.tracks[i].distanceM = summary.distanceM
         }
         return (document,envelope.logs)
     }
@@ -63,7 +62,7 @@ enum FieldDataDisk {
                     // edits must not parse/hash/rewrite the whole finished library.
                     next[track.id] = ref
                 } else {
-                    _ = try TrackCodec.decode(bytes) // Per-log limit, never a combined cap.
+                    _ = try TrackCodec.summarizeLocal(bytes)
                     let hash = digest(bytes)
                     // Never reuse an obsolete filename: post-commit deletion cannot
                     // remove a later restore, even when IDs/point bytes are identical.

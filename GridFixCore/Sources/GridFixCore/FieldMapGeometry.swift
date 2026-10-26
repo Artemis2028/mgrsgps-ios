@@ -48,7 +48,7 @@ public enum FieldMapGeometry {
             add(geometry, id: graphic.id, name: graphic.name, kind: kind, points: points)
         }
         for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
-            let points = try TrackCodec.decode(document.trackFiles[track.id] ?? Data()).map { GeoPoint(lat: $0.lat, lon: $0.lon) }
+            let points = try TrackCodec.decodeLocal(document.trackFiles[track.id] ?? Data()).map { GeoPoint(lat: $0.lat, lon: $0.lon) }
             guard points.count >= 2 else { continue }
             trackCount += 1
             add(line(points), id: track.id, name: track.name, kind: "track", points: points)

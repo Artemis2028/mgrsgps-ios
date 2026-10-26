@@ -38,18 +38,23 @@ promise that storage is reclaimed while iOS suspends the process.
 
 ## Bounds and interchange
 
-The combined local ZIP limits are removed. Existing per-log application bounds
-(250,000 points / 16 MB), 10,000 record validation and a 64 MB metadata index bound
-remain. Android's local reader does not impose the same per-log bounds; that is
-an application implementation difference, not an iOS permission limitation.
-Startup currently validates/loads referenced logs synchronously and can be slow
-for very large libraries; startup and dense-map performance remain work.
+The combined local ZIP limits and the former per-log 250,000-point / 16 MB caps
+are removed. Android's local reader at release/1.1.0 also has no such per-log
+cap. The 10,000-record validation and 64 MB metadata index bound remain.
+Startup validates referenced logs on the field-library worker; each log is
+memory-mapped when possible, checksummed and scanned row by row. Count/distance
+recomputation no longer builds a complete point array or splits the complete
+log into strings. Views needing all coordinates still materialize them, so
+very large/dense map performance and lazy geometry remain work. Available
+storage, address space and OS execution time still constrain real devices.
 
 External backup/GPX/ATAK contracts and protected-file limits are unchanged. A
 local library may exceed a single whole-backup limit; backup export reports an
-error rather than dropping tracks. Individual track export remains available
-within its existing bounds. Android Backup.kt also enforces its archive limits;
-this change does not silently enlarge the shared wire/file contract.
+error rather than dropping tracks. Individual GPX export uses the complete local
+log, matching Android TrackRepository.buildGpx, including tracks beyond the
+backup point limit. Whole-library exports/imports, protected-file and watch-sync
+budgets remain unchanged; a long exported GPX is not a promise that a bounded
+importer can reopen it. Android Backup.kt also enforces its archive limits.
 
 ## Validation
 
@@ -84,3 +89,20 @@ finished all 234 cases before its auxiliary simctl diagnose stalled. That exact
 diagnostic child was stopped, allowing xcodebuild to finalize successfully. One
 follow-up started before diagnostic exit; subsequent simulator runs were serialized.
 No incomplete test bundle is presented as a passing run.
+
+## Long local logs, 26 October
+
+The recorder now appends without the external backup point/byte cap, while
+retaining its bounded live preview, per-point sync and stop-on-write-failure
+behavior. Recovery and finished-store validation scan every complete row,
+including the old reader's legacy newline forms, with cancellation checks.
+Malformed trailing rows still fail instead of accepting a valid prefix.
+Local map geometry, focus and backtrack decode the local log independently of
+the bounded interchange reader. Watch omissions remain explicit at its existing
+2 MiB source budget.
+
+The regression reconstructs a 300,001-point, 17,400,058-byte interrupted log,
+finalizes it, saves it, clears the journal, reopens all bytes/points and moves its
+folder successfully. Full backup export still rejects that document. A separate
+native individual GPX export counts all 250,001 output points with XMLParser.
+See the current parity checklist for final run evidence and remaining gates.

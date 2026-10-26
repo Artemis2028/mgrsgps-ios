@@ -38,7 +38,7 @@ public final class TrackRecordingJournal {
     private var session: Session?
     private var startedUptime: TimeInterval = 0
     private var lastSample: RecordingSample?
-    private var pointCount = 0, byteCount = 0
+    private var pointCount = 0
     private var distance = 0.0
     private var preview: [GeoPoint] = []
     public private(set) var isRecording = false
@@ -75,7 +75,7 @@ public final class TrackRecordingJournal {
         try Self.writeProtected(Data(), to: logURL)
         try Self.writeProtected(JSONEncoder().encode(next), to: metadataURL)
         session = next; startedUptime = uptime; isRecording = true
-        lastSample = nil; pointCount = 0; byteCount = 0; distance = 0; preview = []
+        lastSample = nil; pointCount = 0; distance = 0; preview = []
         return summary!
     }
 
@@ -98,9 +98,6 @@ public final class TrackRecordingJournal {
         }
         do {
             let bytes = try TrackCodec.encode([p])
-            guard pointCount < 250_000, byteCount + bytes.count <= 16 * 1024 * 1024 else {
-                throw BackupError.notABackup("Recording reached the supported track size; saved points were kept")
-            }
             let handle = try FileHandle(forWritingTo: logURL)
             defer { try? handle.close() }
             let offset = try handle.seekToEnd()
@@ -112,7 +109,7 @@ public final class TrackRecordingJournal {
                 try? handle.truncate(atOffset: offset); try? handle.synchronize()
                 throw error
             }
-            byteCount += bytes.count; pointCount += 1; distance += step; lastSample = sample
+            pointCount += 1; distance += step; lastSample = sample
             preview.append(GeoPoint(lat: p.lat, lon: p.lon))
             if preview.count > 4000 { preview = Array(preview.suffix(2000)) }
             return summary
@@ -127,25 +124,25 @@ public final class TrackRecordingJournal {
     public func finish(now: Int64, name: String? = nil, discardEmpty: Bool = false) throws -> Backup.Document? {
         isRecording = false
         guard var stored = session else { return nil }
-        let size = try FileManager.default.attributesOfItem(atPath: logURL.path)[.size] as? NSNumber
-        guard let size, size.intValue <= 16 * 1024 * 1024 else { throw BackupError.notABackup("Invalid recording log; journal kept") }
-        var data = try Data(contentsOf: logURL)
+        let attributes = try logURL.resourceValues(forKeys: [.isRegularFileKey,.isSymbolicLinkKey])
+        guard attributes.isRegularFile == true,attributes.isSymbolicLink != true else { throw BackupError.notABackup("Invalid recording log; journal kept") }
+        var data = try Data(contentsOf: logURL,options: .mappedIfSafe)
         if !data.isEmpty, data.last != 10 {
             data = data.lastIndex(of: 10).map { Data(data[...$0]) } ?? Data()
             try Self.writeProtected(data, to: logURL)
         }
-        let points = try TrackCodec.decode(data)
-        if points.isEmpty && discardEmpty { return nil }
+        let summary = try TrackCodec.summarizeLocal(data)
+        if summary.count == 0 && discardEmpty { return nil }
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty { stored.name = trimmed }
-        if stored.endedAt == nil { stored.endedAt = max(now, stored.startedAt, points.last?.time ?? 0) }
+        if stored.endedAt == nil { stored.endedAt = max(now, stored.startedAt, summary.last?.time ?? 0) }
         try Self.writeProtected(JSONEncoder().encode(stored), to: metadataURL)
         session = stored
         let meta = Backup.TrackMeta(id: stored.id, name: stored.name, startedAt: stored.startedAt,
-                                   endedAt: stored.endedAt!, distanceM: TrackCodec.distance(points), pointCount: points.count, folder: stored.folder)
+                                   endedAt: stored.endedAt!, distanceM: summary.distanceM, pointCount: summary.count, folder: stored.folder)
         var document = Backup.Document(tracks: [meta], trackFiles: [stored.id: data])
         document.hasSettings = false
-        try Backup.validate(document)
+        try Backup.validate(document,includingTrackFiles: false)
         return document
     }
 
@@ -153,7 +150,7 @@ public final class TrackRecordingJournal {
     public func clear() throws {
         isRecording = false
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
-        session = nil; lastSample = nil; preview = []; pointCount = 0; byteCount = 0; distance = 0
+        session = nil; lastSample = nil; preview = []; pointCount = 0; distance = 0
     }
 
     private static func writeProtected(_ data: Data, to url: URL) throws {

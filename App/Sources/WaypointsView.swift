@@ -687,7 +687,7 @@ struct WaypointsView: View {
             guard fieldData.document.tracks.contains(where: { $0.id == track.id }) else { throw LibraryActionError.partial("This track is no longer saved.") }
             let bytes = fieldData.document.trackFiles[track.id] ?? Data()
             let points = try await Task.detached(priority: .userInitiated) {
-                try TrackCodec.decode(bytes).map { GeoPoint(lat: $0.lat,lon: $0.lon) }
+                try TrackCodec.decodeLocal(bytes).map { GeoPoint(lat: $0.lat,lon: $0.lon) }
             }.value
             guard !points.isEmpty else { throw LibraryActionError.partial("This track has no saved points to show.") }
             if store.folders.first(where: { $0.name == track.folder })?.visible == false {

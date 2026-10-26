@@ -2,6 +2,48 @@ import XCTest
 @testable import GridFixCore
 
 final class TrackRecordingTests: XCTestCase {
+    func testLongInterruptedLogFinalizesSavesAndReopensBeyondBackupLimits() throws {
+        let dir = try directory(),j = try journal(dir)
+        let id = try XCTUnwrap(j.summary?.id),count = 300_001
+        let bytes = Data(String(repeating: "24.0000000 54.0000000 1700000000000 12345.678901234567890\n",count: count).utf8)
+        XCTAssertGreaterThan(bytes.count,16 * 1024 * 1024)
+        let file = dir.appendingPathComponent("LiveRecording/points.txt")
+        try bytes.write(to: file)
+        let recovered = try TrackRecordingJournal(directory: dir)
+        let document = try XCTUnwrap(recovered.finish(now: start+1000))
+        XCTAssertEqual(document.tracks.first?.pointCount,count)
+        XCTAssertEqual(document.tracks.first?.distanceM,0)
+        XCTAssertEqual(document.trackFiles[id],bytes)
+        XCTAssertThrowsError(try Backup.exportZip(document),"External backup bounds remain independent")
+        let store = FieldDataStore(directory: dir)
+        try store.saveRecordedTrack(document); try recovered.clear()
+        let reopened = FieldDataStore(directory: dir)
+        XCTAssertNil(reopened.loadError); XCTAssertEqual(reopened.document.tracks.first?.pointCount,count)
+        XCTAssertEqual(reopened.document.trackFiles[id],bytes)
+        XCTAssertEqual(try reopened.points(for: id).count,count)
+        try reopened.moveTrack(id,to: "Long patrols")
+        XCTAssertEqual(FieldDataStore(directory: dir).document.tracks.first?.folder,"Long patrols")
+    }
+    func testLocalSummaryChecksEveryRowAndMatchesCanonicalDistanceWithoutBackupCap() throws {
+        let points: [TrackPoint] = [.init(lat: 24,lon: 54,time: 1000),.init(lat: 24.001,lon: 54,time: 2000,altitudeMeters: 12)]
+        let data = try TrackCodec.encode(points)
+        let summary = try TrackCodec.summarizeLocal(data)
+        XCTAssertEqual(summary.count,points.count); XCTAssertEqual(summary.last,points.last)
+        XCTAssertEqual(summary.distanceM,TrackCodec.distance(points),accuracy: 0.00001)
+        XCTAssertEqual(try TrackCodec.decodeLocal(data),points)
+        XCTAssertEqual(try TrackCodec.summarizeLocal(Data()).count,0)
+        XCTAssertEqual(try TrackCodec.decodeLocal(Data(" \r\n24 54 1000\r24.001 54 2000 12\n".utf8)),points)
+        for newline in ["\n","\r\n","\r","\u{000b}","\u{000c}","\u{0085}","\u{2028}","\u{2029}"] {
+            let legacy = Data(("24 54 1000"+newline+"24.001 54 2000 12"+newline).utf8)
+            XCTAssertEqual(try TrackCodec.decodeLocal(legacy),try TrackCodec.decode(legacy))
+        }
+        let long = Data(String(repeating: "24 54 0\n",count: 250_001).utf8)
+        XCTAssertEqual(try TrackCodec.summarizeLocal(long).count,250_001)
+        XCTAssertThrowsError(try TrackCodec.decode(long))
+        for bad in [Data("not a point\n".utf8),Data([0xff,10]),Data("91 0 0\n".utf8),Data("0 0 -1\n".utf8)] {
+            XCTAssertThrowsError(try TrackCodec.summarizeLocal(long+bad),"Invalid trailing rows must never be skipped")
+        }
+    }
     private let start: Int64 = 1_700_000_000_000
     private func directory() throws -> URL {
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

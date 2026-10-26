@@ -68,8 +68,9 @@ Android's orphan-finalization policy.
 `TrackRecordingJournal` uses `Documents/LiveRecording/session.json` and
 `points.txt`. All journal operations run on one serial utility queue. Each
 accepted row is written and synchronized before updating live state. Appends
-are bounded to the backup-compatible 250,000 points / 16 MB per log; hitting a
-limit stops recording and keeps the saved log. Metadata and point files use
+have no backup-derived point/byte cap, matching Android local recording. The
+live preview stays bounded and a write failure stops recording while retaining
+earlier rows. Metadata and point files use
 Complete Until First User Authentication protection, as does the final archive,
 so they remain accessible after the screen locks.
 
@@ -83,8 +84,8 @@ incomplete final row; a malformed complete row or metadata file is preserved
 and reported, with explicit discard available.
 
 Finished tracks now use an atomic v2 index and independent point logs, removing
-the former combined archive budget. The per-log application bounds above still
-apply. This is an application limit, not an iOS restriction. See
+the former combined archive budget. The former per-log backup bounds are also
+removed; storage/memory and execution limits still apply on real devices. See
 [finished-track storage](finished-track-storage.md) for migration and export bounds.
 
 ## Verification

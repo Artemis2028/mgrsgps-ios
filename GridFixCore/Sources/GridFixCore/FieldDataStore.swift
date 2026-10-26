@@ -108,7 +108,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         do { try requireReady() } catch { lock.unlock(); throw error }
         let bytes = document.trackFiles[trackID] ?? Data()
         lock.unlock()
-        return try TrackCodec.decode(bytes)
+        return try TrackCodec.decodeLocal(bytes)
     }
 
     public enum Edit: Sendable {
@@ -205,9 +205,11 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return nil }
             next.tracks[i].folder = Folders.canonical(folder)
         case .saveRecordedTrack(let recording):
-            try Backup.validate(recording)
+            try Backup.validate(recording,includingTrackFiles: false)
             guard recording.tracks.count == 1, let track = recording.tracks.first,
                   let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
+            guard Set(recording.trackFiles.keys) == [track.id] else { throw BackupError.notABackup("Invalid finished recording files") }
+            _ = try TrackCodec.summarizeLocal(bytes)
             if next.tracks.contains(where: { $0.id == track.id }) {
                 guard next.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
                 return nil
