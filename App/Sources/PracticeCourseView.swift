@@ -16,8 +16,16 @@ struct PracticeCourseView: View {
     @State private var showReset = false
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     private var rowBackground: Color { settings.nightMode ? .black : Color(white: 0.12) }
-    private var eligible: [String] { waypoints.folders.map(\.name).filter { folder in waypoints.waypoints.filter { $0.folder == folder }.count >= 2 } }
+    private var eligibleFolderNames: [String] {
+        // Count once across the library rather than allocating a filtered
+        // waypoint array for every folder on each location-driven redraw.
+        // Hidden points still count, and the saved folder order is retained.
+        var counts: [String:Int] = [:]
+        for point in waypoints.waypoints { counts[point.folder,default: 0] += 1 }
+        return waypoints.folders.compactMap { counts[$0.name,default: 0] >= 2 ? $0.name : nil }
+    }
     var body: some View {
+        let eligible = mode == 1 ? eligibleFolderNames : []
         NavigationStack {
             Form {
                 if let error = course.error {

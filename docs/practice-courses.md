@@ -86,3 +86,17 @@ Practice-session startup and damaged-session preservation/reset now prepare on
 workers, retaining the saved run and navigation lock until durable acknowledgement.
 See [startup and recovery contract](course-startup-recovery.md) for current
 validation and the remaining physical/performance gates.
+
+### Folder setup rendering, 26 October
+
+Folder eligibility now uses one point-count pass and preserves saved folder
+order, including hidden checkpoints. It is computed once per form render only
+in folder mode; random setup does not scan the saved library. This removes the
+per-folder filtered-array allocations during location updates. Course scoring,
+checkpoint order and persistence are unchanged.
+
+The existing folder lock/end/cold-relaunch, random setup and night form workflows
+pass on iOS 26.2 in `/tmp/gridfix-practice-eligibility-ui.xcresult`; the night
+progress/coordinate screenshot was inspected. Final phone/watch/widget Release
+passes in `/tmp/gridfix-practice-eligibility-release.log`. This does not establish
+very-large course-history performance or physical/background scoring validation.

@@ -362,3 +362,16 @@ protected-file cases. Together with the lane, target and TAK preview replay,
 all eight hosted failure cases pass locally. Native filename focus, scoped
 search results, actual Files selection and dismissal remain exercised; full
 hosted green and older-runtime filename-footer verification are still open.
+
+## Practice setup rendering and older-runtime Files replay
+
+Practice folder setup now counts the library once per folder-mode render,
+preserving folder order and hidden checkpoints. Random setup avoids that scan.
+Existing folder lock/relaunch/end, random setup and readable night form workflows
+pass on iOS 26.2, as does the final Release build. Course history/list scaling
+and the other performance work above remain separate.
+
+All seven native Files cases also pass at pushed head `90391ec` on iOS 26.2
+(23C52); missing filename UI did not reproduce locally. Hosted run 40366024560
+remains in progress. The available local runtime build and Xcode differ from
+the hosted environment; see the bounded claim in [CI evidence](ci-field-ui-activation.md).

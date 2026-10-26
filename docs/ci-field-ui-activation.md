@@ -415,3 +415,12 @@ All seven tests finished before the owned supplementary `simctl diagnose` child
 finalized successfully (exit 0). Fake location/link feeders were stopped and the
 simulator location override cleared. The older-runtime filename-footer gate
 remains open for the iOS 26.2 replay and the next hosted run.
+
+The same seven Files cases also pass on the newly installed iOS 26.2 arm64
+runtime (23C52) at pushed head `90391ec`, in
+`/tmp/gridfix-ci96-ios262-files.xcresult` (exit 0, no diagnostic interruption).
+Inspected older-runtime night GPX/KML previews retain readable text and exact
+record counts. The missing filename footer did not reproduce. This OS version
+matches the hosted runner, but its runtime build differs from hosted 23C54 and
+the local Xcode is newer; hosted run 40366024560 remains the full verification
+gate. Only the new owned phone was booted after the prior phone was shut down.
