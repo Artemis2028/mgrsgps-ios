@@ -50,7 +50,7 @@ public enum ATAKPackage {
         }
         try ZipArchive.visit(data,limits: .interchange,beforeEntry: { try budget.consume($0,$1) }) { name,bytes in
             guard !name.hasSuffix("/") else { return }
-            if name == Backup.manifestName { throw BackupError.notABackup("This is a GridFix backup. Choose Import backup to restore its library and settings.") }
+            if name == Backup.manifestName { throw BackupError.notABackup("This is an MGRS GPS backup. Choose Import backup to restore its library and settings.") }
             let ext = (name as NSString).pathExtension.lowercased()
             switch ext {
             case "cot":

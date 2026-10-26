@@ -66,7 +66,7 @@ struct ImportedMarkerEditor: View {
             })) {
                 Text("None").tag(""); ForEach(MilGpsSymbols.characters,id: \.self) { Text($0).tag($0) }
             }.disabled(decoded == nil || decoded?.shape == .cross)
-            Button("Use GridFix symbol appearance") { metadata.color = nil; metadata.milgpsSymbolCode = nil }
+            Button("Use MGRS GPS symbol appearance") { metadata.color = nil; metadata.milgpsSymbolCode = nil }
         }
     }
 }

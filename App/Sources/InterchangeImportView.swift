@@ -66,7 +66,7 @@ struct InterchangeImportView: View {
                     }
                     if let backup = backupPreview {
                         VStack(alignment: .leading,spacing: 8) {
-                            Text("GridFix backup preview").font(.headline)
+                            Text("MGRS GPS backup preview").font(.headline)
                             Text("\(backup.waypoints.count) waypoints · \(backup.graphics.count) graphics/routes · \(backup.tracks.count) tracks")
                                 .accessibilityIdentifier("backup-import-counts")
                             if !backup.quietBoundaries.isEmpty {
@@ -89,7 +89,7 @@ struct InterchangeImportView: View {
                             if preview.recordCount == 0 { Text("No supported records found. Nothing will be imported.") }
                             Text("Existing records and settings are kept. Matching records are reviewed before import. Reimporting unchanged content keeps saved edits.")
                             Text(preview.format.importNote).font(.footnote)
-                            Text("Use a GridFix backup to preserve library symbols and settings.").font(.footnote)
+                            Text("Use an MGRS GPS backup to preserve library symbols and settings.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }
                     if let message = importCommit.failure ?? message { Text(message).font(.footnote).accessibilityIdentifier("interchange-message") }

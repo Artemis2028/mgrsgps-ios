@@ -1,5 +1,7 @@
 # MGRS GPS — iOS
 
+The app is named **MGRS GPS** on Android, iOS, watchOS and Wear OS.
+
 Current work compares against Android **release/1.1.0** (`482b417`). See
 [the remaining parity inventory](docs/ios-parity-release-1.1.0.md). Earlier work targets Android **1.0.4**. See [the current parity roadmap](docs/ios-parity-1.0.4.md)
 for implemented features, validation, and remaining work.

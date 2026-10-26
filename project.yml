@@ -65,7 +65,7 @@ targets:
         GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: app.gridfix.protected-backup
-            UTTypeDescription: Protected GridFix file
+            UTTypeDescription: Protected MGRS GPS file
             UTTypeConformsTo:
               - public.data
             UTTypeTagSpecification:
@@ -168,7 +168,7 @@ targets:
     info:
       path: ActivityWidget/Info.generated.plist
       properties:
-        CFBundleDisplayName: GridFix Live Activities
+        CFBundleDisplayName: MGRS GPS Live Activities
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -198,11 +198,11 @@ targets:
     info:
       path: Watch/Info.generated.plist
       properties:
-        CFBundleDisplayName: GridFix
+        CFBundleDisplayName: MGRS GPS
         WKApplication: true
         WKCompanionAppBundleIdentifier: app.gridfix.ios
         WKRunsIndependentlyOfCompanionApp: true
-        NSLocationWhenInUseUsageDescription: GridFix uses your location while open to show your current grid and bearing to your selected waypoint.
+        NSLocationWhenInUseUsageDescription: MGRS GPS uses your location while open to show your current grid and bearing to your selected waypoint.
         UIAppFonts:
           - antonio.ttf
           - fira_mono_regular.ttf

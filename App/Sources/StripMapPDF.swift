@@ -54,7 +54,7 @@ enum StripMapPDF {
         }
         guard plans.last?.totals == true else { throw RouteCard.Failure.invalid("Route notes exceed the printable page. Shorten the route name and retry.") }
         let format = UIGraphicsPDFRendererFormat()
-        format.documentInfo = [kCGPDFContextTitle as String:title,kCGPDFContextCreator as String:"GridFix iOS",kCGPDFContextSubject as String:"Route schematic and navigation leg table"]
+        format.documentInfo = [kCGPDFContextTitle as String:title,kCGPDFContextCreator as String:"MGRS GPS iOS",kCGPDFContextSubject as String:"Route schematic and navigation leg table"]
         let renderer = UIGraphicsPDFRenderer(bounds: page,format: format)
         var cancelled = false
         let data = renderer.pdfData { context in
@@ -84,7 +84,7 @@ enum StripMapPDF {
                     text("TOTAL  \(report.totalDistance)   \(report.totalPaces) paces",x: margin,y: summaryY+14,font: boldFont)
                     paragraph(noteText,at: .init(x: margin,y: summaryY+26),font: smallFont)
                 }
-                text("GridFix - route card",x: margin,y: 824,font: smallFont,color: .darkGray)
+                text("MGRS GPS - route card",x: margin,y: 824,font: smallFont,color: .darkGray)
                 let footer = "Page \(number+1) of \(plans.count)"
                 text(footer,x: page.width-margin-size(footer,font: smallFont).width,y: 824,font: smallFont,color: .darkGray)
             }

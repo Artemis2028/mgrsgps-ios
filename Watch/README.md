@@ -1,6 +1,6 @@
-# GridFix for Apple Watch
+# MGRS GPS for Apple Watch
 
-The launcher uses Android's GridFix crosshair mark, generated into the native
+The launcher uses Android's MGRS GPS crosshair mark, generated into the native
 watch AppIcon catalog. See [icon source, regeneration and runtime evidence](../docs/app-icons.md).
 
 Native SwiftUI companion, watchOS 10+. Swipe between **Position**, **Navigate** and **Map**. Selecting Map opens a full-screen map cover outside the page pager, so map pan/zoom gestures do not compete with page swipes. Native close returns to the Map launcher; its Open map button reopens the cover.

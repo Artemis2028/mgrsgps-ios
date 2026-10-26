@@ -37,7 +37,7 @@ final class BoundaryAlerts: BoundaryAlerting {
         }
         let content = UNMutableNotificationContent()
         content.title = "Boundary crossed"
-        content.body = "You crossed outside \(name). Open GridFix to check your position."
+        content.body = "You crossed outside \(name). Open MGRS GPS to check your position."
         content.sound = .default
         content.interruptionLevel = .timeSensitive
         let id = "boundary-\(token.uuidString)"
@@ -99,7 +99,7 @@ final class BoundaryMonitor: ObservableObject {
     }
     enum StartupFailure: LocalizedError {
         case changed
-        var errorDescription: String? { "Saved boundaries changed. Reopen GridFix to reload them before trying again." }
+        var errorDescription: String? { "Saved boundaries changed. Reopen MGRS GPS to reload them before trying again." }
     }
     fileprivate struct SourceStamp: Equatable, Sendable {
         let size: UInt64,inode: UInt64,volume: UInt64

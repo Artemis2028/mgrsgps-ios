@@ -90,7 +90,7 @@ enum InterchangeFileReader {
     static func preview(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String],password: String? = nil) throws -> InterchangePreview {
         switch try review(url,format: format,knownFolders: knownFolders,password: password) {
         case .interchange(let preview): return preview
-        case .backup: throw BackupError.notABackup("This file is a GridFix backup. Use Import backup to restore it.")
+        case .backup: throw BackupError.notABackup("This file is an MGRS GPS backup. Use Import backup to restore it.")
         }
     }
     static func review(_ url: URL,format: TextInterchangeFormat?,knownFolders: [String],password: String? = nil) throws -> InterchangeFileReview {
