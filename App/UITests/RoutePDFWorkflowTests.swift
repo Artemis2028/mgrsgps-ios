@@ -32,7 +32,7 @@ final class RoutePDFWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 8),.completed)
         XCTAssertTrue(app.buttons["export-strip-map-pdf"].waitForExistence(timeout: 5))
         app.buttons["export-strip-map-pdf"].tap()
-        let name = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(name.waitForExistence(timeout: 10))
+        let name = app.textFields["DOCPicker.filenameTextField"]; XCTAssertTrue(name.waitForExistence(timeout: 10),app.debugDescription)
         let filename = "gridfix-pdf-ui-"+UUID().uuidString.prefix(8)
         replaceTextInput(name,String(filename))
         XCTAssertEqual(name.value as? String,String(filename))

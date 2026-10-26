@@ -117,16 +117,36 @@ Screenshots: `/tmp/gridfix-watch-tak-day.png`, `gridfix-watch-tak-night.png`,
 `gridfix-watch-tak-phone-off-relaunch-night.png` and
 `gridfix-watch-tak-expired-phone-off-night.png` in `/tmp/`.
 
-### Wear test setup gate
+### Verified Wear paired transport round
 
-Android's current implementation passes 454 phone and 34 Wear tests, phone
-Release builds with TAK enabled and disabled, and Wear Release/lint. A dedicated
-720×1280 / 2 GiB phone AVD was created from the already installed API 37 Play Store
-image. The actual Android Studio pairing assistant reaches its required Google
-Pixel Watch installation step. Google Play is at Sign in, so account setup is
-left to the user; no credentials were supplied or new account created. Paired
-Wear Data Layer delivery remains unverified. This is a concrete setup gate, not
-a claim that Wear OS cannot synchronize. See [Google's pairing requirements](https://developer.android.com/training/wearables/get-started/connect-phone).
+The user completed Google Pixel Watch setup and paired the dedicated API 37
+Play Store phone with the 192 dp round Wear API 34 emulator. Both Google Data
+Layer node graphs report the expected connected peer. Matching debug builds
+were installed; no account credentials were handled by the test.
+
+On 26 October, the phone's explicit synthetic CoT preview published four items
+through the real `/gridfix/tak/v1` Data Layer path. The watch receiver persisted
+the matching publisher/revision, names and complete geometries. Its inspected
+night info screen listed TEAM ONE, OP CAFÉ, bent ROAD and NAI 2, four unexpired.
+A phone clear then reached the watch as an enabled empty scene. Local empty map,
+settings/target and inactive-guide payloads stayed semantically unchanged,
+excluding their normal publisher timestamps/revisions; local digit/night
+preferences remained unchanged. This paired round does not establish preservation
+of a populated local library; the earlier standalone test covers that separately.
+
+A new four-item scene with 45-second stale deadlines was received. The dedicated
+phone emulator was shut down, and the watch process relaunched. The inspected
+watch screen showed zero unexpired items while its raw cache retained exactly
+the same four items, receipt anchors and revision. No receiver cache was injected
+in this paired round and no server was used. Both dedicated Android emulators
+were shut down afterward. Evidence: `/tmp/gridfix-wear-paired-info.png`,
+`/tmp/gridfix-wear-paired-expired.png`, and before/after receiver XML snapshots
+under `/tmp/gridfix-wear-paired-*.xml`.
+
+This closes the account/setup blocker for simulator TAK transport. Physical
+radio/background/battery checks, paired guidance lifecycle checks and a populated
+local/remote preservation round remain. Android's current implementation passes
+454 phone and 34 Wear tests, both phone Release variants and Wear Release/lint.
 
 The phone debug build has an explicit `watchTakPreview` intent (show/expire/clear)
 that parses fixed synthetic CoT into the real in-memory TAK scene, without

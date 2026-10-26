@@ -86,6 +86,7 @@ Both maps now retain a separate remote scene, without server configuration,
 watch connections or outbound sharing. Complete items are retained or omitted;
 watch expiry never renews an unchanged stale time. Actual paired Apple delivery,
 hide/clear and phone-off expiry pass. Wear round-screen day/night and cache
-relaunch/expiry pass with an explicit standalone fixture; paired Data Layer
-delivery awaits Google Play account setup on the dedicated test phone or a
-physical pair. See [contract, budgets and evidence](watch-tak-layer.md).
+relaunch/expiry pass with an explicit standalone fixture. The user subsequently
+paired the dedicated Android simulators: real Data Layer receipt/rendering, clear
+and phone-emulator-off expiry now pass too. Paired populated-local preservation,
+guidance lifecycle and physical radio/background checks remain. See [contract, budgets and evidence](watch-tak-layer.md).

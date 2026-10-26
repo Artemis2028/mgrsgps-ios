@@ -16,14 +16,24 @@ extension XCTestCase {
     /// Older runtimes report a scrolled row as hittable beneath the navigation
     /// bar; tapping its stale centre can activate Done instead of the switch.
     func revealSettingsControl(_ element: XCUIElement,in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
-        for _ in 0..<8 {
+        for _ in 0..<12 {
             let top = app.navigationBars.firstMatch.frame.maxY+12, bottom = app.frame.maxY-60
+            let scroll = app.scrollViews.allElementsBoundByIndex.last(where: { $0.isHittable }) ?? app.scrollViews.firstMatch
+            let origin = app.frame.origin
+            let middle = (top+bottom)/2
+            var movement = -(bottom-top)*0.45
             if element.exists {
                 let frame = element.frame
                 if frame.height > 0 && frame.minY >= top && frame.maxY <= bottom && element.isHittable { return }
-                if frame.midY < top { app.scrollViews.firstMatch.swipeDown() }
-                else { app.scrollViews.firstMatch.swipeUp() }
-            } else { app.scrollViews.firstMatch.swipeUp() }
+                movement = min((bottom-top)*0.45,max(-(bottom-top)*0.45,middle-frame.midY))
+            }
+            // A full swipe can overshoot this short status row in both
+            // directions indefinitely. Move toward the viewport centre with
+            // a bounded drag and hold, so release does not add momentum.
+            let x = max(app.frame.minX+20,scroll.frame.minX+20)
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: x-origin.x,dy: middle-origin.y))
+            let end = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: x-origin.x,dy: middle+movement-origin.y))
+            start.press(forDuration: 0.1,thenDragTo: end,withVelocity: .slow,thenHoldForDuration: 0.3)
         }
         XCTFail("Settings control never entered the visible content: \(element.debugDescription)",file: file,line: line)
     }
@@ -87,10 +97,24 @@ extension XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 8),file: file,line: line)
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
             let frame = element.frame, screen = XCUIApplication().frame
-            return frame.minX.isFinite && frame.minY.isFinite && frame.width > 0 && frame.height > 0 && screen.contains(CGPoint(x: frame.minX+frame.width*horizontal,y: frame.midY))
+            guard frame.minX.isFinite && frame.minY.isFinite && frame.width > 0 && frame.height > 0 else { return false }
+            // Hosted Files can expose a valid UIKit control beneath an app
+            // window whose AX frame is {inf,inf,0,0}. Its native hit test is
+            // still usable; never subtract that invalid application origin.
+            if !screen.minX.isFinite || !screen.minY.isFinite || screen.isEmpty { return element.isHittable }
+            return screen.contains(CGPoint(x: frame.minX+frame.width*horizontal,y: frame.midY))
         },object: element)
-        XCTAssertEqual(XCTWaiter.wait(for: [visible],timeout: 5),.completed,file: file,line: line)
+        guard XCTWaiter.wait(for: [visible],timeout: 5) == .completed else {
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = "control-frame-failure"; shot.lifetime = .keepAlways; add(shot)
+            XCTFail("Control has no usable visible frame: \(element.debugDescription)\nApplication frame: \(XCUIApplication().frame)",file: file,line: line)
+            return
+        }
         let app = XCUIApplication(), frame = element.frame, origin = app.frame.origin
+        if !origin.x.isFinite || !origin.y.isFinite || app.frame.isEmpty {
+            element.coordinate(withNormalizedOffset: .init(dx: horizontal,dy: 0.5)).tap()
+            return
+        }
         app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: frame.minX+frame.width*horizontal-origin.x,dy: frame.midY-origin.y)).tap()
     }
 }

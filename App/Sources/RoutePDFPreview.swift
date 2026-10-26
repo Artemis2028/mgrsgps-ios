@@ -33,10 +33,12 @@ struct RoutePDFPreview: View {
                     Button("Save") { exporting = true }.accessibilityIdentifier("export-strip-map-pdf")
                 }
             }
-            .fileExporter(isPresented: $exporting,document: StripMapDocumentFile(data: request.data),contentType: .pdf,defaultFilename: StripMapPDF.filename(request.name)) { result in
-                if case .failure(let error) = result { exportError = "Export failed: "+error.localizedDescription }
-            }
         }.tint(FieldPalette(night: night).accent).fieldSheetAppearance()
+        // Own the system exporter on the presentation root, outside the PDF
+        // content/navigation toolbar and its separate ShareLink presentation.
+        .fileExporter(isPresented: $exporting,document: StripMapDocumentFile(data: request.data),contentType: .pdf,defaultFilename: StripMapPDF.filename(request.name)) { result in
+            if case .failure(let error) = result { exportError = "Export failed: "+error.localizedDescription }
+        }
     }
 }
 private struct PDFPages: UIViewRepresentable {

@@ -27,7 +27,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Independent finished logs remove the combined archive cap; per-log application bounds and orphan-maintenance/startup performance remain work; physical course/guide validation; startup and damaged-session recovery IO |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Startup reads, damaged-session preservation/reset and older library actions and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
-| Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement; separate bounded read-only remote scene on both watches | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired scene delivery and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
+| Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement; separate bounded read-only remote scene on both watches | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired populated-local preservation/guidance and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs with local regression evidence | Full hosted CI pass, app icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
 See [hosted field UI repairs](ci-field-ui-activation.md) for the five older-runtime cases now passing locally; a full new hosted run is still required.
@@ -205,3 +205,22 @@ post-commit cleanup. Core validation includes 750,000 points across three logs,
 more than 32 MB and 513 tracks. Per-log application bounds, startup cost, guarded
 crash-orphan maintenance, external backup bounds and physical storage pressure
 remain explicit implementation/validation work.
+
+
+## Paired Wear and CI follow-up, 26 October
+
+The user completed the dedicated Android simulator pairing. Actual Wear Data
+Layer TAK receipt, inspected accented-name/item info, clear and stale-cache
+expiry with the phone emulator shut down now pass. This closes the Google Play
+setup gate; populated local/remote preservation, paired guidance lifecycle and
+physical radio/background checks remain. Both Android emulators were shut down
+when the round finished. See [watch TAK evidence](watch-tak-layer.md).
+
+Hosted run 40273435731 is terminal: map passes, field has four UI failures and
+library hit its job deadline. Local replay passes protected backup, CSV/GeoJSON,
+malformed/night preview and recording Live Activity lifecycle. The final Files
+helper handles valid controls under an infinite AX application window; Settings
+uses bounded drags, PDF export belongs to the presentation root, and per-test
+execution timeouts preserve diagnostics and later test coverage. No assertion or
+UI class was removed. Final export replay and final-head hosted status are
+recorded in [CI evidence](ci-field-ui-activation.md).

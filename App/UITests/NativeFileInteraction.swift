@@ -29,9 +29,11 @@ extension XCTestCase {
         func scroll(down: Bool) {
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
             let bottom = tabs.exists ? tabs.frame.minY : files.frame.maxY
-            let height = bottom-top, origin = app.frame.origin
-            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.midX-origin.x,dy: top+height*(down ? 0.25 : 0.75)-origin.y))
-            let end = app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.midX-origin.x,dy: top+height*(down ? 0.75 : 0.25)-origin.y))
+            let height = bottom-top, origin = files.frame.origin
+            // Files may expose an infinite application-window origin while
+            // its collection view and controls retain valid UIKit frames.
+            let start = files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.width/2,dy: top+height*(down ? 0.25 : 0.75)-origin.y))
+            let end = files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: files.frame.width/2,dy: top+height*(down ? 0.75 : 0.25)-origin.y))
             // A fast swipe leaves the target moving after XCTest's idle wait.
             // Drag only in the unobscured viewport, then hold before releasing.
             start.press(forDuration: 0.1,thenDragTo: end,withVelocity: .slow,thenHoldForDuration: 0.3)

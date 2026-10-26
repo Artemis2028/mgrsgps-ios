@@ -240,8 +240,10 @@ Run 40273435731 map shard passes. Its completed field job 121411790203 fails
 four UI cases: FieldExportWorkflowTests lines 17/26 (native filename replacement
 and reopening the saved track), LiveActivityWorkflowTests line 12 (status reveal
 at y786.7…802.4 oscillates near the helper's lower margin), and
-RoutePDFWorkflowTests line 35 (native filename field not found). Library remains
-running at this checkpoint. No full hosted pass is claimed. The earlier lane
+RoutePDFWorkflowTests line 35 (native filename field not found). Library later
+hit the 90-minute job limit after protected-backup filename presentation failed,
+GeoJSON reported an unresponsive main thread, and the next malformed-input case
+never finished. That job is cancelled by its deadline, not a passing run. No full hosted pass is claimed. The earlier lane
 selection and pinned-orientation cases pass in this hosted run.
 
 The 673 MB field artifact exceeds the connector's 512 MB download limit. It was
@@ -250,3 +252,53 @@ xcresult, logs and screenshot exports. Follow-up repair will preserve file
 save/reopen counts, route persistence and ActivityKit lifecycle assertions. The
 local course and independent-log checkpoints remain unpushed while this run
 finishes; a pass on 9bb27fc would not validate those changes.
+
+
+### Follow-up from the completed run
+
+The exported large-library failure's AX description shows the native filename
+control at `{97,778.3,151,22}` under an application window at `{inf,inf,0,0}`.
+Its recording visibly contains the Save as footer. The former helper rejected
+this valid native control because it tested containment against that invalid
+application frame. Taps now retain finite-control and hit-test checks, but use
+the native element coordinate when the application origin is invalid. Files
+scrolling also anchors to its collection view instead of the application origin.
+A failed frame wait records a whole-display screenshot and AX/frame diagnostics,
+then returns without sending a bogus tap.
+
+The Live Activity status helper now moves toward the viewport centre with a
+bounded slow drag and hold instead of full swipes that overshoot in both
+directions. The complete-row visibility requirement remains. The PDF hosted
+recording reaches the native save browser but its Save as footer is absent;
+the PDF exporter now belongs to the presentation root outside the PDF content
+and its ShareLink toolbar. The filename failure also captures the full AX tree.
+Hosted confirmation of this presentation change remains required.
+
+All six hosted XCTest commands enable per-test execution limits (300-second
+default, 600-second maximum). A stuck test should produce a bounded diagnostic
+failure rather than consume the whole job and prevent later cases from running.
+The same UI classes, imports/exports, exact filenames, record counts and lifecycle
+assertions remain; no failing workflow was excluded.
+
+`/tmp/gridfix-ci-library-replay.xcresult` passes five workflows: protected backup
+with wrong-password rejection/restore, CSV duplicate/persistence, GeoJSON native
+save/reopen, malformed input/night preview, and real-location recording Live
+Activity lifecycle. This includes the bounded Settings drag; it precedes the
+subsequent infinite-window Files fallback and root PDF exporter changes. The
+final Files replay is recorded below after completion. Six CI Python script
+regressions, actionlint, YAML parsing and all 16 shell-block syntax checks pass.
+The first YAML attempt used Python without PyYAML installed; the successful
+check uses the system Ruby YAML parser. Final phone/watch/widget simulator
+Release passes in `/tmp/gridfix-ci90-release.log`.
+
+
+The final `/tmp/gridfix-ci90-files-final.xcresult` passes all five export cases:
+protected backup/password failure/restore; 5,000-waypoint/1,000-graphic GPX
+save/reopen; both chosen-track night exports; GeoJSON save/reopen; and route PDF
+Share/Save/relaunch. The parent xcodebuild finalized with exit 0 before any next
+XCTest/simulator work. This run includes the infinite-window Files fallback and
+root PDF presenter. A subsequent test-build compiles the final failure-only
+screenshot/AX diagnostics without repeating unchanged workflows. Exported PDF,
+readable night CSV preview and visible Live Activities screenshots were inspected.
+Final-hosted confirmation remains open; this is local evidence, not a claim that
+the intermittent hosted PDF footer problem can no longer occur.

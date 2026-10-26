@@ -126,6 +126,8 @@ jobs:
           }
           trap cleanup_route EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj \
             -scheme MGRSGPS \
             -configuration Debug \
@@ -151,6 +153,8 @@ jobs:
           }
           trap cleanup_freshness_feed EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/fix-freshness-tests.xcresult \
@@ -173,6 +177,8 @@ jobs:
           }
           trap cleanup_movement_feed EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
             -configuration Debug -destination "id=$DEST" \
             -derivedDataPath build -resultBundlePath build/movement-tests.xcresult \
@@ -196,6 +202,8 @@ jobs:
           }
           trap cleanup_boundary_route EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/boundary-tests.xcresult \
@@ -217,6 +225,8 @@ jobs:
           }
           trap cleanup_navigation_route EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/navigation-tests.xcresult \
@@ -238,6 +248,8 @@ jobs:
           }
           trap cleanup_practice_route EXIT
           xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
             -destination "id=$DEST" -derivedDataPath build \
             -resultBundlePath build/practice-tests.xcresult \
