@@ -3,7 +3,7 @@
 Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
-The release branch was rechecked on 25 October and still points to this commit.
+The release branch was rechecked through GitHub on 26 October and still points to this commit.
 The user also requested the subsequent development work: see the
 [25 October Android audit](android-overnight-2026-10-25.md) for navigation
 lanes, protected backups, map-button preferences, fixes and the experimental
@@ -306,3 +306,13 @@ are covered without network requests. All 251 native cases pass (four unstaged
 opt-in skips), as do seven cold-library/map/terrain UI workflows and the final
 phone/watch/widget Release build. See [contract and evidence](map-startup.md).
 Other session/settings startup reads and lazy finished-log work remain open.
+
+
+The map-centre grid now places zone/square above the full easting/northing,
+with vertical space for wrapping and the unchanged canonical VoiceOver label.
+This fixes the truncated coordinate exposed by the day viewshed screenshot.
+All three map-tool workflows, offline-map relaunch and offline LOS/profile/viewshed
+pass with the new readout: `/tmp/gridfix-map-grid-readability.xcresult`. Final
+phone/watch/widget Release passes: `/tmp/gridfix-map-grid-readability-final-release.log`.
+
+The final offline-map day/night workflow also passes with screenshots inspected: `/tmp/gridfix-map-grid-final.xcresult`.

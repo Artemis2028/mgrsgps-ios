@@ -224,3 +224,7 @@ Normal launch now prepares saved-map preferences/catalog and cache objects on th
 startup worker before map rendering. Offline-only policy is installed before any
 tile fetch, and changed source files trigger retry rather than stale publication.
 See [startup contract and evidence](map-startup.md).
+
+The coordinate HUD displays the complete zone/square and easting/northing on
+separate rows, retaining the canonical full coordinate for VoiceOver and Go to
+checks. This prevents tool columns from truncating the actual grid.

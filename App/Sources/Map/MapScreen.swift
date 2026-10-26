@@ -88,6 +88,14 @@ struct MapScreen: View {
     }
     private var selected: Waypoint? { visible.first { $0.id == selectedID } }
 
+    private var centreGrid: MGRS.Parts? {
+        MGRS.parts(lat: centre.latitude,lon: centre.longitude,digits: settings.mgrsDigits)
+    }
+    private var centreGridReadout: String {
+        guard let grid = centreGrid else { return "Outside \(settings.gridName) coverage" }
+        return "\(grid.gzd) \(grid.square)\n\(grid.easting) \(grid.northing)"
+    }
+
     private var mapAttribution: String {
         var text = maps.selectedMap?.attribution ?? maps.selectedLayer.attribution
         if maps.preferences.hillshade, maps.selectedMap == nil, maps.layers.contains(where: { $0.key == "hillshade" }) {
@@ -150,9 +158,10 @@ struct MapScreen: View {
             VStack(spacing: 12) {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(MGRS.parts(lat: centre.latitude, lon: centre.longitude,
-                                        digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
+                        Text(centreGridReadout)
                             .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                            .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
+                            .accessibilityLabel(centreGrid?.full ?? centreGridReadout)
                             .accessibilityIdentifier("map-centre-grid")
                         Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                             .font(.caption2.weight(.semibold)).tracking(1)
