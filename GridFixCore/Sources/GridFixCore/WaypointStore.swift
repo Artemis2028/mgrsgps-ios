@@ -35,6 +35,54 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         load()
     }
 
+    /// Read and normalize before constructing live app services. A store is
+    /// never exposed as a temporarily empty, writable waypoint library.
+    public struct PreparedStartup: Sendable {
+        fileprivate let destination: URL
+        fileprivate let snapshot: Snapshot
+        fileprivate let stamp: RecoveryStamp?
+        fileprivate let error: String?
+    }
+    public enum StartupFailure: LocalizedError {
+        case changed
+        public var errorDescription: String? { "Saved waypoints changed while opening. Try again." }
+    }
+    public static func prepareStartup(directory: URL? = nil) throws -> PreparedStartup {
+        try Task.checkCancellation()
+        let dir = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
+        let result = readStartup(dir.appendingPathComponent("waypoints-v1.json"))
+        try Task.checkCancellation()
+        return result
+    }
+    public init(startup: PreparedStartup) throws {
+        fileURL = startup.destination
+        // Metadata only: decoding/folder normalization already happened on the
+        // worker. Never overwrite a replacement file with the older snapshot.
+        if startup.error == nil {
+            if let stamp = startup.stamp {
+                guard (try? RecoveryStamp.read(fileURL)) == stamp else { throw StartupFailure.changed }
+            } else if FileManager.default.fileExists(atPath: fileURL.path) { throw StartupFailure.changed }
+        }
+        waypoints = startup.snapshot.waypoints; folders = startup.snapshot.folders
+        selectedId = startup.snapshot.selectedId; loadError = startup.error
+    }
+    private static func readStartup(_ file: URL) -> PreparedStartup {
+        let empty = Snapshot(waypoints: [],folders: [.init(name: Folders.defaultFolder)],selectedId: nil)
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            return .init(destination: file,snapshot: empty,stamp: nil,error: nil)
+        }
+        do {
+            let stamp = try RecoveryStamp.read(file)
+            let snap = try JSONDecoder().decode(Snapshot.self,from: Data(contentsOf: file,options: .mappedIfSafe))
+            guard try RecoveryStamp.read(file) == stamp else { throw StartupFailure.changed }
+            let points = snap.waypoints.map { point -> Waypoint in var point = point; point.folder = Folders.canonical(point.folder); return point }
+            let value = Snapshot(waypoints: points,folders: mergeFolderList(stored: snap.folders,referenced: points.map(\.folder)),selectedId: snap.selectedId)
+            return .init(destination: file,snapshot: value,stamp: stamp,error: nil)
+        } catch {
+            return .init(destination: file,snapshot: empty,stamp: nil,error: "Cannot read saved waypoints. The original file has been kept.")
+        }
+    }
+
     /// In-memory store for tests — never touches the filesystem.
     public static func inMemory(waypoints: [Waypoint] = [],
                                 folders: [FolderInfo] = []) -> WaypointStore {
@@ -797,22 +845,9 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     private func load() {
         lock.lock(); defer { lock.unlock() }
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            folders = [FolderInfo(name: Folders.defaultFolder)]; return
-        }
-        let snap: Snapshot
-        do { snap = try JSONDecoder().decode(Snapshot.self,from: Data(contentsOf: fileURL)) }
-        catch {
-            loadError = "Cannot read saved waypoints. The original file has been kept."
-            folders = [FolderInfo(name: Folders.defaultFolder)]; return
-        }
-        waypoints = snap.waypoints.map {
-            var w = $0
-            w.folder = Folders.canonical(w.folder)
-            return w
-        }
-        folders = Self.mergeFolderList(stored: snap.folders, referenced: waypoints.map(\.folder))
-        selectedId = snap.selectedId
+        let prepared = Self.readStartup(fileURL)
+        waypoints = prepared.snapshot.waypoints; folders = prepared.snapshot.folders
+        selectedId = prepared.snapshot.selectedId; loadError = prepared.error
     }
 
     private func persist() {

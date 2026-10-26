@@ -27,7 +27,7 @@ final class MapLayerWorkflowTests: XCTestCase {
             } else if control.frame.midY > 650 { app.swipeUp() }
             else { break }
         }
-        control.coordinate(withNormalizedOffset: CGVector(dx: 0.93,dy: 0.5)).tap()
+        setNativeSwitch(control,to: (control.value as? String) != "1")
     }
     func testOfflineImportedMapGridAndSelectionSurviveRelaunch() {
         let name = app.staticTexts["map-layer-name"]

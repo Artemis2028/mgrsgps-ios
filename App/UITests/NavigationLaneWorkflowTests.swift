@@ -41,8 +41,8 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         openLibrary(); app.switches["Visible on map"].coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["Hidden on map · guidance still enabled"].waitForExistence(timeout: 5))
         app.navigationBars["Navigation lanes"].buttons["Done"].tap(); app.buttons["Waypoints"].tap()
-        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export backup"])
         let filename = app.textFields["DOCPicker.filenameTextField"]
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export backup"],revealing: filename)
         XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
         let name = "lane-backup-ui-"+String(UUID().uuidString.prefix(8))
         replaceTextInput(filename,name); saveNativeFile(in: app)

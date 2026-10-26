@@ -37,13 +37,13 @@ final class BoundaryWorkflowTests: XCTestCase {
         // Drag the segment handle to create a new point directly on the map.
         let handle = app.buttons["boundary-midpoint-0"]
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
-        handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.50,dy: 0.44)))
+        handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.50,dy: 0.44)),withVelocity: .slow,thenHoldForDuration: 0.3)
         let added = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","5 points"),object: app.staticTexts["boundary-point-count"])
         XCTAssertEqual(XCTWaiter.wait(for: [added],timeout: 5),.completed)
         XCTAssertFalse(app.buttons["Insert kink"].exists)
         let before = app.staticTexts["boundary-selected-coordinate"].label
         let kink = app.buttons["boundary-point-1"]
-        kink.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.56,dy: 0.48)))
+        kink.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.56,dy: 0.48)),withVelocity: .slow,thenHoldForDuration: 0.3)
         let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: app.staticTexts["boundary-selected-coordinate"])
         XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 5),.completed,app.debugDescription)
         capture("boundary-drawing-kink")

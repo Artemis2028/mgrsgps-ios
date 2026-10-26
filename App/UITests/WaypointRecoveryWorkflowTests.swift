@@ -25,7 +25,7 @@ final class WaypointRecoveryWorkflowTests: XCTestCase {
     }
     private func run(night: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting", "-uiTestWaypointRecovery", "-startTab", "waypoints"]
+        app.launchArguments = ["-uiTesting", "-uiTestWaypointRecovery", "-uiTestDeferredFieldLoad", "-startTab", "waypoints"]
         if night { app.launchArguments.append("-uiTestWaypointRecoveryNight") }
         app.launch()
         let warning = app.staticTexts["waypoint-library-load-error"], recovery = app.buttons["waypoint-library-recovery"]

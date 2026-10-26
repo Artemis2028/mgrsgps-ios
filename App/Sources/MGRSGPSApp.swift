@@ -2,46 +2,88 @@ import SwiftUI
 import GridFixCore
 
 @main
+@MainActor
 struct MGRSGPSApp: App {
     @UIApplicationDelegateAdaptor(FieldAppDelegate.self) private var appDelegate
-    @StateObject private var location = LocationService()
-    @StateObject private var waypoints: WaypointStore
-    @StateObject private var settings: AppSettings
-    @StateObject private var fieldData: FieldDataStore
-    @StateObject private var recorder: TrackRecorder
-    @StateObject private var maps: MapLayerStore
-    @StateObject private var terrain: TerrainSession
-    @StateObject private var boundaries: BoundaryMonitor
-    @StateObject private var navigation: NavigationSession
-    @StateObject private var lanes: NavigationLaneStore
+    @StateObject private var startup = FieldAppStartup()
+    var body: some Scene { WindowGroup { FieldStartupView(startup: startup) } }
+}
 
-    @StateObject private var liveActivities: LiveActivityManager
-    @StateObject private var tak: TAKSession
-    @StateObject private var practice: PracticeSession
+@MainActor
+struct FieldStartupView: View {
+    @ObservedObject var startup: FieldAppStartup
+    @State private var released = false
+    var body: some View {
+        Group {
+            if let stores = startup.stores {
+                RootView(initialURLs: startup.pendingURLs)
+                    .environmentObject(stores.location)
+                    .environmentObject(stores.waypoints)
+                    .environmentObject(stores.settings)
+                    .environmentObject(stores.fieldData)
+                    .environmentObject(stores.recorder)
+                    .environmentObject(stores.maps)
+                    .environmentObject(stores.terrain)
+                    .environmentObject(stores.boundaries)
+                    .environmentObject(stores.navigation)
+                    .environmentObject(stores.lanes)
+                    .environmentObject(stores.practice)
+                    .environmentObject(stores.liveActivities)
+                    .environmentObject(stores.tak)
+                    .environment(\.fieldNight, stores.settings.nightMode)
+                    .preferredColorScheme(.dark)
+                    .statusBarHidden(false)
+            } else {
+                VStack(spacing: 14) {
+                    if startup.error == nil { ProgressView().tint(FieldPalette(night: startup.settings.nightMode).accent) }
+                    Text(startup.error == nil ? "Opening saved waypoints…" : "Could not open waypoints").font(.headline).accessibilityIdentifier("waypoint-startup-loading")
+                    Text(startup.error ?? "Loading your library and selected target before navigation starts.").font(.footnote).multilineTextAlignment(.center)
+                    if startup.error != nil { Button("Try again") { Task { await startup.load() } }.accessibilityIdentifier("waypoint-startup-retry") }
+                    #if DEBUG
+                    if startup.holdsForUITest {
+                        Text("Queued links \(startup.pendingURLs.count)").font(.caption).accessibilityIdentifier("waypoint-startup-queued-links")
+                        Button("Continue loading") { released = true }.accessibilityIdentifier("waypoint-startup-continue")
+                    }
+                    #endif
+                }.foregroundStyle(FieldPalette(night: startup.settings.nightMode).ink).padding(24).fieldChrome()
+                    .padding(16).frame(maxWidth: .infinity,maxHeight: .infinity)
+                    .background(Blackout.background.ignoresSafeArea())
+                    .environment(\.fieldNight,startup.settings.nightMode)
+                    .preferredColorScheme(.dark)
+            }
+        }
+        .onOpenURL { url in if startup.stores == nil { startup.enqueue(url) } }
+        .task(id: released) {
+            #if DEBUG
+            if startup.holdsForUITest && !released { return }
+            #endif
+            await startup.load()
+        }
+    }
+}
+
+/// Constructed once, after the complete waypoint snapshot is available. The
+/// workspace never attaches navigation/TAK/watch to a provisional empty store.
+@MainActor
+final class FieldAppStores {
+    let location = LocationService()
+    let waypoints: WaypointStore
+    let settings: AppSettings
+    let fieldData: FieldDataStore
+    let recorder: TrackRecorder
+    let maps: MapLayerStore
+    let terrain: TerrainSession
+    let boundaries: BoundaryMonitor
+    let navigation: NavigationSession
+    let lanes: NavigationLaneStore
+
+    let liveActivities: LiveActivityManager
+    let tak: TAKSession
+    let practice: PracticeSession
 
     private let watchBridge: WatchPhoneBridge
 
-    init() {
-        var directory: URL?
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
-            // UI automation uses its own store and never wipes field data.
-            let testDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests", isDirectory: true)
-            if !ProcessInfo.processInfo.arguments.contains("-keepUITestData") {
-                try? FileManager.default.removeItem(at: testDirectory)
-            }
-            try? FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
-            directory = testDirectory
-        }
-        #endif
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecovery"),
-           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
-            try? Data("SYNTHETIC unreadable CAFÉ waypoint library\n".utf8).write(to: directory.appendingPathComponent("waypoints-v1.json"), options: .atomic)
-        }
-        #endif
-        let waypointStore = WaypointStore(directory: directory)
-        let settingsStore = AppSettings(directory: directory)
+    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool) {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
@@ -57,8 +99,8 @@ struct MGRSGPSApp: App {
         #if DEBUG
         WatchPhoneBridge.seedUITest(store: waypointStore, settings: settingsStore)
         #endif
-        _waypoints = StateObject(wrappedValue: waypointStore)
-        _settings = StateObject(wrappedValue: settingsStore)
+        self.waypoints = waypointStore
+        self.settings = settingsStore
         let mapStore: MapLayerStore
         #if DEBUG
         if OfflineDownloadValidation.enabled, let directory { mapStore = OfflineDownloadValidation.makeStore(directory: directory) }
@@ -66,17 +108,13 @@ struct MGRSGPSApp: App {
         #else
         mapStore = MapLayerStore(directory: directory)
         #endif
-        _maps = StateObject(wrappedValue: mapStore)
-        _terrain = StateObject(wrappedValue: TerrainSession(sampler: mapStore.terrainSampler))
+        self.maps = mapStore
+        self.terrain = TerrainSession(sampler: mapStore.terrainSampler)
         let boundaryStore = BoundaryMonitor(directory: directory)
-        _boundaries = StateObject(wrappedValue: boundaryStore)
+        self.boundaries = boundaryStore
         // UI fixture creation is synchronous setup. Normal launches (including
         // Debug) and the explicit cold-load regression read saved logs on a worker.
-        #if DEBUG
-        let seedFieldFixtures = ProcessInfo.processInfo.arguments.contains("-uiTesting") && !ProcessInfo.processInfo.arguments.contains("-uiTestDeferredFieldLoad")
-        #else
-        let seedFieldFixtures = false
-        #endif
+        let seedFieldFixtures = seedFixtures
         let fieldStore = FieldDataStore(directory: directory,loadImmediately: seedFieldFixtures)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKSharing") {
@@ -113,7 +151,7 @@ struct MGRSGPSApp: App {
             takSession.seedWatchPreview(hidden:takWatchArgs.contains("-uiTestWatchTAKHidden"),cleared:takWatchArgs.contains("-uiTestWatchTAKClear"),expiry:takWatchArgs.contains("-uiTestWatchTAKExpiry"))
         }
         #endif
-        _tak = StateObject(wrappedValue: takSession)
+        self.tak = takSession
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty, fieldStore.document.graphics.isEmpty {
@@ -172,7 +210,7 @@ struct MGRSGPSApp: App {
         WatchPhoneBridge.seedMapUITest(store: waypointStore, field: fieldStore, boundaries: boundaryStore)
         #endif
         let laneStore = NavigationLaneStore(directory: directory)
-        _lanes = StateObject(wrappedValue: laneStore)
+        self.lanes = laneStore
         #if DEBUG
         let watchArgs = ProcessInfo.processInfo.arguments
         if watchArgs.contains("-uiTesting"),watchArgs.contains("-uiTestWatchMapLanes"),!watchArgs.contains("-uiTestWatchMapClear") {
@@ -181,7 +219,7 @@ struct MGRSGPSApp: App {
             Task { _ = try? await laneStore.restore([fixture]) }
         }
         #endif
-        _fieldData = StateObject(wrappedValue: fieldStore)
+        self.fieldData = fieldStore
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPractice"), waypointStore.waypoints.isEmpty {
             let far = ProcessInfo.processInfo.arguments.contains("-uiTestPracticeFar")
@@ -222,10 +260,10 @@ struct MGRSGPSApp: App {
         }
         #endif
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
-        _navigation = StateObject(wrappedValue: navigationSession)
+        self.navigation = navigationSession
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession,tak: takSession)
         let practiceSession = PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession)
-        _practice = StateObject(wrappedValue: practiceSession)
+        self.practice = practiceSession
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeProgressWriteFailure"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
@@ -244,29 +282,8 @@ struct MGRSGPSApp: App {
         }
         #endif
         let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
-        _recorder = StateObject(wrappedValue: recordingSession)
-        _liveActivities = StateObject(wrappedValue: LiveActivityManager(recorder:recordingSession,navigation:navigationSession,settings:settingsStore))
+        self.recorder = recordingSession
+        self.liveActivities = LiveActivityManager(recorder:recordingSession,navigation:navigationSession,settings:settingsStore)
     }
 
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environmentObject(location)
-                .environmentObject(waypoints)
-                .environmentObject(settings)
-                .environmentObject(fieldData)
-                .environmentObject(recorder)
-                .environmentObject(maps)
-                .environmentObject(terrain)
-                .environmentObject(boundaries)
-                .environmentObject(navigation)
-                .environmentObject(lanes)
-                .environmentObject(practice)
-                .environmentObject(liveActivities)
-                .environmentObject(tak)
-                .environment(\.fieldNight, settings.nightMode)
-                .preferredColorScheme(.dark)
-                .statusBarHidden(false)
-        }
-    }
 }

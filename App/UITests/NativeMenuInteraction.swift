@@ -8,6 +8,26 @@ extension XCTestCase {
     func tapNativeMenuItem(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
         tapVisibleControl(element,horizontal: 0.5,file: file,line: line)
     }
+    /// Only retry a menu tap while its item is still visible. A closed menu
+    /// with ongoing file preparation must not start a second export.
+    func tapNativeMenuItem(_ element: XCUIElement,revealing next: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
+        tapNativeMenuItem(element,file: file,line: line)
+        for _ in 0..<2 {
+            if next.waitForExistence(timeout: 3) { return }
+            guard element.exists,element.isHittable else { return }
+            element.tap()
+        }
+    }
+    func selectNativeSegment(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
+        for attempt in 0..<3 {
+            if element.isSelected { return }
+            if attempt == 0 { tapNativeMenuItem(element,file: file,line: line) }
+            else { element.tap() }
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"),object: element)
+            if XCTWaiter.wait(for: [selected],timeout: 3) == .completed { return }
+        }
+        XCTAssertTrue(element.isSelected,"Coordinate format did not acknowledge selection",file: file,line: line)
+    }
     func tapNativeSwitch(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
         // SwiftUI exposes both a label-wide switch and its actual UISwitch.
         let leaf = element.descendants(matching: .switch).allElementsBoundByIndex.last ?? element

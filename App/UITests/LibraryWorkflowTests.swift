@@ -1,6 +1,46 @@
 import XCTest
 
 final class LibraryWorkflowTests: XCTestCase {
+    func testDeferredWaypointStartupRetainsTargetAndReceivesRecordingDeepLinkInDayAndNight() {
+        app.terminate()
+        app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestTargetSelection","-startTab","waypoints"]
+        app.launch()
+        XCTAssertTrue(app.buttons["open-field-library"].waitForExistence(timeout: 10))
+        for night in [false,true] {
+            if night { app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap() }
+            app.terminate()
+            app.launchArguments = ["-uiTesting","-keepUITestData","-uiTestDeferredFieldLoad","-uiTestSlowWaypointStartup","-startTab","waypoints"]
+            app.launch()
+            let gate = app.buttons["waypoint-startup-continue"]
+            XCTAssertTrue(gate.waitForExistence(timeout: 8),app.debugDescription)
+            XCTAssertFalse(app.buttons["Waypoint actions"].exists,"Live library services must not exist before waypoints finish loading")
+            print("WAYPOINT_STARTUP_RECORDING_LINK_READY \(night)")
+            let open = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Open"]
+            let queued = app.staticTexts["waypoint-startup-queued-links"]
+            let handoff = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+                open.exists || (queued.exists && queued.label == "Queued links 1")
+            },object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [handoff],timeout: 10),.completed,"Wait for the OS confirmation or its remembered approval")
+            if open.exists { open.tap() }
+            let received = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Queued links 1'"),object: queued)
+            XCTAssertEqual(XCTWaiter.wait(for: [received],timeout: 20),.completed,"Host must send gridfix://recording during the held waypoint read")
+            capture(night ? "waypoint-startup-loading-night" : "waypoint-startup-loading-day")
+            gate.tap()
+            XCTAssertTrue(app.navigationBars["Track recording"].waitForExistence(timeout: 15),app.debugDescription)
+            XCTAssertTrue(app.buttons["start-recording"].exists,"Opening the deep link must not start recording")
+            XCTAssertFalse(app.buttons["save-recording"].exists)
+            capture(night ? "waypoint-startup-queued-recorder-night" : "waypoint-startup-queued-recorder-day")
+            tapNativeMenuItem(app.navigationBars["Track recording"].buttons["Done"])
+            app.buttons["Navigate"].tap()
+            XCTAssertTrue(app.staticTexts["Alpha"].waitForExistence(timeout: 8),app.debugDescription)
+            app.buttons["Waypoints"].tap(); app.buttons["open-field-library"].tap()
+            XCTAssertTrue(app.buttons["route-Recon route"].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.buttons["track-Recon track"].exists)
+            capture(night ? "waypoint-startup-library-retained-night" : "waypoint-startup-library-retained-day")
+            tapNativeMenuItem(app.navigationBars.buttons["Done"])
+        }
+    }
+
     func testDeferredColdLibraryLoadRetainsTracksRoutesAndReadableDayNightLoading() {
         for night in [false,true] {
             if night {

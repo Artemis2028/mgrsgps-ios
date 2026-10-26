@@ -66,6 +66,8 @@ struct TrackRecordingPanel: View {
     @State private var name = ""
     @State private var confirmingDiscard = false
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
+    private var rowBackground: Color { settings.nightMode ? .black : Color(white: 0.12) }
+    private var secondaryInk: Color { settings.nightMode ? palette.ink : palette.inkDim }
     var body: some View {
         NavigationStack {
             Form {
@@ -92,35 +94,39 @@ struct TrackRecordingPanel: View {
                             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                         }.foregroundStyle(palette.accent)
                     }
-                }
+                }.listRowBackground(rowBackground)
                 if recorder.canStop {
                     Section("Finish track") {
-                        TextField("Track name (optional)", text: $name, prompt: Text("Track name (optional)").foregroundColor(palette.inkDim)).accessibilityIdentifier("recording-name")
+                        TextField("Track name (optional)", text: $name, prompt: Text("Track name (optional)").foregroundColor(secondaryInk)).accessibilityIdentifier("recording-name")
                             .onChange(of: name) { name = String($0.prefix(30)) }
                         Button("Save track") { recorder.stop(name: name) }.foregroundStyle(palette.accent).accessibilityIdentifier("save-recording")
                         Button("Discard recording", role: .destructive) { confirmingDiscard = true }
                             .foregroundStyle(palette.warn)
                             .accessibilityIdentifier("discard-recording")
-                    }
+                    }.listRowBackground(rowBackground)
                 }
                 if recorder.phase == .saving || recorder.phase == .recovering || recorder.phase == .preparing {
                     ProgressView(recorder.phase == .saving ? "Saving track…" : "Preparing recording…")
+                        .listRowBackground(rowBackground)
                 }
                 if recorder.phase == .recoveryRequired {
                     Section("Saved log") {
                         Button("Retry saving") { recorder.recover() }.foregroundStyle(palette.accent).accessibilityIdentifier("retry-recording")
                         Button("Discard saved log", role: .destructive) { confirmingDiscard = true }.foregroundStyle(palette.warn)
-                    }
+                    }.listRowBackground(rowBackground)
                 }
                 Section {
                     Text("Start recording with the app open and Precise Location enabled. You can then lock the screen or use another app. iOS shows its location indicator while background recording is active.")
                     Text("Force-quitting, restarting the phone, or changing location permission can interrupt recording. Reopen the app to recover saved points and start a new track. Recording does not restart automatically.")
-                }.font(.footnote).foregroundStyle(palette.inkDim)
+                }.font(.footnote).foregroundStyle(secondaryInk).listRowBackground(rowBackground)
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
             .foregroundStyle(palette.ink)
             .navigationTitle("Track recording").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { recorder.acknowledgeNotice(); dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .principal) { Text("Track recording").font(.headline).foregroundStyle(palette.ink) }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { recorder.acknowledgeNotice(); dismiss() } }
+            }
             .alert("Discard this recording and its saved points?", isPresented: $confirmingDiscard) {
                 Button("Discard recording", role: .destructive) { recorder.discard() }
                 Button("Keep recording", role: .cancel) {}

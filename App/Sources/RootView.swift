@@ -26,6 +26,7 @@ struct RootView: View {
     @State private var seededIncomingTest = false
     @State private var showingPractice = false
     @State private var startupLoadReleased = false
+    @State private var startupURLs: [URL]
 
     private var practiceBannerText: String {
         if practice.damaged { return "Saved course needs attention" }
@@ -38,7 +39,8 @@ struct RootView: View {
         return "Practice course · CP \(min((practice.active?.nextIndex ?? 0)+1,practice.active?.waypointIDs.count ?? 0))"
     }
 
-    init() {
+    init(initialURLs: [URL] = []) {
+        _startupURLs = State(initialValue: initialURLs)
         // The standalone screenshot script picks a tab with a launch argument;
         // the UI workflow tests also exercise normal tab interaction. Order matches Android:
         // position=0, navigate=1, map=2, waypoints=3. Keep map=2 stable for CI.
@@ -57,6 +59,13 @@ struct RootView: View {
         _selection = State(initialValue: tab)
     }
 
+    private func handleIncomingURL(_ url: URL) {
+        if url.isFileURL {
+            if incomingFile == nil { incomingFile = url }
+            else { incomingQueue.append(url) }
+        } else if url.scheme == "gridfix",url.host == "recording" { showingRecorder = true }
+        else if url.scheme == "gridfix",url.host == "navigation" { selection = 1 }
+    }
     private func updateCompassDemand() { location.setCompassEnabled(selection == 1 || (selection == 0 && settings.face != .glance)) }
 
     @ViewBuilder private var libraryLoadingOverlay: some View {
@@ -168,14 +177,7 @@ struct RootView: View {
                 pendingOrientation = mode; showingOrientationPicker = false
             }
         }
-        .onOpenURL { url in
-            if url.isFileURL {
-                if incomingFile == nil {incomingFile=url}
-                else {incomingQueue.append(url)}
-            }
-            else if url.scheme == "gridfix",url.host == "recording" { showingRecorder = true }
-            else if url.scheme == "gridfix",url.host == "navigation" { selection = 1 }
-        }
+        .onOpenURL { handleIncomingURL($0) }
         .sheet(item: $importRequest) { request in
             InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name),onRestoreBackup: { document in
                 let message = await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes)
@@ -193,6 +195,8 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { fieldStore.ready && showingRecorder },set: { showingRecorder = $0 })) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)
         .onAppear {
+            for url in startupURLs { handleIncomingURL(url) }
+            startupURLs.removeAll()
             #if DEBUG
             seedIncomingTestFiles()
             #endif

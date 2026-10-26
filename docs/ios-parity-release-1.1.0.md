@@ -266,3 +266,31 @@ TAK sharing now applies the agreed Android/iOS strict 30-second and 1 km accurac
 
 
 The corrected 90-second enrolled continuity round subsequently passed: nine consecutive nonzero iOS reports with no intervening presence, fresh inbound data, and independent Android/server confirmation. This closes the real enrolled-simulator exchange gate; physical stationary/screen-lock behavior, renewal/crash recovery and wider server testing remain open. Both sides cleaned up their fake feeds and disconnected; Claude shut down the local server and Android emulator. See the final [enrolled continuity evidence](tak-server-interoperability.md).
+
+
+## Waypoint bootstrap and recording contrast follow-up
+
+Saved waypoints now prepare on a shared worker before app services are constructed,
+with replacement detection, readable day/night loading, cancellation/retry and
+early OS-link preservation. The selected target and field library survive cold
+launch; damaged waypoint recovery remains read-only until explicit recovery.
+Full core validation passes 479 cases; native validation executes 247 cases with
+four unstaged opt-in skips and no failures. The protected-backup, background
+recording and day/night recovery regression also passes. See
+[waypoint preparation and evidence](waypoint-startup.md).
+
+Hosted run 40332083000 failed four UI interactions across its three shards:
+coordinate-format selection, offline-grid switch, backup menu acknowledgement
+and boundary vertex movement. All four workflows now pass locally with bounded
+acknowledgement helpers and slower deliberate vertex drags; no assertions or
+classes were removed. Full hosted green still needs confirmation on the new head.
+
+Phone/iPad and watch now use the Android launcher crosshair artwork with explicit
+sRGB assets. Actual simulator launchers and Release builds were checked; see
+[app icons](app-icons.md).
+
+The recording panel now sets explicit dark row surfaces and a readable title;
+night help text stays red on black. Final active recording and day/night cold-link
+workflows pass with screenshots inspected, and phone/watch/widget Release passes.
+Evidence: `/tmp/gridfix-recording-contrast-final.xcresult` and
+`/tmp/gridfix-recording-contrast-release.log`.

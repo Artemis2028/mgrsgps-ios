@@ -54,7 +54,8 @@ final class WaypointWorkflowTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         replace(name,with: "Southern point")
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
-        tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
+        dismissFieldKeyboard()
+        selectNativeSegment(app.segmentedControls.buttons["Lat / Lon"])
         let latitude = app.textFields["waypoint-latitude"]
         XCTAssertTrue(latitude.waitForExistence(timeout: 5))
         replace(latitude,with: "-91")
