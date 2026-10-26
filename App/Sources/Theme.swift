@@ -94,13 +94,35 @@ private struct OpaqueFieldButtonStyle: ButtonStyle {
     }
 }
 
+private struct ReadableMapGlassStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        let label = configuration.label
+            .foregroundStyle(Blackout.ink)
+            .frame(minWidth: 44,minHeight: 44)
+            .padding(.horizontal,12)
+            // Native glass can brighten independently over pale map tiles.
+            // Keep a dark backing beneath the light symbol in either state.
+            .background(.black.opacity(0.72),in: Capsule())
+            .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
+        if #available(iOS 26.0, *) {
+            label.glassEffect(.regular.tint(.black.opacity(0.35)).interactive(),in: Capsule())
+        } else {
+            label.overlay(Capsule().stroke(.white.opacity(0.18)))
+        }
+    }
+}
+
 private struct FieldGlassButton: ViewModifier {
     @Environment(\.fieldNight) private var night
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var mapControl: Bool
 
     @ViewBuilder func body(content: Content) -> some View {
         if night || reduceTransparency {
             content.buttonStyle(OpaqueFieldButtonStyle(night: night))
+        } else if mapControl {
+            content.buttonStyle(ReadableMapGlassStyle())
         } else if #available(iOS 26.0, *) {
             content.buttonStyle(.glass)
         } else {
@@ -111,7 +133,7 @@ private struct FieldGlassButton: ViewModifier {
 
 extension View {
     func fieldChrome(radius: CGFloat = 20) -> some View { modifier(FieldChrome(radius: radius)) }
-    func fieldGlassButton() -> some View { modifier(FieldGlassButton()) }
+    func fieldGlassButton(mapControl: Bool = false) -> some View { modifier(FieldGlassButton(mapControl: mapControl)) }
 
     func fieldContentSurface(night: Bool) -> some View {
         background(night ? Color.black : Color.white.opacity(0.045),

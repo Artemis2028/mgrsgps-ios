@@ -2,6 +2,7 @@ import GridFixCore
 import SwiftUI
 
 struct RecordingButton: View {
+    var mapControl = false
     @EnvironmentObject private var recorder: TrackRecorder
     @State private var showingPanel = false
     var body: some View {
@@ -12,7 +13,7 @@ struct RecordingButton: View {
             Image(systemName: recorder.canStop ? "stop.circle.fill" : "record.circle")
                 .frame(width: 44, height: 40)
         }
-        .fieldGlassButton()
+        .fieldGlassButton(mapControl: mapControl)
         .accessibilityLabel(recorder.canStart ? "Record track" : "Recording controls")
         .accessibilityIdentifier("record-track")
         .sheet(isPresented: $showingPanel) { TrackRecordingPanel() }

@@ -243,22 +243,22 @@ struct MapScreen: View {
                     } label: {
                         Label("Locate", systemImage: "location").labelStyle(.iconOnly).frame(width: 44,height: 40)
                     }
-                    .fieldGlassButton().disabled(location.usableFix == nil).accessibilityLabel("Locate") }
+                    .fieldGlassButton(mapControl: true).disabled(location.usableFix == nil).accessibilityLabel("Locate") }
                     Button {
                         cameraRequest = MapCameraRequest(action: .fitData)
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton().disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible }))
+                    .fieldGlassButton(mapControl: true).disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible }))
                     .accessibilityLabel("Show all visible data")
-                    if showsTool("record") { RecordingButton() }
+                    if showsTool("record") { RecordingButton(mapControl: true) }
                     Spacer(minLength: 0)
                     Button {
                         editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
                     } label: {
                         Label("Add", systemImage: "plus").frame(minHeight: 40)
                     }
-                    .fieldGlassButton().tint(palette.accent)
+                    .fieldGlassButton(mapControl: true).tint(palette.accent)
                     .accessibilityLabel("Add waypoint at map centre")
                 }.foregroundStyle(palette.ink).environment(\.colorScheme,.dark) }
             }
@@ -419,42 +419,42 @@ struct MapScreen: View {
 
         if showsTool("draw") {
             Button { showingLanes = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").frame(width: 44,height: 44) }
-                .fieldGlassButton().accessibilityLabel("Navigation lanes").accessibilityIdentifier("map-lanes")
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Navigation lanes").accessibilityIdentifier("map-lanes")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
             Button { showingGraphics = true } label: {
                 Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
-            }.fieldGlassButton().accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
+            }.fieldGlassButton(mapControl: true).accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
             Button { showingBoundaries = true } label: {
                 Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
-            }.fieldGlassButton().accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
+            }.fieldGlassButton(mapControl: true).accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
         }
         if showsTool("layers") { Button { showingLayers = true } label: {
             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
-        }.fieldGlassButton().accessibilityLabel("Map layers").accessibilityIdentifier("map-layers") }
+        }.fieldGlassButton(mapControl: true).accessibilityLabel("Map layers").accessibilityIdentifier("map-layers") }
         if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
             if showsTool("tools") { Button { showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
-                .fieldGlassButton().accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
             Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
-                .fieldGlassButton().accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain") }
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain") }
         }
         if showsTool("ruler") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
             Button {
                 if rulerAnchor != nil { rulerAnchor = nil } else { rulerAnchor = .init(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil }
             } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
-                .fieldGlassButton().accessibilityLabel(rulerAnchor == nil ? "Ruler" : "Close ruler").accessibilityIdentifier("map-ruler")
+                .fieldGlassButton(mapControl: true).accessibilityLabel(rulerAnchor == nil ? "Ruler" : "Close ruler").accessibilityIdentifier("map-ruler")
         }
         if showsTool("goto") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
             Button { showingGoTo = true } label: { Image(systemName: "magnifyingglass").frame(width: 44,height: 44) }
-                .fieldGlassButton().accessibilityLabel("Go to coordinates").accessibilityIdentifier("map-goto")
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Go to coordinates").accessibilityIdentifier("map-goto")
         }
         Button { showingMapToolSettings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44,height: 44) }
-            .fieldGlassButton().accessibilityLabel("Map buttons").accessibilityIdentifier("map-button-settings")
+            .fieldGlassButton(mapControl: true).accessibilityLabel("Map buttons").accessibilityIdentifier("map-button-settings")
         Button { settings.nightMode.toggle() } label: {
             Image(systemName: chromeNight ? "moon.fill" : "moon")
                 .frame(width: 44, height: 44)
-        }.fieldGlassButton().accessibilityLabel("Toggle map night mode")
+        }.fieldGlassButton(mapControl: true).accessibilityLabel("Toggle map night mode")
     }
 
     private var liveLaneDraft: NavLane? {
