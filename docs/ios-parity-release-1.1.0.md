@@ -528,3 +528,19 @@ retry persists and publishes the choice. Final native283 (four unstaged skips),
 three selected day/night TAK UI workflows and unsigned device Release pass;
 screenshots inspected. These are mocked-transport/preview checks, independent
 of the earlier live enrolled exchange. See [TAK persistence](tak-startup.md).
+
+
+## Row-scanned saved-track previews
+
+Saved-track drawing now counts actual rows, then validates each point once while
+retaining only the Android preview and exact fit extrema. It no longer builds
+a full coordinate array. Bad metadata, legacy separators, malformed single rows
+and damaged UTF-8 are covered; saved/exported bytes stay complete. Core492,
+native283 (four unstaged skips), all12 selected map/lasso/interchange/recording
+UI cases and unsigned device Release pass. Final parents exit0 naturally;
+screenshots inspected. Home journal growth4→6 is observed before foreground
+activation. See [map evidence and limits](map-geometry-preparation.md).
+
+Hosted40395046579 on d153810: map passes, field fails three Files interactions,
+library still runs. These are being diagnosed; the local changes remain held to
+avoid cancelling the library run.

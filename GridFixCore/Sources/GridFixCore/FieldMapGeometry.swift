@@ -26,17 +26,20 @@ public enum FieldMapGeometry {
         }
         for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
             try Task.checkCancellation()
-            let points = try TrackCodec.decodeLocal(document.trackFiles[track.id] ?? Data())
-            guard points.count >= 2 else { continue }
-            tracks += 1
-            let step = max(1,points.count/1500)
-            var sampled: [GeoPoint] = []
-            for (i,point) in points.enumerated() {
-                if i % 4096 == 0 { try Task.checkCancellation() }
+            let bytes = document.trackFiles[track.id] ?? Data()
+            let count = try TrackCodec.countLocalRows(bytes)
+            let step = max(1,count/1500)
+            var sampled: [GeoPoint] = [],index = 0
+            // One validated point at a time: long logs need no full decoded array.
+            try TrackCodec.visitLocal(bytes) { point in
+                defer { index += 1 }
+                guard count >= 2 else { return }
                 let coordinate = GeoPoint(lat: point.lat,lon: point.lon)
                 extent.include(coordinate)
-                if i % step == 0 || i == points.count-1 { sampled.append(coordinate) }
+                if index % step == 0 || index == count-1 { sampled.append(coordinate) }
             }
+            guard count >= 2 else { continue }
+            tracks += 1
             let segments = lineSegments(sampled).filter { $0.count >= 2 }
             features.append(["type":"Feature","geometry":["type":"MultiLineString","coordinates":segments.map { $0.map { [$0.lon,$0.lat] } }],
                              "properties":["id":track.id,"name":track.name,"kind":"track"]])

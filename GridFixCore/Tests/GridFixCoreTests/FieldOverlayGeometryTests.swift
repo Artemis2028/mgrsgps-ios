@@ -25,6 +25,34 @@ final class FieldOverlayGeometryTests: XCTestCase {
         XCTAssertEqual(snapshot.tracks,1); XCTAssertEqual(snapshot.routes,0)
         XCTAssertEqual(doc.trackFiles,before)
     }
+    func testStrideUsesActualRowsDespiteWrongMetadataAndLegacySeparators() throws {
+        let points = (0..<3001).map { TrackPoint(lat: 10,lon: 10+Double($0)/10_000) }
+        var doc = try document(points)
+        doc.tracks[0].pointCount = 2
+        let source = try XCTUnwrap(String(data: doc.trackFiles[doc.tracks[0].id]!,encoding: .utf8))
+        doc.trackFiles[doc.tracks[0].id] = Data(("  \u{2028}"+source.replacingOccurrences(of: "\n",with: "\r\n\u{0085}\u{2029}")+" ").utf8)
+        let before = doc.trackFiles
+        let snapshot = try FieldMapGeometry.prepareOverlay(document: doc,folders: [])
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: snapshot.data) as? [String:Any])
+        let features = try XCTUnwrap(json["features"] as? [[String:Any]])
+        let geometry = try XCTUnwrap(features.first?["geometry"] as? [String:Any])
+        let rendered = try XCTUnwrap(geometry["coordinates"] as? [[[Double]]]).flatMap { $0 }
+        XCTAssertEqual(rendered.count,1501); XCTAssertEqual(rendered.first,[10,10]); XCTAssertEqual(rendered.last,[10.3,10])
+        XCTAssertEqual(snapshot.tracks,1); XCTAssertEqual(doc.trackFiles,before)
+    }
+    func testSingleRowStillValidatesAndEmptyLogsDoNotDrawOrAffectBounds() throws {
+        var doc = try document([.init(lat: 10,lon: 20)])
+        let single = try FieldMapGeometry.prepareOverlay(document: doc,folders: [])
+        XCTAssertEqual(single.tracks,0); XCTAssertTrue(single.points.isEmpty)
+        doc.trackFiles[doc.tracks[0].id] = Data("broken row".utf8)
+        XCTAssertThrowsError(try FieldMapGeometry.prepareOverlay(document: doc,folders: []))
+        doc.trackFiles[doc.tracks[0].id] = Data(" \r\n\u{2028}".utf8)
+        let empty = try FieldMapGeometry.prepareOverlay(document: doc,folders: [])
+        XCTAssertEqual(empty.tracks,0); XCTAssertTrue(empty.points.isEmpty)
+        doc.trackFiles[doc.tracks[0].id] = Data([0xff,0x0a])
+        XCTAssertThrowsError(try FieldMapGeometry.prepareOverlay(document: doc,folders: []))
+    }
+
     func testWholeCircleAndDatelineBoundsMatchEveryOriginalCoordinate() throws {
         let points: [TrackPoint] = [.init(lat: 10,lon: 179),.init(lat: 12,lon: -179)]
         var doc = try document(points)

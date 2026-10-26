@@ -113,6 +113,7 @@ bounds are retained as at most six extrema; saved bytes and individual GPX expor
 remain complete. Generation/cancellation guards prevent old results restoring
 hidden or deleted data. Loading, retry and deferred Show All are visible; a newer
 Go To or manual pan cancels a pending fit. See
-[map preparation evidence](map-geometry-preparation.md). Each visible log still
-materializes its coordinates on the worker, and dense tactical overlays use a
-separate renderer, so arbitrary-size memory/performance is not established.
+[map preparation evidence](map-geometry-preparation.md). The subsequent row-scanned preview avoids
+materializing a full coordinate array for saved-track drawing. Focus/backtrack
+still need complete coordinates, and dense tactical overlays use a separate
+renderer, so arbitrary-size memory/performance is not established.

@@ -5,8 +5,9 @@ Android reference: release/1.1.0, TracksOverlay.kt. Drawing uses
 preview policy; stored logs, validation and individual GPX export stay complete.
 This is per track, not a global budget. Dateline splitting can add edge vertices.
 
-`FieldMapGeometry.prepareOverlay` validates every visible local log once on a
-worker, builds track-only GeoJSON and accumulates full-log fit bounds. At most
+`FieldMapGeometry.prepareOverlay` counts actual nonempty rows, then validates
+each point once on a worker while retaining only the sampled path. It builds
+track-only GeoJSON and accumulates full-log fit bounds. At most
 six original extrema preserve latitude and both longitude intervals, including
 unsampled excursions and graphic circle/sector extents. Tactical graphics remain
 in their existing separate renderer.
@@ -45,7 +46,42 @@ Evidence: `/tmp/gridfix-map-preparation-core-final.log`,
 `/tmp/gridfix-map-worker-final-images/manifest.json`, and
 `/tmp/gridfix-map-worker-release.log`.
 
-Remaining: full decoded log arrays still exist transiently on the worker,
-multiple tracks can still yield large previews, and dense tactical rendering,
+The later row-scan follow-up below removes the transient full coordinate array.
+Multiple tracks can still yield large previews, and dense tactical rendering,
 physical storage/lock/battery and device memory require separate validation.
 Hosted run 40395046579 on d153810 remains in progress and precedes this change.
+
+
+## Row-scanned preview, 27 October
+
+Saved-track preparation no longer builds a full `[TrackPoint]` array. A first
+row scan counts actual nonempty rows, independent of potentially wrong metadata;
+a second scan parses and validates each coordinate/time/altitude once, retaining
+only Android's sampled preview and the compact full-log extent. Both passes
+share the existing row scanner and cancellation checks. Empty or single-point
+logs still validate but do not produce a path or alter fit bounds.
+
+This retains the complete log and rejects damaged tails/UTF-8; it does not use
+metadata to skip validation or thin the stored/exported recording. Legacy blank
+rows and newline forms do not change the preview stride. Source bytes, per-row
+strings and all-track preview geometry still consume memory; this change removes
+the full decoded coordinate array specifically. Focus/backtrack and other callers
+which need every coordinate continue to use the complete local decoder.
+
+
+Final checks: 492 core tests pass. All 283 native cases pass (four unstaged
+opt-in skips), including the 300,001-point worker check with 88 Main pulses
+and maximum observed gap 0.00972 seconds. All 12 map/lasso/interchange/recording
+UI workflows pass; the host observes 4 to 6 complete points in the same journal
+while on Home before foreground activation. Unsigned device Release passes.
+Test/build parents exit 0 naturally; deferred-fit and recording screenshots
+inspected. Evidence: `/tmp/gridfix-map-stream-core.log`,
+`/tmp/gridfix-map-stream-final.xcresult`,
+`/tmp/gridfix-map-stream-final-background-check.log`,
+`/tmp/gridfix-map-stream-final-images/manifest.json`,
+`/tmp/gridfix-map-stream-release.log`.
+
+Hosted run 40395046579 precedes this change: map passes; field has three native
+Files interaction failures (large GPX focus, cancellation, route PDF focus).
+Library remains live; diagnostics are being retrieved. Local checks do not
+establish a complete hosted pass.

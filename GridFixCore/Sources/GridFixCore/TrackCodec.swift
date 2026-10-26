@@ -38,7 +38,19 @@ public enum TrackCodec {
         return points
     }
 
-    private static func visitLocal(_ data: Data,point: (TrackPoint) throws -> Void) throws {
+    /// Count actual nonempty rows, never trust stored metadata for preview stride.
+    /// The subsequent point visit still validates every coordinate/time/altitude.
+    static func countLocalRows(_ data: Data) throws -> Int {
+        var count = 0
+        try visitLocalRows(data) { _ in count += 1 }
+        return count
+    }
+
+    static func visitLocal(_ data: Data,point: (TrackPoint) throws -> Void) throws {
+        try visitLocalRows(data) { try point(parseLine($0)) }
+    }
+
+    private static func visitLocalRows(_ data: Data,row: (Substring) throws -> Void) throws {
         try Task.checkCancellation()
         try data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
             var start = 0,i = 0
@@ -46,7 +58,7 @@ public enum TrackCodec {
                 guard end > start else { return }
                 guard let line = String(bytes: bytes[start..<end],encoding: .utf8) else { throw BackupError.notABackup("Invalid track point file") }
                 if line.allSatisfy(\.isWhitespace) { return }
-                try point(parseLine(line[...]))
+                try row(line[...])
             }
             while i < bytes.count {
                 // Preserve the old String.isNewline reader, including legacy

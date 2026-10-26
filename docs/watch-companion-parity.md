@@ -88,5 +88,7 @@ watch expiry never renews an unchanged stale time. Actual paired Apple delivery,
 hide/clear and phone-off expiry pass. Wear round-screen day/night and cache
 relaunch/expiry pass with an explicit standalone fixture. The user subsequently
 paired the dedicated Android simulators: real Data Layer receipt/rendering, clear
-and phone-emulator-off expiry now pass too. Paired populated-local preservation,
-guidance lifecycle and physical radio/background checks remain. See [contract, budgets and evidence](watch-tak-layer.md).
+and phone-emulator-off expiry now pass too. Subsequent paired populated-local
+preservation and actual phone-guidance active/unavailable/stop/expiry also pass;
+see [paired validation](wear-paired-validation.md). Named Wear lane crossings and
+physical radio/background checks remain. See [contract, budgets and evidence](watch-tak-layer.md).
