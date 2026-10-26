@@ -85,7 +85,7 @@ final class FieldAppStores {
 
     private let watchBridge: WatchPhoneBridge
 
-    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil,boundaryStartup: BoundaryMonitor.PreparedStartup? = nil) {
+    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil,boundaryStartup: BoundaryMonitor.PreparedStartup? = nil,takStartup: TAKLocalStore.PreparedStartup? = nil) {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
@@ -143,7 +143,7 @@ final class FieldAppStores {
             }
         }
         #endif
-        let takSession = TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], waypoints: waypointStore, field: fieldStore)
+        let takSession = TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], startup: takStartup, waypoints: waypointStore, field: fieldStore)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKPreview") { takSession.seedMapPreview() }
         #endif

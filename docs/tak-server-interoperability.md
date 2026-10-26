@@ -208,3 +208,8 @@ Final common-policy source passes all 242 native cases with three unstaged local
 The production TAKSession, actual CoreLocationRecordingDriver and native mutual-TLS transport passed the corrected round with fresh enrollment IOS-ENR-FBD150C1. A forwarding observer changed no bytes/trust and captured nine consecutive nonzero self-reports during the 90-second window, with no intervening presence; inbound server data also continued. Evidence: `/tmp/gridfix-enrolled-continuity.xcresult`. Claude independently confirmed the same nine server-stored reports at 13:40:07 through 13:41:31 UTC, and the Android map showed the teammate mid-window and near its end (`~/AI Proj/tak-local/android-ios-continuity-2026-10-26.png`). Presence before the first fix and after sharing was turned off is expected.
 
 This closes the real enrolled-simulator exchange and sustained simulator-delivery gates, alongside the earlier map/items/delete/reconnect round. It does not close physical stationary GPS, screen-lock/background/battery, renewal/crash recovery or wider server/client testing. Both sides disconnected, stopped fake feeds and cleared location. Claude confirmed local TAK server/Colima/Android emulator shutdown at 16:44; Codex did not modify containers or the database.
+
+The later [saved TAK startup change](tak-startup.md) moves profile/history reads
+to the shared worker without starting a connection or reading credentials. Its
+native and recording UI regressions pass locally; it did not repeat the server
+round or alter the network verification gates above.

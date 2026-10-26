@@ -55,13 +55,16 @@ final class TAKSession: ObservableObject {
             && (fix.lat != 0 || fix.lon != 0)
     }
 
-    init(directory: URL, transport: TAKTransportDriving = TAKTransport(), driver: RecordingLocationDriver? = nil, startTimer: Bool = true, waypoints: WaypointStore? = nil, field: FieldDataStore? = nil) {
+    init(directory: URL, startup: TAKLocalStore.PreparedStartup? = nil, transport: TAKTransportDriving = TAKTransport(), driver: RecordingLocationDriver? = nil, startTimer: Bool = true, waypoints: WaypointStore? = nil, field: FieldDataStore? = nil) {
         self.waypoints = waypoints; self.field = field
         self.transport = transport; self.location = driver ?? CoreLocationRecordingDriver()
         do {
-            let local = try TAKLocalStore(root: directory)
-            store = local; profile = try local.readProfile()
-            do { sent = try local.readSent(profile: profile) } catch { sharingAvailable = false; failure = "Saved TAK sharing history needs repair; folder sharing is disabled" }
+            let prepared = startup ?? TAKLocalStore.prepareStartup(root: directory)
+            guard prepared.root == directory else { throw TAKLocalStore.StartupFailure.changed }
+            try prepared.validate()
+            store = prepared.store
+            if let saved = prepared.profile { profile = saved }
+            sent = prepared.sent; sharingAvailable = prepared.sharingAvailable; failure = prepared.failure
         } catch { failure = "Unable to read local TAK preferences" }
         location.onLocations = { [weak self] samples in
             guard let self, let sample = samples.last else { return }

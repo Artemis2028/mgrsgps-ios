@@ -227,6 +227,29 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertEqual(startup.stores?.boundaries.areas.first?.name,"Newer perimeter")
         XCTAssertEqual(startup.stores?.boundaries.running,false)
     }
+    func testChangedTAKPreferencesRetryOnWorkerBeforeOneDisconnectedGraph() async throws {
+        let dir = try directory(),attempts = StartupAttemptCounter()
+        let local = try TAKLocalStore(root: dir),original = try local.readProfile()
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepareTAK: { root in
+            XCTAssertFalse(Thread.isMainThread)
+            let prepared = TAKLocalStore.prepareStartup(root: root)
+            if attempts.next() == 1 {
+                var replacement = original; replacement.callsign = "LATEST CAFÉ"
+                try! TAKLocalStore(root: root).write(replacement)
+            }
+            return prepared
+        })
+        let link = URL(string: "gridfix://recording")!; startup.enqueue(link)
+        var publications = 0
+        let subscription = startup.$stores.sink { if $0 != nil { publications += 1 } }
+        defer { subscription.cancel(); startup.stores?.tak.disconnect() }
+        await startup.load()
+        XCTAssertNil(startup.error); XCTAssertEqual(attempts.count,2); XCTAssertEqual(publications,1)
+        XCTAssertEqual(startup.stores?.tak.profile.uid,original.uid)
+        XCTAssertEqual(startup.stores?.tak.profile.callsign,"LATEST CAFÉ")
+        XCTAssertEqual(startup.stores?.tak.connected,false); XCTAssertEqual(startup.stores?.tak.sharePosition,false)
+        XCTAssertEqual(startup.pendingURLs,[link])
+    }
     func testFailedPreparationCanRetryWithoutDroppingQueuedLink() async throws {
         let dir = try directory(),attempts = StartupAttemptCounter()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { directory in

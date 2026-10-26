@@ -27,6 +27,76 @@ private final class TAKTestTransport: TAKTransportDriving {
     func requestPermission() { requests += 1 }
 }
 @MainActor final class TAKSessionTests: XCTestCase {
+    func testPreparedStartupRetainsIdentityTrustSharingAndStaysDisconnected() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TAKLocalStore(root: root)
+        var profile = try store.readProfile()
+        profile.host = "127.0.0.1"; profile.callsign = "TEST CAFÉ"; profile.pin = "saved-trust"; profile.sharedFolders = ["Base"]
+        try store.write(profile); try store.writeSent(["sent-item":"fingerprint"],profile: profile)
+        let prepared = await Task.detached { TAKLocalStore.prepareStartup(root: root) }.value
+        try prepared.validate()
+        XCTAssertEqual(prepared.sent,["sent-item":"fingerprint"])
+        let transport = TAKTestTransport(),location = TAKTestLocation()
+        let session = TAKSession(directory: root,startup: prepared,transport: transport,driver: location,startTimer: false)
+        XCTAssertEqual(session.profile.uid,profile.uid); XCTAssertEqual(session.profile.pin,profile.pin)
+        XCTAssertEqual(session.profile.callsign,"TEST CAFÉ"); XCTAssertEqual(session.sharedFolders,["Base"])
+        XCTAssertFalse(session.connected); XCTAssertFalse(session.connecting); XCTAssertFalse(session.sharePosition)
+        XCTAssertEqual(transport.starts,0); XCTAssertEqual(location.starts,0); XCTAssertNil(session.failure)
+    }
+    func testPreparedFirstInstallHasStableIdentityAndNoSpuriousChange() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = await Task.detached { TAKLocalStore.prepareStartup(root: root) }.value
+        try prepared.validate()
+        let stored = try TAKLocalStore(root: root).readProfile()
+        XCTAssertEqual(prepared.profile?.uid,stored.uid)
+        XCTAssertTrue(prepared.sent.isEmpty); XCTAssertTrue(prepared.sharingAvailable)
+        XCTAssertNil(prepared.failure)
+    }
+    func testPreparedSharingHistoryRefusesCreationReplacementAndRemoval() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TAKLocalStore(root: root),profile = try store.readProfile()
+        let absent = TAKLocalStore.prepareStartup(root: root)
+        try store.writeSent(["old":"one"],profile: profile)
+        XCTAssertThrowsError(try absent.validate())
+        let old = TAKLocalStore.prepareStartup(root: root)
+        try store.writeSent(["new":"two"],profile: profile)
+        XCTAssertThrowsError(try old.validate())
+        let latest = TAKLocalStore.prepareStartup(root: root)
+        let sent = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: store.directory,includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("sent-") })
+        try FileManager.default.removeItem(at: sent)
+        XCTAssertThrowsError(try latest.validate())
+    }
+    func testPreparedCorruptHistoryDisablesFolderSharingAndPreservesBytes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TAKLocalStore(root: root),profile = try store.readProfile()
+        try store.writeSent(["old":"one"],profile: profile)
+        let file = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: store.directory,includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("sent-") })
+        let raw = Data("damaged sharing history".utf8); try raw.write(to: file,options: .atomic)
+        let prepared = TAKLocalStore.prepareStartup(root: root)
+        try prepared.validate(); XCTAssertFalse(prepared.sharingAvailable); XCTAssertNotNil(prepared.failure)
+        XCTAssertEqual(prepared.profile?.uid,profile.uid); XCTAssertEqual(try Data(contentsOf: file),raw)
+        let transport = TAKTestTransport()
+        let session = TAKSession(directory: root,startup: prepared,transport: transport,driver: TAKTestLocation(),startTimer: false)
+        XCTAssertTrue(session.failure?.contains("folder sharing is disabled") == true); XCTAssertEqual(transport.starts,0)
+    }
+    func testPreparedProfileRejectsChangedOrDifferentLibraryAndPreservesDamage() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prepared = TAKLocalStore.prepareStartup(root: root)
+        let store = try TAKLocalStore(root: root),file = store.directory.appendingPathComponent("profile.json")
+        let raw = Data("damaged identity".utf8); try raw.write(to: file,options: .atomic)
+        XCTAssertThrowsError(try prepared.validate())
+        let damaged = TAKLocalStore.prepareStartup(root: root)
+        try damaged.validate(); XCTAssertNil(damaged.profile); XCTAssertNotNil(damaged.failure)
+        XCTAssertEqual(try Data(contentsOf: file),raw)
+        let transport = TAKTestTransport()
+        let session = TAKSession(directory: root.appendingPathComponent("other"),startup: prepared,transport: transport,driver: TAKTestLocation(),startTimer: false)
+        XCTAssertNotNil(session.failure); XCTAssertEqual(transport.starts,0)
+    }
     func testSharedPositionUsesCommonAndroidAgeAccuracyAndCoordinateBounds() {
         func fix(age: Double = 0,accuracy: Double = 5,lat: Double = 35,lon: Double = -79) -> Fix {
             .init(lat: lat,lon: lon,accuracyMeters: accuracy,altitudeMeters: nil,speedMetersPerSecond: nil,timestamp: Date(),timestampUptime: 100-age)

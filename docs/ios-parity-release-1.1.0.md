@@ -432,3 +432,15 @@ confirmed discard and interrupted recovery through the shared startup worker all
 pass. Eight Python harness cases pass. Recording screenshots remain readable.
 See [recording evidence](track-recording.md). This strengthens simulator evidence;
 physical locked-screen GPS, Data Protection and battery checks remain open.
+
+## TAK preferences on the startup worker
+
+The local TAK profile and endpoint sharing journal now prepare on the shared
+worker too, preserving first-install UID, saved trust and default-off position
+sharing. Source replacement/removal/creation retries before one service graph;
+damaged bytes stay preserved with the existing error/disabled-sharing behavior.
+No Keychain read or connection is started by this preparation. Full native274
+passes with four unstaged opt-in checks skipped; all three real recording UI
+cases and the unsigned device Release build pass. See [TAK startup](tak-startup.md).
+The earlier enrolled simulator round remains separate; no server was contacted
+for this change. Ordinary TAK writes and physical/renewal/crash checks remain.
