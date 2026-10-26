@@ -26,6 +26,15 @@ struct RootView: View {
     @State private var seededIncomingTest = false
     @State private var showingPractice = false
 
+    private var practiceBannerText: String {
+        if practice.damaged { return "Saved course needs attention" }
+        if practice.summary != nil { return "Course complete · view results" }
+        if practice.finalizing { return "Saving course result…" }
+        if practice.active?.done == true { return "Completed run kept · retry saving result" }
+        if practice.active?.paused == true { return "Course paused · missing checkpoint" }
+        return "Practice course · CP \(min((practice.active?.nextIndex ?? 0)+1,practice.active?.waypointIDs.count ?? 0))"
+    }
+
     init() {
         // The standalone screenshot script picks a tab with a launch argument;
         // the UI workflow tests also exercise normal tab interaction. Order matches Android:
@@ -51,7 +60,7 @@ struct RootView: View {
         VStack(spacing: 0) {
             if practice.locked || practice.summary != nil {
                 Button { showingPractice = true } label: {
-                    HStack { Image(systemName: "timer"); Text(practice.damaged ? "Saved course needs attention" : practice.summary != nil ? "Course complete · view results" : practice.active?.paused == true ? "Course paused · missing checkpoint" : "Practice course · CP \(min((practice.active?.nextIndex ?? 0)+1,practice.active?.waypointIDs.count ?? 0))"); Spacer(); Image(systemName: "chevron.right") }
+                    HStack { Image(systemName: "timer"); Text(practiceBannerText); Spacer(); Image(systemName: "chevron.right") }
                         .font(.caption).padding(.horizontal,16).frame(minHeight: 44)
                 }.accessibilityIdentifier("practice-banner")
             }

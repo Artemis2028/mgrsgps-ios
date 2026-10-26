@@ -7,6 +7,9 @@ final class PracticeSession: ObservableObject {
     @Published private(set) var active: PracticeCourse?
     @Published private(set) var summary: Backup.CourseResult?
     @Published private(set) var blockedByStorage = false
+    @Published private(set) var finalizing = false
+    private var finalization: Task<Void,Never>?
+    private var failedFinalizationRunID: String?
     @Published private(set) var error: String?
     private let saved: PracticeCourseStore
     private let waypoints: WaypointStore
@@ -54,7 +57,8 @@ final class PracticeSession: ObservableObject {
         active = course; summary = nil; error = nil; reconcile()
     }
     func reconcile() {
-        guard !reconciling else { return }
+        guard !reconciling, !finalizing else { return }
+        if let failedFinalizationRunID, saved.active?.runID == failedFinalizationRunID, saved.active?.done == true { return }
         let recovering = blockedByStorage
         blockedByStorage = false
         reconciling = true; defer { reconciling = false; if recovering && !blockedByStorage { error = nil } }
@@ -70,17 +74,53 @@ final class PracticeSession: ObservableObject {
             if course != saved.active { try saved.save(course) }
             active = course
             if let result = course.result {
-                // Final score -> idempotent history commit -> clear active. A failed
-                // clear/relaunch retries the same result, never duplicates a run.
-                var document = Backup.Document(); document.hasSettings = false; document.courseHistory = [result]
-                _ = try field.restore(document)
-                try saved.save(nil); active = nil; summary = result
-                try waypoints.setPracticeNavigationTarget(waypoints.selectedId,locked: false)
+                finalize(course,result: result)
             } else {
                 try waypoints.setPracticeNavigationTarget(course.targetID,locked: true)
                 if course.paused && (navigation.running || navigation.preparing) { navigation.pause(reason: course.pauseReason) }
             }
         } catch { blockedByStorage = true; self.error = error.localizedDescription; if navigation.running || navigation.preparing { navigation.pause(reason: "Course progress needs attention.") } }
+    }
+    private func finalize(_ course: PracticeCourse,result: Backup.CourseResult) {
+        finalizing = true; error = nil
+        finalization = Task {
+            let grace = FinalizationGrace()
+            defer { grace.end(); finalization = nil; finalizing = false }
+            do {
+                var document = Backup.Document(); document.hasSettings = false; document.courseHistory = [result]
+                _ = try await LibraryRestoreCommit.field(document,into: field)
+                // Completion is a confirmed operation owned by this session,
+                // including after its sheet disappears. It never clears a new run.
+                guard saved.active == course else { throw PracticeCourseError.invalid("The active course changed. Reopen it before finishing.") }
+                while true {
+                    let snapshot = saved.saveSnapshot()
+                    let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepare(nil) }.value
+                    guard saved.active == course else { throw PracticeCourseError.invalid("The active course changed. Reopen it before finishing.") }
+                    if try saved.publish(prepared) { break }
+                }
+                active = nil; summary = result; blockedByStorage = false; failedFinalizationRunID = nil
+                try waypoints.setPracticeNavigationTarget(waypoints.selectedId,locked: false)
+            } catch {
+                failedFinalizationRunID = course.runID; blockedByStorage = true
+                self.error = saved.active == course ? "The completed run is kept. Retry saving its result. \(error.localizedDescription)" : "Result saved; target settings need attention. \(error.localizedDescription)"
+                if navigation.running || navigation.preparing { navigation.pause(reason: "Course progress needs attention.") }
+            }
+        }
+    }
+    func retryResult() {
+        guard !finalizing else { return }
+        failedFinalizationRunID = nil; reconcile()
+    }
+    @MainActor private final class FinalizationGrace {
+        private var identifier: UIBackgroundTaskIdentifier = .invalid
+        init() {
+            identifier = UIApplication.shared.beginBackgroundTask(withName: "Save practice result") { [weak self] in
+                Task { @MainActor in self?.end() }
+            }
+        }
+        func end() {
+            if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier); identifier = .invalid }
+        }
     }
     func receive(_ fix: Fix?) {
         guard foreground else { return }

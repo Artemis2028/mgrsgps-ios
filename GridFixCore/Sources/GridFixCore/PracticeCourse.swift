@@ -61,10 +61,12 @@ public enum PracticeCourseError: LocalizedError {
 /// Active sessions are not part of Android's backup contract. A durable final
 /// checkpoint is retained until the existing field-history store acknowledges it.
 public final class PracticeCourseStore {
-    private struct Envelope: Codable { var version = 1; var active: PracticeCourse? }
+    private struct Envelope: Codable, Sendable { var version = 1; var active: PracticeCourse? }
     public private(set) var active: PracticeCourse?
     public private(set) var loadError: String?
     private let file: URL
+    private var revision: UInt64 = 0
+    private let identity = UUID()
     public init(directory: URL) {
         file = directory.appendingPathComponent("practice-course-v1.json")
         guard FileManager.default.fileExists(atPath: file.path) else { return }
@@ -79,19 +81,42 @@ public final class PracticeCourseStore {
         let originalError = loadError
         let kept = file.deletingLastPathComponent().appendingPathComponent("practice-course-damaged-\(UUID().uuidString).json")
         try FileManager.default.copyItem(at: file,to: kept)
-        loadError = nil
-        do { try save(nil) } catch { loadError = originalError; throw error }
+        loadError = nil; revision &+= 1
+        do { try save(nil) } catch { loadError = originalError; revision &+= 1; throw error }
+    }
+    /// Snapshot and publication belong to the owner's serial executor. The
+    /// immutable preparation can encode/write without borrowing the live store.
+    public struct SaveSnapshot: Sendable {
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let destination: URL
+        fileprivate let loadError: String?
+        public func prepare(_ value: PracticeCourse?) throws -> PreparedSave {
+            if let loadError { throw PracticeCourseError.invalid(loadError) }
+            guard value?.valid != false else { throw PracticeCourseError.invalid("Invalid practice progress.") }
+            try Task.checkCancellation()
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(Envelope(active: value)),destination: destination,lockCompatible: true)
+            return .init(value: value,revision: revision,identity: identity,file: file)
+        }
+    }
+    public struct PreparedSave: Sendable {
+        fileprivate let value: PracticeCourse?
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: PreparedAtomicFile
+    }
+    public func saveSnapshot() -> SaveSnapshot {
+        .init(revision: revision,identity: identity,destination: file,loadError: loadError)
+    }
+    public func publish(_ prepared: PreparedSave) throws -> Bool {
+        guard prepared.identity == identity else { throw PracticeCourseError.invalid("Prepared course belongs to another store.") }
+        guard prepared.revision == revision else { prepared.file.discard(); return false }
+        try prepared.file.publish()
+        active = prepared.value; revision &+= 1
+        return true
     }
     public func save(_ value: PracticeCourse?) throws {
-        guard loadError == nil else { throw PracticeCourseError.invalid(loadError!) }
-        guard value?.valid != false else { throw PracticeCourseError.invalid("Invalid practice progress.") }
-        let data = try JSONEncoder().encode(Envelope(active: value))
-        var options: Data.WritingOptions = [.atomic]
-        #if os(iOS)
-        options.insert(.completeFileProtectionUntilFirstUserAuthentication)
-        #endif
-        try data.write(to: file,options: options)
-        active = value
+        while true { if try publish(saveSnapshot().prepare(value)) { return } }
     }
 }
 

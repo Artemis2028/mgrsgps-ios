@@ -40,7 +40,7 @@ struct NavigateView: View {
                     }
                     if let label = targetMutation.label { ProgressView(label) }
                     if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("navigation-target-error") }
-                    if practice.locked { Text("Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
+                    if practice.locked { Text(practice.active?.done == true ? "Save the completed course result to unlock navigation." : "Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
                     if let wp = target {
                         targetBlock(wp)
                     } else {

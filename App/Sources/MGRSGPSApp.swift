@@ -183,6 +183,12 @@ struct MGRSGPSApp: App {
             _ = waypointStore.add(.init(name: "Unrelated target",lat: 24.5,lon: 54.4))
             if ProcessInfo.processInfo.arguments.contains("-uiTestPracticeNight") { settingsStore.nightMode = true }
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+            let file = directory.appendingPathComponent("field-data-v1.zip")
+            try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        }
         #endif
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestLanes"),waypointStore.waypoints.isEmpty {

@@ -42,6 +42,11 @@ final class PracticeIntegrationTests: XCTestCase {
         let nav = NavigationSession(directory: dir,store: waypoints,field: field,settings: AppSettings(directory: dir),driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
         return .init(directory: dir,waypoints: waypoints,field: field,navigation: nav,first: a,second: b)
     }
+    private func wait(_ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition() && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertTrue(condition())
+    }
     private func fix(_ waypoint: Waypoint,accuracy: Double = 2,up: Double = 100) -> Fix {
         .init(lat: waypoint.lat,lon: waypoint.lon,accuracyMeters: accuracy,altitudeMeters: nil,speedMetersPerSecond: nil,timestamp: Date(),timestampUptime: up)
     }
@@ -55,7 +60,7 @@ final class PracticeIntegrationTests: XCTestCase {
         XCTAssertFalse(f.navigation.running); XCTAssertTrue(f.navigation.error?.contains("practice course") == true)
         XCTAssertEqual(f.waypoints.waypoints.count,2)
     }
-    func testForegroundPreciseFixesScoreTimedSplitsAndPersistHistory() throws {
+    func testForegroundPreciseFixesScoreTimedSplitsAndPersistHistory() async throws {
         let f = try fixture(); var wall = 1000.0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 })
         course.startFolder("Drill")
@@ -63,7 +68,7 @@ final class PracticeIntegrationTests: XCTestCase {
         course.setForeground(true)
         course.receive(fix(f.first,accuracy: 26)); course.receive(fix(f.first,up: 80)); XCTAssertEqual(course.active?.nextIndex,0)
         wall += 1; course.receive(fix(f.first)); XCTAssertEqual(course.active?.nextIndex,1); XCTAssertEqual(f.waypoints.selectedId,f.second.id)
-        wall += 1; course.receive(fix(f.second)); XCTAssertNil(course.active); XCTAssertFalse(f.waypoints.practiceNavigationLocked)
+        wall += 1; course.receive(fix(f.second)); try await wait { !course.finalizing }; XCTAssertNil(course.active); XCTAssertFalse(f.waypoints.practiceNavigationLocked)
         XCTAssertEqual(f.field.document.courseHistory.first?.total,2000); XCTAssertEqual(f.field.document.courseHistory.first?.splits,[1000,1000])
         XCTAssertEqual(FieldDataStore(directory: f.directory).document.courseHistory.count,1)
         XCTAssertNil(PracticeCourseStore(directory: f.directory).active)
@@ -121,7 +126,33 @@ final class PracticeIntegrationTests: XCTestCase {
         XCTAssertNotNil(course.active); XCTAssertNil(restoredNav.progress)
         XCTAssertFalse(restoredNav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(f.waypoints.selectedId,f.first.id)
     }
-    func testHistoryCommittedBeforeFailedActiveClearRecoversExactlyOnce() throws {
+    func testFailedHistoryPublicationKeepsCompletedRunAndRetryFinishesExactlyOnce() async throws {
+        let f = try fixture(); var wall = 1000.0
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 })
+        course.startFolder("Drill"); course.setForeground(true); wall += 1; course.receive(fix(f.first))
+        let path = f.directory.appendingPathComponent("field-data-v1.zip")
+        try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        wall += 1; course.receive(fix(f.second))
+        XCTAssertTrue(course.finalizing); XCTAssertTrue(course.active?.done == true)
+        // A second receipt/reconcile must not start a second finalizer or abandon.
+        course.receive(fix(f.second)); course.reconcile(); course.end(expectedRunID: course.active?.runID)
+        try await wait { !course.finalizing }
+        XCTAssertNotNil(course.error); XCTAssertTrue(course.blockedByStorage)
+        XCTAssertTrue(course.active?.done == true); XCTAssertTrue(f.field.document.courseHistory.isEmpty)
+        XCTAssertTrue(PracticeCourseStore(directory: f.directory).active?.done == true)
+        let retainedError = course.error
+        for _ in 0..<3 { course.receive(fix(f.second)); course.reconcile() }
+        XCTAssertFalse(course.finalizing); XCTAssertEqual(course.error,retainedError,"A timer must not retry a failed full-archive save every second")
+        let subscription = f.field.$document.dropFirst().sink { _ in XCTAssertTrue(Thread.isMainThread) }
+        defer { subscription.cancel() }
+        try FileManager.default.removeItem(at: path)
+        course.retryResult(); try await wait { !course.finalizing }
+        XCTAssertNil(course.active); XCTAssertNotNil(course.summary); XCTAssertFalse(course.blockedByStorage)
+        XCTAssertEqual(FieldDataStore(directory: f.directory).document.courseHistory.count,1)
+        XCTAssertNil(PracticeCourseStore(directory: f.directory).active)
+        course.reconcile(); XCTAssertEqual(f.field.document.courseHistory.count,1)
+    }
+    func testHistoryCommittedBeforeFailedActiveClearRecoversExactlyOnce() async throws {
         let f = try fixture(); var wall = 1000.0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 })
         course.startFolder("Drill"); course.setForeground(true); wall += 1; course.receive(fix(f.first))
@@ -132,11 +163,12 @@ final class PracticeIntegrationTests: XCTestCase {
             retained = try? Data(contentsOf: path)
             try? FileManager.default.removeItem(at: path); try? FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         }
-        wall += 1; course.receive(fix(f.second)); observer.cancel()
+        wall += 1; course.receive(fix(f.second)); try await wait { !course.finalizing }; observer.cancel()
         XCTAssertTrue(course.active?.done == true); XCTAssertEqual(f.field.document.courseHistory.count,1); XCTAssertNotNil(course.error)
         course.end(expectedRunID: course.active?.runID); XCTAssertNotNil(course.active)
         try FileManager.default.removeItem(at: path); try XCTUnwrap(retained).write(to: path)
         let reopened = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
+        try await wait { !reopened.finalizing }
         XCTAssertNil(reopened.active); XCTAssertEqual(f.field.document.courseHistory.count,1)
     }
 }
