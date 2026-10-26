@@ -178,8 +178,10 @@ struct MapScreen: View {
                     Spacer(minLength: 0)
                     if compactMap {
                         ScrollView(.horizontal,showsIndicators: false) { HStack(spacing: 8) { mapToolButtons } }.frame(maxWidth: 420)
+                            .foregroundStyle(palette.ink).environment(\.colorScheme,.dark)
                     } else {
                         LazyVGrid(columns: [.init(.fixed(68)),.init(.fixed(68))],spacing: 8) { mapToolButtons }.frame(width: 144)
+                            .foregroundStyle(palette.ink).environment(\.colorScheme,.dark)
                     }
                 }
                 Spacer(minLength: 0)
@@ -258,7 +260,7 @@ struct MapScreen: View {
                     }
                     .fieldGlassButton().tint(palette.accent)
                     .accessibilityLabel("Add waypoint at map centre")
-                } }
+                }.foregroundStyle(palette.ink).environment(\.colorScheme,.dark) }
             }
             .disabled(graphicMutation.working || lassoMutation.working)
             .padding(.horizontal, 16).padding(.top, 8)
@@ -268,7 +270,7 @@ struct MapScreen: View {
         }
         .foregroundStyle(mapInk)
         .environment(\.colorScheme, chromeNight ? .dark : .light)
-        .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
         .onAppear { targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
         .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }

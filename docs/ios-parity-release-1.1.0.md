@@ -224,3 +224,26 @@ uses bounded drags, PDF export belongs to the presentation root, and per-test
 execution timeouts preserve diagnostics and later test coverage. No assertion or
 UI class was removed. Final export replay and final-head hosted status are
 recorded in [CI evidence](ci-field-ui-activation.md).
+
+
+## Hosted 9a258c7 completed and local follow-up
+
+Run 40295990817 completed with the library shard green, map failing its live-
+recording Record-visibility switch, and field failing one practice integration,
+large GPX reopen and navigation Live Activity opt-in. The practice test now uses
+its feedback double instead of waiting on real notification consent. Switch
+settings await acknowledgement and retry only an unchanged value; Files opens
+the actual thumbnail instead of the filename edge. All assertions remain.
+All seven affected UI cases pass locally (both exports, both Activities and all
+map-button workflows). The final protected-file helper check and native evidence
+are recorded in [CI follow-up](ci-field-ui-activation.md). Full hosted green
+remains required; user-facing production permission/navigation behavior is
+unchanged by this test repair.
+
+
+Day map controls now use light symbols on dark native glass so their inherited
+black foreground cannot disappear against dark imagery; the coordinate HUD keeps
+its light surface and night mode remains red on black. Both final map workflows
+and phone/watch/widget Release pass; screenshots were inspected. The complete
+seven-case CI replay passes, as do the final protected-backup workflow and 58
+related native integrations. Full hosted confirmation remains open.

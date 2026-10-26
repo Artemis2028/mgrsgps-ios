@@ -16,7 +16,7 @@ final class LiveActivityWorkflowTests:XCTestCase {
     private func enabled(_ value:Bool,_ app:XCUIApplication) {
         let toggle=app.switches["settings-live-activities"]
         revealSettingsControl(toggle,in: app)
-        if (toggle.value as? String == "1") != value { tapNativeSwitch(toggle) }
+        setNativeSwitch(toggle,to: value)
         let expected=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@",value ? "1" : "0"),object:toggle)
         XCTAssertEqual(XCTWaiter.wait(for:[expected],timeout:5),.completed,app.debugDescription)
     }

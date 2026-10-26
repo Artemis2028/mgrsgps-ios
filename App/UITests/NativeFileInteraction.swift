@@ -24,7 +24,8 @@ extension XCTestCase {
             guard item.exists && item.isHittable else { return false }
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
             let bottom = tabs.exists ? tabs.frame.minY : files.frame.maxY
-            return item.frame.midY > top+8 && item.frame.midY < bottom-8
+            let iconY = item.frame.minY+item.frame.height*0.25
+            return iconY > top+8 && iconY < bottom-8
         }
         func scroll(down: Bool) {
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
@@ -43,13 +44,14 @@ extension XCTestCase {
         for _ in 0..<16 {
             if unobscured() { break }
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
-            scroll(down: item.exists && item.frame.midY < top+8)
+            scroll(down: item.exists && item.frame.minY+item.frame.height*0.25 < top+8)
         }
         XCTAssertTrue(item.exists,app.debugDescription,file: file,line: line)
         XCTAssertTrue(unobscured(),app.debugDescription,file: file,line: line)
-        // Files can report a stale activation point after scrolling a recycled
-        // cell. Use its current visible frame, as with native menu controls.
-        tapNativeMenuItem(item,file: file,line: line)
+        // In icon view the cell centre is the filename's upper edge. Hosted
+        // Files can leave that text tap unhandled. Open the visible thumbnail,
+        // using its own coordinate space even if the app AX origin is invalid.
+        item.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.25)).tap()
     }
 
     func saveNativeFile(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {

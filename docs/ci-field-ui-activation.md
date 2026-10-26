@@ -302,3 +302,66 @@ screenshot/AX diagnostics without repeating unchanged workflows. Exported PDF,
 readable night CSV preview and visible Live Activities screenshots were inspected.
 Final-hosted confirmation remains open; this is local evidence, not a claim that
 the intermittent hosted PDF footer problem can no longer occur.
+
+
+## Hosted 9a258c7 follow-up
+
+Run 40295990817 completed: the whole library shard passes. Map fails only the
+active-recording tool-hide switch; field reports one practice integration,
+large GPX reopen and navigation Live Activity opt-in. PDF native save, track
+exports and recording Activity lifecycle now pass hosted. Core tests and all
+three simulator builds pass. This is still a failed overall run.
+
+The pending-course-target integration constructed SystemNavigationFeedback on
+a fresh simulator. Its final guide startup could wait for notification consent,
+which this ordering test never supplies. Practice integration fixtures now use
+their existing feedback double unless explicitly supplied, as the other driver/
+feedback ordering tests do. The real permission workflow remains in UI tests;
+no production consent or feedback logic changes. Wait failures now report their
+calling test line. All 58 practice/navigation integrations pass locally in
+`/tmp/gridfix-ci91-practice-native.xcresult` after that fixture correction.
+
+The two hosted switch recordings visibly retain the old switch value after the
+synthesized tap. Setting now waits for the requested value and, only when it
+remains unchanged, tries the actual UIKit leaf hit point. It rechecks before
+every action and stops immediately on acknowledgement, so a successful change
+cannot be toggled back. Three attempts remain bounded; failure is still fatal.
+The existing target values, session counts, opt-out/session continuation and
+active-tool escape assertions remain. No production switch behavior changes.
+
+The Files recording stays in its native browser after tapping `(69,291.8)`;
+that point is the filename's top edge in the 118×189.7 icon cell. The helper now
+opens the upper-quarter thumbnail using the cell's coordinate space and verifies
+that actual point is below navigation and above the tab bar. The full 5,000-point/
+1,000-graphic review counts remain required. A final replay of all three affected
+UI classes is in progress; no passing result is inferred from these edits alone.
+
+
+Local `/tmp/gridfix-ci91-ui-fixed.xcresult` passes all seven cases across the
+three affected UI classes, including real recording/navigation ActivityKit and
+active-tool escape controls. The final helper also scrolls according to its
+thumbnail hit point, rather than the old text-centre point. With that final
+geometry, `/tmp/gridfix-ci91-final.xcresult` passes protected backup password
+failure/restore and all 58 practice/navigation integrations. All tests finished
+before the owned auxiliary `simctl diagnose` child stalled; only that diagnostic
+child (PID64075, parent62972) was terminated. The xcodebuild parent then finalized
+successfully before the next simulator run. Test results are complete; the
+supplementary diagnostic collection was shortened.
+
+Screenshot review also exposed a production contrast issue: the daytime map's
+hard-coded black foreground leaked into darkening glass buttons. Map action
+rows/grids now use light symbols in a dark native glass environment; their night
+palette remains red. The coordinate card retains its light surface/black text,
+and the map tab bar uses the dark control scheme. The final day/night map replay
+and Release build are recorded below after completion. This is a scoped control
+appearance change, not a map imagery/night-model or quiet-boundary change.
+
+
+Final map appearance checks pass in `/tmp/gridfix-ci91-map-contrast.xcresult`:
+the existing day/night hide/reset/Go to/relaunch workflow and the actual-location
+hidden-Record/Stop/discard workflow. Exported screenshots show light symbols on
+dark native day glass, a readable coordinate card, and preserved red/black night
+controls. Final phone/watch/widget Release passes in
+`/tmp/gridfix-ci91-release.log`. No new UI class, test exclusion or permission
+shortcut was added. All owned test executors finished before simulator shutdown;
+the location feed was stopped/cleared. Full hosted green remains the next CI gate.

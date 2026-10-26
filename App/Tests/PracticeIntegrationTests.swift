@@ -41,13 +41,16 @@ final class PracticeIntegrationTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
         let waypoints = WaypointStore(directory: dir), field = FieldDataStore(directory: dir)
         let a = waypoints.add(.init(name: "A",lat: 24,lon: 54,folder: "Drill")), b = waypoints.add(.init(name: "B",lat: 24.01,lon: 54,folder: "Drill"))
-        let nav = NavigationSession(directory: dir,store: waypoints,field: field,settings: AppSettings(directory: dir),driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+        // Persistence/ordering tests must not wait on the real notification
+        // authorization sheet on a clean hosted simulator. Permission and
+        // system-feedback behavior have their own integration/UI coverage.
+        let nav = NavigationSession(directory: dir,store: waypoints,field: field,settings: AppSettings(directory: dir),driver: driver,feedback: feedback ?? PracticeGuideFeedback(),foreground: { true },scheduleTicks: false)
         return .init(directory: dir,waypoints: waypoints,field: field,navigation: nav,first: a,second: b)
     }
-    private func wait(_ condition: () -> Bool) async throws {
+    private func wait(_ condition: () -> Bool,file: StaticString = #filePath,line: UInt = #line) async throws {
         let deadline = Date().addingTimeInterval(5)
         while !condition() && Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
-        XCTAssertTrue(condition())
+        XCTAssertTrue(condition(),file: file,line: line)
     }
     private func fix(_ waypoint: Waypoint,accuracy: Double = 2,up: Double = 100) -> Fix {
         .init(lat: waypoint.lat,lon: waypoint.lon,accuracyMeters: accuracy,altitudeMeters: nil,speedMetersPerSecond: nil,timestamp: Date(),timestampUptime: up)

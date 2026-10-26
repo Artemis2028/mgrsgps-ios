@@ -13,6 +13,24 @@ extension XCTestCase {
         let leaf = element.descendants(matching: .switch).allElementsBoundByIndex.last ?? element
         tapVisibleControl(leaf,horizontal: 0.5,file: file,line: line)
     }
+    /// A hosted UIKit gesture can finish without changing a visible switch.
+    /// Re-read the value before another action, so an acknowledged change is
+    /// never toggled back. The alternate action uses UIKit's native hit point.
+    func setNativeSwitch(_ element: XCUIElement,to enabled: Bool,file: StaticString = #filePath,line: UInt = #line) {
+        let expected = enabled ? "1" : "0"
+        for attempt in 0..<3 {
+            if element.value as? String == expected { return }
+            if attempt == 0 { tapNativeSwitch(element,file: file,line: line) }
+            else {
+                let leaf = element.descendants(matching: .switch).allElementsBoundByIndex.last ?? element
+                XCTAssertTrue(leaf.isHittable,element.debugDescription,file: file,line: line)
+                leaf.tap()
+            }
+            let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@",expected),object: element)
+            if XCTWaiter.wait(for: [applied],timeout: 5) == .completed { return }
+        }
+        XCTFail("Native switch did not acknowledge value \(expected): \(element.debugDescription)",file: file,line: line)
+    }
     /// Older runtimes report a scrolled row as hittable beneath the navigation
     /// bar; tapping its stale centre can activate Done instead of the switch.
     func revealSettingsControl(_ element: XCUIElement,in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {

@@ -11,7 +11,7 @@ final class MapToolWorkflowTests: XCTestCase {
         let value = app.switches["map-tool-shown-"+key]
         for _ in 0..<4 { if value.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(value.isHittable,app.debugDescription)
-        if (value.value as? String == "1") != shown { tapNativeSwitch(value) }
+        setNativeSwitch(value,to: shown)
         let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@",shown ? "1" : "0"),object: value)
         XCTAssertEqual(XCTWaiter.wait(for: [applied],timeout: 5),.completed,app.debugDescription)
     }
