@@ -234,7 +234,7 @@ struct WaypointsView: View {
             }
         }
         .sheet(item: $folderRequest) { request in
-            LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try saveFolder(original: request.original,name: name) }
+            LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try await saveFolder(original: request.original,name: name) }
         }
         .sheet(isPresented: $showingLanes,onDismiss: {
             if let action = pendingLane { pendingLane = nil; maps.laneRequest = LaneMapRequest(action: action); onShowMap() }
@@ -369,7 +369,7 @@ struct WaypointsView: View {
                 ForEach(libraryFolders) { folder in
                     folderChip(folder.name, selected: folderFilter == folder.name) { folderFilter = folder.name }
                         .contextMenu {
-                            Button(folder.visible ? "Hide folder on map" : "Show folder on map") { perform { try store.setLibraryFolderVisible(folder.name,visible: !folder.visible) } }
+                            Button(folder.visible ? "Hide folder on map" : "Show folder on map") { setFolderVisible(folder.name,visible: !folder.visible) }
                             if folder.name != Folders.defaultFolder {
                                 Button("Rename folder") { folderRequest = LibraryFolderRequest(original: folder.name) }
                                 Button("Delete folder",role: .destructive) { folderToDelete = folder.name }
@@ -431,7 +431,7 @@ struct WaypointsView: View {
                     .font(.caption).foregroundStyle(palette.inkDim).accessibilityIdentifier("library-listed-count")
                 Spacer(minLength: 0)
                 if let folder = libraryFolders.first(where: { $0.name == folderFilter }) ?? (libraryFolders.count == 1 ? libraryFolders.first : nil) {
-                    Button { perform { try store.setLibraryFolderVisible(folder.name,visible: !folder.visible) } } label: {
+                    Button { setFolderVisible(folder.name,visible: !folder.visible) } label: {
                         Image(systemName: folder.visible ? "eye" : "eye.slash").frame(minWidth: 44,minHeight: 44)
                     }.accessibilityLabel(folder.visible ? "Hide folder" : "Show folder").accessibilityIdentifier("folder-visibility-\(folder.name)")
                     if folder.name != Folders.defaultFolder {
@@ -575,9 +575,9 @@ struct WaypointsView: View {
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
             Menu {
                 Button("Edit", systemImage: "pencil") { beginEdit(wp) }
-                Button(wp.favorite ? "Remove favourite" : "Favourite",systemImage: wp.favorite ? "star.slash" : "star") { perform { try store.setFavorite(id: wp.id,favorite: !wp.favorite) } }.accessibilityIdentifier("toggle-favorite-\(wp.name)")
+                Button(wp.favorite ? "Remove favourite" : "Favourite",systemImage: wp.favorite ? "star.slash" : "star") { updateLibrary(.favorite(wp.id,!wp.favorite),label: "Saving favourite…") }.accessibilityIdentifier("toggle-favorite-\(wp.name)")
                 Button(wp.visible ? "Hide on map" : "Make visible on map", systemImage: wp.visible ? "eye.slash" : "eye") {
-                    perform { try store.applyLibraryBatch(ids: [wp.id],action: .swapVisibility) }
+                    swapWaypointVisibility(wp.id)
                 }
                 Button("Navigate", systemImage: "location.north") { navigate(to: wp) }
                 Button("Show on map",systemImage: "map") { maps.focusRequest = MapCameraRequest(action: .locate(wp.lat,wp.lon)); onShowMap() }
@@ -628,45 +628,74 @@ struct WaypointsView: View {
     /// Like Android, repositories commit independently. Completed IDs leave the
     /// selection immediately, so a retry cannot swap their visibility twice.
     private func applyBatch(_ action: LibraryBatchAction) {
-        let result = LibraryBatches.apply(selection,action: action,waypoints: store,field: fieldData)
-        selection = result.remaining
-        if let failure = result.failure {
-            selecting = selection.count > 0
-            status = "\(result.completed) items updated; remaining items unchanged. \(failure)"
-        } else {
-            selecting = false
-            status = "\(action == .delete ? "Deleted" : "Swapped visibility for") \(result.completed) items"
-        }
+        let confirmed = selection
+        fieldMutation.run("Updating selected items…",action: {
+            let result = await LibraryMutationAction.batch(confirmed,action: action,waypoints: store,field: fieldData)
+            selection = result.remaining
+            if let failure = result.failure {
+                selecting = selection.count > 0
+                status = "\(result.completed) items updated; remaining items unchanged. \(failure)"
+            } else {
+                selecting = false
+                status = "\(action == .delete ? "Deleted" : "Swapped visibility for") \(result.completed) items"
+            }
+        })
     }
 
-    private func saveFolder(original: String?,name: String) throws {
+    private func swapWaypointVisibility(_ id: String) {
+        var confirmed = LibrarySelection(); confirmed.waypoints = [id]
+        fieldMutation.run("Updating waypoint visibility…",action: {
+            let result = await LibraryMutationAction.batch(confirmed,action: .swapVisibility,waypoints: store,field: fieldData)
+            if let error = result.failure { throw LibraryActionError.partial(error) }
+            status = nil
+        })
+    }
+
+    private func updateLibrary(_ edit: WaypointStore.LibraryEdit,label: String) {
+        fieldMutation.run(label,action: { _ = try await LibraryMutationAction.apply(edit,to: store); status = nil })
+    }
+    private func setFolderVisible(_ name: String,visible: Bool) {
+        updateLibrary(.folderVisibility(name,visible),label: "Updating folder visibility…")
+    }
+
+    private func saveFolder(original: String?,name: String) async throws {
         if let original {
             let target = Folders.match(known: libraryFolders.map(\.name).filter { $0.caseInsensitiveCompare(original) != .orderedSame },raw: name)
-            try fieldData.changeLibraryFolder(from: original,to: target)
-            do { folderFilter = try store.renameLibraryFolder(from: original,to: target) }
+            try await FieldEditAction.apply(.changeLibraryFolder(from: original,to: target,deleteContents: false),to: fieldData)
+            do { folderFilter = try await LibraryMutationAction.apply(.renameFolder(original,target),to: store) }
             catch { throw LibraryActionError.partial("Graphics and tracks moved. Retry to finish updating waypoints and folder settings. \(error.localizedDescription)") }
-        } else { folderFilter = try store.createLibraryFolder(name) }
+        } else { folderFilter = try await LibraryMutationAction.apply(.createFolder(name),to: store) }
         selecting = false; selection = LibrarySelection(); status = nil
     }
     private func removeFolder(_ name: String,deleteContents: Bool) {
-        do {
-            try fieldData.changeLibraryFolder(from: name,to: nil,deleteContents: deleteContents)
-            do { try store.removeLibraryFolder(name,deleteContents: deleteContents) }
+        fieldMutation.run("Updating folder…",action: {
+            try await FieldEditAction.apply(.changeLibraryFolder(from: name,to: nil,deleteContents: deleteContents),to: fieldData)
+            do { _ = try await LibraryMutationAction.apply(.removeFolder(name,deleteContents),to: store) }
             catch { throw LibraryActionError.partial("Graphics and tracks updated. Retry to finish updating waypoints and folder settings. \(error.localizedDescription)") }
             folderFilter = nil; pruneSelection(); status = deleteContents ? "Folder and its contents deleted" : "Folder removed; contents kept in Base"
-        } catch { status = error.localizedDescription }
+        })
     }
     private func showGraphic(_ graphic: Backup.Graphic) {
         guard let current = fieldData.document.graphics.first(where: { $0.id == graphic.id }) else { status = "This graphic is no longer saved."; return }
         maps.focusRequest = MapCameraRequest(action: .showBoundary(current.mapExtentPoints)); onShowMap()
     }
     private func showTrack(_ track: Backup.TrackMeta) {
-        perform {
-            let points = try fieldData.points(for: track.id).map { GeoPoint(lat: $0.lat,lon: $0.lon) }
+        var focus: [GeoPoint] = []
+        fieldMutation.run("Opening track…",action: {
+            guard fieldData.document.tracks.contains(where: { $0.id == track.id }) else { throw LibraryActionError.partial("This track is no longer saved.") }
+            let bytes = fieldData.document.trackFiles[track.id] ?? Data()
+            let points = try await Task.detached(priority: .userInitiated) {
+                try TrackCodec.decode(bytes).map { GeoPoint(lat: $0.lat,lon: $0.lon) }
+            }.value
             guard !points.isEmpty else { throw LibraryActionError.partial("This track has no saved points to show.") }
-            if libraryFolders.first(where: { $0.name == track.folder })?.visible == false { try store.setLibraryFolderVisible(track.folder,visible: true) }
-            maps.viewedTrackID = track.id; maps.focusRequest = MapCameraRequest(action: .showBoundary(points)); onShowMap()
-        }
+            if store.folders.first(where: { $0.name == track.folder })?.visible == false {
+                _ = try await LibraryMutationAction.apply(.folderVisibility(track.folder,true),to: store)
+            }
+            focus = points
+        },completion: { visible in
+            guard visible, fieldData.document.tracks.contains(where: { $0.id == track.id }) else { return }
+            maps.viewedTrackID = track.id; maps.focusRequest = MapCameraRequest(action: .showBoundary(focus)); onShowMap()
+        })
     }
     private func backtrack(_ track: Backup.TrackMeta) {
         guard backtrackingID == nil else { return }
@@ -683,7 +712,6 @@ struct WaypointsView: View {
             }
         }
     }
-    private func perform(_ action: () throws -> Void) { do { try action(); status = nil } catch { status = error.localizedDescription } }
 
     private func exportBackup(password: String? = nil) {
         guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }

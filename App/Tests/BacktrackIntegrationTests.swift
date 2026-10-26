@@ -1,3 +1,4 @@
+import Combine
 import GridFixCore
 import XCTest
 @testable import MGRSGPS
@@ -42,5 +43,19 @@ final class BacktrackIntegrationTests: XCTestCase {
         try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         do { _ = try await TrackBacktrackAction.create(track: track,field: field,waypoints: waypoints); XCTFail("Unwritable archive") } catch {}
         XCTAssertEqual(field.document,before)
+    }
+    func testSourceRemovedDuringFolderPublicationCannotCreateLateRoute() async throws {
+        let (_,field,waypoints,track) = try fixture()
+        var removed = false
+        let subscription = waypoints.$folders.dropFirst().sink { folders in
+            guard !removed, folders.contains(where: { $0.name == "Recon" && $0.visible }) else { return }
+            removed = true
+            do { try field.deleteTrack(track.id) }
+            catch { XCTFail(error.localizedDescription) }
+        }
+        defer { subscription.cancel() }
+        do { _ = try await TrackBacktrackAction.create(track: track,field: field,waypoints: waypoints); XCTFail("Removed source produced route") } catch {}
+        XCTAssertTrue(removed); XCTAssertTrue(field.document.tracks.isEmpty)
+        XCTAssertTrue(field.document.graphics.isEmpty)
     }
 }

@@ -17,8 +17,9 @@ enum TrackBacktrackAction {
         try Task.checkCancellation()
         guard let current = field.document.tracks.first(where: { $0.id == track.id }) else { throw Failure.removed }
         route.name = String(("Back "+current.name).prefix(20))
-        route.folder = try waypoints.createLibraryFolder(current.folder)
-        try waypoints.setLibraryFolderVisible(route.folder,visible: true)
+        guard let folder = try await LibraryMutationAction.apply(.folderVisibility(current.folder,true),to: waypoints) else { throw Failure.removed }
+        route.folder = folder
+        guard field.document.tracks.contains(where: { $0.id == track.id }) else { throw Failure.removed }
         try await FieldEditAction.apply(.createGraphic(route),to: field)
         return route
     }

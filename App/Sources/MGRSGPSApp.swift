@@ -124,6 +124,15 @@ struct MGRSGPSApp: App {
             }
             _ = try? fieldStore.restore(fixture)
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibraryWriteFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+            // The valid in-memory test library remains available; only its next
+            // publication is blocked. Never operates on production storage.
+            let file = directory.appendingPathComponent("waypoints-v1.json")
+            try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+            if ProcessInfo.processInfo.arguments.contains("-uiTestLibraryWriteFailureNight") { settingsStore.nightMode = true }
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLargeLibrary"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), waypointStore.waypoints.isEmpty {
             // Real stores and production listing; no synthetic UI result path.

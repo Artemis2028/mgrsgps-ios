@@ -60,7 +60,8 @@ final class LibraryWorkflowTests: XCTestCase {
         capture("library-folder-kept-in-base")
         let clear = app.buttons["library-clear-graphics"]; reveal(clear); clear.tap()
         app.alerts.buttons["Delete"].tap()
-        XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("3 waypoints · 0 graphics · 1 tracks"))
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@","3 waypoints · 0 graphics · 1 tracks"),object: app.staticTexts["library-listed-count"])
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared],timeout: 5),.completed,app.debugDescription)
     }
     func testMoveTrackAndViewHiddenTrackWithoutChangingItsVisibilityFlag() {
         folder("Recon")

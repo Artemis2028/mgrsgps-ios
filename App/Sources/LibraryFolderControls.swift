@@ -9,12 +9,12 @@ struct LibraryFolderRequest: Identifiable {
 struct LibraryFolderEditor: View {
     let original: String?
     let folders: [FolderInfo]
-    var save: (String) throws -> Void
+    var save: (String) async throws -> Void
     @State private var name: String
-    @State private var error: String?
+    @StateObject private var mutation = FieldMutation()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fieldNight) private var night
-    init(original: String?,folders: [FolderInfo],save: @escaping (String) throws -> Void) {
+    init(original: String?,folders: [FolderInfo],save: @escaping (String) async throws -> Void) {
         self.original = original; self.folders = folders; self.save = save; _name = State(initialValue: original ?? "")
     }
     private var merged: String? { folders.first { $0.name != original && $0.name.caseInsensitiveCompare(Folders.canonical(name)) == .orderedSame }?.name }
@@ -25,19 +25,30 @@ struct LibraryFolderEditor: View {
                 if let hint = Folders.reservedHint(name) { Text(hint).font(.footnote) }
                 if let merged { Text("Merges into \(merged)").font(.footnote) }
                 if original != nil { Text("Waypoints, graphics and finished tracks move with the folder. Base is permanent.").font(.footnote) }
-                if let error { Text(error).foregroundStyle(FieldPalette(night: night).warn) }
-            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                if let label = mutation.label { ProgressView(label) }
+                if let error = mutation.error { Text(error).foregroundStyle(FieldPalette(night: night).warn).accessibilityIdentifier("library-folder-error") }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibraryWriteFailure"), mutation.error != nil {
+                    Button("Repair test storage") {
+                        let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                        if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                    }.accessibilityIdentifier("library-folder-repair")
+                }
+                #endif
+            }.disabled(mutation.working).scrollContentBackground(.hidden).background { FieldScreenBackground() }
                 .foregroundStyle(FieldPalette(night: night).ink).tint(FieldPalette(night: night).accent)
                 .navigationTitle(original == nil ? "New folder" : "Rename folder").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(mutation.working) }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(original == nil ? "Create" : "Rename") {
-                            do { try save(name); dismiss() } catch { self.error = error.localizedDescription }
-                        }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name == original).accessibilityIdentifier("library-folder-save")
+                            let confirmed = name
+                            mutation.run("Saving folder…",action: { try await save(confirmed) },completion: { if $0 { dismiss() } })
+                        }.disabled(mutation.working || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name == original).accessibilityIdentifier("library-folder-save")
                     }
                 }
-        }.fieldSheetAppearance()
+        }.fieldSheetAppearance().interactiveDismissDisabled(mutation.working)
+            .onAppear { mutation.setPresented(true) }.onDisappear { mutation.setPresented(false) }
     }
 }
 

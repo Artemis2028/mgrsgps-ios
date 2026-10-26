@@ -61,7 +61,7 @@ The hosted workflow now runs exhaustive library/map/field shards on separate
 runners, each with one test simulator and parallel XCTest disabled. The field
 shard also executes all app integrations and the five existing dedicated real-
 location scenarios. Core tests still gate every build; screenshots run once.
-All 40 current UI classes are accounted for: 35 assigned exactly once and five
+All 41 current UI classes are accounted for: 36 assigned exactly once and five
 retained in their dedicated feed phases. New classes automatically receive one
 stable shard; missing/renamed configured classes fail selection. Three partition
 regressions and the three existing feed-recovery script tests pass. Actionlint,
@@ -149,3 +149,9 @@ for arm64 and x86_64 pass locally. CI now prints all compiler error lines on a
 failed build as well as retaining its complete log. Actionlint passes. The
 older compiler is available on GitHub, so its subsequent run remains the
 authoritative compatibility check.
+
+Hosted run 40253455102 at 56d7a3f confirms all three Xcode 26.6 simulator
+builds pass after the watch bounds refactor. Full job outcomes were still
+in progress at the library-persistence checkpoint. The new day/night library
+failure class is automatically included once in the library shard; see
+[library staging evidence](library-worker-persistence.md).

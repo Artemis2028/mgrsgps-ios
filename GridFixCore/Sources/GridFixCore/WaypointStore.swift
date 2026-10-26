@@ -276,6 +276,23 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         return (Snapshot(waypoints: next,folders: nextFolders,selectedId: base.selectedId),next.count-base.waypoints.count)
     }
 
+    public enum LibraryEdit: Sendable {
+        case favorite(String,Bool)
+        case folderVisibility(String,Bool)
+        case createFolder(String)
+        case renameFolder(String,String)
+        case removeFolder(String,Bool)
+    }
+
+    public struct PreparedLibraryEdit: Sendable {
+        fileprivate let batch: PreparedBatch
+        public let folder: String?
+    }
+
+    public func publishLibraryEdit(_ prepared: PreparedLibraryEdit) throws -> Bool {
+        try publishBatch(prepared.batch)
+    }
+
     public struct RestoreSnapshot: Sendable {
         fileprivate let base: Snapshot
         fileprivate let revision: UInt64
@@ -283,6 +300,44 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let destination: URL
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
+
+        public func prepareLibrary(_ edit: LibraryEdit) throws -> PreparedLibraryEdit {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            var next = base
+            var folder: String?
+            let names = base.folders.map(\.name) + base.waypoints.map(\.folder)
+            switch edit {
+            case let .favorite(id,value):
+                guard let index = next.waypoints.firstIndex(where: { $0.id == id }) else { throw EditFailure.removed }
+                next.waypoints[index].favorite = value
+            case let .folderVisibility(raw,visible):
+                let name = Folders.match(known: names,raw: raw); folder = name
+                if let index = next.folders.firstIndex(where: { $0.name == name }) { next.folders[index].visible = visible }
+                else { next.folders.append(.init(name: name,visible: visible)) }
+            case .createFolder(let raw):
+                let name = Folders.match(known: names,raw: raw); folder = name
+                if !next.folders.contains(where: { $0.name == name }) { next.folders.append(.init(name: name)) }
+            case let .renameFolder(from,raw):
+                guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame,
+                      !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw EditFailure.invalid }
+                let target = Folders.match(known: names.filter { $0.caseInsensitiveCompare(from) != .orderedSame },raw: raw)
+                folder = target
+                let visible = next.folders.first { $0.name.caseInsensitiveCompare(from) == .orderedSame }?.visible ?? true
+                next.folders.removeAll { $0.name.caseInsensitiveCompare(from) == .orderedSame }
+                if let index = next.folders.firstIndex(where: { $0.name == target }) { next.folders[index].visible = next.folders[index].visible || visible }
+                else { next.folders.append(.init(name: target,visible: visible)) }
+                for index in next.waypoints.indices where next.waypoints[index].folder.caseInsensitiveCompare(from) == .orderedSame { next.waypoints[index].folder = target }
+            case let .removeFolder(name,deleteContents):
+                guard name.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { throw EditFailure.invalid }
+                if deleteContents { next.waypoints.removeAll { $0.folder.caseInsensitiveCompare(name) == .orderedSame } }
+                else { for index in next.waypoints.indices where next.waypoints[index].folder.caseInsensitiveCompare(name) == .orderedSame { next.waypoints[index].folder = Folders.defaultFolder } }
+                next.folders.removeAll { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+                if !next.waypoints.contains(where: { $0.id == next.selectedId }) { next.selectedId = nil }
+            }
+            next.folders = WaypointStore.mergeFolderList(stored: next.folders,referenced: next.waypoints.map(\.folder))
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
+            return .init(batch: .init(snapshot: next,revision: revision,identity: identity,file: file),folder: folder)
+        }
 
         public func prepareBatch(ids: Set<String>,action: LibraryBatchAction) throws -> PreparedBatch {
             if let loadError { throw BackupError.notABackup(loadError) }

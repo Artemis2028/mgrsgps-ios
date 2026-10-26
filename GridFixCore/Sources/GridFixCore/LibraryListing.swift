@@ -73,6 +73,9 @@ public enum LibraryBatches {
         public let completed: Int
         public let remaining: LibrarySelection
         public let failure: String?
+        public init(completed: Int,remaining: LibrarySelection,failure: String?) {
+            self.completed = completed; self.remaining = remaining; self.failure = failure
+        }
     }
     /// Each repository commits independently, as on Android. Return only the
     /// unfinished IDs, so retrying a partial visibility swap never flips an
