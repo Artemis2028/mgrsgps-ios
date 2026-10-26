@@ -25,6 +25,7 @@ struct RootView: View {
     @State private var importStatus: String?
     @State private var seededIncomingTest = false
     @State private var showingPractice = false
+    @State private var startupLoadReleased = false
 
     private var practiceBannerText: String {
         if practice.damaged { return "Saved course needs attention" }
@@ -57,6 +58,25 @@ struct RootView: View {
     }
 
     private func updateCompassDemand() { location.setCompassEnabled(selection == 1 || (selection == 0 && settings.face != .glance)) }
+
+    @ViewBuilder private var libraryLoadingOverlay: some View {
+        if !fieldStore.ready {
+            ZStack {
+                FieldPalette(night: settings.nightMode).background.opacity(0.96).ignoresSafeArea()
+                VStack(spacing: 12) {
+                    ProgressView().tint(FieldPalette(night: settings.nightMode).accent)
+                    Text("Loading field library…").font(.headline).accessibilityIdentifier("field-library-loading")
+                    Text("Checking saved graphics, tracks and course history.").font(.footnote).multilineTextAlignment(.center)
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad") {
+                        Button("Continue loading") { startupLoadReleased = true }
+                            .accessibilityIdentifier("field-library-load-continue")
+                    }
+                    #endif
+                }.foregroundStyle(FieldPalette(night: settings.nightMode).ink).padding(24).fieldChrome()
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -129,6 +149,16 @@ struct RootView: View {
             if settings.nightMode { FieldTabBar(selection: $selection) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(!fieldStore.ready)
+        .overlay { libraryLoadingOverlay }
+        .task(id: startupLoadReleased) {
+            #if DEBUG
+            // Explicit fixture gate: XCTest launch-idle waits can consume a
+            // timed delay before the test can inspect the loading surface.
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad"), !startupLoadReleased { return }
+            #endif
+            await fieldStore.load()
+        }
         .background(Blackout.background.ignoresSafeArea())
         .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))
         .sheet(isPresented: $showingOrientationPicker,onDismiss: {
@@ -160,7 +190,7 @@ struct RootView: View {
             }.id(request.id)
         }
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
-        .sheet(isPresented: $showingRecorder) { TrackRecordingPanel() }
+        .sheet(isPresented: Binding(get: { fieldStore.ready && showingRecorder },set: { showingRecorder = $0 })) { TrackRecordingPanel() }
         .environment(\.fieldNight, settings.nightMode)
         .onAppear {
             #if DEBUG

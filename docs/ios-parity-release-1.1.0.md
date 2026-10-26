@@ -247,3 +247,10 @@ its light surface and night mode remains red on black. Both final map workflows
 and phone/watch/widget Release pass; screenshots were inspected. The complete
 seven-case CI replay passes, as do the final protected-backup workflow and 58
 related native integrations. Full hosted confirmation remains open.
+
+
+## Deferred field-library startup and TAK readiness
+
+Normal app startup now stages field-library reads on one shared worker with readable day/night loading and guarded navigation, practice scoring, recovered-track finalization, watch publication and backup writes. TAK preserves previously shared graphics while their source is unreadied/corrupt, still withdraws known hidden waypoints, and keeps explicit full unshare authoritative. See [startup behavior and evidence](field-library-startup.md). This does not close other synchronous startup sources or lazy log loading.
+
+Latest completed hosted run 40314727241 on dfed828 passes library and map; field has one large GPX native Files reopening failure. Its dismissal acknowledgment repair passes locally with the actual recording/background-location workflow. Full hosted CI remains open.

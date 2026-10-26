@@ -8,30 +8,104 @@ import Foundation
 public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var document = Backup.Document() { didSet { revision &+= 1 } }
     @Published public private(set) var loadError: String?
+    @Published public private(set) var ready: Bool
     private let fileURL: URL
     private var logs: [String: FieldDataDisk.Log] = [:]
     private let lock = NSRecursiveLock()
     private var revision: UInt64 = 0
     private let identity = UUID()
+    @MainActor private var loadTask: Task<PreparedLoad,Error>?
+    @MainActor private var loadGeneration = UUID()
 
-    public init(directory: URL? = nil) {
+    public init(directory: URL? = nil,loadImmediately: Bool = true) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         fileURL = dir.appendingPathComponent(FieldDataDisk.indexName)
+        ready = loadImmediately
         document.hasSettings = false
-        if FileManager.default.fileExists(atPath: fileURL.path) {
-            do { (document,logs) = try FieldDataDisk.read(fileURL) }
-            catch { loadError = error.localizedDescription }
-        } else {
-            let legacy = dir.appendingPathComponent("field-data-v1.zip")
-            if FileManager.default.fileExists(atPath: legacy.path) {
-                do { document = try Backup.importZip(Data(contentsOf: legacy,options: .mappedIfSafe)) }
-                catch { loadError = error.localizedDescription }
-            }
+        if loadImmediately {
+            do {
+                let result = try LoadSnapshot(destination: fileURL,identity: identity).prepare()
+                document = result.document; logs = result.logs; loadError = result.error
+            } catch { loadError = error.localizedDescription }
         }
+    }
+
+    public struct LoadSnapshot: Sendable {
+        fileprivate let destination: URL
+        fileprivate let identity: UUID
+        /// Only reads saved files. A partial/corrupt library never becomes a
+        /// writable empty library, and no legacy recovery bytes are rewritten.
+        public func prepare() throws -> PreparedLoad {
+            try Task.checkCancellation()
+            var document = Backup.Document(); document.hasSettings = false
+            var logs: [String: FieldDataDisk.Log] = [:], failure: String?
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    (document,logs) = try FieldDataDisk.read(destination)
+                } else {
+                    let legacy = destination.deletingLastPathComponent().appendingPathComponent("field-data-v1.zip")
+                    if FileManager.default.fileExists(atPath: legacy.path) {
+                        document = try Backup.importZip(Data(contentsOf: legacy,options: .mappedIfSafe))
+                    }
+                }
+            } catch is CancellationError { throw CancellationError() }
+            catch { failure = error.localizedDescription }
+            try Task.checkCancellation()
+            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity)
+        }
+    }
+    public struct PreparedLoad: Sendable {
+        fileprivate let document: Backup.Document
+        fileprivate let logs: [String: FieldDataDisk.Log]
+        fileprivate let error: String?
+        fileprivate let identity: UUID
+    }
+    public func loadSnapshot() -> LoadSnapshot {
+        LoadSnapshot(destination: fileURL,identity: identity)
+    }
+    @discardableResult public func publishLoad(_ prepared: PreparedLoad) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard prepared.identity == identity else { throw BackupError.notABackup("Prepared library belongs to a different store") }
+        guard !ready else { return false }
+        document = prepared.document; logs = prepared.logs; loadError = prepared.error
+        ready = true
+        return true
+    }
+    /// Concurrent clients share a single worker. Cancelling one awaiting view
+    /// cannot discard another client's load or publish on the worker executor.
+    @MainActor public func load(prepare: @escaping @Sendable (LoadSnapshot) throws -> PreparedLoad = { try $0.prepare() }) async {
+        guard !ready else { return }
+        let task: Task<PreparedLoad,Error>
+        let token: UUID
+        if let existing = loadTask { task = existing; token = loadGeneration }
+        else {
+            let snapshot = loadSnapshot()
+            loadGeneration = UUID(); token = loadGeneration
+            task = Task.detached(priority: .userInitiated) { try prepare(snapshot) }
+            loadTask = task
+        }
+        do {
+            let prepared = try await task.value
+            guard loadGeneration == token, !Task.isCancelled else { return }
+            _ = try publishLoad(prepared)
+            loadTask = nil
+        } catch is CancellationError {
+            // Cancellation is not damage. The next live client can retry.
+            if loadGeneration == token { loadTask = nil }
+        } catch {
+            guard loadGeneration == token, !Task.isCancelled else { return }
+            var empty = Backup.Document(); empty.hasSettings = false
+            _ = try? publishLoad(PreparedLoad(document: empty,logs: [:],error: error.localizedDescription,identity: identity))
+            loadTask = nil
+        }
+    }
+    private func requireReady() throws {
+        guard ready else { throw BackupError.notABackup("The field library is still loading. Try again when loading finishes.") }
     }
 
     public func points(for trackID: String) throws -> [TrackPoint] {
         lock.lock()
+        do { try requireReady() } catch { lock.unlock(); throw error }
         let bytes = document.trackFiles[trackID] ?? Data()
         lock.unlock()
         return try TrackCodec.decode(bytes)
@@ -65,6 +139,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
 
     private func edit(_ edit: Edit) throws {
         lock.lock(); defer { lock.unlock() }
+        try requireReady()
         if let next = try Self.applying(edit,to: document) { try commit(next) }
     }
 
@@ -154,6 +229,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     public func restore(_ incoming: Backup.Document) throws -> Backup.RestoreResult {
         try Backup.validate(incoming)
         lock.lock(); defer { lock.unlock() }
+        try requireReady()
         let (next,result) = Self.merged(document,incoming)
         if result.graphics == 0 && result.tracks == 0 && next.courseHistory == document.courseHistory { return result }
         try commit(next)
@@ -232,6 +308,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
 
     public func restoreSnapshot() throws -> RestoreSnapshot {
         lock.lock(); defer { lock.unlock() }
+        try requireReady()
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
         return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL,logs: logs)
     }
@@ -251,8 +328,10 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         return prepared.result
     }
 
-    public func backup(waypoints: [Waypoint], folders: [FolderInfo], settings: Backup.AppSettings) -> Backup.Document {
+    public func backup(waypoints: [Waypoint], folders: [FolderInfo], settings: Backup.AppSettings) throws -> Backup.Document {
         lock.lock(); defer { lock.unlock() }
+        try requireReady()
+        if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
         var snapshot = document
         snapshot.waypoints = waypoints; snapshot.folders = folders; snapshot.settings = settings
         snapshot.hasSettings = true
@@ -261,6 +340,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     }
 
     private func commit(_ next: Backup.Document) throws {
+        try requireReady()
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
         let prepared = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: fileURL)
         try prepared.publish(); logs = prepared.logs; document = next

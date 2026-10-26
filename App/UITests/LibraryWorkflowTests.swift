@@ -1,6 +1,29 @@
 import XCTest
 
 final class LibraryWorkflowTests: XCTestCase {
+    func testDeferredColdLibraryLoadRetainsTracksRoutesAndReadableDayNightLoading() {
+        for night in [false,true] {
+            if night {
+                app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+            }
+            app.terminate()
+            app.launchArguments = ["-uiTesting","-uiTestLibrary","-keepUITestData","-uiTestDeferredFieldLoad","-uiTestSlowFieldLoad","-startTab","waypoints"]
+            app.launch()
+            let loading = app.buttons["field-library-load-continue"]
+            XCTAssertTrue(loading.waitForExistence(timeout: 5),app.debugDescription)
+            XCTAssertFalse(app.buttons["Waypoint actions"].isEnabled)
+            capture(night ? "field-startup-loading-night" : "field-startup-loading-day")
+            loading.tap()
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: loading)
+            XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 20),.completed,app.debugDescription)
+            let open = app.buttons["open-field-library"]
+            XCTAssertTrue(open.waitForExistence(timeout: 8)); open.tap()
+            XCTAssertTrue(app.buttons["route-Recon route"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["track-Recon track"].exists)
+            capture(night ? "field-startup-loaded-night" : "field-startup-loaded-day")
+            tapNativeMenuItem(app.navigationBars.buttons["Done"])
+        }
+    }
     private var app: XCUIApplication!
     override func setUpWithError() throws {
         continueAfterFailure = false

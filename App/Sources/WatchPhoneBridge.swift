@@ -66,6 +66,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     }
 
     private func publish() {
+        guard field.ready, field.loadError == nil else { return }
         guard let session, session.activationState == .activated, session.isPaired,
               session.isWatchAppInstalled else { return }
         let selected = store.waypoints.first { $0.id == store.selectedId }
@@ -101,6 +102,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     }
 
     private func publishGuide(heartbeat: Bool = false,force: Bool = false) {
+        guard field.ready else { return }
         guard let session,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled else { return }
         var next = navigation?.watchGuideSnapshot(sourceID:sourceID,revision:guideRevision) ?? .init(sourceID:sourceID,revision:guideRevision,at:Int64(Date().timeIntervalSince1970*1000),active:false)
         // Compare content without its heartbeat fields; rate-limit repeated unchanged evaluations.
@@ -118,6 +120,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     }
 
     private func publishTAK() {
+        guard field.ready else { return }
         guard let session,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled,takRevision < .max else { return }
         takRevision += 1; takGeneration += 1
         UserDefaults.standard.set(takRevision,forKey:"watch.tak.revision")

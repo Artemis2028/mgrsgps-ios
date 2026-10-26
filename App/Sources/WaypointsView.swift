@@ -717,7 +717,9 @@ struct WaypointsView: View {
     private func exportBackup(password: String? = nil) {
         guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
         guard lanes.ready else { status = lanes.error ?? "Loading navigation lanes. Try again in a moment."; return }
-        var doc = fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings)
+        var doc: Backup.Document
+        do { doc = try fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings) }
+        catch { status = "Backup failed: \(error.localizedDescription)"; return }
         doc.navLanes = lanes.lanes
         status = nil
         backupTransfer.export(doc,password: password) { result in

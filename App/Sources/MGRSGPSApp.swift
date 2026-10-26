@@ -70,7 +70,14 @@ struct MGRSGPSApp: App {
         _terrain = StateObject(wrappedValue: TerrainSession(sampler: mapStore.terrainSampler))
         let boundaryStore = BoundaryMonitor(directory: directory)
         _boundaries = StateObject(wrappedValue: boundaryStore)
-        let fieldStore = FieldDataStore(directory: directory)
+        // UI fixture creation is synchronous setup. Normal launches (including
+        // Debug) and the explicit cold-load regression read saved logs on a worker.
+        #if DEBUG
+        let seedFieldFixtures = ProcessInfo.processInfo.arguments.contains("-uiTesting") && !ProcessInfo.processInfo.arguments.contains("-uiTestDeferredFieldLoad")
+        #else
+        let seedFieldFixtures = false
+        #endif
+        let fieldStore = FieldDataStore(directory: directory,loadImmediately: seedFieldFixtures)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKSharing") {
             if !waypointStore.waypoints.contains(where: { $0.name == "IOS OP CAFÉ" }) {

@@ -12,6 +12,7 @@ final class TAKSession: ObservableObject {
     @Published private(set) var remoteItems: [TAKRemoteItem] = []
     @Published private(set) var lastReceivedAt: Date?
     @Published private(set) var failure: String?
+    @Published private(set) var sharingWaitMessage: String?
     @Published private(set) var enrollmentSuggestion: TAKEnrollment.Target?
     @Published var sharePosition = false { didSet { if oldValue != sharePosition { updateLocationDemand(); lastPresence = nil; tick() } } }
     private let transport: TAKTransportDriving
@@ -135,6 +136,7 @@ final class TAKSession: ObservableObject {
         var folders = sharedFolders
         if shared { folders.insert(folder) } else { folders.remove(folder) }
         profile.sharedFolders = folders; saveProfile(); lastShareCheck = nil; tick()
+        if folders.isEmpty { sharingWaitMessage = nil }
     }
     func setRemoteVisible(_ value: Bool) { profile.showRemote = value; saveProfile() }
     func connect() {
@@ -147,6 +149,7 @@ final class TAKSession: ObservableObject {
         transport.stop(); status = "Disconnected"; sharePosition = false
         updateLocationDemand()
         trustRequest = nil
+        sharingWaitMessage = nil
     }
     func approveCertificate() {
         guard let request = trustRequest else { return }
@@ -257,15 +260,27 @@ final class TAKSession: ObservableObject {
         } catch { failure = "Unable to encode TAK presence" }
     }
     private func reconcileSharing(now: Date, uptime: TimeInterval) {
+        let fieldsKnown = field?.ready != false && field?.loadError == nil
+        let pointsKnown = waypoints?.loadError == nil
+        // An unavailable source is not evidence that its shared items were
+        // deleted. Explicitly unsharing every folder is authoritative anyway.
+        var unknownPrefixes: [String] = []
+        if !sharedFolders.isEmpty {
+            if !fieldsKnown { unknownPrefixes.append(profile.uid+"-g-") }
+            if !pointsKnown { unknownPrefixes.append(profile.uid+"-wp-") }
+        }
+        let waiting = unknownPrefixes.isEmpty ? nil : "Some folder updates are waiting for saved data to become readable. Previously shared items are kept. Unsharing all folders still withdraws everything."
+        if sharingWaitMessage != waiting { sharingWaitMessage = waiting }
         guard sharingAvailable, !sharingBusy, let store,
               lastShareCheck == nil || uptime - lastShareCheck! >= 3 else { return }
         lastShareCheck = uptime
-        let current = TAKSharing.current(sharedFolders: sharedFolders, waypoints: waypoints?.waypoints ?? [],
-                                         graphics: field?.document.graphics ?? [], folders: waypoints?.folders ?? [],
+        let current = TAKSharing.current(sharedFolders: sharedFolders, waypoints: pointsKnown ? waypoints?.waypoints ?? [] : [],
+                                         graphics: fieldsKnown ? field?.document.graphics ?? [] : [], folders: waypoints?.folders ?? [],
                                          uid: profile.uid, callsign: profile.callsign)
-        let refresh = lastShareRefresh == nil || uptime - lastShareRefresh! >= TAKSharing.refreshSeconds
+        let refresh = unknownPrefixes.isEmpty && (lastShareRefresh == nil || uptime - lastShareRefresh! >= TAKSharing.refreshSeconds)
         let plan = TAKSharing.plan(current: current, sent: sent, refreshAll: refresh)
-        guard !plan.send.isEmpty || !plan.delete.isEmpty else { if refresh { lastShareRefresh = uptime }; return }
+        let deletions = plan.delete.filter { uid in !unknownPrefixes.contains(where: { uid.hasPrefix($0) }) }
+        guard !plan.send.isEmpty || !deletions.isEmpty else { if refresh { lastShareRefresh = uptime }; return }
         let token = attempt, sharingProfile = profile
         sharingBusy = true
         Task {
@@ -277,7 +292,7 @@ final class TAKSession: ObservableObject {
                 var journal = sent
                 for item in plan.send { journal[item.uid] = item.signature }
                 try store.writeSent(journal, profile: sharingProfile); sent = journal
-                for uid in plan.delete {
+                for uid in deletions {
                     guard connected, attempt == token else { return }
                     let success = await sendTracked(try TAKCoT.delete(uid: uid, now: now))
                     guard success, attempt == token else { return }

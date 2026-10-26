@@ -30,6 +30,23 @@ private final class GuideTestFeedback: NavigationFeedback {
 
 @MainActor
 final class NavigationIntegrationTests: XCTestCase {
+    func testDeferredLibraryDoesNotStartGpsOrDiscardPausedRouteBeforeLoading() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let original = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+        let r = try route(field); original.follow(r); try await wait { original.running }
+        original.pause(); try await wait { !original.saving }
+        let saved = try Data(contentsOf: dir.appendingPathComponent("navigation-session-v1.json"))
+        let delayed = FieldDataStore(directory: dir,loadImmediately: false), reopenedDriver = GuideTestDriver(), reopenedFeedback = GuideTestFeedback()
+        let reopened = NavigationSession(directory: dir,store: store,field: delayed,settings: settings,driver: reopenedDriver,feedback: reopenedFeedback,foreground: { true },scheduleTicks: false)
+        XCTAssertEqual(reopened.progress?.routeID,r.id)
+        reopened.resume(); XCTAssertFalse(reopened.running); XCTAssertFalse(reopened.preparing)
+        XCTAssertFalse(reopenedDriver.updating); XCTAssertEqual(reopenedFeedback.begins,0)
+        XCTAssertEqual(try Data(contentsOf: dir.appendingPathComponent("navigation-session-v1.json")),saved)
+        await delayed.load()
+        reopened.resume(); try await wait { reopened.running }
+        XCTAssertEqual(reopened.progress?.routeID,r.id); XCTAssertTrue(reopenedDriver.updating)
+        reopened.stop(); try await wait { !reopened.saving }
+    }
     private func lanePoint(_ x: Double,_ y: Double) -> GeoPoint { .init(lat: 35+y/111195,lon: -79+x/(111195*cos(35 * .pi/180))) }
     private func lane(_ target: String,scope: NavLane.Scope = .checkpoint) -> NavLane {
         .init(id: "lane",name: "Creek",left: .init(points: [lanePoint(-50,0),lanePoint(-50,500)]),right: .init(points: [lanePoint(50,0),lanePoint(50,500)]),backstop: .init(points: [lanePoint(-100,1600),lanePoint(100,1600)]),scope: scope,targetId: target,createdAt: 1)

@@ -153,6 +153,7 @@ final class NavigationSession: ObservableObject {
         launch(progress: nil,haptics: true)
     }
     private func launch(progress requested: RouteFollowingProgress?,haptics enabled: Bool) {
+        guard field.ready else { error = "Wait for the field library to finish loading."; return }
         guard !store.practiceNavigationSavePending else { error = "Wait for the course target to finish saving, or retry its save."; return }
         guard laneStore?.ready ?? true else { error = laneStore?.error ?? "Loading navigation lanes. Try again in a moment."; return }
         guard requested == nil || !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
@@ -380,7 +381,7 @@ final class NavigationSession: ObservableObject {
         drainLocation(); tick()
     }
     private func reconcile() {
-        guard running, !saving, !store.practiceNavigationSavePending else { return }
+        guard field.ready, running, !saving, !store.practiceNavigationSavePending else { return }
         if let p = progress {
             do { try validate(p) } catch { pause(reason: error.localizedDescription); return }
             if store.selectedId != target?.id { pause(reason: "Route paused because you chose another target.") }

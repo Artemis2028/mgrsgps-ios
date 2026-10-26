@@ -31,6 +31,24 @@ private final class PracticeGuideFeedback: NavigationFeedback {
 
 @MainActor
 final class PracticeIntegrationTests: XCTestCase {
+    func testSavedCourseCannotScoreOrChangeTargetWhileFieldLibraryLoads() async throws {
+        let f = try fixture(), original = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
+        original.startFolder("Drill"); try await wait { !original.working }
+        let runID = try XCTUnwrap(original.active?.runID), selection = f.waypoints.selectedId
+        let delayed = FieldDataStore(directory: f.directory,loadImmediately: false), driver = PracticeGuideDriver()
+        let nav = NavigationSession(directory: f.directory,store: f.waypoints,field: delayed,settings: AppSettings(directory: f.directory),driver: driver,feedback: PracticeGuideFeedback(),foreground: { true },scheduleTicks: false)
+        var buzzes = 0
+        let reopened = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: delayed,navigation: nav,uptime: { 100 },scoreFeedback: { buzzes += 1 })
+        reopened.setForeground(true); reopened.receive(fix(f.first))
+        XCTAssertEqual(PracticeCourseStore(directory: f.directory).active?.nextIndex,0)
+        XCTAssertEqual(f.waypoints.selectedId,selection); XCTAssertEqual(buzzes,0)
+        XCTAssertEqual(reopened.active?.runID,runID)
+        await delayed.load(); reopened.setForeground(true)
+        try await wait { !reopened.working }
+        reopened.receive(fix(f.first)); try await wait { !reopened.working }
+        XCTAssertEqual(reopened.active?.nextIndex,1); XCTAssertEqual(buzzes,1)
+        reopened.end(expectedRunID: runID); try await wait { !reopened.working }
+    }
     private struct Fixture {
         let directory: URL, waypoints: WaypointStore, field: FieldDataStore, navigation: NavigationSession
         let first: Waypoint, second: Waypoint

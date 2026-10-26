@@ -23,6 +23,7 @@ struct TAKSettingsView: View {
                             .accessibilityIdentifier("tak-last-received").accessibilityValue(String(received.timeIntervalSince1970))
                     }
                     if let error = tak.failure { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("tak-error") }
+                    if let message = tak.sharingWaitMessage { Text(message).font(.footnote).foregroundStyle(palette.ink).accessibilityIdentifier("tak-sharing-wait") }
                     Button(importing ? "Importing…" : "Import connection package") { importer = true }
                         .disabled(importing).accessibilityIdentifier("tak-import")
                     Button("Sign in with username and password") { tak.clearEnrollmentSuggestion(); enrollment = true }

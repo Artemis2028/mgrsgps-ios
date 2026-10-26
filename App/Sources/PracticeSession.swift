@@ -54,10 +54,12 @@ final class PracticeSession: ObservableObject {
         self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.prepareTarget = prepareTarget; self.scoreFeedback = scoreFeedback
         active = saved.active; error = saved.loadError
         waypoints.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
+        field.$ready.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         reconcile()
     }
     func setForeground(_ value: Bool) { foreground = value; if value { reconcile() } }
     func startFolder(_ folder: String) {
+        guard field.ready else { error = "Wait for the field library to finish loading."; return }
         guard !locked, !hasPendingWrite else { return }
         do {
             let points = waypoints.waypoints.filter { $0.folder == folder }
@@ -65,6 +67,7 @@ final class PracticeSession: ObservableObject {
         } catch { self.error = error.localizedDescription }
     }
     func startRandom(count: Int,radius: Int,fix: Fix?) {
+        guard field.ready else { error = "Wait for the field library to finish loading."; return }
         guard !locked, !hasPendingWrite else { return }
         guard let fix, NavigationFixPolicy.isUsable(lat: fix.lat,lon: fix.lon,accuracyMeters: fix.accuracyMeters,timestampUptime: fix.timestampUptime,nowUptime: uptime()) else {
             error = "A recent, precise GPS fix is required to scatter checkpoints."; return
@@ -98,7 +101,7 @@ final class PracticeSession: ObservableObject {
         perform(.start(course))
     }
     func reconcile() {
-        guard !reconciling, !finalizing, !working, pendingWrite == nil, !targetWriteFailed else { return }
+        guard field.ready, !reconciling, !finalizing, !working, pendingWrite == nil, !targetWriteFailed else { return }
         if let failedFinalizationRunID, saved.active?.runID == failedFinalizationRunID, saved.active?.done == true { return }
         reconciling = true; defer { reconciling = false }
         if damaged {
@@ -311,7 +314,7 @@ final class PracticeSession: ObservableObject {
         pendingWrite = nil; blockedByStorage = false; error = nil; reconcile()
     }
     func receive(_ fix: Fix?) {
-        guard foreground else { return }
+        guard field.ready, foreground else { return }
         if working {
             if let fix, NavigationFixPolicy.isUsable(lat: fix.lat,lon: fix.lon,accuracyMeters: fix.accuracyMeters,timestampUptime: fix.timestampUptime,nowUptime: uptime()),
                queuedFix.map({ fix.timestampUptime >= $0.timestampUptime }) ?? true { queuedFix = fix }

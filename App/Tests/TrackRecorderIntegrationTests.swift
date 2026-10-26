@@ -33,6 +33,27 @@ private final class RecordingTestClock {
 
 @MainActor
 final class TrackRecorderIntegrationTests: XCTestCase {
+    func testRecoveryWaitsForExistingLibraryWithoutAcknowledgingJournalOrReplacingOldTracks() async throws {
+        let dir = try directory(), old = FieldDataStore(directory: dir), driver = RecordingTestDriver(), clock = RecordingTestClock()
+        let (track,bytes) = try TrackCodec.imported(name: "Older patrol",points: [.init(lat: 24,lon: 54)],now: 1000)
+        var doc = Backup.Document(); doc.hasSettings = false; doc.tracks = [track]; doc.trackFiles[track.id] = bytes
+        try old.restore(doc)
+        let journal = try TrackRecordingJournal(directory: dir)
+        try journal.start(now: 1_700_000_000_000,uptime: 1000)
+        _ = try journal.append(.init(point: .init(lat: 24.01,lon: 54,time: 1_700_000_001_000),accuracyMeters: 5,uptime: 1001))
+        let delayed = FieldDataStore(directory: dir,loadImmediately: false), gate = RecorderStartupReadGate()
+        defer { gate.release() }
+        let loading = Task { await delayed.load { try gate.prepare($0) } }
+        try await wait { gate.entered }
+        let rec = TrackRecorder(directory: dir,fieldData: delayed,driver: driver,now: { clock.date },uptime: { clock.uptime },isForeground: { true })
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(delayed.ready); XCTAssertTrue(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        XCTAssertFalse(driver.updating)
+        gate.release(); await loading.value; try await wait { rec.phase == .idle }
+        XCTAssertEqual(delayed.document.tracks.count,2)
+        XCTAssertEqual(delayed.document.trackFiles[track.id],bytes)
+        XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
+    }
     private func directory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -222,5 +243,18 @@ final class TrackRecorderIntegrationTests: XCTestCase {
             XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path))
             #endif
         }
+    }
+}
+
+private final class RecorderStartupReadGate: @unchecked Sendable {
+    private let lock = NSLock(), semaphore = DispatchSemaphore(value: 0)
+    private var didEnter = false
+    var entered: Bool { lock.lock(); defer { lock.unlock() }; return didEnter }
+    func release() { semaphore.signal() }
+    func prepare(_ snapshot: FieldDataStore.LoadSnapshot) throws -> FieldDataStore.PreparedLoad {
+        XCTAssertFalse(Thread.isMainThread)
+        lock.lock(); didEnter = true; lock.unlock()
+        guard semaphore.wait(timeout: .now()+10) == .success else { throw CancellationError() }
+        return try snapshot.prepare()
     }
 }

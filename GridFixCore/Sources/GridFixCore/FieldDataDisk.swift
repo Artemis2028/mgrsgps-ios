@@ -28,6 +28,7 @@ enum FieldDataDisk {
         guard Set(envelope.logs.keys) == Set(document.tracks.map(\.id)) else { throw BackupError.notABackup("Saved track index is incomplete") }
         let directory = index.deletingLastPathComponent().appendingPathComponent(logsName,isDirectory: true)
         for i in document.tracks.indices {
+            try Task.checkCancellation()
             let id = document.tracks[i].id
             guard let ref = envelope.logs[id], validName(ref.name) else { throw BackupError.notABackup("Invalid saved track filename") }
             let path = directory.appendingPathComponent(ref.name)

@@ -51,7 +51,15 @@ extension XCTestCase {
         // In icon view the cell centre is the filename's upper edge. Hosted
         // Files can leave that text tap unhandled. Open the visible thumbnail,
         // using its own coordinate space even if the app AX origin is invalid.
-        item.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.25)).tap()
+        for _ in 0..<3 {
+            item.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.25)).tap()
+            // Files can ignore the first thumbnail tap while finishing its
+            // provider transition. Acknowledge dismissal before proceeding;
+            // never tap again once the app's import review replaces Files.
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !files.exists },object: nil)
+            if XCTWaiter.wait(for: [dismissed],timeout: 3) == .completed { return }
+        }
+        XCTAssertFalse(files.exists,"The selected file did not leave the native picker",file: file,line: line)
     }
 
     func saveNativeFile(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
