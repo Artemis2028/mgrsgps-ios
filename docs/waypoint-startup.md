@@ -46,6 +46,8 @@ the hosted UI workflow and cleaned up with that workflow's location feed.
   text stays red on black. Phone/watch/widget Release also passes:
   `/tmp/gridfix-recording-contrast-release.log`.
 
-The finished field library still loads separately on its shared worker. Settings,
-map and course startup reads, lazy per-log loading and physical storage-pressure
+The finished field library still loads separately on its shared worker. Settings and course startup reads, lazy per-log loading and physical storage-pressure
 validation remain work; this change does not make every startup source lazy.
+
+Saved-map preferences/catalog and cache preparation now join the same worker;
+see [map startup](map-startup.md).

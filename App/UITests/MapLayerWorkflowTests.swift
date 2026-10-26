@@ -39,7 +39,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         toggle("MGRS grid")
         app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["MAP CENTRE · GRID OFF"].waitForExistence(timeout: 5))
-        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
         XCTAssertTrue(app.staticTexts["map-layer-name"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["map-layer-name"].label.contains("Offline training map"))
         XCTAssertTrue(app.staticTexts["MAP CENTRE · GRID OFF"].exists)

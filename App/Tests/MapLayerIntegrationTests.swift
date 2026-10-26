@@ -51,6 +51,68 @@ final class MapLayerIntegrationTests: XCTestCase {
         XCTAssertTrue(condition())
         if !condition() { throw URLError(.timedOut) }
     }
+    func testWorkerStartupPreservesImportedTilesPreferencesAndNoNetworkPolicy() async throws {
+        let dir = try directory(),library = try MapTileLibrary(directory: dir)
+        let source = dir.appendingPathComponent("Saved CAFÉ.mbtiles")
+        let archive = try MapTileArchive(url: source,create: true)
+        try archive.setMetadata(["name":"Saved CAFÉ","format":"png","bounds":"-180,-85,180,85"])
+        try archive.put(png,tile: .init(z: 0,x: 0,y: 0))
+        let saved = try library.importFile(source)
+        var preferences = MapLayerStore.Preferences()
+        preferences.baseLayer = "mbtiles:"+saved.id; preferences.offlineOnly = true
+        preferences.gridEnabled = false; preferences.hasCamera = true
+        preferences.latitude = 35.1; preferences.longitude = -79; preferences.zoom = 12
+        let prefsURL = dir.appendingPathComponent("map-prefs-v1.json")
+        let bytes = try JSONEncoder().encode(preferences); try bytes.write(to: prefsURL)
+        let libraryURL = dir.appendingPathComponent("OfflineMaps/library.json"),libraryBytes = try Data(contentsOf: libraryURL)
+        let catalog = [layer],configuration = config()
+        let prepared = await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            return MapLayerStore.prepareStartup(directory: dir,catalog: catalog,configuration: configuration)
+        }.value
+        let model = try MapLayerStore(startup: prepared,installPipeline: false)
+        XCTAssertEqual(model.preferences,preferences); XCTAssertEqual(model.selectedMap,saved)
+        XCTAssertTrue(model.pipeline.offlineOnly); XCTAssertNil(model.loadError)
+        let tile = URL(string: "https://tiles.gridfix.invalid/local/\(saved.id)/0/0/0")!
+        let (data,_) = try await model.pipeline.data(for: tile)
+        XCTAssertEqual(data,png); XCTAssertEqual(TileNetworkFixture.calls,0)
+        do { _ = try await model.pipeline.fetch(layer,tile: .init(z: 3,x: 7,y: 0)); XCTFail("Offline startup must prohibit network") } catch {}
+        XCTAssertEqual(TileNetworkFixture.calls,0)
+        XCTAssertEqual(try Data(contentsOf: prefsURL),bytes)
+        XCTAssertEqual(try Data(contentsOf: libraryURL),libraryBytes)
+    }
+    func testPreparedMapStartupRejectsNewReplacedAndRemovedSourceFiles() async throws {
+        let dir = try directory(),catalog = [layer]
+        let missing = await Task.detached { MapLayerStore.prepareStartup(directory: dir,catalog: catalog) }.value
+        let file = dir.appendingPathComponent("map-prefs-v1.json")
+        try JSONEncoder().encode(MapLayerStore.Preferences()).write(to: file,options: .atomic)
+        XCTAssertThrowsError(try MapLayerStore(startup: missing,installPipeline: false))
+        let beforeReplacement = await Task.detached { MapLayerStore.prepareStartup(directory: dir,catalog: catalog) }.value
+        var changed = MapLayerStore.Preferences(); changed.offlineOnly = true
+        try JSONEncoder().encode(changed).write(to: file,options: .atomic)
+        XCTAssertThrowsError(try MapLayerStore(startup: beforeReplacement,installPipeline: false))
+        let beforeRemoval = await Task.detached { MapLayerStore.prepareStartup(directory: dir,catalog: catalog) }.value
+        try FileManager.default.removeItem(at: file)
+        XCTAssertThrowsError(try MapLayerStore(startup: beforeRemoval,installPipeline: false))
+        let beforeCatalog = await Task.detached { MapLayerStore.prepareStartup(directory: dir,catalog: catalog) }.value
+        try Data("[]".utf8).write(to: dir.appendingPathComponent("OfflineMaps/library.json"))
+        XCTAssertThrowsError(try MapLayerStore(startup: beforeCatalog,installPipeline: false))
+    }
+    func testDamagedCatalogIsKeptAndCannotBecomeWritableEmptyLibrary() async throws {
+        let dir = try directory(),folder = dir.appendingPathComponent("OfflineMaps")
+        try FileManager.default.createDirectory(at: folder,withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("library.json"),bytes = Data("damaged CAFÉ catalog".utf8)
+        try bytes.write(to: file)
+        let catalog = [layer]
+        let prepared = await Task.detached { MapLayerStore.prepareStartup(directory: dir,catalog: catalog) }.value
+        let model = try MapLayerStore(startup: prepared,installPipeline: false)
+        XCTAssertNotNil(model.loadError); XCTAssertTrue(model.savedMaps.isEmpty)
+        await model.importMap(dir.appendingPathComponent("absent.mbtiles"))
+        XCTAssertNotNil(model.message); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        let plan = try TileDownloadPlan(bounds: .init(south: 38.89,north: 38.90,west: -77.04,east: -77.03),currentZoom: 3,layer: layer)
+        model.startDownload(plan: plan,name: "Cannot replace damaged catalog")
+        XCTAssertNil(model.activeDownload); XCTAssertEqual(try Data(contentsOf: file),bytes)
+    }
     func testDownloadReopenAndOfflineOnlyLookupNeverUseNetwork() async throws {
         let dir = try directory(), model = MapLayerStore(directory: dir,installPipeline: false,catalog: [layer],configuration: config())
         let plan = try TileDownloadPlan(bounds: .init(south: 38.89,north: 38.90,west: -77.04,east: -77.03),currentZoom: 3,layer: layer)

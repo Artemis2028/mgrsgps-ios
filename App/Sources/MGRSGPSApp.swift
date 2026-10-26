@@ -36,8 +36,8 @@ struct FieldStartupView: View {
             } else {
                 VStack(spacing: 14) {
                     if startup.error == nil { ProgressView().tint(FieldPalette(night: startup.settings.nightMode).accent) }
-                    Text(startup.error == nil ? "Opening saved waypoints…" : "Could not open waypoints").font(.headline).accessibilityIdentifier("waypoint-startup-loading")
-                    Text(startup.error ?? "Loading your library and selected target before navigation starts.").font(.footnote).multilineTextAlignment(.center)
+                    Text(startup.error == nil ? "Opening saved library…" : "Could not open saved library").font(.headline).accessibilityIdentifier("waypoint-startup-loading")
+                    Text(startup.error ?? "Loading your saved maps, library and selected target before navigation starts.").font(.footnote).multilineTextAlignment(.center)
                     if startup.error != nil { Button("Try again") { Task { await startup.load() } }.accessibilityIdentifier("waypoint-startup-retry") }
                     #if DEBUG
                     if startup.holdsForUITest {
@@ -83,7 +83,7 @@ final class FieldAppStores {
 
     private let watchBridge: WatchPhoneBridge
 
-    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool) {
+    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil) {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
@@ -104,9 +104,9 @@ final class FieldAppStores {
         let mapStore: MapLayerStore
         #if DEBUG
         if OfflineDownloadValidation.enabled, let directory { mapStore = OfflineDownloadValidation.makeStore(directory: directory) }
-        else { mapStore = MapLayerStore(directory: directory) }
+        else { mapStore = preparedMapStore ?? MapLayerStore(directory: directory) }
         #else
-        mapStore = MapLayerStore(directory: directory)
+        mapStore = preparedMapStore ?? MapLayerStore(directory: directory)
         #endif
         self.maps = mapStore
         self.terrain = TerrainSession(sampler: mapStore.terrainSampler)

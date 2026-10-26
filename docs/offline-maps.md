@@ -69,7 +69,7 @@ very large relief increases the interval to bound work. At most 72 elevation
 tiles are considered per visible view. Zoom out too far and the UI requests a
 closer view. Missing elevation stays unknown. **Download elevation for this
 area** saves at most 400 zoom-13 tiles for offline contours, including over
-imported maps. Elevation/LOS/viewshed field-tool screens remain future work.
+imported maps. Elevation, line-of-sight, route-profile and viewshed screens are now implemented; see [terrain tools](terrain-visibility.md).
 
 ## Storage and backup
 
@@ -218,3 +218,9 @@ credential/package fixtures were not staged) and zero failures. Release
 phone/watch/widget build passes in `/tmp/gridfix-offline-area-final-release.log`.
 The five UI workflows and final screenshots above pass; this does not close the
 full hosted-CI or physical-device release gates.
+
+
+Normal launch now prepares saved-map preferences/catalog and cache objects on the
+startup worker before map rendering. Offline-only policy is installed before any
+tile fetch, and changed source files trigger retry rather than stale publication.
+See [startup contract and evidence](map-startup.md).

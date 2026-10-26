@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 final class MapLayerStore: ObservableObject {
-    struct Preferences: Codable, Equatable {
+    struct Preferences: Codable, Equatable, Sendable {
         var baseLayer = "topo", gridEnabled = true, hillshade = false, contours = false, offlineOnly = false
         var latitude = 24.4539, longitude = 54.3773, zoom = 6.5
         var hasCamera = false
@@ -31,24 +31,72 @@ final class MapLayerStore: ObservableObject {
     private var downloadTask: Task<Void, Never>?
     private var cameraTask: Task<Void, Never>?
 
-    init(directory: URL? = nil, installPipeline: Bool = true, catalog: [RasterLayer]? = nil, configuration: URLSessionConfiguration? = nil) {
-        let directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        preferencesURL = directory.appendingPathComponent("map-prefs-v1.json")
-        styleURL = directory.appendingPathComponent("map-style-v1.json")
+    struct PreparedStartup: Sendable {
+        fileprivate let directory: URL
+        fileprivate let preferences: Preferences
+        fileprivate let library: MapTileLibrary?
+        fileprivate let loadError: String?
+        fileprivate let layers: [RasterLayer]
+        fileprivate let pipeline: MapTilePipeline
+        fileprivate let sources: [URL: SourceStamp?]
+    }
+    enum StartupFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved map settings changed while opening. Try again." }
+    }
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64, inode: UInt64, volume: UInt64
+        let modified: Date?, type: String
+        static func read(_ url: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date,
+                         type: (attributes[.type] as? FileAttributeType)?.rawValue ?? "")
+        }
+    }
+    nonisolated static func prepareStartup(directory: URL? = nil, catalog: [RasterLayer]? = nil, configuration: URLSessionConfiguration? = nil) -> PreparedStartup {
+        let directory = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
+        let preferencesURL = directory.appendingPathComponent("map-prefs-v1.json")
+        let libraryURL = directory.appendingPathComponent("OfflineMaps/library.json")
+        let sources: [URL: SourceStamp?] = [preferencesURL: SourceStamp.read(preferencesURL),libraryURL: SourceStamp.read(libraryURL)]
+        let styleURL = directory.appendingPathComponent("map-style-v1.json")
         let style: [String: Any] = ["version": 8, "name": "GridFix", "glyphs": "https://tiles.gridfix.invalid/fonts/{fontstack}/{range}.pbf", "sources": [:], "layers": [["id": "background", "type": "background", "paint": ["background-color": "#252a30"]]]]
-        try? JSONSerialization.data(withJSONObject: style).write(to: styleURL, options: .atomic)
+        try? JSONSerialization.data(withJSONObject: style).write(to: styleURL,options: .atomic)
         #if DEBUG
         let development = true
         #else
         let development = false
         #endif
-        layers = catalog ?? MapCatalog.layers(esriKey: Bundle.main.object(forInfoDictionaryKey: "GridFixEsriKey") as? String ?? "", development: development)
-        do { library = try MapTileLibrary(directory: directory) }
+        let layers = catalog ?? MapCatalog.layers(esriKey: Bundle.main.object(forInfoDictionaryKey: "GridFixEsriKey") as? String ?? "",development: development)
+        let library: MapTileLibrary?,loadError: String?
+        do { library = try MapTileLibrary(directory: directory); loadError = nil }
         catch { library = nil; loadError = "Offline map files were kept: \(error.localizedDescription)" }
-        pipeline = MapTilePipeline(directory: directory, library: library, layers: layers, configuration: configuration)
-        if let data = try? Data(contentsOf: preferencesURL), let stored = try? JSONDecoder().decode(Preferences.self, from: data), stored.latitude.isFinite, stored.longitude.isFinite, stored.zoom.isFinite, (-85.05112878...85.05112878).contains(stored.latitude), (-180...180).contains(stored.longitude), (0...22).contains(stored.zoom) { preferences = stored }
+        let pipeline = MapTilePipeline(directory: directory,library: library,layers: layers,configuration: configuration)
+        var preferences = Preferences()
+        if let data = try? Data(contentsOf: preferencesURL),let stored = try? JSONDecoder().decode(Preferences.self,from: data),stored.latitude.isFinite,stored.longitude.isFinite,stored.zoom.isFinite,(-85.05112878...85.05112878).contains(stored.latitude),(-180...180).contains(stored.longitude),(0...22).contains(stored.zoom) { preferences = stored }
+        let savedMaps = library?.maps ?? []
+        if !layers.contains(where: { $0.key == preferences.baseLayer }) && !savedMaps.contains(where: { "mbtiles:"+$0.id == preferences.baseLayer }) { preferences.baseLayer = layers.first!.key }
+        pipeline.offlineOnly = preferences.offlineOnly
+        return .init(directory: directory,preferences: preferences,library: library,loadError: loadError,layers: layers,pipeline: pipeline,sources: sources)
+    }
+    convenience init(directory: URL? = nil, installPipeline: Bool = true, catalog: [RasterLayer]? = nil, configuration: URLSessionConfiguration? = nil) {
+        self.init(prepared: Self.prepareStartup(directory: directory,catalog: catalog,configuration: configuration),installPipeline: installPipeline)
+    }
+    convenience init(startup: PreparedStartup,installPipeline: Bool = true) throws {
+        // Metadata only on the main actor. Never install a stale catalog or
+        // offline-only setting if files changed while the worker was preparing.
+        guard startup.sources.allSatisfy({ SourceStamp.read($0.key) == $0.value }) else { throw StartupFailure.changed }
+        self.init(prepared: startup,installPipeline: installPipeline)
+    }
+    private init(prepared: PreparedStartup,installPipeline: Bool) {
+        let directory = prepared.directory
+        preferencesURL = directory.appendingPathComponent("map-prefs-v1.json")
+        styleURL = directory.appendingPathComponent("map-style-v1.json")
+        layers = prepared.layers; library = prepared.library; pipeline = prepared.pipeline
+        preferences = prepared.preferences; loadError = prepared.loadError
         savedMaps = library?.maps ?? []
-        if !layers.contains(where: { $0.key == preferences.baseLayer }) && !savedMaps.contains(where: { "mbtiles:" + $0.id == preferences.baseLayer }) { preferences.baseLayer = layers.first!.key }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting") && (ProcessInfo.processInfo.arguments.contains("-uiTestOfflineMap") || ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")), savedMaps.isEmpty, let library {
             // Synthetic data exercises the real MBTiles importer and renderer;

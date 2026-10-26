@@ -87,6 +87,28 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertEqual(startup.stores?.waypoints.waypoints.first?.name,"Newer stored target")
         XCTAssertEqual(startup.stores?.waypoints.selectedId,selected.id)
     }
+    func testChangedMapPreferencesRetryBeforeOneServiceGraphIsPublished() async throws {
+        let dir = try directory(),attempts = StartupAttemptCounter()
+        let file = dir.appendingPathComponent("map-prefs-v1.json")
+        try JSONEncoder().encode(MapLayerStore.Preferences()).write(to: file)
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepareMaps: { directory in
+            XCTAssertFalse(Thread.isMainThread)
+            let prepared = MapLayerStore.prepareStartup(directory: directory)
+            if attempts.next() == 1 {
+                var preferences = MapLayerStore.Preferences(); preferences.offlineOnly = true; preferences.gridEnabled = false
+                try! JSONEncoder().encode(preferences).write(to: file,options: .atomic)
+            }
+            return prepared
+        })
+        var publications = 0
+        let subscription = startup.$stores.sink { if $0 != nil { publications += 1 } }
+        defer { subscription.cancel(); startup.stores?.tak.disconnect() }
+        await startup.load()
+        XCTAssertNil(startup.error); XCTAssertEqual(attempts.count,2); XCTAssertEqual(publications,1)
+        let maps = try XCTUnwrap(startup.stores?.maps)
+        XCTAssertTrue(maps.preferences.offlineOnly); XCTAssertTrue(maps.pipeline.offlineOnly)
+        XCTAssertFalse(maps.preferences.gridEnabled)
+    }
     func testFailedPreparationCanRetryWithoutDroppingQueuedLink() async throws {
         let dir = try directory(),attempts = StartupAttemptCounter()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { directory in

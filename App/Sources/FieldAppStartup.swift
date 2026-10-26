@@ -37,12 +37,18 @@ final class FieldAppStartup: ObservableObject {
     let holdsForUITest: Bool
     private let configuration: FieldLaunchConfiguration
     private let prepare: @Sendable (URL?) throws -> WaypointStore.PreparedStartup
-    private var worker: Task<WaypointStore.PreparedStartup,Error>?
+    private struct PreparedWorkspace: Sendable {
+        let waypoints: WaypointStore.PreparedStartup
+        let maps: MapLayerStore.PreparedStartup
+    }
+    private var worker: Task<PreparedWorkspace,Error>?
     private var generation = UUID()
+    private let prepareMaps: @Sendable (URL?) -> MapLayerStore.PreparedStartup
 
     init(configuration: FieldLaunchConfiguration = .current(),
-         prepare: @escaping @Sendable (URL?) throws -> WaypointStore.PreparedStartup = { try WaypointStore.prepareStartup(directory: $0) }) {
-        self.configuration = configuration; self.prepare = prepare
+         prepare: @escaping @Sendable (URL?) throws -> WaypointStore.PreparedStartup = { try WaypointStore.prepareStartup(directory: $0) },
+         prepareMaps: @escaping @Sendable (URL?) -> MapLayerStore.PreparedStartup = { MapLayerStore.prepareStartup(directory: $0) }) {
+        self.configuration = configuration; self.prepare = prepare; self.prepareMaps = prepareMaps
         holdsForUITest = configuration.holdsForUITest
         settings = AppSettings(directory: configuration.directory)
         OrientationState.shared.prepare(settings.orientation)
@@ -58,20 +64,28 @@ final class FieldAppStartup: ObservableObject {
     func load() async {
         guard stores == nil else { return }
         error = nil
+        var changedError: Error = WaypointStore.StartupFailure.changed
         for _ in 0..<3 {
-            let task: Task<WaypointStore.PreparedStartup,Error>,token: UUID
+            let task: Task<PreparedWorkspace,Error>,token: UUID
             if let worker { task = worker; token = generation }
             else {
-                let operation = prepare,directory = configuration.directory
+                let operation = prepare,mapOperation = prepareMaps,directory = configuration.directory
                 generation = UUID(); token = generation
-                task = Task.detached(priority: .userInitiated) { try operation(directory) }
+                task = Task.detached(priority: .userInitiated) {
+                    let waypoints = try operation(directory)
+                    try Task.checkCancellation()
+                    let maps = mapOperation(directory)
+                    try Task.checkCancellation()
+                    return PreparedWorkspace(waypoints: waypoints,maps: maps)
+                }
                 worker = task
             }
             do {
                 let prepared = try await task.value
                 guard generation == token,!Task.isCancelled,stores == nil else { return }
-                let points = try WaypointStore(startup: prepared)
-                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false)
+                let points = try WaypointStore(startup: prepared.waypoints)
+                let maps = try MapLayerStore(startup: prepared.maps)
+                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps)
                 worker = nil
                 return
             } catch is CancellationError {
@@ -80,12 +94,16 @@ final class FieldAppStartup: ObservableObject {
             } catch WaypointStore.StartupFailure.changed {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil // The file changed after preparation: read it again.
+                changedError = WaypointStore.StartupFailure.changed
+            } catch MapLayerStore.StartupFailure.changed {
+                guard generation == token,!Task.isCancelled else { return }
+                worker = nil; changedError = MapLayerStore.StartupFailure.changed
             } catch {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil; self.error = error.localizedDescription
                 return
             }
         }
-        error = WaypointStore.StartupFailure.changed.localizedDescription
+        error = changedError.localizedDescription
     }
 }
