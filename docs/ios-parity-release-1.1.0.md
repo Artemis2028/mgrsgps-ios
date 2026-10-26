@@ -254,3 +254,12 @@ related native integrations. Full hosted confirmation remains open.
 Normal app startup now stages field-library reads on one shared worker with readable day/night loading and guarded navigation, practice scoring, recovered-track finalization, watch publication and backup writes. TAK preserves previously shared graphics while their source is unreadied/corrupt, still withdraws known hidden waypoints, and keeps explicit full unshare authoritative. See [startup behavior and evidence](field-library-startup.md). This does not close other synchronous startup sources or lazy log loading.
 
 Latest completed hosted run 40314727241 on dfed828 passes library and map; field has one large GPX native Files reopening failure. Its dismissal acknowledgment repair passes locally with the actual recording/background-location workflow. Full hosted CI remains open.
+
+
+## Enrolled TAK and bright-map follow-up
+
+The real enrolled Android/iOS round now verifies peer/item map rendering, item deletions and reconnects. Sustained iOS position continuity remains open after a stationary simulator feed stopped delivering fresh fixes; the real-driver A/B capture confirms continuous nonzero reports with tiny movement. [Evidence and remaining gate](tak-server-interoperability.md). The app now distinguishes a sharing switch being on from having a fresh fix to send.
+
+Bright terrain exposed native glass independently lightening behind light map symbols. Map controls and recording now retain a dark backing beneath native interactive glass. All three map-tool workflows pass, including day/night go-to, hidden active drawing/ruler and stop access during recording. Final screenshots were inspected in `/tmp/gridfix-readable-map-glass.xcresult`; the red/black night controls retain their existing treatment.
+
+TAK sharing now applies the agreed Android/iOS strict 30-second and 1 km accuracy bounds independently of display/navigation rules, refuses 0,0, and visibly explains presence-only waiting. Final 242 native cases pass (three unstaged local skips), including the real-driver moving-feed check; final Release passes. The enrolled 90-second continuous-position extension is built but not yet verified against the server. Additional bright topographic screenshot `/tmp/gridfix-readable-map-bright.png` confirms readable symbols above pale tiles.

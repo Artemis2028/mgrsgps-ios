@@ -1,6 +1,68 @@
 import XCTest
 
 final class TAKLocalWorkflowTests: XCTestCase {
+    /// Run only after the opt-in native enrollment preparation and a coordinated
+    /// Android peer GO. No imported package or synthetic remote scene is used.
+    func testEnrolledAppsExchangePositionsItemsDeletesAndReconnect() throws {
+        continueAfterFailure = false
+        let optIn = FileManager.default.urls(for: .documentDirectory,in: .userDomainMask)[0].appendingPathComponent("tak-local-enrolled-peer-ui-optin")
+        guard FileManager.default.fileExists(atPath: optIn.path) else { throw XCTSkip("Enrolled peer UI round has not been explicitly staged in the test runner") }
+        defer { try? FileManager.default.removeItem(at: optIn) }
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting","-keepUITestData","-uiTestTAKSharing","-startTab","map"]
+        app.launch()
+        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 20)); app.buttons["map-tak"].tap()
+        let callsign = app.textFields["tak-callsign"]
+        guard callsign.waitForExistence(timeout: 3),
+              (callsign.value as? String)?.hasPrefix("IOS-ENR-") == true,
+              app.staticTexts["127.0.0.1:8089 · TLS"].exists else { throw XCTSkip("Requires explicitly prepared enrolled local app profile") }
+        let connect = app.buttons["tak-connect"],status = app.staticTexts["tak-status"]
+        func connection(_ value: String) {
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@",value),object: status)],timeout: 30),.completed,app.debugDescription)
+        }
+        reach(connect,app: app,up: false); connect.tap(); connection("Connected")
+        XCTAssertFalse(app.buttons["tak-trust-certificate"].exists,"Enrolled profile must retain its explicitly approved certificate pin")
+        let share = app.switches["tak-share-position"]
+        reach(share,app: app) // Defaults are checked by the preparation; allow an interrupted round to resume.
+        setNativeSwitch(share,to: true)
+        let folder = app.switches["tak-folder-TAK INTEROP"]
+        reach(folder,app: app); setNativeSwitch(folder,to: true)
+        print("TAK_ENROLLED_SHARED_READY names=IOS OP CAFÉ;IOS TEST AREA")
+        XCTAssertTrue(app.staticTexts["MGRS-ADA5"].waitForExistence(timeout: 45),app.debugDescription)
+        let marker = app.staticTexts["ANDROID OP CAFÉ"],line = app.staticTexts["ANDROID TEST LINE"]
+        XCTAssertTrue(marker.waitForExistence(timeout: 180),app.debugDescription)
+        XCTAssertTrue(line.waitForExistence(timeout: 45),app.debugDescription)
+        reach(marker,app: app); capture("tak-enrolled-android-items-received")
+        for name in ["MGRS-ADA5","ANDROID OP CAFÉ","ANDROID TEST LINE"] {
+            let focus = app.buttons["Show " + name + " on map"]
+            reach(focus,app: app); focus.tap()
+            XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 8))
+            capture("tak-enrolled-map-" + name)
+            app.buttons["map-tak"].tap()
+        }
+        print("TAK_ENROLLED_INBOUND_DRAWN_READY_FOR_DELETE")
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in !marker.exists && !line.exists },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone],timeout: 180),.completed,app.debugDescription)
+        XCTAssertTrue(app.staticTexts["MGRS-ADA5"].exists)
+        print("TAK_ENROLLED_INBOUND_DELETES_CONFIRMED")
+        let received = app.staticTexts["tak-last-received"].value as? String ?? ""
+        reach(connect,app: app,up: false); connect.tap(); connection("Disconnected")
+        connect.tap(); connection("Connected")
+        let heard = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            let value = app.staticTexts["tak-last-received"]
+            return value.exists && (value.value as? String) != received
+        },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [heard],timeout: 35),.completed)
+        print("TAK_ENROLLED_RECONNECTED_NEW_DATA")
+        reach(folder,app: app); setNativeSwitch(folder,to: false)
+        print("TAK_ENROLLED_OUTBOUND_WITHDRAWN")
+        capture("tak-enrolled-withdrawn-reconnected")
+        // Give the independently operated Android peer time to observe deletes.
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in false },object: nil)],timeout: 60)
+        reach(share,app: app,up: false); setNativeSwitch(share,to: false)
+        reach(connect,app: app,up: false); connect.tap(); connection("Disconnected")
+    }
+
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

@@ -27,6 +27,48 @@ private final class TAKTestTransport: TAKTransportDriving {
     func requestPermission() { requests += 1 }
 }
 @MainActor final class TAKSessionTests: XCTestCase {
+    func testSharedPositionUsesCommonAndroidAgeAccuracyAndCoordinateBounds() {
+        func fix(age: Double = 0,accuracy: Double = 5,lat: Double = 35,lon: Double = -79) -> Fix {
+            .init(lat: lat,lon: lon,accuracyMeters: accuracy,altitudeMeters: nil,speedMetersPerSecond: nil,timestamp: Date(),timestampUptime: 100-age)
+        }
+        for accuracy in [0.0,25,40,1000] { XCTAssertTrue(TAKSession.canShare(fix(age: 30,accuracy: accuracy),nowUptime: 100)) }
+        for accuracy in [-1.0,1000.001,.nan,.infinity] { XCTAssertFalse(TAKSession.canShare(fix(accuracy: accuracy),nowUptime: 100)) }
+        for age in [-0.001,30.001,.nan,.infinity] { XCTAssertFalse(TAKSession.canShare(fix(age: age),nowUptime: 100)) }
+        for (lat,lon) in [(0.0,0.0),(90.001,0),(-90.001,0),(0,180.001),(0,-180.001),(.nan,1),(1,.infinity)] {
+            XCTAssertFalse(TAKSession.canShare(fix(lat: lat,lon: lon),nowUptime: 100))
+        }
+        XCTAssertTrue(TAKSession.canShare(fix(lat: 0,lon: 1),nowUptime: 100))
+        XCTAssertTrue(TAKSession.canShare(fix(lat: 1,lon: 0),nowUptime: 100))
+        XCTAssertFalse(TAKSession.canShare(fix(),nowUptime: .nan))
+    }
+
+    /// Uses the real Core Location driver and a fake wire transport. The host
+    /// must explicitly stage this marker and continuously feed this simulator.
+    func testLocalSimulatorSharedPositionRemainsFreshWithContinuousLocationFeed() async throws {
+        #if targetEnvironment(simulator)
+        let marker = FileManager.default.urls(for: .documentDirectory,in: .userDomainMask)[0].appendingPathComponent("tak-local-position-feed-optin")
+        guard FileManager.default.fileExists(atPath: marker.path) else { throw XCTSkip("Continuous simulator location feed has not been explicitly staged") }
+        defer { try? FileManager.default.removeItem(at: marker) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let transport = TAKTestTransport(),driver = CoreLocationRecordingDriver()
+        let session = TAKSession(directory: root,transport: transport,driver: driver,startTimer: true)
+        defer { session.disconnect(); try? TAKLocalStore(root: root).deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        await session.importPackage(package()); session.connect(); await drain()
+        transport.callback?(.ready); await drain(); session.sharePosition = true
+        let deadline = Date().addingTimeInterval(30)
+        func isPosition(_ xml: String) -> Bool { xml.contains("takv") && xml.contains("lat=\"35.1389") && xml.contains("lon=\"-78.9909") }
+        while !transport.sends.contains(where: isPosition),Date() < deadline { try await Task.sleep(nanoseconds: 250_000_000) }
+        let first = try XCTUnwrap(transport.sends.firstIndex(where: isPosition),"Real simulator must deliver the staged fresh fix")
+        try await Task.sleep(nanoseconds: 55_000_000_000)
+        let reports = transport.sends[first...].filter { $0.contains("takv") }
+        XCTAssertGreaterThanOrEqual(reports.count,5,"Continuous shared position must retain the 10-second cadence")
+        XCTAssertTrue(reports.allSatisfy(isPosition),"Fresh real locations must never become zero-coordinate presence")
+        let artifact = XCTAttachment(string: reports.joined(separator: "\n")); artifact.name = "tak-fake-feed-outbound-reports"; artifact.lifetime = .keepAlways; add(artifact)
+        #else
+        throw XCTSkip("Local location validation is restricted to the simulator")
+        #endif
+    }
+
     private func package() -> Data {
         ZipArchive.write(entries: [.init(name: "server.pref", data: Data("<preferences><preference><entry key='connectString0'>127.0.0.1:8088:tcp</entry></preference></preferences>".utf8))])
     }
@@ -89,12 +131,20 @@ private final class TAKTestTransport: TAKTransportDriving {
         XCTAssertTrue(transport.sends.contains { $0.contains("t-x-c-t") })
         session.sharePosition = true
         XCTAssertEqual(location.starts, 1)
+        XCTAssertNotNil(session.positionWaitMessage)
         location.onLocations?([CLLocation(coordinate: .init(latitude: 35.1388, longitude: -78.9914), altitude: 0, horizontalAccuracy: 5, verticalAccuracy: -1, timestamp: Date())])
         session.setCallsign("FAKE POSITION") // force fresh presence on next tick
         session.setForeground(true)
         XCTAssertTrue(transport.sends.contains { $0.contains("lat=\"35.1388000\"") })
+        XCTAssertNil(session.positionWaitMessage)
+        location.onLocations?([CLLocation(coordinate: .init(latitude: 35.1388,longitude: -78.9914),altitude: 0,horizontalAccuracy: 5,verticalAccuracy: -1,timestamp: Date().addingTimeInterval(-40))])
+        session.setCallsign("STALE POSITION")
+        session.setForeground(true)
+        XCTAssertNotNil(session.positionWaitMessage)
+        XCTAssertTrue(transport.sends.last(where: { $0.contains("takv") })?.contains("lat=\"0.0000000\" lon=\"0.0000000\"") == true)
         session.setForeground(false); XCTAssertEqual(location.stops, 0)
         session.sharePosition = false; XCTAssertEqual(location.stops, 1)
+        XCTAssertNil(session.positionWaitMessage)
         session.setForeground(false); XCTAssertFalse(session.connected)
         session.disconnect(); XCTAssertFalse(session.sharePosition)
     }

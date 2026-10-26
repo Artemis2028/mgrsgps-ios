@@ -46,6 +46,7 @@ struct TAKSettingsView: View {
                             Button("Reset server trust", role: .destructive) { resetTrust = true }.accessibilityIdentifier("tak-reset-trust")
                         }
                         Toggle("Share my position", isOn: $tak.sharePosition).tint(palette.accent).accessibilityIdentifier("tak-share-position")
+                        if let message = tak.positionWaitMessage { Text(message).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("tak-position-wait") }
                         Text("Off by default. Connecting announces your callsign without a position. Sharing uses location and may continue while locked after you start it here. iOS can suspend receive-only connections; they resume when you return.")
                             .font(.footnote).foregroundStyle(palette.inkDim)
                         if tak.isSyntheticValidation { Text("SYNTHETIC TEST POSITION · LOCAL SERVER ONLY").foregroundStyle(palette.warn).font(.caption) }

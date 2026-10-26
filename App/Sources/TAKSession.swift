@@ -13,8 +13,9 @@ final class TAKSession: ObservableObject {
     @Published private(set) var lastReceivedAt: Date?
     @Published private(set) var failure: String?
     @Published private(set) var sharingWaitMessage: String?
+    @Published private(set) var positionWaitMessage: String?
     @Published private(set) var enrollmentSuggestion: TAKEnrollment.Target?
-    @Published var sharePosition = false { didSet { if oldValue != sharePosition { updateLocationDemand(); lastPresence = nil; tick() } } }
+    @Published var sharePosition = false { didSet { if oldValue != sharePosition { if !sharePosition { positionWaitMessage = nil }; updateLocationDemand(); lastPresence = nil; tick() } } }
     private let transport: TAKTransportDriving
     private let location: RecordingLocationDriver
     private var store: TAKLocalStore?
@@ -44,6 +45,15 @@ final class TAKSession: ObservableObject {
     }
     var sharedFolders: Set<String> { profile.sharedFolders ?? [] }
     var configured: Bool { !profile.host.isEmpty }
+
+    /// Shared with Android's TAK policy, independently of navigation-grade GPS.
+    static func canShare(_ fix: Fix,nowUptime: TimeInterval) -> Bool {
+        let age = nowUptime - fix.timestampUptime
+        return fix.timestampUptime.isFinite && fix.timestampUptime > 0 && age.isFinite && (0...30).contains(age)
+            && fix.accuracyMeters.isFinite && (0...1000).contains(fix.accuracyMeters)
+            && fix.lat.isFinite && fix.lon.isFinite && abs(fix.lat) <= 90 && abs(fix.lon) <= 180
+            && (fix.lat != 0 || fix.lon != 0)
+    }
 
     init(directory: URL, transport: TAKTransportDriving = TAKTransport(), driver: RecordingLocationDriver? = nil, startTimer: Bool = true, waypoints: WaypointStore? = nil, field: FieldDataStore? = nil) {
         self.waypoints = waypoints; self.field = field
@@ -242,12 +252,12 @@ final class TAKSession: ObservableObject {
                 var position: GeoPoint?, accuracy: Double = 9999999
                 if sharePosition {
                     if let synthetic { position = synthetic; accuracy = 5 }
-                    else if let fix, !PositionFixQuality(fix: fix, nowUptime: uptime).stale,
-                            fix.accuracyMeters.isFinite, fix.accuracyMeters >= 0,
-                            fix.lat.isFinite, fix.lon.isFinite, abs(fix.lat) <= 90, abs(fix.lon) <= 180 {
+                    else if let fix, Self.canShare(fix,nowUptime: uptime) {
                         position = .init(lat: fix.lat, lon: fix.lon); accuracy = fix.accuracyMeters
                     }
                 }
+                let waiting = sharePosition && position == nil ? "Waiting for GPS within 30 seconds and 1 km accuracy. Only your callsign is being shared." : nil
+                if positionWaitMessage != waiting { positionWaitMessage = waiting }
                 let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
                 transport.send(try TAKCoT.presence(uid: profile.uid, callsign: profile.callsign, version: version,
                                                  now: now, position: position, accuracy: accuracy))
