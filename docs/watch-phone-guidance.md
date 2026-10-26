@@ -82,3 +82,8 @@ Local screenshots: `/tmp/gridfix-watch-guide-crossing-day.png`,
 `/tmp/gridfix-watch-guide-stop-night.png`,
 `/tmp/gridfix-watch-guide-expired-night.png`. Physical watch and Wear paired
 Data Layer checks remain required.
+
+
+The later [paired Wear validation](wear-paired-validation.md) verifies actual
+phone-service active/unavailable/stop/expiry delivery through Data Layer with a
+populated local library. Physical and named-crossing Wear checks remain.

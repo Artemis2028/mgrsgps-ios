@@ -144,8 +144,8 @@ were shut down afterward. Evidence: `/tmp/gridfix-wear-paired-info.png`,
 under `/tmp/gridfix-wear-paired-*.xml`.
 
 This closes the account/setup blocker for simulator TAK transport. Physical
-radio/background/battery checks, paired guidance lifecycle checks and a populated
-local/remote preservation round remain. Android's current implementation passes
+radio/background/battery checks remain. The later [paired populated-library and
+guidance round](wear-paired-validation.md) closes those simulator gates. Android's current implementation passes
 454 phone and 34 Wear tests, both phone Release variants and Wear Release/lint.
 
 The phone debug build has an explicit `watchTakPreview` intent (show/expire/clear)
