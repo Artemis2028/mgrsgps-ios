@@ -73,14 +73,18 @@ jobs:
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
           echo "building for $DEST"
-          xcodebuild build \
+          if ! xcodebuild build \
             -project MGRSGPS.xcodeproj \
             -scheme MGRSGPS \
             -configuration Debug \
             -destination "id=$DEST" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
-            2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40
+            2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40; then
+            # Parallel compilation can put the useful error far before the tail.
+            python3 -c 'import pathlib,sys; print("\n".join(line for line in pathlib.Path(sys.argv[1]).read_text(errors="replace").splitlines() if "error:" in line))' "$GITHUB_WORKSPACE/build.log"
+            exit 1
+          fi
 
       - name: Screenshots
         if: matrix.shard == 'library'

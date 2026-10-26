@@ -136,3 +136,16 @@ header actions visible. Actual frame taps open the existing waypoint editor,
 new-waypoint editor and Routes & tracks library. Screenshots were inspected.
 The final phone/watch/widget simulator Release build passes. Hosted CI still
 needs a complete pass on the pushed revision.
+
+## Older Xcode watch type checking
+
+Runs 40251073307 and 40252856747 passed core tests but stopped during build:
+Xcode 26.6 could not type-check the watch camera bounds expression, which joined
+four optional mapped/flattened arrays with overloaded additions. Full build
+artifacts identify WatchMapView.swift:124; the tailed job output omitted the
+actual error. Bounds preparation now appends explicitly typed GeoPoint arrays
+in the same order, with unchanged camera geometry. Debug watch simulator builds
+for arm64 and x86_64 pass locally. CI now prints all compiler error lines on a
+failed build as well as retaining its complete log. Actionlint passes. The
+older compiler is available on GitHub, so its subsequent run remains the
+authoritative compatibility check.

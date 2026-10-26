@@ -121,7 +121,12 @@ struct WatchMapView: View {
         camera = .region(MKCoordinateRegion(center: fix.coordinate, span: span))
     }
     private func fitOverlay() {
-        let points = model.remoteItems(at:Date()).flatMap(\.points) + (model.mapSnapshot?.waypoints.map(\.coordinate) ?? []) + (model.mapSnapshot?.features.flatMap(\.points) ?? []) + (model.mapSnapshot?.laneOverlays.flatMap(\.outline) ?? [])
+        var points: [GeoPoint] = model.remoteItems(at: Date()).flatMap(\.points)
+        if let snapshot = model.mapSnapshot {
+            points.append(contentsOf: snapshot.waypoints.map(\.coordinate))
+            for feature in snapshot.features { points.append(contentsOf: feature.points) }
+            for lane in snapshot.laneOverlays { points.append(contentsOf: lane.outline) }
+        }
         guard let bounds = FieldMapGeometry.bounds(points) else { return }
         camera = .region(MKCoordinateRegion(center: .init(latitude: (bounds.south + bounds.north) / 2,
                                                          longitude: TerrainGeometry.wrap((bounds.west + bounds.east) / 2)),
