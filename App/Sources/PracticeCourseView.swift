@@ -50,11 +50,11 @@ struct PracticeCourseView: View {
                         #endif
                     }.listRowBackground(rowBackground)
                 }
-                if course.working { Section { ProgressView("Saving course…").accessibilityIdentifier("practice-saving-progress") }.listRowBackground(rowBackground) }
+                if course.working { Section { ProgressView(course.recovering ? "Preserving damaged session…" : "Saving course…").accessibilityIdentifier("practice-saving-progress") }.listRowBackground(rowBackground) }
                 if course.damaged {
                     Section("Saved course needs attention") {
                         Text("The unreadable session is kept. Resetting preserves a copy and unlocks navigation; waypoints, tracks and results are retained.")
-                        Button("Preserve damaged session and reset",role: .destructive) { showReset = true }
+                        Button("Preserve damaged session and reset",role: .destructive) { showReset = true }.disabled(course.working).accessibilityIdentifier("practice-reset-damaged")
                     }.listRowBackground(rowBackground)
                 } else if let result = course.summary {
                     Section("Course complete") { resultRows(result) }.listRowBackground(rowBackground)
@@ -99,7 +99,10 @@ struct PracticeCourseView: View {
             .confirmationDialog("End this course? Saved checkpoints remain; unfinished runs are not added to results.",isPresented: Binding(get: { ending != nil },set: { if !$0 { ending = nil } }),titleVisibility: .visible) {
                 Button("End course",role: .destructive) { course.end(expectedRunID: ending); ending = nil }
             }
-            .confirmationDialog("Preserve a copy of the unreadable session and reset?",isPresented: $showReset,titleVisibility: .visible) { Button("Reset course session",role: .destructive) { course.resetDamaged() } }
+            .confirmationDialog("Preserve a copy of the unreadable session and reset?",isPresented: $showReset,titleVisibility: .visible) {
+                Button("Reset course session",role: .destructive) { course.resetDamaged() }
+                Button("Keep saved session") { showReset = false }
+            }
         }.tint(palette.accent).environment(\.fieldNight,settings.nightMode).fieldSheetAppearance()
     }
     @ViewBuilder private func progress(_ active: PracticeCourse) -> some View {

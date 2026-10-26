@@ -109,6 +109,36 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertTrue(maps.preferences.offlineOnly); XCTAssertTrue(maps.pipeline.offlineOnly)
         XCTAssertFalse(maps.preferences.gridEnabled)
     }
+    func testWorkerCourseStartupRetainsRunAndSplitsBeforeFieldReadiness() async throws {
+        let dir = try directory(),points = WaypointStore(directory: dir)
+        let first = points.add(.init(name: "First",lat: 35,lon: -79)),second = points.add(.init(name: "Second",lat: 35.1,lon: -79))
+        var course = try PracticeCourse(name: "Saved run CAFÉ",waypointIDs: [first.id,second.id],startedAt: 100)
+        _ = try course.markFound(runID: course.runID,checkpointID: first.id,now: 500)
+        try PracticeCourseStore(directory: dir).save(course)
+        let file = dir.appendingPathComponent("practice-course-v1.json"),before = try Data(contentsOf: file)
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false))
+        await startup.load()
+        let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
+        XCTAssertEqual(stores.practice.active,course); XCTAssertFalse(stores.fieldData.ready)
+        XCTAssertFalse(stores.navigation.running); XCTAssertEqual(try Data(contentsOf: file),before)
+        await stores.fieldData.load()
+        try await wait { !stores.practice.working && stores.waypoints.practiceNavigationLocked }
+        XCTAssertEqual(stores.waypoints.selectedId,second.id)
+        XCTAssertEqual(stores.practice.active?.foundAt,[500]); XCTAssertTrue(stores.fieldData.document.courseHistory.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: file),before)
+    }
+    func testWorkerCourseStartupKeepsDamagedBytesAndLocksNavigationAfterFieldReadiness() async throws {
+        let dir = try directory(),file = dir.appendingPathComponent("practice-course-v1.json"),bytes = Data("unreadable course".utf8)
+        try bytes.write(to: file)
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false))
+        await startup.load()
+        let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
+        XCTAssertTrue(stores.practice.damaged); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        await stores.fieldData.load()
+        try await wait { !stores.practice.working && stores.waypoints.practiceNavigationLocked }
+        XCTAssertNotNil(stores.practice.error); XCTAssertNil(stores.waypoints.selectedId)
+        XCTAssertEqual(try Data(contentsOf: file),bytes)
+    }
     func testFailedPreparationCanRetryWithoutDroppingQueuedLink() async throws {
         let dir = try directory(),attempts = StartupAttemptCounter()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { directory in

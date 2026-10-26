@@ -67,22 +67,100 @@ public final class PracticeCourseStore {
     private let file: URL
     private var revision: UInt64 = 0
     private let identity = UUID()
-    public init(directory: URL) {
-        file = directory.appendingPathComponent("practice-course-v1.json")
-        guard FileManager.default.fileExists(atPath: file.path) else { return }
+    private var loadedStamp: SourceStamp?
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64, inode: UInt64, volume: UInt64
+        let modified: Date?, regular: Bool
+        static func read(_ file: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date,
+                         regular: attributes[.type] as? FileAttributeType == .typeRegular)
+        }
+    }
+    public enum StartupFailure: LocalizedError {
+        case changed
+        public var errorDescription: String? { "Saved practice course changed while opening. Try again." }
+    }
+    public struct PreparedStartup: Sendable {
+        fileprivate let file: URL
+        fileprivate let active: PracticeCourse?
+        fileprivate let error: String?
+        fileprivate let stamp: SourceStamp?
+    }
+    public static func prepareStartup(directory: URL) throws -> PreparedStartup {
+        try Task.checkCancellation()
+        let value = readStartup(directory.appendingPathComponent("practice-course-v1.json"))
+        try Task.checkCancellation()
+        return value
+    }
+    private static func readStartup(_ file: URL) -> PreparedStartup {
+        let stamp = SourceStamp.read(file)
+        guard FileManager.default.fileExists(atPath: file.path) else {
+            return .init(file: file,active: nil,error: nil,stamp: stamp)
+        }
         do {
-            let saved = try JSONDecoder().decode(Envelope.self,from: Data(contentsOf: file))
-            guard saved.version == 1, saved.active?.valid != false else { throw PracticeCourseError.invalid("Invalid saved practice course.") }
-            active = saved.active
-        } catch { loadError = "Saved course was kept: \(error.localizedDescription)" }
+            let saved = try JSONDecoder().decode(Envelope.self,from: Data(contentsOf: file,options: .mappedIfSafe))
+            guard saved.version == 1,saved.active?.valid != false else { throw PracticeCourseError.invalid("Invalid saved practice course.") }
+            return .init(file: file,active: saved.active,error: nil,stamp: stamp)
+        } catch { return .init(file: file,active: nil,error: "Saved course was kept: \(error.localizedDescription)",stamp: stamp) }
+    }
+    public init(directory: URL) {
+        let prepared = Self.readStartup(directory.appendingPathComponent("practice-course-v1.json"))
+        file = prepared.file; active = prepared.active; loadError = prepared.error; loadedStamp = prepared.stamp
+    }
+    public init(startup: PreparedStartup) throws {
+        guard SourceStamp.read(startup.file) == startup.stamp else { throw StartupFailure.changed }
+        file = startup.file; active = startup.active; loadError = startup.error; loadedStamp = startup.stamp
+    }
+    public struct RecoverySnapshot: Sendable {
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let file: URL
+        fileprivate let stamp: SourceStamp
+        public func prepare() throws -> PreparedRecovery {
+            try Task.checkCancellation()
+            guard SourceStamp.read(file) == stamp else { throw PracticeCourseError.invalid("Saved course changed. Reopen the app before resetting it.") }
+            let bytes = try Data(contentsOf: file,options: .mappedIfSafe)
+            guard SourceStamp.read(file) == stamp else { throw PracticeCourseError.invalid("Saved course changed. Its original data was kept.") }
+            let kept = file.deletingLastPathComponent().appendingPathComponent("practice-course-damaged-\(UUID().uuidString).json")
+            let archive = try PreparedAtomicFile(data: bytes,destination: kept,lockCompatible: true,synchronize: true)
+            let empty = try PreparedAtomicFile(data: JSONEncoder().encode(Envelope(active: nil)),destination: file,lockCompatible: true,synchronize: true)
+            try Task.checkCancellation()
+            return .init(revision: revision,identity: identity,stamp: stamp,archive: archive,empty: empty)
+        }
+    }
+    public struct PreparedRecovery: Sendable {
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+        fileprivate let stamp: SourceStamp
+        fileprivate let archive: PreparedAtomicFile
+        fileprivate let empty: PreparedAtomicFile
+        public func discard() { archive.discard(); empty.discard() }
+    }
+    public func recoverySnapshot() throws -> RecoverySnapshot {
+        guard loadError != nil,let stamp = loadedStamp,stamp.regular else {
+            throw PracticeCourseError.invalid("No readable damaged course file can be preserved. The original data was kept.")
+        }
+        guard SourceStamp.read(file) == stamp else { throw PracticeCourseError.invalid("Saved course changed. Reopen the app before resetting it.") }
+        return .init(revision: revision,identity: identity,file: file,stamp: stamp)
+    }
+    @discardableResult public func publishRecovery(_ prepared: PreparedRecovery) throws -> Bool {
+        guard prepared.identity == identity else { throw PracticeCourseError.invalid("Prepared recovery belongs to another course store.") }
+        guard prepared.revision == revision,loadError != nil else { prepared.discard(); return false }
+        defer { prepared.discard() }
+        guard SourceStamp.read(file) == prepared.stamp else { throw PracticeCourseError.invalid("Saved course changed. Reopen the app before resetting it.") }
+        try prepared.archive.publish(replacing: false)
+        guard SourceStamp.read(file) == prepared.stamp else { throw PracticeCourseError.invalid("Saved course changed. A copy was preserved and its current data was kept.") }
+        try prepared.empty.publish()
+        active = nil; loadError = nil; loadedStamp = SourceStamp.read(file); revision &+= 1
+        return true
     }
     public func preserveDamagedAndReset() throws {
         guard loadError != nil else { return }
-        let originalError = loadError
-        let kept = file.deletingLastPathComponent().appendingPathComponent("practice-course-damaged-\(UUID().uuidString).json")
-        try FileManager.default.copyItem(at: file,to: kept)
-        loadError = nil; revision &+= 1
-        do { try save(nil) } catch { loadError = originalError; revision &+= 1; throw error }
+        _ = try publishRecovery(recoverySnapshot().prepare())
     }
     /// Snapshot and publication belong to the owner's serial executor. The
     /// immutable preparation can encode/write without borrowing the live store.

@@ -9,6 +9,7 @@ final class PracticeSession: ObservableObject {
     @Published private(set) var blockedByStorage = false
     @Published private(set) var finalizing = false
     @Published private(set) var working = false
+    @Published private(set) var recovering = false
     private enum Write {
         case start(PracticeCourse)
         case random(WaypointStore.PracticePointsEdit,String)
@@ -22,6 +23,7 @@ final class PracticeSession: ObservableObject {
     private var queuedFix: Fix?
     private var targetWriteFailed = false
     private let scoreFeedback: @MainActor () -> Void
+    private let prepareRecovery: @Sendable (PracticeCourseStore.RecoverySnapshot) throws -> PracticeCourseStore.PreparedRecovery
     private let prepareCourse: @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave
     private let preparePoints: @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints
     private let prepareTarget: @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticeSelection) throws -> WaypointStore.PreparedPracticeSelection
@@ -44,14 +46,15 @@ final class PracticeSession: ObservableObject {
     var damaged: Bool { saved.loadError != nil }
     var locked: Bool { active != nil || damaged || working || finalizing }
 
-    init(directory: URL?,waypoints: WaypointStore,field: FieldDataStore,navigation: NavigationSession,
+    init(directory: URL?,waypoints: WaypointStore,field: FieldDataStore,navigation: NavigationSession,store: PracticeCourseStore? = nil,
          now: @escaping () -> Date = Date.init,uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         prepareRecovery: @escaping @Sendable (PracticeCourseStore.RecoverySnapshot) throws -> PracticeCourseStore.PreparedRecovery = { try $0.prepare() },
          prepareCourse: @escaping @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave = { try $0.prepare($1) },
          preparePoints: @escaping @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints = { try $0.preparePracticePoints($1) },
          prepareTarget: @escaping @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticeSelection) throws -> WaypointStore.PreparedPracticeSelection = { try $0.preparePracticeSelection($1) },
          scoreFeedback: @escaping @MainActor () -> Void = { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }) {
-        saved = PracticeCourseStore(directory: directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!)
-        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.prepareTarget = prepareTarget; self.scoreFeedback = scoreFeedback
+        saved = store ?? PracticeCourseStore(directory: directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!)
+        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.prepareTarget = prepareTarget; self.scoreFeedback = scoreFeedback; self.prepareRecovery = prepareRecovery
         active = saved.active; error = saved.loadError
         waypoints.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         field.$ready.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
@@ -337,9 +340,30 @@ final class PracticeSession: ObservableObject {
         queuedFix = nil; perform(.end(expectedRunID))
     }
     func resetDamaged() {
-        guard !working, !finalizing else { return }
-        do { try saved.preserveDamagedAndReset(); targetWriteFailed = false; pendingWrite = nil; blockedByStorage = false; error = nil; reconcile() }
-        catch { self.error = error.localizedDescription }
+        guard damaged,!working,!finalizing else { return }
+        do {
+            let snapshot = try saved.recoverySnapshot(),factory = prepareRecovery
+            generation = UUID(); let token = generation
+            working = true; recovering = true; error = nil; queuedFix = nil
+            operation = Task {
+                let grace = FinalizationGrace(); defer { grace.end() }
+                let worker = Task.detached(priority: .userInitiated) { try factory(snapshot) }
+                do {
+                    let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+                    try Task.checkCancellation()
+                    guard generation == token else { prepared.discard(); return }
+                    guard try saved.publishRecovery(prepared) else { throw PracticeCourseError.invalid("The course changed. Its saved data was kept.") }
+                    active = saved.active; targetWriteFailed = false; pendingWrite = nil
+                    blockedByStorage = false; error = nil; queuedFix = nil
+                    working = false; recovering = false; operation = nil
+                    reconcile()
+                } catch {
+                    guard generation == token else { return }
+                    working = false; recovering = false; operation = nil; queuedFix = nil
+                    self.error = "Course reset failed; the original session is kept. \(error.localizedDescription)"
+                }
+            }
+        } catch { self.error = error.localizedDescription }
     }
     func dismissSummary() { summary = nil }
     private var millis: Int64 { Int64(now().timeIntervalSince1970*1000) }

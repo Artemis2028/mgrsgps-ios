@@ -80,3 +80,9 @@ boundary state/alerts are untouched by course selection or scoring.
 
 Outdoor accuracy, checkpoint haptic feel, permission/wrist-lock behaviour and
 large-folder field performance still need physical-device validation.
+
+
+Practice-session startup and damaged-session preservation/reset now prepare on
+workers, retaining the saved run and navigation lock until durable acknowledgement.
+See [startup and recovery contract](course-startup-recovery.md) for current
+validation and the remaining physical/performance gates.

@@ -363,6 +363,41 @@ final class PracticeIntegrationTests: XCTestCase {
         let archived = try FileManager.default.contentsOfDirectory(at: f.directory,includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("practice-course-damaged-") }
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(archived)),broken)
     }
+    func testDamagedRecoveryWaitsForWorkerKeepsNavigationLockedAndRejectsDuplicateReset() async throws {
+        let f = try fixture(),file = f.directory.appendingPathComponent("practice-course-v1.json")
+        let bytes = Data("SYNTHETIC damaged CAFÉ session".utf8); try bytes.write(to: file)
+        let gate = PracticeRecoveryGate(); defer { gate.release() }
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareRecovery: { try gate.prepare($0) })
+        try await wait { !course.working }
+        XCTAssertTrue(course.damaged); XCTAssertTrue(f.waypoints.practiceNavigationLocked)
+        course.resetDamaged(); try await wait { gate.count == 1 }
+        XCTAssertTrue(course.working); XCTAssertTrue(course.recovering)
+        XCTAssertTrue(course.damaged); XCTAssertTrue(f.waypoints.practiceNavigationLocked)
+        XCTAssertEqual(try Data(contentsOf: file),bytes)
+        course.resetDamaged(); course.startFolder("Drill")
+        XCTAssertEqual(gate.count,1); XCTAssertNil(course.active)
+        gate.release(); try await wait { !course.working }
+        XCTAssertFalse(course.damaged); XCTAssertFalse(course.recovering)
+        XCTAssertFalse(f.waypoints.practiceNavigationLocked); XCTAssertNil(course.error)
+        let archives = try FileManager.default.contentsOfDirectory(at: f.directory,includingPropertiesForKeys: nil).filter { $0.lastPathComponent.hasPrefix("practice-course-damaged-") }
+        XCTAssertEqual(archives.count,1); XCTAssertEqual(try Data(contentsOf: XCTUnwrap(archives.first)),bytes)
+    }
+    func testDamagedRecoveryFailureKeepsOriginalAndCanRetry() async throws {
+        let f = try fixture(),file = f.directory.appendingPathComponent("practice-course-v1.json")
+        let bytes = Data("SYNTHETIC damaged session".utf8); try bytes.write(to: file)
+        let attempts = PracticeRecoveryAttempts()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareRecovery: { snapshot in
+            if attempts.next() == 1 { throw CocoaError(.fileWriteOutOfSpace) }
+            return try snapshot.prepare()
+        })
+        try await wait { !course.working }
+        course.resetDamaged(); try await wait { !course.working }
+        XCTAssertTrue(course.damaged); XCTAssertFalse(course.recovering); XCTAssertNotNil(course.error)
+        XCTAssertTrue(f.waypoints.practiceNavigationLocked); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        course.resetDamaged(); try await wait { !course.working }
+        XCTAssertFalse(course.damaged); XCTAssertFalse(f.waypoints.practiceNavigationLocked)
+        XCTAssertEqual(attempts.count,2); XCTAssertNil(course.error)
+    }
     func testHiddenFolderCourseLocksSelectionAndRouteFollowingWithoutRewritingRoutePoints() async throws {
         let f = try fixture(), course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
         f.waypoints.setFolderVisible("Drill",visible: false); course.startFolder("Drill"); try await wait { !course.working && !course.finalizing }
@@ -536,5 +571,22 @@ private final class PracticeTargetGate: @unchecked Sendable {
         defer { if block { lock.lock(); didReturn = true; lock.unlock() } }
         if block, semaphore.wait(timeout: .now()+5) != .success { throw PracticeCourseError.invalid("Test target gate timed out") }
         return try snapshot.preparePracticeSelection(request)
+    }
+}
+
+private final class PracticeRecoveryAttempts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+    func next() -> Int { lock.lock(); defer { lock.unlock() }; value += 1; return value }
+}
+private final class PracticeRecoveryGate: @unchecked Sendable {
+    private let attempts = PracticeRecoveryAttempts(),gate = DispatchSemaphore(value: 0)
+    var count: Int { attempts.count }
+    func release() { gate.signal() }
+    func prepare(_ snapshot: PracticeCourseStore.RecoverySnapshot) throws -> PracticeCourseStore.PreparedRecovery {
+        XCTAssertFalse(Thread.isMainThread); _ = attempts.next()
+        guard gate.wait(timeout: .now()+10) == .success else { throw CancellationError() }
+        return try snapshot.prepare()
     }
 }

@@ -36,7 +36,7 @@ final class PracticeWorkflowTests: XCTestCase {
         launch(["-uiTestPracticeFar"]); startFolder(); capture("practice-active")
         app.buttons["Close"].tap()
         XCTAssertFalse(app.buttons["Choose navigation target"].isEnabled)
-        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
         XCTAssertTrue(app.buttons["practice-banner"].waitForExistence(timeout: 10)); app.buttons["practice-banner"].tap()
         XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 2")
         app.buttons["practice-end"].tap(); app.buttons["End course"].tap()
@@ -191,4 +191,33 @@ final class PracticeWorkflowTests: XCTestCase {
         launch(["-uiTestPracticeFar","-uiTestPracticeNight"]); startFolder()
         XCTAssertTrue(app.staticTexts["Alpha checkpoint"].exists); capture("practice-night")
     }
+    private func damagedRecovery(night: Bool) {
+        launch(["-uiTestPracticeFar","-uiTestPracticeDamage","-uiTestDeferredFieldLoad"]+(night ? ["-uiTestPracticeNight"] : []))
+        let open = app.buttons["open-practice"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10)); tapNativeMenuItem(open)
+        let reset = app.buttons["practice-reset-damaged"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 10)); XCTAssertTrue(app.staticTexts["practice-error"].exists)
+        XCTAssertFalse(app.buttons["practice-start"].exists)
+        capture(night ? "practice-damaged-course-night" : "practice-damaged-course-day")
+        tapNativeMenuItem(reset)
+        let cancel = app.buttons["Keep saved session"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5)); tapNativeMenuItem(cancel)
+        XCTAssertTrue(reset.exists); XCTAssertFalse(app.buttons["practice-start"].exists)
+        tapNativeMenuItem(reset); tapNativeMenuItem(app.buttons["Reset course session"])
+        XCTAssertTrue(app.buttons["practice-start"].waitForExistence(timeout: 10))
+        XCTAssertFalse(reset.exists); XCTAssertFalse(app.staticTexts["practice-error"].exists)
+        capture(night ? "practice-reset-course-night" : "practice-reset-course-day")
+        tapNativeMenuItem(app.navigationBars.buttons["Close"])
+        let target = app.buttons["Choose navigation target"]
+        let unlocked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"),object: target)
+        XCTAssertEqual(XCTWaiter.wait(for: [unlocked],timeout: 10),.completed)
+        app.terminate(); app.launchArguments.append("-keepUITestData"); app.launch()
+        XCTAssertTrue(open.waitForExistence(timeout: 10)); tapNativeMenuItem(open)
+        XCTAssertTrue(app.buttons["practice-start"].waitForExistence(timeout: 10))
+        XCTAssertFalse(reset.exists); XCTAssertFalse(app.staticTexts["practice-error"].exists)
+        capture(night ? "practice-reset-relaunched-night" : "practice-reset-relaunched-day")
+    }
+    func testDamagedCoursePreserveResetCancelAndColdRelaunchDay() { damagedRecovery(night: false) }
+    func testDamagedCoursePreserveResetCancelAndColdRelaunchNight() { damagedRecovery(night: true) }
+
 }

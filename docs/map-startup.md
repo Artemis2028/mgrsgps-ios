@@ -22,7 +22,7 @@ it with a writable empty catalog.
 Existing direct MapLayerStore callers and synthetic UI fixture seeding retain
 their synchronous setup API. The normal shipping path uses worker preparation.
 Tile archive access during rendering, map preference writes and the other small
-settings/course startup sources are separate work; this is not a claim that all
+settings/other runtime-session startup sources are separate work; this is not a claim that all
 app I/O is asynchronous or every tile archive is opened before rendering.
 
 ## Validation

@@ -92,3 +92,8 @@ Practice target-lock library writes have since moved to workers; see
 [target persistence](practice-target-persistence.md). The earlier synchronous
 limitation above is historical. Startup reads and damaged-session preservation/
 reset copying remain work.
+
+
+Session startup and damaged-session preservation/reset have since moved to
+workers too; see [current startup/recovery contract](course-startup-recovery.md).
+Earlier synchronous limitations above describe the preceding checkpoint.

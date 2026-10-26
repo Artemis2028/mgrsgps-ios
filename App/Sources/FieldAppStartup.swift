@@ -20,6 +20,9 @@ struct FieldLaunchConfiguration {
             if args.contains("-uiTestWaypointRecovery"),!args.contains("-keepUITestData") {
                 try? Data("SYNTHETIC unreadable CAFÉ waypoint library\n".utf8).write(to: temporary.appendingPathComponent("waypoints-v1.json"),options: .atomic)
             }
+            if args.contains("-uiTestPracticeDamage"),!args.contains("-keepUITestData") {
+                try? Data("SYNTHETIC damaged CAFÉ course\n".utf8).write(to: temporary.appendingPathComponent("practice-course-v1.json"),options: .atomic)
+            }
             hold = args.contains("-uiTestSlowWaypointStartup")
             seed = !args.contains("-uiTestDeferredFieldLoad") && !hold
         }
@@ -40,6 +43,7 @@ final class FieldAppStartup: ObservableObject {
     private struct PreparedWorkspace: Sendable {
         let waypoints: WaypointStore.PreparedStartup
         let maps: MapLayerStore.PreparedStartup
+        let course: PracticeCourseStore.PreparedStartup
     }
     private var worker: Task<PreparedWorkspace,Error>?
     private var generation = UUID()
@@ -76,7 +80,9 @@ final class FieldAppStartup: ObservableObject {
                     try Task.checkCancellation()
                     let maps = mapOperation(directory)
                     try Task.checkCancellation()
-                    return PreparedWorkspace(waypoints: waypoints,maps: maps)
+                    let courseDirectory = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
+                    let course = try PracticeCourseStore.prepareStartup(directory: courseDirectory)
+                    return PreparedWorkspace(waypoints: waypoints,maps: maps,course: course)
                 }
                 worker = task
             }
@@ -84,8 +90,9 @@ final class FieldAppStartup: ObservableObject {
                 let prepared = try await task.value
                 guard generation == token,!Task.isCancelled,stores == nil else { return }
                 let points = try WaypointStore(startup: prepared.waypoints)
+                let course = try PracticeCourseStore(startup: prepared.course)
                 let maps = try MapLayerStore(startup: prepared.maps)
-                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps)
+                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps,practiceStore: course)
                 worker = nil
                 return
             } catch is CancellationError {
@@ -95,6 +102,9 @@ final class FieldAppStartup: ObservableObject {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil // The file changed after preparation: read it again.
                 changedError = WaypointStore.StartupFailure.changed
+            } catch PracticeCourseStore.StartupFailure.changed {
+                guard generation == token,!Task.isCancelled else { return }
+                worker = nil; changedError = PracticeCourseStore.StartupFailure.changed
             } catch MapLayerStore.StartupFailure.changed {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil; changedError = MapLayerStore.StartupFailure.changed
