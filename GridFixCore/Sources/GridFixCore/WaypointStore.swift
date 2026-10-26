@@ -20,6 +20,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     private let lock = NSLock()
     private var revision: UInt64 = 0
     private let identity = UUID()
+    private var selectionIntent = UUID()
 
     fileprivate struct Snapshot: Codable, Sendable {
         var waypoints: [Waypoint]
@@ -214,10 +215,46 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         return added
     }
 
-    public func select(_ id: String?) {
+    /// Legacy callers retain their signature, but failed writes never publish a
+    /// target that would disappear on relaunch. Interactive callers use the
+    /// throwing API so the failure can be shown to the user.
+    public func select(_ id: String?) { try? selectDurably(id) }
+
+    @discardableResult
+    public func beginSelection() -> UUID {
         lock.lock(); defer { lock.unlock() }
-        selectedId = practiceNavigationLocked ? practiceTargetID.flatMap { target in waypoints.contains { $0.id == target } ? target : nil } : id
-        persistLocked()
+        selectionIntent = UUID(); return selectionIntent
+    }
+
+    public func selectionIsCurrent(_ intent: UUID) -> Bool {
+        lock.lock(); defer { lock.unlock() }; return selectionIntent == intent
+    }
+
+    public func selectDurably(_ id: String?) throws {
+        let intent = beginSelection()
+        while true {
+            guard selectionIsCurrent(intent) else { throw CancellationError() }
+            let prepared = try restoreSnapshot().prepareSelection(id)
+            guard selectionIsCurrent(intent) else { throw CancellationError() }
+            if try publishSelection(prepared) { return }
+        }
+    }
+
+    public struct PreparedSelection: Sendable {
+        fileprivate let batch: PreparedBatch
+        fileprivate let intent: UUID
+    }
+
+    public func publishSelection(_ prepared: PreparedSelection) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let batch = prepared.batch
+        guard batch.identity == identity else { throw EditFailure.wrongStore }
+        guard prepared.intent == selectionIntent else { throw CancellationError() }
+        guard batch.revision == revision else { batch.file.discard(); return false }
+        try batch.file.publish()
+        // Selecting a target does not change the library or folder visibility.
+        selectedId = batch.snapshot.selectedId
+        return true
     }
 
     @discardableResult
@@ -315,6 +352,19 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let destination: URL
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
+        fileprivate let selectionIntent: UUID
+
+        public func prepareSelection(_ id: String?) throws -> PreparedSelection {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            // A course owns its target. Other entry points may neither clear nor
+            // replace it; staging before a course starts is invalidated by revision.
+            guard allowsDefaultSelection || id == base.selectedId else { throw BackupError.notABackup("End the practice course before choosing another target.") }
+            let selection = id
+            if let selection, !base.waypoints.contains(where: { $0.id == selection }) { throw EditFailure.removed }
+            var next = base; next.selectedId = selection
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination,lockCompatible: true)
+            return .init(batch: .init(snapshot: next,revision: revision,identity: identity,file: file),intent: selectionIntent)
+        }
 
         public func prepareRoute(_ edit: RouteEdit) throws -> PreparedBatch {
             if let loadError { throw BackupError.notABackup(loadError) }
@@ -479,7 +529,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     public func restoreSnapshot() -> RestoreSnapshot {
         lock.lock(); defer { lock.unlock() }
-        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL,loadError: loadError,allowsDefaultSelection: !practiceNavigationLocked)
+        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL,loadError: loadError,allowsDefaultSelection: !practiceNavigationLocked,selectionIntent: selectionIntent)
     }
 
     /// Publish on the UI executor. Nil requests a fresh merge after an edit.

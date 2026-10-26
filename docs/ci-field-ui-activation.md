@@ -164,3 +164,17 @@ new commit. Other PRs/branches remain independent. Before this change, the
 3f93b15 and 6baed60 jobs queued behind older 56d7a3f jobs. A cancelled run is
 not a pass; all three jobs on the final head still must finish successfully.
 The completed map job on 40253455102 is retained as partial older-head evidence.
+
+
+## Target-selection follow-up
+
+The new `NavigationTargetWorkflowTests` class is assigned exactly once to the
+map shard. The current inventory is 43 UI classes: 38 in the three normal shards
+and five dedicated real-location scenarios. Six script tests and actionlint
+pass. See [target save behavior and validation](navigation-target-persistence.md).
+
+Older run `40253455102` completed with passing map and failed library/field
+shards: decimal-entry snapshot, route append, and recording Live Activity status
+reveal. All builds passed. These remain diagnostic evidence, not a full CI pass.
+Current/final-head hosted results must be evaluated separately; cancelled older
+runs are not passes.

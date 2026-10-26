@@ -68,8 +68,7 @@ Evidence: `/tmp/gridfix-route-staging-core-verified.log`, native suite in
 
 ## Remaining work
 
-Navigation target selection still uses a synchronous preference write after
-route-card vertex preparation and at runtime checkpoint transitions. Navigation
+Interactive target selection now uses [worker-staged publication](navigation-target-persistence.md), including route-card vertex selection and navigation startup. Runtime checkpoint transitions use throwing durable selection and stop without a checkpoint cue on failure; their full-library preparation is still synchronous. Navigation
 progress/settings/session persistence, practice setup/history, startup reads
 and the combined finished-track archive cap remain implementation work.
 Physical locked-screen GPS/haptics, storage pressure and larger-library field

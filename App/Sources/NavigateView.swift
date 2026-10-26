@@ -10,6 +10,7 @@ struct NavigateView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var practice: PracticeSession
     @State private var showingPractice = false
+    @StateObject private var targetMutation = FieldMutation()
     @EnvironmentObject private var navigation: NavigationSession
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
@@ -31,24 +32,26 @@ struct NavigateView: View {
                             .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
                         Menu {
                             ForEach(store.waypoints) { waypoint in
-                                Button(waypoint.name) { store.select(waypoint.id) }
+                                Button(waypoint.name) { chooseTarget(waypoint.id) }
                             }
                         } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
-                        .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked)
+                        .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked || targetMutation.working)
                         .accessibilityLabel("Choose navigation target")
                     }
+                    if let label = targetMutation.label { ProgressView(label) }
+                    if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("navigation-target-error") }
                     if practice.locked { Text("Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
                     if let wp = target {
                         targetBlock(wp)
                     } else {
                         emptyPrompt
                     }
+                    if target != nil || navigation.progress != nil {
+                        Button(practice.locked ? "Stop haptic guidance" : "Stop navigation") { navigation.stop(); if !practice.locked { chooseTarget(nil) } }
+                            .buttonStyle(.bordered).tint(palette.accent).accessibilityIdentifier("stop-navigation")
+                    }
                     Button("Practice course") { showingPractice = true }.buttonStyle(.bordered).accessibilityIdentifier("open-practice")
                     NavigationControlsView().disabled(practice.blockedByStorage || practice.active?.paused == true)
-                    if target != nil || navigation.progress != nil {
-                        Button(practice.locked ? "Stop haptic guidance" : "Stop navigation") { navigation.stop(); store.select(nil) }
-                            .buttonStyle(.bordered).tint(palette.accent)
-                    }
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
@@ -60,6 +63,10 @@ struct NavigateView: View {
         .environment(\.fieldNight, settings.nightMode)
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .onAppear { location.start() }
+    }
+
+    private func chooseTarget(_ id: String?) {
+        targetMutation.run("Saving navigation target…",action: { try await WaypointEditAction.select(id,in: store) })
     }
 
     private var emptyPrompt: some View {

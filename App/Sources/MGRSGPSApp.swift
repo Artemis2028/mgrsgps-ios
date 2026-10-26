@@ -124,6 +124,11 @@ struct MGRSGPSApp: App {
             }
             _ = try? fieldStore.restore(fixture)
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTargetSelection"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData") {
+            if let initial = waypointStore.waypoints.first { waypointStore.select(initial.id) }
+            _ = waypointStore.add(.init(name: "Selection target",lat: 24.456,lon: 54.376))
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibraryWriteFailure"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
             // The valid in-memory test library remains available; only its next

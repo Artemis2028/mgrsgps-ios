@@ -32,6 +32,7 @@ struct MapScreen: View {
     @State private var overlayTracks = 0
     @State private var hasFieldPoints = false
     @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
+    @StateObject private var targetMutation = FieldMutation()
     @State private var selectedID: String?
     @State private var qrRequest: PositionQRRequest?
     @State private var cameraRequest: MapCameraRequest?
@@ -269,10 +270,10 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
-        .onAppear { lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
+        .onAppear { targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
         .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
         .onChange(of: graphicMutation.working) { busy in if !busy { receiveLaneRequest() } }
-        .onDisappear { lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
+        .onDisappear { targetMutation.setPresented(false); lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
         .onChange(of: graphicDraft?.graphic.id) { value in if value != nil { endLasso() } }
         .onChange(of: boundaryDraft?.id) { value in if value != nil { endLasso() } }
         .onChange(of: laneDraft?.lane.id) { value in if value != nil { endLasso() } }
@@ -567,11 +568,14 @@ struct MapScreen: View {
                     .buttonStyle(.plain).accessibilityLabel("Close waypoint")
             }
             Button {
-                store.select(waypoint.id)
-                onNavigate()
+                targetMutation.run("Saving navigation target…",action: {
+                    try await WaypointEditAction.select(waypoint.id,in: store)
+                },completion: { visible in if visible { onNavigate() } })
             } label: { Label("Navigate to waypoint", systemImage: "location.north.fill").frame(maxWidth: .infinity, minHeight: 44) }
                 .buttonStyle(.borderedProminent).tint(palette.accent).foregroundStyle(.black)
-                .accessibilityIdentifier("map-navigate-waypoint")
+                .accessibilityIdentifier("map-navigate-waypoint").disabled(targetMutation.working)
+            if let label = targetMutation.label { ProgressView(label).font(.caption) }
+            if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("map-target-error") }
         }
         .padding(16).fieldChrome()
     }

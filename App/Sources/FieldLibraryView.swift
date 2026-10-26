@@ -224,9 +224,11 @@ struct RouteDetailView: View {
                                     mutation.run("Preparing route waypoint…",action: {
                                         try await generate(route)
                                         targetID = waypoints.waypoints.first(where: { $0.sourceRouteId == routeID && $0.sourceRoutePointIndex == leg.index })?.id
+                                        guard let targetID else { throw WaypointStore.EditFailure.removed }
+                                        try await WaypointEditAction.select(targetID,in: waypoints)
                                     },completion: { visible in
-                                        guard visible, let targetID else { return }
-                                        waypoints.select(targetID); onNavigate()
+                                        guard visible, targetID != nil else { return }
+                                        onNavigate()
                                     })
                                 }
                             }.padding(.vertical, 6)

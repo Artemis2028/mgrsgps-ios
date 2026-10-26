@@ -162,13 +162,29 @@ final class NavigationSession: ObservableObject {
                     target = wp
                 } else { target = store.waypoints.first { $0.id == store.selectedId } }
                 guard let target else { throw BoundaryError.invalid("Navigation target is missing.") }
+                let originalSelection = store.selectedId
+                try await WaypointEditAction.select(target.id,in: store) {
+                    guard self.generation == token else { throw CancellationError() }
+                    guard self.foreground(), self.permitted else { throw BoundaryError.invalid("Start navigation with the app open and precise location enabled.") }
+                    if let next {
+                        guard !self.store.practiceNavigationLocked else { throw BoundaryError.invalid("End the practice course before following a route.") }
+                        try self.validate(next)
+                    } else {
+                        guard self.store.selectedId == originalSelection,
+                              self.store.waypoints.first(where: { $0.id == target.id }) == target else { throw BoundaryError.invalid("Navigation target changed. Start guidance again.") }
+                    }
+                }
                 try persist(progress: next,active: true,haptics: enabled)
                 self.progress = next; haptics = enabled; running = true; preparing = false
-                store.select(target.id); arrivals = 0; fix = nil; lastDate = nil; receiptClock = nil; heading = nil
+                arrivals = 0; fix = nil; lastDate = nil; receiptClock = nil; heading = nil
                 resetLeg(); feedback.begin(); feedbackStatus = feedback.status; driver.start()
                 status = "Waiting for a fresh position and heading"
                 startTicks()
-            } catch { preparing = false; self.error = error.localizedDescription }
+            } catch {
+                guard generation == token else { return }
+                preparing = false
+                if !(error is CancellationError) { self.error = error.localizedDescription }
+            }
         }
     }
     private func startTicks() {
@@ -208,9 +224,13 @@ final class NavigationSession: ObservableObject {
         guard var p = progress else { return }
         p.index = min(p.points.count,max(0,p.index+delta))
         do {
+            if !p.complete {
+                guard let next = routeTarget(p) else { throw BoundaryError.invalid("Next route waypoint is missing.") }
+                try store.selectDurably(next.id)
+            }
             try persist(progress: p,active: running && !p.complete,haptics: haptics); progress = p
             if p.complete { finishRoute() }
-            else if let wp = routeTarget(p) { target = wp; store.select(wp.id); resetLeg(); resetTargetFeedback() }
+            else if let wp = routeTarget(p) { target = wp; resetLeg(); resetTargetFeedback() }
         } catch { pause(reason: error.localizedDescription) }
     }
     func foregroundChanged(_ active: Bool) { feedback.cancelPlayback(); cues = GuideCueState(); cadence = GuideCadence(); if active { reconcile(); tick() } }
@@ -269,10 +289,14 @@ final class NavigationSession: ObservableObject {
             let nav = Geodesy.navInfo(fromLat: l.coordinate.latitude,fromLon: l.coordinate.longitude,toLat: target.lat,toLon: target.lon)
             if p.arrive(distance: nav.distanceMeters,accuracy: l.horizontalAccuracy) {
                 do {
+                    if !p.complete {
+                        guard let next = routeTarget(p) else { throw BoundaryError.invalid("Next route waypoint is missing.") }
+                        try store.selectDurably(next.id)
+                    }
                     try persist(progress: p,active: !p.complete,haptics: haptics); progress = p
                     if p.complete { finishRoute(); return }
                     guard let next = routeTarget(p) else { pause(reason: "Next route waypoint is missing."); return }
-                    self.target = next; store.select(next.id); resetLeg(); resetTargetFeedback()
+                    self.target = next; resetLeg(); resetTargetFeedback()
                     status = "Route advanced to point \(p.index+1) of \(p.points.count)"
                     feedback.emit(.checkpoint,name: "\(p.name) · point \(p.index+1): \(next.name)")
                 } catch { pause(reason: "Route progress could not be saved: \(error.localizedDescription)"); return }

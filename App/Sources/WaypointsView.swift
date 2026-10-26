@@ -599,8 +599,9 @@ struct WaypointsView: View {
 
     private func navigate(to waypoint: Waypoint) {
         guard store.waypoints.contains(where: { $0.id == waypoint.id }) else { status = "This waypoint is no longer saved."; return }
-        store.select(waypoint.id)
-        onNavigate()
+        fieldMutation.run("Saving navigation target…",action: {
+            try await WaypointEditAction.select(waypoint.id,in: store)
+        },completion: { visible in if visible { onNavigate() } })
     }
 
     private func beginAdd(atFix: Bool) {

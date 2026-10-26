@@ -341,6 +341,34 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertFalse(nav.running); XCTAssertFalse(nav.preparing); XCTAssertFalse(driver.updating)
         XCTAssertTrue(store.waypoints.isEmpty); XCTAssertEqual(feedback.begins,0)
     }
+    func testGuideSelectionWriteFailureNeverStartsGPSOrHapticsAndRetryWorks() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let target = store.add(.init(name: "Target",lat: 24,lon: 54)); try store.selectDurably(target.id)
+        let file = dir.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+        nav.startGuide(); try await wait { !nav.preparing && nav.error != nil }
+        XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(feedback.begins,0)
+        XCTAssertEqual(store.selectedId,target.id)
+        try FileManager.default.removeItem(at: file)
+        nav.startGuide(); try await wait { nav.running }
+        XCTAssertEqual(WaypointStore(directory: dir).selectedId,target.id); nav.stop()
+    }
+    func testCheckpointSelectionFailurePausesBeforeProgressOrCheckpointCue() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false)
+        nav.follow(try route(field)); try await wait { nav.running }
+        let target = store.selectedId, file = dir.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        driver.onLocations?([fix(0,0,1000)])
+        XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(nav.progress?.index,0)
+        XCTAssertEqual(store.selectedId,target); XCTAssertFalse(feedback.pulses.contains(.checkpoint)); XCTAssertNotNil(nav.error)
+        try FileManager.default.removeItem(at: file)
+        nav.resume(); try await wait { nav.running }
+        driver.onLocations?([fix(0,0,1000)])
+        XCTAssertEqual(nav.progress?.index,1); XCTAssertNotEqual(store.selectedId,target)
+        XCTAssertEqual(WaypointStore(directory: dir).selectedId,store.selectedId); nav.stop()
+    }
     func testFailedProgressWriteStopsAndRetainsUnscoredCheckpoint() async throws {
         let (dir,store,field,settings) = try setup(), driver = GuideTestDriver()
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: GuideTestFeedback(),now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false)
