@@ -84,7 +84,8 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         app.buttons["Edit lane"].tap(); XCTAssertTrue(app.buttons["review-nav-lane"].waitForExistence(timeout: 8))
         reviewAndSave("Renamed corridor")
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
-        app.buttons["Waypoints"].tap(); let section = app.buttons["library-nav-lanes"]
+        let section = app.buttons["library-nav-lanes"]
+        tapNativeMenuItem(app.buttons["Waypoints"],revealing: section)
         XCTAssertTrue(section.waitForExistence(timeout: 8)); section.tap()
         XCTAssertTrue(app.staticTexts["Renamed corridor"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Hidden on map · guidance still enabled"].exists)

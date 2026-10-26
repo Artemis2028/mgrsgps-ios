@@ -365,3 +365,53 @@ controls. Final phone/watch/widget Release passes in
 `/tmp/gridfix-ci91-release.log`. No new UI class, test exclusion or permission
 shortcut was added. All owned test executors finished before simulator shutdown;
 the location feed was stopped/cleared. Full hosted green remains the next CI gate.
+
+## Hosted run 40349066649: native presentation follow-up
+
+All three UI shards on `2fdd91e` finished failed, with eight affected cases:
+large GPX reopening, the track export filename field, TAK preview opening,
+backup filename focus, two protected GPX workflows, navigation-lane reopening
+and target-selection error presentation. Field artifact video shows two distinct
+Files failures: an import picker ignores thumbnail activation, and a track
+export save picker opens without a filename footer. The latter is not evidence
+that the Export button was ignored. The hosted runtime is iOS 26.2; a matching
+OS-version runtime is downloading for local reproduction (available build
+23C52 differs from hosted 23C54).
+
+The first local replay, `/tmp/gridfix-ci95-ack-replay.xcresult`, passes backup,
+large GPX, lane, target and TAK preview cases. The combined night track case
+fails during its second reopen: its new filename is absent from the virtualized
+Files cells after the old 16-page traversal bound. Earlier exports remain in
+this owned simulator. Native filename keyboard-focus acknowledgement worked in
+this run. The next replay will exercise native Files search for the exact new
+filename when it is not already exposed; no import count, protected-password or
+relaunch assertions are removed. The missing filename-footer issue remains open
+until reproduced or verified on the older runtime/hosted runner.
+
+All six selected tests in the initial replay finished before Xcode's auxiliary
+`simctl diagnose` child (PID73682, parent70028) stalled in the known SDK build
+parsing diagnostic. Only that child was terminated; the parent then finalized
+with exit 65, preserving the track-case failure. The native search repair is in
+a new sequential replay, not a duplicate of the active test executor.
+
+The search experiment (`/tmp/gridfix-ci95-files-search.xcresult`) found each new
+file, but Files exposed two `File View` collections: the underlying folder and
+its search-results presentation. The unscoped test query was ambiguous. The
+final helper chooses the visible result collection and scopes its matching cell
+to that collection. It keeps the native thumbnail activation and dismissal
+acknowledgement. It does not delete prior documents or bypass the native provider.
+
+Final `/tmp/gridfix-ci95-files-final.xcresult` passes all seven selected cases:
+night backup export/delete/restore/relaunch, large GPX with all 5,000 waypoints
+and 1,000 graphics, both single-track export paths, protected GPX and night KML
+password retry/cancel/import/relaunch, protected single-track export and queued
+incoming confirmations. Exported day/night review and restored-library screenshots
+were inspected for readable content and the expected counts. Combined with the
+lane, target and TAK preview passes in the initial replay, all eight hosted
+failure cases now pass locally. This is not a full hosted green result.
+
+All seven tests finished before the owned supplementary `simctl diagnose` child
+(PID84152, parent78367) stalled. Only that child was terminated; the parent
+finalized successfully (exit 0). Fake location/link feeders were stopped and the
+simulator location override cleared. The older-runtime filename-footer gate
+remains open for the iOS 26.2 replay and the next hosted run.

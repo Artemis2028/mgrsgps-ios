@@ -215,14 +215,16 @@ final class TAKLocalWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-uiTestTAKPreview", "-startTab", "map"]
         app.launch()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 15)); app.buttons["map-tak"].tap()
-        XCTAssertTrue(app.staticTexts["Rendering preview · no server connection"].exists)
+        let preview = app.staticTexts["Rendering preview · no server connection"]
+        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 15))
+        tapNativeMenuItem(app.buttons["map-tak"],revealing: preview)
+        XCTAssertTrue(preview.waitForExistence(timeout: 10))
         XCTAssertEqual(app.switches["tak-share-position"].value as? String, "0")
         let line = app.buttons["Show ANDROID TEST LINE on map"]
         reach(line, app: app); line.tap()
         XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 5)); capture("tak-preview-line-focus-day")
         app.buttons["Toggle map night mode"].tap(); capture("tak-preview-line-focus-night")
-        app.buttons["map-tak"].tap()
+        tapNativeMenuItem(app.buttons["map-tak"],revealing: preview)
         XCTAssertTrue(app.staticTexts["ANDROID OP CAFÉ"].waitForExistence(timeout: 5))
         reach(app.staticTexts["ANDROID OP CAFÉ"], app: app)
         capture("tak-preview-list-night")

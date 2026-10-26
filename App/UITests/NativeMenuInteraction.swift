@@ -82,6 +82,15 @@ extension XCTestCase {
         // A floating keyboard Done control can overlap the value-side of
         // another Form row. Dismiss it before resolving the next input frame.
         dismissFieldKeyboard(file: file,line: line)
+        if element.identifier == "DOCPicker.filenameTextField" {
+            for _ in 0..<3 {
+                element.tap()
+                let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in element.debugDescription.contains("Keyboard Focused") },object: nil)
+                if XCTWaiter.wait(for: [focused],timeout: 3) == .completed { return }
+            }
+            XCTFail("Native filename did not acquire keyboard focus",file: file,line: line)
+            return
+        }
         tapVisibleControl(element,horizontal: 0.9,file: file,line: line)
     }
 

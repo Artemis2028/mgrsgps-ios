@@ -25,7 +25,7 @@ final class NavigationTargetWorkflowTests: XCTestCase {
         let app = launch("navigate",night: true)
         let picker = app.buttons["Choose navigation target"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10)); picker.tap()
-        tapNativeMenuItem(app.buttons["Charlie"])
+        tapNativeMenuItem(app.buttons["Charlie"],revealing: app.staticTexts["navigation-target-error"])
         XCTAssertTrue(app.staticTexts["navigation-target-error"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Alpha"].exists); capture("navigation-target-save-error-night")
         let stop = app.buttons["stop-navigation"]
