@@ -75,3 +75,9 @@ the identified owned child was stopped so its parent could finalize results.
 The final three-case choice run completed normally. Only the dedicated owned
 iOS phone was used; no TAK endpoint or watch contract changed. Hosted final-head
 CI and physical validation remain open.
+
+
+Practice target-lock library writes have since moved to workers; see
+[target persistence](practice-target-persistence.md). The earlier synchronous
+limitation above is historical. Startup reads and damaged-session preservation/
+reset copying remain work.

@@ -11,6 +11,7 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var preparing = false
     @Published private(set) var saving = false
     private var queuedLocation: CLLocation?
+    private var practiceFeedbackSuspended = false
     @Published private(set) var haptics = false
     @Published private(set) var status = "Navigation guide off"
     @Published private(set) var decision: GuideDecision?
@@ -97,6 +98,13 @@ final class NavigationSession: ObservableObject {
             if (error as? CLError)?.code == .denied { self.pause(reason: "Navigation stopped: location permission unavailable.") }
             else { self.fix = nil; self.tick() }
         }
+        store.$practiceNavigationSavePending.sink { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.store.practiceNavigationSavePending { self.waitForPracticeTarget() }
+                else { self.practiceTargetDidSave() }
+            }
+        }.store(in: &subscriptions)
         store.$selectedId.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         store.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         field.$document.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
@@ -104,6 +112,7 @@ final class NavigationSession: ObservableObject {
     }
     private var permitted: Bool { (driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways) && driver.precise && driver.servicesEnabled }
     func follow(_ route: Backup.Graphic,startIndex: Int = 0) {
+        guard !store.practiceNavigationSavePending else { error = "Wait for the course target to finish saving, or retry its save."; return }
         guard !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
         guard route.type == "route", (2...10_000).contains(route.points.count), route.points.indices.contains(startIndex) else { error = "Choose a route with 2–10,000 vertices and a valid start point."; return }
@@ -144,6 +153,7 @@ final class NavigationSession: ObservableObject {
         launch(progress: nil,haptics: true)
     }
     private func launch(progress requested: RouteFollowingProgress?,haptics enabled: Bool) {
+        guard !store.practiceNavigationSavePending else { error = "Wait for the course target to finish saving, or retry its save."; return }
         guard laneStore?.ready ?? true else { error = laneStore?.error ?? "Loading navigation lanes. Try again in a moment."; return }
         guard requested == nil || !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
@@ -171,6 +181,7 @@ final class NavigationSession: ObservableObject {
                 let originalSelection = store.selectedId
                 let targetIntent = try await WaypointEditAction.select(target.id,in: store) {
                     guard self.generation == token else { throw CancellationError() }
+                    guard !self.store.practiceNavigationSavePending else { throw BoundaryError.invalid("The course target is still being saved.") }
                     guard self.foreground(), self.permitted else { throw BoundaryError.invalid("Start navigation with the app open and precise location enabled.") }
                     if let next {
                         guard !self.store.practiceNavigationLocked else { throw BoundaryError.invalid("End the practice course before following a route.") }
@@ -182,7 +193,7 @@ final class NavigationSession: ObservableObject {
                 }
                 let lease = saveGrace(token); defer { endSaveGrace(lease) }
                 try await persist(progress: next,active: true,haptics: enabled,token: token) {
-                    guard self.foreground(), self.permitted, self.store.selectedId == target.id, self.store.selectionIsCurrent(targetIntent) else { throw BoundaryError.invalid("Navigation target or location access changed. Start again.") }
+                    guard !self.store.practiceNavigationSavePending, self.foreground(), self.permitted, self.store.selectedId == target.id, self.store.selectionIsCurrent(targetIntent) else { throw BoundaryError.invalid("Navigation target or location access changed. Start again.") }
                     if let next {
                         guard !self.store.practiceNavigationLocked else { throw BoundaryError.invalid("End the practice course before following a route.") }
                         try self.validate(next)
@@ -210,7 +221,7 @@ final class NavigationSession: ObservableObject {
         }
     }
     func setHaptics(_ enabled: Bool) {
-        guard !saving else { return }
+        guard !saving, !store.practiceNavigationSavePending else { return }
         guard running else { if enabled { startGuide() }; return }
         if !enabled && progress == nil { haptics = false; pause(); return }
         saving = true; let token = generation, requested = progress
@@ -230,7 +241,7 @@ final class NavigationSession: ObservableObject {
     }
     func pause(reason: String? = nil,save: Bool = true) {
         generation = UUID(); operation?.cancel(); pending = nil; preparing = false; saving = false; queuedLocation = nil
-        loop?.cancel(); driver.stop(); feedback.stop(); running = false; fix = nil; heading = nil; decision = nil
+        loop?.cancel(); driver.stop(); feedback.stop(); practiceFeedbackSuspended = false; running = false; fix = nil; heading = nil; decision = nil
         clearLane()
         progress?.paused = true; status = progress == nil ? "Navigation guide off" : "Route paused"
         if let reason { error = reason }
@@ -329,6 +340,7 @@ final class NavigationSession: ObservableObject {
     }
     func foregroundChanged(_ active: Bool) { feedback.cancelPlayback(); cues = GuideCueState(); cadence = GuideCadence(); if active { reconcile(); tick() } }
     private func resetTargetFeedback() {
+        guard !practiceFeedbackSuspended else { return }
         guard running else { feedback.stop(); return }
         if let laneKey, NavLanes.forTarget(laneStore?.lanes ?? [],target: target)?.id == laneKey.id { feedback.cancelPlayback() }
         else { feedback.stop(); feedback.begin() }
@@ -350,8 +362,25 @@ final class NavigationSession: ObservableObject {
             owned[index]?.lat == p.points[index].lat && owned[index]?.lon == p.points[index].lon
         }) else { throw BoundaryError.invalid("Route waypoint changed or was deleted. Restart the route.") }
     }
+    func waitForPracticeTarget() {
+        if preparing { pause(reason: "Wait for the course target to finish saving.") }
+        guard running else { return }
+        decision = nil; laneDecision = nil; guideEvaluatedAt = nil
+        if !practiceFeedbackSuspended {
+            // Stop invalidates async notification submissions as well as the
+            // physical player. The guide's GPS/run remains active.
+            feedback.stop(); practiceFeedbackSuspended = true
+        }
+        status = "Saving course target"
+    }
+    func practiceTargetDidSave() {
+        guard !store.practiceNavigationSavePending else { waitForPracticeTarget(); return }
+        reconcile()
+        if running, practiceFeedbackSuspended { practiceFeedbackSuspended = false; feedback.begin() }
+        drainLocation(); tick()
+    }
     private func reconcile() {
-        guard running, !saving else { return }
+        guard running, !saving, !store.practiceNavigationSavePending else { return }
         if let p = progress {
             do { try validate(p) } catch { pause(reason: error.localizedDescription); return }
             if store.selectedId != target?.id { pause(reason: "Route paused because you chose another target.") }
@@ -365,7 +394,7 @@ final class NavigationSession: ObservableObject {
     private func receive(_ locations: [CLLocation]) {
         guard running else { return }
         if !permitted { pause(reason: "Navigation stopped because precise location permission changed."); return }
-        if saving { queueLocation(locations); return }
+        if saving || store.practiceNavigationSavePending { queueLocation(locations); tick(); return }
         reconcile(); guard running else { return }
         let date = now(), up = uptime()
         if let previous = receiptClock, abs(date.timeIntervalSince(previous.0)-(up-previous.1)) > 2 {
@@ -395,7 +424,10 @@ final class NavigationSession: ObservableObject {
         clearLane(); status = "Route complete"; feedback.emit(.complete,name: progress?.name ?? "Route")
     }
     func tick() {
-        guard running, !saving, let target else { return }
+        guard running, !saving else { return }
+        if store.practiceNavigationSavePending { waitForPracticeTarget(); return }
+        if store.selectedId != target?.id { reconcile() }
+        guard running, let target else { return }
         defer { guideEvaluatedAt = uptime() }
         if !permitted { pause(reason: "Navigation stopped because precise location permission changed."); return }
         let up = uptime(), config = settings.guideConfiguration
@@ -546,7 +578,8 @@ extension NavigationSession {
         let checkpoint=progress.map { " · CP \(min($0.index+1,$0.points.count))/\($0.points.count)" } ?? ""
         let title=String((progress?.name ?? target.name).prefix(80))
         let grid=usable.flatMap { MGRS.parts(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,digits:settings.mgrsDigits)?.full }
-        let state=FieldActivityState(title:title,status:saving ? "Saving navigation progress" : String(status.prefix(160)),detail:saving ? "Waiting for saved progress" : (distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
+        let waiting = saving || store.practiceNavigationSavePending
+        let state=FieldActivityState(title:title,status:waiting ? (store.practiceNavigationSavePending ? "Saving course target" : "Saving navigation progress") : String(status.prefix(160)),detail:waiting ? "Waiting for saved progress" : (distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
             grid:grid,fixDate:usable?.timestamp,fixExpiresAt:usable?.timestamp.addingTimeInterval(10),startedAt:nil,fixUptime:usable == nil ? nil : fixTime,night:settings.nightMode)
         return .init(id:progress.map { "route:"+$0.routeID } ?? "target:"+target.id,kind:"navigation",state:state)
     }
@@ -559,7 +592,7 @@ extension NavigationSession {
         let date = now()
         let at = Int64(date.timeIntervalSince1970 * 1000)
         guard running, let target else { return .init(sourceID: sourceID,revision: revision,at: at,active: false) }
-        if saving { return .init(sourceID:sourceID,revision:revision,at:at,active:true,available:false,targetName:String(target.name.prefix(120)),status:"Saving navigation progress") }
+        if saving || store.practiceNavigationSavePending { return .init(sourceID:sourceID,revision:revision,at:at,active:true,available:false,targetName:String(target.name.prefix(120)),status:store.practiceNavigationSavePending ? "Saving course target" : "Saving navigation progress") }
         let up = uptime()
         let evaluated = guideEvaluatedAt.map { up >= $0 && up-$0 <= 2 } ?? false
         let position = permitted && fix.map { NavigationFixPolicy.isUsable(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,accuracyMeters:$0.horizontalAccuracy,timestampUptime:fixTime,nowUptime:up) } == true

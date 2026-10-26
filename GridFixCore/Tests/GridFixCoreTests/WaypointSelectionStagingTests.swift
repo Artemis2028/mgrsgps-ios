@@ -41,7 +41,7 @@ final class WaypointSelectionStagingTests: XCTestCase {
         let (_,store,a,b) = try fixture()
         let beforeLock = try store.restoreSnapshot().prepareSelection(b.id)
         try store.setPracticeNavigationTarget(a.id,locked: true)
-        XCTAssertFalse(try store.publishSelection(beforeLock))
+        XCTAssertThrowsError(try store.publishSelection(beforeLock)) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertThrowsError(try store.restoreSnapshot().prepareSelection(b.id))
         XCTAssertThrowsError(try store.restoreSnapshot().prepareSelection(nil))
         XCTAssertEqual(store.selectedId,a.id)

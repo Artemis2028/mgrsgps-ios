@@ -24,6 +24,7 @@ final class PracticeSession: ObservableObject {
     private let scoreFeedback: @MainActor () -> Void
     private let prepareCourse: @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave
     private let preparePoints: @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints
+    private let prepareTarget: @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticeSelection) throws -> WaypointStore.PreparedPracticeSelection
     var hasPendingWrite: Bool { pendingWrite != nil || targetWriteFailed }
     var canCancelStart: Bool {
         switch pendingWrite { case .start, .random: return saved.active == nil; default: return false }
@@ -41,15 +42,16 @@ final class PracticeSession: ObservableObject {
     private let now: () -> Date
     private let uptime: () -> TimeInterval
     var damaged: Bool { saved.loadError != nil }
-    var locked: Bool { active != nil || damaged || working }
+    var locked: Bool { active != nil || damaged || working || finalizing }
 
     init(directory: URL?,waypoints: WaypointStore,field: FieldDataStore,navigation: NavigationSession,
          now: @escaping () -> Date = Date.init,uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          prepareCourse: @escaping @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave = { try $0.prepare($1) },
          preparePoints: @escaping @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints = { try $0.preparePracticePoints($1) },
+         prepareTarget: @escaping @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticeSelection) throws -> WaypointStore.PreparedPracticeSelection = { try $0.preparePracticeSelection($1) },
          scoreFeedback: @escaping @MainActor () -> Void = { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }) {
         saved = PracticeCourseStore(directory: directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!)
-        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.scoreFeedback = scoreFeedback
+        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.prepareTarget = prepareTarget; self.scoreFeedback = scoreFeedback
         active = saved.active; error = saved.loadError
         waypoints.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         reconcile()
@@ -98,30 +100,72 @@ final class PracticeSession: ObservableObject {
     func reconcile() {
         guard !reconciling, !finalizing, !working, pendingWrite == nil, !targetWriteFailed else { return }
         if let failedFinalizationRunID, saved.active?.runID == failedFinalizationRunID, saved.active?.done == true { return }
-        let recovering = blockedByStorage
-        blockedByStorage = false
-        reconciling = true; defer { reconciling = false; if recovering && !blockedByStorage { error = nil } }
-        do {
-            if damaged { try waypoints.setPracticeNavigationTarget(nil,locked: true); if navigation.running || navigation.preparing { navigation.pause() }; return }
-            guard var course = saved.active else {
-                active = nil
-                if waypoints.practiceNavigationLocked || waypoints.practiceNavigationSavePending { try waypoints.setPracticeNavigationTarget(waypoints.selectedId,locked: false) }
-                return
+        reconciling = true; defer { reconciling = false }
+        if damaged {
+            if navigation.running || navigation.preparing { navigation.pause() }
+            synchronizeTarget(nil,locked: true); return
+        }
+        guard var course = saved.active else {
+            active = nil
+            if waypoints.practiceNavigationLocked || waypoints.practiceNavigationSavePending { synchronizeTarget(waypoints.selectedId,locked: false) }
+            return
+        }
+        if navigation.progress != nil { navigation.stop() }
+        course.reconcile(availableIDs: Set(waypoints.waypoints.map(\.id)))
+        if course != saved.active {
+            if course.paused && (navigation.running || navigation.preparing) { navigation.pause(reason: course.pauseReason) }
+            perform(.reconcile(saved.active!)); return
+        }
+        active = course
+        if let result = course.result { finalize(course,result: result) }
+        else {
+            if course.paused && (navigation.running || navigation.preparing) { navigation.pause(reason: course.pauseReason) }
+            synchronizeTarget(course.targetID,locked: true)
+        }
+    }
+    private struct ChangedTargetOwner: Error {}
+    private func validateTargetOwner(_ course: PracticeCourse?,loadError: String?) throws {
+        guard saved.active == course, saved.loadError == loadError else { throw ChangedTargetOwner() }
+        var checked = course; checked?.reconcile(availableIDs: Set(waypoints.waypoints.map(\.id)))
+        guard checked == course else { throw ChangedTargetOwner() }
+    }
+    private func commitTarget(_ request: WaypointStore.PracticeSelection,validate: @MainActor () throws -> Void) async throws {
+        while true {
+            try Task.checkCancellation(); try validate()
+            let snapshot = waypoints.restoreSnapshot(), factory = prepareTarget
+            let worker = Task.detached(priority: .userInitiated) { try Task.checkCancellation(); return try factory(snapshot,request) }
+            let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+            try Task.checkCancellation(); try validate()
+            if try waypoints.publishPracticeSelection(prepared) { navigation.practiceTargetDidSave(); return }
+        }
+    }
+    private func synchronizeTarget(_ id: String?,locked: Bool) {
+        guard let request = waypoints.beginPracticeSelection(id,locked: locked) else { return }
+        operation?.cancel(); generation = UUID(); let token = generation
+        let owner = saved.active, loadError = saved.loadError
+        working = true; blockedByStorage = false; error = nil
+        navigation.waitForPracticeTarget()
+        operation = Task {
+            let grace = FinalizationGrace(); defer { grace.end() }
+            do {
+                try await commitTarget(request) {
+                    guard self.generation == token else { throw CancellationError() }
+                    try self.validateTargetOwner(owner,loadError: loadError)
+                }
+                guard generation == token else { return }
+                working = false; operation = nil; blockedByStorage = false; error = saved.loadError
+                reconcile()
+                let latest = queuedFix; queuedFix = nil
+                if foreground, let latest { receive(latest) }
+            } catch {
+                guard generation == token else { return }
+                working = false; operation = nil; queuedFix = nil
+                if error is ChangedTargetOwner { reconcile(); return }
+                targetWriteFailed = true; blockedByStorage = true
+                self.error = "Course target could not be saved. Retry saving the course. \(error.localizedDescription)"
+                if navigation.running || navigation.preparing { navigation.pause(reason: "Course progress needs attention.") }
             }
-            if navigation.progress != nil { navigation.stop() }
-            course.reconcile(availableIDs: Set(waypoints.waypoints.map(\.id)))
-            if course != saved.active {
-                if course.paused && (navigation.running || navigation.preparing) { navigation.pause(reason: course.pauseReason) }
-                perform(.reconcile(saved.active!)); return
-            }
-            active = course
-            if let result = course.result {
-                finalize(course,result: result)
-            } else {
-                try waypoints.setPracticeNavigationTarget(course.targetID,locked: true)
-                if course.paused && (navigation.running || navigation.preparing) { navigation.pause(reason: course.pauseReason) }
-            }
-        } catch { targetWriteFailed = true; blockedByStorage = true; self.error = error.localizedDescription; if navigation.running || navigation.preparing { navigation.pause(reason: "Course progress needs attention.") } }
+        }
     }
     private func finalize(_ course: PracticeCourse,result: Backup.CourseResult) {
         finalizing = true; error = nil
@@ -141,7 +185,12 @@ final class PracticeSession: ObservableObject {
                     if try saved.publish(prepared) { break }
                 }
                 active = nil; summary = result; blockedByStorage = false; failedFinalizationRunID = nil
-                try waypoints.setPracticeNavigationTarget(waypoints.selectedId,locked: false)
+                if let request = waypoints.beginPracticeSelection(waypoints.selectedId,locked: false) {
+                    navigation.waitForPracticeTarget()
+                    try await commitTarget(request) {
+                        guard self.saved.active == nil, !self.damaged else { throw ChangedTargetOwner() }
+                    }
+                }
             } catch {
                 failedFinalizationRunID = course.runID; blockedByStorage = true
                 if saved.active == nil { targetWriteFailed = true }

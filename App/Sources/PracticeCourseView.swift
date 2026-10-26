@@ -40,7 +40,8 @@ struct PracticeCourseView: View {
                                 if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
                             }.accessibilityIdentifier("practice-repair-progress")
                         }
-                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure") {
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),
+                           (ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure") || ProcessInfo.processInfo.arguments.contains("-uiTestPracticeTargetWriteFailure")) {
                             Button("Repair test checkpoint storage") {
                                 let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
                                 if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }

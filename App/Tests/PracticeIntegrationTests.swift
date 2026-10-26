@@ -20,11 +20,13 @@ private final class PracticeGuideDriver: NavigationLocationDriver {
 @MainActor
 private final class PracticeGuideFeedback: NavigationFeedback {
     var status = "Test feedback"
+    var pulses: [NavigationPulse] = []
+    var cancels = 0, begins = 0, stops = 0
     func prepare() async {}
-    func begin() {}
-    func emit(_ pulse: NavigationPulse,name: String) {}
-    func cancelPlayback() {}
-    func stop() {}
+    func begin() { begins += 1 }
+    func emit(_ pulse: NavigationPulse,name: String) { pulses.append(pulse) }
+    func cancelPlayback() { cancels += 1 }
+    func stop() { stops += 1 }
 }
 
 @MainActor
@@ -191,6 +193,103 @@ final class PracticeIntegrationTests: XCTestCase {
         XCTAssertEqual(course.active?.missingIDs,[deleted]); XCTAssertTrue(course.active?.paused == true)
         XCTAssertNil(f.waypoints.selectedId); XCTAssertTrue(f.waypoints.practiceNavigationLocked)
     }
+    func testPendingCourseTargetBlocksOrdinarySelectionAndGuideStartup() async throws {
+        let driver = PracticeGuideDriver(), f = try fixture(driver: driver), gate = PracticeTargetGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareTarget: { try gate.prepare($0,$1) })
+        gate.arm(); course.startFolder("Drill"); try await wait { gate.entered }
+        XCTAssertNotNil(PracticeCourseStore(directory: f.directory).active)
+        XCTAssertTrue(course.working); XCTAssertTrue(f.waypoints.practiceNavigationLocked); XCTAssertTrue(f.waypoints.practiceNavigationSavePending)
+        XCTAssertThrowsError(try f.waypoints.selectDurably(f.second.id))
+        f.navigation.startGuide(); XCTAssertFalse(f.navigation.preparing); XCTAssertFalse(f.navigation.running); XCTAssertFalse(driver.updating)
+        gate.release(); try await wait { !course.working }
+        XCTAssertFalse(f.waypoints.practiceNavigationSavePending)
+        XCTAssertEqual(WaypointStore(directory: f.directory).selectedId,f.first.id)
+        f.navigation.startGuide(); try await wait { f.navigation.running }
+        f.navigation.stop(); try await wait { !f.navigation.saving }
+    }
+    func testCourseRetargetHoldsCuesAndCompanionStatusUntilAcknowledgedThenKeepsGuideRunning() async throws {
+        let driver = PracticeGuideDriver(), feedback = PracticeGuideFeedback()
+        let f = try fixture(driver: driver,feedback: feedback), gate = PracticeTargetGate()
+        var foundBuzzes = 0
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,uptime: { 100 },prepareTarget: { try gate.prepare($0,$1) },scoreFeedback: { foundBuzzes += 1 })
+        course.startFolder("Drill"); try await wait { !course.working }; course.setForeground(true)
+        f.navigation.startGuide(); try await wait { f.navigation.running }
+        let priorBegins = feedback.begins, priorStops = feedback.stops
+        gate.arm(); course.receive(fix(f.first)); try await wait { gate.entered }
+        XCTAssertGreaterThan(feedback.stops,priorStops,"A pending target invalidates queued notification submissions")
+        XCTAssertEqual(feedback.begins,priorBegins)
+        XCTAssertEqual(course.active?.nextIndex,1); XCTAssertEqual(foundBuzzes,1,"Found feedback follows the durable score, independently of next-target settings")
+        XCTAssertTrue(f.navigation.running); XCTAssertTrue(driver.updating)
+        let before = feedback.pulses.count
+        driver.onLocations?([CLLocation(coordinate: .init(latitude: f.first.lat,longitude: f.first.lon),altitude: 0,horizontalAccuracy: 2,verticalAccuracy: 2,timestamp: Date())])
+        driver.onHeading?(.init(magnetic: 0,accuracy: 2,timestamp: Date())); f.navigation.tick()
+        XCTAssertEqual(feedback.pulses.count,before); XCTAssertNil(f.navigation.decision)
+        let watch = f.navigation.watchGuideSnapshot(sourceID: "test",revision: 1)
+        XCTAssertFalse(watch.available); XCTAssertEqual(watch.status,"Saving course target")
+        XCTAssertEqual(f.navigation.liveActivitySession()?.state.status,"Saving course target")
+        gate.release(); try await wait { !course.working }
+        driver.onHeading?(.init(magnetic: 0,accuracy: 2,timestamp: Date())); f.navigation.tick()
+        XCTAssertTrue(f.navigation.running); XCTAssertTrue(driver.updating)
+        XCTAssertEqual(f.waypoints.selectedId,f.second.id)
+        let resumed = f.navigation.watchGuideSnapshot(sourceID: "test",revision: 2)
+        XCTAssertTrue(resumed.available); XCTAssertEqual(resumed.targetName,"B")
+        XCTAssertEqual(feedback.begins,priorBegins+1,"Only the acknowledged target gets a new feedback session")
+        f.navigation.stop(); try await wait { !f.navigation.saving }
+    }
+    func testStoppedGuideDoesNotRestartAfterPendingCourseTargetAcknowledgement() async throws {
+        let driver = PracticeGuideDriver(), feedback = PracticeGuideFeedback()
+        let f = try fixture(driver: driver,feedback: feedback), gate = PracticeTargetGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,uptime: { 100 },prepareTarget: { try gate.prepare($0,$1) })
+        course.startFolder("Drill"); try await wait { !course.working }; course.setForeground(true)
+        f.navigation.startGuide(); try await wait { f.navigation.running }
+        gate.arm(); course.receive(fix(f.first)); try await wait { gate.entered }
+        let begins = feedback.begins
+        f.navigation.stop(); XCTAssertFalse(f.navigation.running); XCTAssertFalse(driver.updating)
+        gate.release(); try await wait { !course.working && !f.navigation.saving }
+        XCTAssertEqual(f.waypoints.selectedId,f.second.id)
+        XCTAssertFalse(f.navigation.running); XCTAssertFalse(driver.updating); XCTAssertFalse(f.navigation.haptics)
+        XCTAssertEqual(feedback.begins,begins,"Stop must prevent a fresh feedback/notification session")
+        XCTAssertFalse(f.navigation.watchGuideSnapshot(sourceID: "test",revision: 1).active)
+    }
+    func testEndCancelsBlockedTargetAndLateWorkerCannotRelockOrOverwriteNewSelection() async throws {
+        let f = try fixture(), gate = PracticeTargetGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareTarget: { try gate.prepare($0,$1) })
+        gate.arm(); course.startFolder("Drill"); try await wait { gate.entered }
+        course.end(expectedRunID: course.active?.runID); try await wait { !course.working }
+        XCTAssertNil(course.active); XCTAssertFalse(f.waypoints.practiceNavigationLocked); XCTAssertFalse(f.waypoints.practiceNavigationSavePending)
+        try f.waypoints.selectDurably(f.second.id)
+        gate.release(); try await wait { gate.returned }
+        try await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertNil(PracticeCourseStore(directory: f.directory).active)
+        XCTAssertEqual(f.waypoints.selectedId,f.second.id); XCTAssertFalse(f.waypoints.practiceNavigationLocked)
+        XCTAssertEqual(WaypointStore(directory: f.directory).selectedId,f.second.id)
+    }
+    func testDeletedFuturePointDuringTargetSavePausesCourseAndClearsTarget() async throws {
+        let f = try fixture(), gate = PracticeTargetGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareTarget: { try gate.prepare($0,$1) })
+        gate.arm(); course.startFolder("Drill"); try await wait { gate.entered }
+        f.waypoints.delete(ids: [f.second.id]); gate.release(); try await wait { !course.working && gate.returned }
+        XCTAssertTrue(course.active?.paused == true); XCTAssertEqual(course.active?.missingIDs,[f.second.id])
+        XCTAssertNil(f.waypoints.selectedId); XCTAssertTrue(f.waypoints.practiceNavigationLocked)
+        XCTAssertFalse(f.waypoints.practiceNavigationSavePending); XCTAssertFalse(course.hasPendingWrite)
+        XCTAssertNil(WaypointStore(directory: f.directory).selectedId)
+    }
+    func testTargetWriteFailurePausesAndRequiresExplicitRetryBeforeGuidance() async throws {
+        let driver = PracticeGuideDriver(), f = try fixture(driver: driver), gate = PracticeTargetGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,prepareTarget: { try gate.prepare($0,$1) })
+        let path = f.directory.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        course.startFolder("Drill"); try await wait { !course.working }
+        let attempts = gate.attempts
+        XCTAssertNotNil(course.active); XCTAssertTrue(course.hasPendingWrite); XCTAssertTrue(f.waypoints.practiceNavigationSavePending)
+        course.reconcile(); course.setForeground(true); course.receive(fix(f.first))
+        XCTAssertEqual(gate.attempts,attempts)
+        f.navigation.startGuide(); XCTAssertFalse(f.navigation.running); XCTAssertFalse(driver.updating)
+        try FileManager.default.removeItem(at: path); course.retryWrite(); try await wait { !course.working }
+        XCTAssertFalse(course.hasPendingWrite); XCTAssertFalse(f.waypoints.practiceNavigationSavePending)
+        XCTAssertEqual(WaypointStore(directory: f.directory).selectedId,f.first.id)
+        XCTAssertFalse(f.navigation.running,"Failed guidance is never restarted implicitly")
+    }
     func testFailedScoreRetryKeepsAcceptedTimeAndDoesNotRetryFromTimers() async throws {
         let f = try fixture(); var wall = 1000.0, buzzes = 0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 },scoreFeedback: { buzzes += 1 })
@@ -216,9 +315,18 @@ final class PracticeIntegrationTests: XCTestCase {
         }
         course.end(expectedRunID: course.active?.runID); try await wait { !course.working }; observer.cancel()
         XCTAssertNil(course.active); XCTAssertTrue(course.hasPendingWrite); XCTAssertTrue(f.waypoints.practiceNavigationSavePending)
-        try FileManager.default.removeItem(at: path); course.retryWrite()
+        try FileManager.default.removeItem(at: path); course.retryWrite(); try await wait { !course.working }
         XCTAssertFalse(course.hasPendingWrite); XCTAssertFalse(f.waypoints.practiceNavigationSavePending); XCTAssertNil(course.error)
         XCTAssertEqual(WaypointStore(directory: f.directory).selectedId,f.waypoints.selectedId)
+    }
+    func testSuccessfulTargetGateSaveDoesNotHideDamagedCourseWarning() async throws {
+        let f = try fixture(), file = f.directory.appendingPathComponent("practice-course-v1.json")
+        let original = Data("SYNTHETIC damaged course".utf8); try original.write(to: file)
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
+        try await wait { !course.working }
+        XCTAssertTrue(course.damaged); XCTAssertNotNil(course.error)
+        XCTAssertTrue(f.waypoints.practiceNavigationLocked); XCTAssertNil(f.waypoints.selectedId)
+        XCTAssertEqual(try Data(contentsOf: file),original)
     }
     func testDamagedResetCanRecoverAfterTargetWriteFailure() async throws {
         let f = try fixture(), file = f.directory.appendingPathComponent("practice-course-v1.json")
@@ -226,8 +334,9 @@ final class PracticeIntegrationTests: XCTestCase {
         let targetFile = f.directory.appendingPathComponent("waypoints-v1.json")
         try FileManager.default.removeItem(at: targetFile); try FileManager.default.createDirectory(at: targetFile,withIntermediateDirectories: false)
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
+        try await wait { !course.working }
         XCTAssertTrue(course.damaged); XCTAssertTrue(course.hasPendingWrite)
-        try FileManager.default.removeItem(at: targetFile); course.resetDamaged()
+        try FileManager.default.removeItem(at: targetFile); course.resetDamaged(); try await wait { !course.working }
         XCTAssertFalse(course.damaged); XCTAssertFalse(course.hasPendingWrite); XCTAssertFalse(course.blockedByStorage)
         XCTAssertFalse(f.waypoints.practiceNavigationLocked)
         let archived = try FileManager.default.contentsOfDirectory(at: f.directory,includingPropertiesForKeys: nil).first { $0.lastPathComponent.hasPrefix("practice-course-damaged-") }
@@ -389,5 +498,22 @@ private final class PracticePointsGate: @unchecked Sendable {
         lock.lock(); recorded.append(edit.ids); let block = armed; armed = false; if block { didEnter = true }; lock.unlock()
         if block, semaphore.wait(timeout: .now()+5) != .success { throw PracticeCourseError.invalid("Test library gate timed out") }
         return try snapshot.preparePracticePoints(edit)
+    }
+}
+
+private final class PracticeTargetGate: @unchecked Sendable {
+    private let lock = NSLock(), semaphore = DispatchSemaphore(value: 0)
+    private var armed = false, didEnter = false, didReturn = false, count = 0
+    var entered: Bool { lock.lock(); defer { lock.unlock() }; return didEnter }
+    var returned: Bool { lock.lock(); defer { lock.unlock() }; return didReturn }
+    var attempts: Int { lock.lock(); defer { lock.unlock() }; return count }
+    func arm() { lock.lock(); armed = true; didEnter = false; didReturn = false; lock.unlock() }
+    func release() { semaphore.signal() }
+    func prepare(_ snapshot: WaypointStore.RestoreSnapshot,_ request: WaypointStore.PracticeSelection) throws -> WaypointStore.PreparedPracticeSelection {
+        XCTAssertFalse(Thread.isMainThread)
+        lock.lock(); count += 1; let block = armed; armed = false; if block { didEnter = true }; lock.unlock()
+        defer { if block { lock.lock(); didReturn = true; lock.unlock() } }
+        if block, semaphore.wait(timeout: .now()+5) != .success { throw PracticeCourseError.invalid("Test target gate timed out") }
+        return try snapshot.preparePracticeSelection(request)
     }
 }

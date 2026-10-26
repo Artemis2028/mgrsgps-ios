@@ -72,3 +72,9 @@ Practice target-lock selection still encodes/writes the full library synchronous
 startup reads and damaged-course preservation also remain work. This milestone
 only migrates random generation/checkpoint-library writes. Full hosted CI and
 physical-device checks remain separate gates.
+
+
+Practice target-lock library writes have since moved to workers; see
+[target persistence](practice-target-persistence.md). The earlier synchronous
+limitation above is historical. Startup reads and damaged-session preservation/
+reset copying remain work.

@@ -86,3 +86,9 @@ this does not close the full parity or release goal.
 Random checkpoint generation/library writes have since moved to workers; see
 [checkpoint persistence](practice-checkpoint-persistence.md). Target-lock library
 writes, startup reads and damaged-course preservation remain synchronous.
+
+
+Practice target-lock library writes have since moved to workers; see
+[target persistence](practice-target-persistence.md). The earlier synchronous
+limitation above is historical. Startup reads and damaged-session preservation/
+reset copying remain work.

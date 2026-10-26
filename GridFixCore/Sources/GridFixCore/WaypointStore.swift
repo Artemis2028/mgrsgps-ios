@@ -189,23 +189,51 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     }
 
     @Published public private(set) var practiceNavigationLocked = false
-    private var practiceSelectionNeedsSave = false
+    @Published public private(set) var practiceNavigationSavePending = false
     private var practiceTargetID: String?
-    public var practiceNavigationSavePending: Bool {
-        lock.lock(); defer { lock.unlock() }; return practiceSelectionNeedsSave
+    private var practiceSelectionIntent = UUID()
+
+    public struct PracticeSelection: Sendable {
+        fileprivate let intent: UUID
+        fileprivate let target: String?
+        fileprivate let locked: Bool
+    }
+    public struct PreparedPracticeSelection: Sendable {
+        fileprivate let batch: PreparedBatch
+        fileprivate let request: PracticeSelection
     }
 
-    /// Applies to every selection entry point, including map, imports and library.
-    public func setPracticeNavigationTarget(_ id: String?,locked: Bool) throws {
+    /// The durable course owns this gate. Set it before suspending for I/O;
+    /// pending selection is explicitly unavailable to guidance until acknowledged.
+    public func beginPracticeSelection(_ id: String?,locked: Bool) -> PracticeSelection? {
         lock.lock(); defer { lock.unlock() }
         let target = id.flatMap { candidate in waypoints.contains { $0.id == candidate } ? candidate : nil }
-        guard practiceSelectionNeedsSave || practiceNavigationLocked != locked || practiceTargetID != target || selectedId != target else { return }
-        // The durable course, not this preference file, owns the lock. Keep it
-        // fail-closed even if selection persistence is temporarily unavailable.
-        practiceTargetID = target; practiceNavigationLocked = locked
-        practiceSelectionNeedsSave = true
-        do { try publishLibraryLocked(waypoints,folders: folders,selection: target); practiceSelectionNeedsSave = false }
-        catch { selectedId = target; throw error }
+        guard practiceNavigationSavePending || practiceNavigationLocked != locked || practiceTargetID != target || selectedId != target else { return nil }
+        practiceSelectionIntent = UUID(); selectionIntent = UUID(); revision &+= 1
+        practiceNavigationSavePending = true
+        practiceTargetID = target; practiceNavigationLocked = locked; selectedId = target
+        return .init(intent: practiceSelectionIntent,target: target,locked: locked)
+    }
+
+    public func publishPracticeSelection(_ prepared: PreparedPracticeSelection) throws -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        let batch = prepared.batch, request = prepared.request
+        guard batch.identity == identity else { throw EditFailure.wrongStore }
+        guard request.intent == practiceSelectionIntent else { throw CancellationError() }
+        guard batch.revision == revision else { batch.file.discard(); return false }
+        try batch.file.publish()
+        practiceNavigationSavePending = false
+        revision &+= 1
+        return true
+    }
+
+    /// Synchronous compatibility for core callers. The app stages on workers.
+    public func setPracticeNavigationTarget(_ id: String?,locked: Bool) throws {
+        guard let request = beginPracticeSelection(id,locked: locked) else { return }
+        while true {
+            let prepared = try restoreSnapshot().preparePracticeSelection(request)
+            if try publishPracticeSelection(prepared) { return }
+        }
     }
 
     public func addPracticePoints(folder raw: String,points: [GeoPoint]) throws -> [Waypoint] {
@@ -375,6 +403,17 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
         fileprivate let selectionIntent: UUID
+        fileprivate let practiceIntent: UUID
+        fileprivate let practicePending: Bool
+
+        public func preparePracticeSelection(_ request: PracticeSelection) throws -> PreparedPracticeSelection {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            guard request.intent == practiceIntent, practicePending else { throw CancellationError() }
+            guard request.target == base.selectedId else { throw PracticeCourseError.invalid("The course target changed. Reopen the course before saving.") }
+            if let id = request.target, !base.waypoints.contains(where: { $0.id == id }) { throw EditFailure.removed }
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(base),destination: destination,lockCompatible: true)
+            return .init(batch: .init(snapshot: base,revision: revision,identity: identity,file: file),request: request)
+        }
 
         public func preparePracticePoints(_ edit: PracticePointsEdit) throws -> PreparedPracticePoints {
             if let loadError { throw BackupError.notABackup(loadError) }
@@ -397,6 +436,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
         public func prepareSelection(_ id: String?) throws -> PreparedSelection {
             if let loadError { throw BackupError.notABackup(loadError) }
+            guard !practicePending else { throw PracticeCourseError.invalid("Wait for the course target to finish saving, or retry its save.") }
             // A course owns its target. Other entry points may neither clear nor
             // replace it; staging before a course starts is invalidated by revision.
             guard allowsDefaultSelection || id == base.selectedId else { throw BackupError.notABackup("End the practice course before choosing another target.") }
@@ -570,7 +610,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
 
     public func restoreSnapshot() -> RestoreSnapshot {
         lock.lock(); defer { lock.unlock() }
-        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL,loadError: loadError,allowsDefaultSelection: !practiceNavigationLocked,selectionIntent: selectionIntent)
+        return RestoreSnapshot(base: Snapshot(waypoints: waypoints,folders: folders,selectedId: selectedId),revision: revision,identity: identity,destination: fileURL,loadError: loadError,allowsDefaultSelection: !practiceNavigationLocked && !practiceNavigationSavePending,selectionIntent: selectionIntent,practiceIntent: practiceSelectionIntent,practicePending: practiceNavigationSavePending)
     }
 
     /// Publish on the UI executor. Nil requests a fresh merge after an edit.

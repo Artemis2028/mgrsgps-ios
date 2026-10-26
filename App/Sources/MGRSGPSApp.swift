@@ -228,7 +228,8 @@ struct MGRSGPSApp: App {
         }
         #endif
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure"),
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),
+           (ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure") || ProcessInfo.processInfo.arguments.contains("-uiTestPracticeTargetWriteFailure")),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
             let file = directory.appendingPathComponent("waypoints-v1.json")
             try? FileManager.default.removeItem(at: file)
