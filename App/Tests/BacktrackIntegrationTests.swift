@@ -39,7 +39,7 @@ final class BacktrackIntegrationTests: XCTestCase {
     }
     func testFailedBacktrackSaveKeepsOriginalTrackAndNoPublishedRoute() async throws {
         let (dir,field,waypoints,track) = try fixture(), before = field.document
-        let path = dir.appendingPathComponent("field-data-v1.zip")
+        let path = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         do { _ = try await TrackBacktrackAction.create(track: track,field: field,waypoints: waypoints); XCTFail("Unwritable archive") } catch {}
         XCTAssertEqual(field.document,before)

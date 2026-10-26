@@ -185,7 +185,7 @@ struct MGRSGPSApp: App {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure"),
            !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
-            let file = directory.appendingPathComponent("field-data-v1.zip")
+            let file = directory.appendingPathComponent("field-data-v2.json")
             try? FileManager.default.removeItem(at: file)
             try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         }

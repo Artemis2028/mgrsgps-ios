@@ -24,7 +24,7 @@ import XCTest
         let root = try directory(), store = WaypointStore(directory: root), field = FieldDataStore(directory: root)
         let point = store.add(.init(name: "Point",lat: 24,lon: 54))
         try field.saveGraphic(.init(id: "g",name: "Line",type: "route",points: [.init(lat: 24,lon: 54),.init(lat: 25,lon: 55)]))
-        let file = root.appendingPathComponent("field-data-v1.zip")
+        let file = root.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         var selection = LibrarySelection(); selection.waypoints = [point.id]; selection.graphics = ["g"]
         let partial = await LibraryMutationAction.batch(selection,action: .swapVisibility,waypoints: store,field: field)

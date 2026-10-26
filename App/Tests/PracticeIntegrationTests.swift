@@ -422,7 +422,7 @@ final class PracticeIntegrationTests: XCTestCase {
         let f = try fixture(); var wall = 1000.0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 })
         course.startFolder("Drill"); try await wait { !course.working && !course.finalizing }; course.setForeground(true); wall += 1; course.receive(fix(f.first)); try await wait { !course.working }
-        let path = f.directory.appendingPathComponent("field-data-v1.zip")
+        let path = f.directory.appendingPathComponent("field-data-v2.json")
         try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         wall += 1; course.receive(fix(f.second))
         try await wait { course.active?.done == true }

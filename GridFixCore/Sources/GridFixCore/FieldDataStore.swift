@@ -2,23 +2,31 @@ import Combine
 import Foundation
 
 /// Imported/saved graphics, track logs, and practice history are committed as a
-/// single atomic archive. An interrupted import never publishes half a batch.
+/// single atomic index with immutable point-log files. A legacy archive is read
+/// without modification; the next successful commit migrates its complete data.
 /// Live recording is deliberately separate from this finished-data store.
 public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var document = Backup.Document() { didSet { revision &+= 1 } }
     @Published public private(set) var loadError: String?
     private let fileURL: URL
+    private var logs: [String: FieldDataDisk.Log] = [:]
     private let lock = NSRecursiveLock()
     private var revision: UInt64 = 0
     private let identity = UUID()
 
     public init(directory: URL? = nil) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        fileURL = dir.appendingPathComponent("field-data-v1.zip")
+        fileURL = dir.appendingPathComponent(FieldDataDisk.indexName)
         document.hasSettings = false
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            do { document = try Backup.importZip(Data(contentsOf: fileURL)) }
+            do { (document,logs) = try FieldDataDisk.read(fileURL) }
             catch { loadError = error.localizedDescription }
+        } else {
+            let legacy = dir.appendingPathComponent("field-data-v1.zip")
+            if FileManager.default.fileExists(atPath: legacy.path) {
+                do { document = try Backup.importZip(Data(contentsOf: legacy,options: .mappedIfSafe)) }
+                catch { loadError = error.localizedDescription }
+            }
         }
     }
 
@@ -174,12 +182,13 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
         fileprivate let destination: URL
+        fileprivate let logs: [String: FieldDataDisk.Log]
 
         /// Prepare an ordinary edit without borrowing the live repository lock.
         public func prepare(edit: Edit) throws -> PreparedEdit {
             try Task.checkCancellation()
             let next = try FieldDataStore.applying(edit,to: document)
-            let file = try next.map { try PreparedAtomicFile(data: Backup.exportZip($0),destination: destination,lockCompatible: true) }
+            let file = try next.map { try FieldDataDisk.prepare($0,previous: document,logs: logs,index: destination) }
             return PreparedEdit(document: next,revision: revision,identity: identity,file: file)
         }
 
@@ -188,8 +197,8 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             try Backup.validate(incoming)
             let (next,result) = FieldDataStore.merged(document,incoming)
             let changed = result.graphics != 0 || result.tracks != 0 || next.courseHistory != document.courseHistory
-            let file: PreparedAtomicFile?
-            if changed { file = try PreparedAtomicFile(data: Backup.exportZip(next),destination: destination,lockCompatible: true) }
+            let file: PreparedFieldData?
+            if changed { file = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: destination) }
             else { file = nil }
             return PreparedRestore(document: next,result: result,revision: revision,identity: identity,file: file)
         }
@@ -199,7 +208,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let document: Backup.Document?
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
-        fileprivate let file: PreparedAtomicFile?
+        fileprivate let file: PreparedFieldData?
     }
 
     /// False means the source changed; reapply the intent to a fresh snapshot.
@@ -208,7 +217,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard prepared.identity == identity else { throw BackupError.notABackup("Prepared field edit belongs to a different store") }
         guard prepared.revision == revision else { prepared.file?.discard(); return false }
         if let file = prepared.file, let next = prepared.document {
-            try file.publish(); document = next
+            try file.publish(); logs = file.logs; document = next
         }
         return true
     }
@@ -218,13 +227,13 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let result: Backup.RestoreResult
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
-        fileprivate let file: PreparedAtomicFile?
+        fileprivate let file: PreparedFieldData?
     }
 
     public func restoreSnapshot() throws -> RestoreSnapshot {
         lock.lock(); defer { lock.unlock() }
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
-        return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL)
+        return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL,logs: logs)
     }
 
     /// Nil means a concurrent mutation won; discard this preparation and merge
@@ -237,7 +246,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard prepared.revision == revision else { prepared.file?.discard(); return nil }
         if let file = prepared.file {
             try file.publish()
-            document = prepared.document
+            logs = file.logs; document = prepared.document
         }
         return prepared.result
     }
@@ -253,12 +262,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
 
     private func commit(_ next: Backup.Document) throws {
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
-        let data = try Backup.exportZip(next)
-        var options: Data.WritingOptions = [.atomic]
-        #if os(iOS)
-        options.insert(.completeFileProtectionUntilFirstUserAuthentication)
-        #endif
-        try data.write(to: fileURL, options: options)
-        document = next
+        let prepared = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: fileURL)
+        try prepared.publish(); logs = prepared.logs; document = next
     }
 }

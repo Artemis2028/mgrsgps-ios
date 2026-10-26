@@ -55,7 +55,7 @@ final class InterchangeIntegrationTests: XCTestCase {
         let dir = try directory(), waypoints = WaypointStore(directory: dir), field = FieldDataStore(directory: dir)
         let json = "{\"type\":\"GeometryCollection\",\"geometries\":[{\"type\":\"Point\",\"coordinates\":[54,24]},{\"type\":\"LineString\",\"coordinates\":[[54,24],[54,24.01]]}]}"
         let doc = try TextInterchange.preview(Data(json.utf8)).document
-        let blocked = dir.appendingPathComponent("field-data-v1.zip")
+        let blocked = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.createDirectory(at: blocked,withIntermediateDirectories: true)
         let result = try await InterchangeCoordinator.apply(doc,waypoints: waypoints,field: field)
         XCTAssertFalse(result.completed); XCTAssertTrue(result.message.contains("Could not save graphics/routes"),result.message)

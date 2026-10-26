@@ -14,7 +14,7 @@ final class MapLassoActionTests: XCTestCase {
         let root = try directory(), points = WaypointStore(directory: root), field = FieldDataStore(directory: root)
         let a = points.add(.init(name: "A",lat: 1,lon: 1)), b = points.add(.init(name: "B",lat: 2,lon: 2))
         try field.saveGraphic(.init(id: "g",name: "g",type: "phase_line",points: [.init(lat: 1,lon: 1),.init(lat: 2,lon: 2)]))
-        let file = root.appendingPathComponent("field-data-v1.zip")
+        let file = root.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         var selection = LibrarySelection(); selection.waypoints = [a.id]; selection.graphics = ["g"]; selection.tracks = ["not-in-scope"]
         let publication = points.$waypoints.dropFirst().sink { _ in XCTAssertTrue(Thread.isMainThread) }

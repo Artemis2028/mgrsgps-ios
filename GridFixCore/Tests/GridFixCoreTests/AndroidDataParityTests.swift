@@ -51,7 +51,7 @@ final class AndroidDataParityTests: XCTestCase {
     func testFailedPublicationDoesNotChangeFieldDataOrPublishPartialRecords() throws {
         let dir = try directory(), incoming = try fixture()
         let store = FieldDataStore(directory: dir)
-        let blocked = dir.appendingPathComponent("field-data-v1.zip")
+        let blocked = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
         XCTAssertThrowsError(try store.restore(incoming))
         XCTAssertTrue(store.document.graphics.isEmpty)

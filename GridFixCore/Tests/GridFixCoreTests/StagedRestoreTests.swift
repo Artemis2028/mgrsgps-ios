@@ -21,14 +21,14 @@ final class StagedRestoreTests: XCTestCase {
     func testFieldWriteIsInvisibleUntilAtomicPublication() async throws {
         let directory = try directory(), store = FieldDataStore(directory: directory)
         try store.saveGraphic(graphic("local","Local"))
-        let original = try Data(contentsOf: directory.appendingPathComponent("field-data-v1.zip"))
+        let original = try Data(contentsOf: directory.appendingPathComponent("field-data-v2.json"))
         let snapshot = try store.restoreSnapshot(), input = incoming()
         let prepared = try await Task.detached {
             XCTAssertFalse(Thread.isMainThread)
             return try snapshot.prepare(input)
         }.value
         XCTAssertEqual(store.document.graphics.count,1)
-        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("field-data-v1.zip")),original)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("field-data-v2.json")),original)
         XCTAssertEqual(FieldDataStore(directory: directory).document.graphics.count,1)
         XCTAssertEqual(try store.publishRestore(prepared)?.graphics,1)
         XCTAssertEqual(FieldDataStore(directory: directory).document.graphics.map(\.id),["local","archive"])
@@ -111,7 +111,7 @@ final class StagedRestoreTests: XCTestCase {
         let prepared = try await Task.detached { try snapshot.prepare(input) }.value
         XCTAssertThrowsError(try other.publishRestore(prepared))
         XCTAssertTrue(first.document.graphics.isEmpty); XCTAssertTrue(other.document.graphics.isEmpty)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("field-data-v1.zip").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("field-data-v2.json").path))
         XCTAssertEqual(try first.publishRestore(prepared)?.graphics,1,"A rejected consumer cannot destroy the owner's preparation")
         XCTAssertEqual(FieldDataStore(directory: directory).document.graphics.count,1)
     }

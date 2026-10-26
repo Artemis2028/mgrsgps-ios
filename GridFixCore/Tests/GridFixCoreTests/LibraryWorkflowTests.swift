@@ -5,7 +5,7 @@ final class LibraryWorkflowTests: XCTestCase {
     func testDuplicateRestoreDoesNotRewriteUnchangedArchive() throws {
         let directory = try directory(), store = try field(directory)
         let snapshot = store.document
-        let file = directory.appendingPathComponent("field-data-v1.zip")
+        let file = directory.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: file)
         try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         let result = try store.restore(snapshot)
@@ -106,7 +106,7 @@ final class LibraryWorkflowTests: XCTestCase {
     }
     func testFailedFieldBatchDoesNotPublishOrLosePointBytes() throws {
         let dir = try directory(), store = try field(dir), before = store.document
-        let path = dir.appendingPathComponent("field-data-v1.zip")
+        let path = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         XCTAssertThrowsError(try store.applyLibraryBatch(graphicIDs: ["g1"],trackIDs: Set(before.tracks.map(\.id)),action: .delete))
         XCTAssertEqual(store.document,before)
@@ -121,7 +121,7 @@ final class LibraryWorkflowTests: XCTestCase {
         let dir = try directory(), field = try field(dir), waypoints = WaypointStore(directory: dir)
         let point = waypoints.add(.init(name: "P",lat: 1,lon: 1))
         var selection = LibrarySelection(); selection.waypoints = [point.id]; selection.graphics = ["g1"]
-        let path = dir.appendingPathComponent("field-data-v1.zip")
+        let path = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         let partial = LibraryBatches.apply(selection,action: .swapVisibility,waypoints: waypoints,field: field)
         XCTAssertEqual(partial.completed,1); XCTAssertNotNil(partial.failure); XCTAssertTrue(partial.remaining.waypoints.isEmpty)

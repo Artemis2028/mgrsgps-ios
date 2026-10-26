@@ -30,7 +30,7 @@ final class FieldEditTests: XCTestCase {
     }
 
     func testPreparedEditIsInvisibleUntilAtomicPublicationAndKeepsTrackBytes() async throws {
-        let (directory,store,_) = try fixture(), file = directory.appendingPathComponent("field-data-v1.zip")
+        let (directory,store,_) = try fixture(), file = directory.appendingPathComponent("field-data-v2.json")
         let before = store.document, disk = try Data(contentsOf: file), id = before.tracks[0].id
         let prepared = try await prepare(.setTrackVisible(id,false),in: store)
         XCTAssertEqual(store.document,before); XCTAssertEqual(try Data(contentsOf: file),disk)
@@ -94,7 +94,7 @@ final class FieldEditTests: XCTestCase {
         XCTAssertFalse(FieldDataStore(directory: directory).document.graphics.contains { $0.id == original.id })
     }
     func testCreateRetryKeepsExistingRecordAndDoesNotRewriteArchive() async throws {
-        let (directory,store,original) = try fixture(), file = directory.appendingPathComponent("field-data-v1.zip")
+        let (directory,store,original) = try fixture(), file = directory.appendingPathComponent("field-data-v2.json")
         let before = try Data(contentsOf: file)
         var changed = original; changed.name = "Must not overwrite"
         try await apply(.createGraphic(changed),to: store)
@@ -108,7 +108,7 @@ final class FieldEditTests: XCTestCase {
         XCTAssertFalse(FieldDataStore(directory: directory).document.graphics.contains { $0.id == "g" })
     }
     func testFailedReplacementKeepsMemoryAndCanPrepareAgain() async throws {
-        let (directory,store,_) = try fixture(), file = directory.appendingPathComponent("field-data-v1.zip")
+        let (directory,store,_) = try fixture(), file = directory.appendingPathComponent("field-data-v2.json")
         let before = store.document, disk = try Data(contentsOf: file)
         let prepared = try await prepare(.deleteGraphic("g"),in: store)
         try FileManager.default.removeItem(at: file)
@@ -146,7 +146,7 @@ final class FieldEditTests: XCTestCase {
         XCTAssertNil(GraphicDraft(type: "route").original); XCTAssertEqual(GraphicDraft(original).original,original)
     }
     func testInvalidEditAndUnreadableStoreLeaveStoredBytesUntouched() async throws {
-        let (directory,store,original) = try fixture(), file = directory.appendingPathComponent("field-data-v1.zip")
+        let (directory,store,original) = try fixture(), file = directory.appendingPathComponent("field-data-v2.json")
         let before = try Data(contentsOf: file)
         var invalid = original; invalid.points[0].lat = .nan
         do { _ = try await prepare(.saveGraphic(invalid),in: store); XCTFail("Invalid graphic staged") } catch {}

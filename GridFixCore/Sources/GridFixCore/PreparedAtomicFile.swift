@@ -12,7 +12,7 @@ public final class PreparedAtomicFile: Sendable {
     private let directory: URL
     private let source: URL
 
-    public init(data: Data,destination: URL,lockCompatible: Bool = false) throws {
+    public init(data: Data,destination: URL,lockCompatible: Bool = false,synchronize: Bool = false) throws {
         self.destination = destination
         directory = try FileManager.default.url(for: .itemReplacementDirectory,in: .userDomainMask,
                                                  appropriateFor: destination.deletingLastPathComponent(),create: true)
@@ -24,6 +24,11 @@ public final class PreparedAtomicFile: Sendable {
             if lockCompatible { options.insert(.completeFileProtectionUntilFirstUserAuthentication) }
             #endif
             try data.write(to: source,options: options)
+            if synchronize {
+                let handle = try FileHandle(forWritingTo: source)
+                defer { try? handle.close() }
+                try handle.synchronize()
+            }
             try Task.checkCancellation()
         } catch {
             try? FileManager.default.removeItem(at: directory)
@@ -33,12 +38,12 @@ public final class PreparedAtomicFile: Sendable {
 
     /// Caller must first verify that its source snapshot is still current.
     /// A rename failure leaves the existing destination untouched.
-    public func publish() throws {
+    public func publish(replacing: Bool = true) throws {
         defer { discard() }
         let result = source.withUnsafeFileSystemRepresentation { sourcePath in
             destination.withUnsafeFileSystemRepresentation { destinationPath in
                 guard let sourcePath,let destinationPath else { return Int32(-1) }
-                return rename(sourcePath,destinationPath)
+                return replacing ? rename(sourcePath,destinationPath) : link(sourcePath,destinationPath)
             }
         }
         guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }

@@ -30,7 +30,7 @@ struct PracticeCourseView: View {
                         #if DEBUG
                         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure") {
                             Button("Repair test result storage") {
-                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/field-data-v1.zip")
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/field-data-v2.json")
                                 if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
                             }.accessibilityIdentifier("practice-repair-result")
                         }

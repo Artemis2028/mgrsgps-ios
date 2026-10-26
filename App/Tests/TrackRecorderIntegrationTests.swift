@@ -82,11 +82,34 @@ final class TrackRecorderIntegrationTests: XCTestCase {
         XCTAssertEqual(try field.points(for: track.id).count, 3)
         XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
         #if !targetEnvironment(simulator)
-        let attributes = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("field-data-v1.zip").path)
+        let attributes = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("field-data-v2.json").path)
         XCTAssertEqual(attributes[.protectionKey] as? String,FileProtectionType.completeUntilFirstUserAuthentication.rawValue)
+        let logs = try FileManager.default.contentsOfDirectory(at: dir.appendingPathComponent("field-track-logs-v2"),includingPropertiesForKeys: nil)
+        XCTAssertFalse(logs.isEmpty)
+        for log in logs {
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: log.path)[.protectionKey] as? String,FileProtectionType.completeUntilFirstUserAuthentication.rawValue)
+        }
         #endif
     }
 
+    func testFinishingNewRecordingMigratesLegacyTracksBeforeAcknowledgingJournal() async throws {
+        let dir = try directory(), legacy = dir.appendingPathComponent("field-data-v1.zip")
+        let (old,points) = try TrackCodec.imported(name: "Old patrol",points: [.init(lat: 23,lon: 54),.init(lat: 23.001,lon: 54)],now: 1000)
+        var original = Backup.Document(); original.hasSettings = false; original.tracks = [old]; original.trackFiles[old.id] = points
+        let archive = try Backup.exportZip(original); try archive.write(to: legacy)
+        let field = FieldDataStore(directory: dir), driver = RecordingTestDriver(), clock = RecordingTestClock()
+        let rec = try await recorder(dir,field,driver,clock)
+        rec.start(); try await wait { rec.phase == .recording }
+        clock.advance(2); driver.onLocations?([clock.location(24)]); try await wait { rec.active?.pointCount == 1 }
+        rec.stop(name: "New patrol"); try await wait { rec.phase == .idle }
+        XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        let reopened = FieldDataStore(directory: dir)
+        XCTAssertNil(reopened.loadError); XCTAssertEqual(reopened.document.tracks.map(\.name),["Old patrol","New patrol"])
+        XCTAssertEqual(reopened.document.trackFiles[old.id],points)
+        XCTAssertEqual(try reopened.points(for: XCTUnwrap(reopened.document.tracks.last?.id)).count,1)
+        XCTAssertEqual(try Data(contentsOf: legacy),archive)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("field-data-v2.json").path))
+    }
     func testPermissionLossStopsAndKeepsSavedPoints() async throws {
         let dir = try directory(), field = FieldDataStore(directory: dir), driver = RecordingTestDriver(), clock = RecordingTestClock()
         let rec = try await recorder(dir, field, driver, clock)
@@ -136,7 +159,7 @@ final class TrackRecorderIntegrationTests: XCTestCase {
         rec.start(); try await wait { rec.phase == .recording }
         clock.advance(2); driver.onLocations?([clock.location(24)])
         try await wait { rec.active?.pointCount == 1 }
-        let blocked = dir.appendingPathComponent("field-data-v1.zip")
+        let blocked = dir.appendingPathComponent("field-data-v2.json")
         try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
         rec.stop(name: "Keep me")
         try await wait { rec.phase == .recoveryRequired }

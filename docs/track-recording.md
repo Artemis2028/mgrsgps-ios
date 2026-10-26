@@ -158,3 +158,8 @@ Evidence: `/tmp/gridfix-recording-staged-native.xcresult`,
 `/tmp/gridfix-recording-staged-screens/`. The host feed is stopped and owned
 phone shut down after checks. Simulator Home/background is not a physical
 locked-screen walk.
+
+
+Local finished-library storage now uses an atomic v2 index and independent point
+logs, rather than the bounded backup ZIP. See [migration, limits and validation](finished-track-storage.md).
+The journal is still acknowledged only after successful publication.

@@ -232,3 +232,21 @@ cleared; the single owned phone is shut down. Other devices were untouched.
 These are local repairs. They do not establish a full hosted pass or physical
 locked-screen reliability. No location permissions, lifecycle/count assertions,
 route-continuation assertions, or dedicated feed scenarios were removed.
+
+
+## Hosted 9bb27fc diagnostics
+
+Run 40273435731 map shard passes. Its completed field job 121411790203 fails
+four UI cases: FieldExportWorkflowTests lines 17/26 (native filename replacement
+and reopening the saved track), LiveActivityWorkflowTests line 12 (status reveal
+at y786.7…802.4 oscillates near the helper's lower margin), and
+RoutePDFWorkflowTests line 35 (native filename field not found). Library remains
+running at this checkpoint. No full hosted pass is claimed. The earlier lane
+selection and pinned-orientation cases pass in this hosted run.
+
+The 673 MB field artifact exceeds the connector's 512 MB download limit. It was
+retrieved through gh into `/tmp/gridfix-ci90-field`, including the completed
+xcresult, logs and screenshot exports. Follow-up repair will preserve file
+save/reopen counts, route persistence and ActivityKit lifecycle assertions. The
+local course and independent-log checkpoints remain unpushed while this run
+finishes; a pass on 9bb27fc would not validate those changes.
