@@ -85,7 +85,7 @@ final class FieldAppStores {
 
     private let watchBridge: WatchPhoneBridge
 
-    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil) {
+    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil,boundaryStartup: BoundaryMonitor.PreparedStartup? = nil) {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
@@ -112,7 +112,7 @@ final class FieldAppStores {
         #endif
         self.maps = mapStore
         self.terrain = TerrainSession(sampler: mapStore.terrainSampler)
-        let boundaryStore = BoundaryMonitor(directory: directory)
+        let boundaryStore = BoundaryMonitor(directory: directory,startup: boundaryStartup)
         self.boundaries = boundaryStore
         // UI fixture creation is synchronous setup. Normal launches (including
         // Debug) and the explicit cold-load regression read saved logs on a worker.

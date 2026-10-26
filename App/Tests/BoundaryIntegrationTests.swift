@@ -72,9 +72,16 @@ final class BoundaryIntegrationTests: XCTestCase {
         let a = area; XCTAssertTrue(first.save(a)); first.start(a); try await wait { first.running }
         var edited = a; edited.name = "Changed"
         XCTAssertFalse(first.save(edited)); first.delete(a); XCTAssertEqual(first.areas.count,1)
-        let secondDriver = BoundaryTestDriver()
-        let second = BoundaryMonitor(directory: dir,driver: secondDriver,alerts: TestBoundaryAlerts(),foreground: { true })
+        let file = dir.appendingPathComponent("boundaries-v1.json"),bytes = try Data(contentsOf: file)
+        let prepared = await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            return BoundaryMonitor.prepareStartup(directory: dir)
+        }.value
+        let secondDriver = BoundaryTestDriver(),secondAlerts = TestBoundaryAlerts()
+        let second = BoundaryMonitor(directory: dir,startup: prepared,driver: secondDriver,alerts: secondAlerts,foreground: { true })
         XCTAssertEqual(second.areas,[a]); XCTAssertFalse(second.running); XCTAssertFalse(secondDriver.updating)
+        XCTAssertFalse(secondAlerts.active); XCTAssertEqual(secondDriver.requests,0)
+        XCTAssertEqual(try Data(contentsOf: file),bytes)
         XCTAssertTrue(second.status.contains("interrupted"))
         first.stop(); XCTAssertTrue(second.save(edited))
         let third = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts(),foreground: { true })
@@ -106,6 +113,49 @@ final class BoundaryIntegrationTests: XCTestCase {
         let monitor = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts(),foreground: { true })
         XCTAssertTrue(monitor.loadFailed); XCTAssertFalse(monitor.save(area))
         XCTAssertEqual(try String(contentsOf: file),"broken-boundary-data")
+    }
+    func testWorkerBoundaryStartupKeepsCorruptInvalidAndOversizedLibrariesReadOnly() async throws {
+        let dir = try directory(),file = dir.appendingPathComponent("boundaries-v1.json")
+        let saved = area
+        var invalid = saved; invalid.vertices = [point(0,0),point(100,0),point(50,0)]
+        let samples = [Data("malformed CAFÉ".utf8),
+                       try JSONEncoder().encode(BoundaryMonitor.Document(areas: [saved,saved])),
+                       try JSONEncoder().encode(BoundaryMonitor.Document(areas: [invalid])),
+                       Data(repeating: 0x20,count: 2*1024*1024+1)]
+        for bytes in samples {
+            try bytes.write(to: file,options: .atomic)
+            let prepared = await Task.detached { BoundaryMonitor.prepareStartup(directory: dir) }.value
+            let driver = BoundaryTestDriver(),alerts = TestBoundaryAlerts()
+            let monitor = BoundaryMonitor(directory: dir,startup: prepared,driver: driver,alerts: alerts,foreground: { true })
+            XCTAssertTrue(monitor.loadFailed); XCTAssertNotNil(monitor.error); XCTAssertFalse(monitor.save(area))
+            monitor.start(area)
+            XCTAssertFalse(monitor.running); XCTAssertFalse(driver.updating); XCTAssertFalse(alerts.active)
+            XCTAssertEqual(try Data(contentsOf: file),bytes)
+        }
+    }
+    func testBoundarySourceChangesAndWrongDirectoryCannotInstallPreparedAreas() throws {
+        let dir = try directory(),file = dir.appendingPathComponent("boundaries-v1.json")
+        let missing = BoundaryMonitor.prepareStartup(directory: dir)
+        let original = try JSONEncoder().encode(BoundaryMonitor.Document(areas: [area]))
+        try original.write(to: file,options: .atomic)
+        XCTAssertThrowsError(try missing.validate())
+        let beforeReplace = BoundaryMonitor.prepareStartup(directory: dir)
+        var newer = area; newer.name = "Newer boundary"
+        let replacement = try JSONEncoder().encode(BoundaryMonitor.Document(areas: [newer]))
+        try replacement.write(to: file,options: .atomic)
+        XCTAssertThrowsError(try beforeReplace.validate())
+        let driver = BoundaryTestDriver(),alerts = TestBoundaryAlerts()
+        let stale = BoundaryMonitor(directory: dir,startup: beforeReplace,driver: driver,alerts: alerts,foreground: { true })
+        XCTAssertTrue(stale.loadFailed); XCTAssertTrue(stale.areas.isEmpty); XCTAssertFalse(stale.save(area))
+        XCTAssertEqual(try Data(contentsOf: file),replacement)
+        let valid = BoundaryMonitor.prepareStartup(directory: dir)
+        let wrong = BoundaryMonitor(directory: try directory(),startup: valid,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertTrue(wrong.loadFailed); XCTAssertTrue(wrong.areas.isEmpty)
+        try FileManager.default.removeItem(at: file)
+        XCTAssertThrowsError(try valid.validate())
+        let fresh = BoundaryMonitor(directory: dir,startup: BoundaryMonitor.prepareStartup(directory: dir),driver: driver,alerts: alerts)
+        XCTAssertFalse(fresh.loadFailed); XCTAssertFalse(fresh.running); XCTAssertFalse(driver.updating)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
     func testFailedPublicationKeepsExistingBoundaryAndCanRetry() throws {
         let dir = try directory(), driver = BoundaryTestDriver()

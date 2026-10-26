@@ -60,7 +60,7 @@ final class BoundaryAlerts: BoundaryAlerting {
 
 @MainActor
 final class BoundaryMonitor: ObservableObject {
-    struct Document: Codable { var areas: [BoundaryArea] = []; var interruptedID: String? }
+    struct Document: Codable, Sendable { var areas: [BoundaryArea] = []; var interruptedID: String? }
     @Published private(set) var areas: [BoundaryArea] = []
     @Published private(set) var activeID: String?
     @Published private(set) var preparing = false
@@ -87,19 +87,57 @@ final class BoundaryMonitor: ObservableObject {
     var displayedArea: BoundaryArea? { areas.first { $0.id == (activeID ?? displayedID) } }
     var running: Bool { activeID != nil }
 
-    init(directory: URL? = nil, driver: RecordingLocationDriver? = nil, alerts: BoundaryAlerting? = nil,
+    struct PreparedStartup: Sendable {
+        fileprivate let file: URL
+        fileprivate let stamp: SourceStamp?
+        fileprivate let document: Document?
+        fileprivate let error: String?
+        func validate() throws {
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+        }
+    }
+    enum StartupFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved boundaries changed while opening. Try again." }
+    }
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64,inode: UInt64,volume: UInt64
+        let modified: Date?
+        static func read(_ file: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date)
+        }
+    }
+    nonisolated static func prepareStartup(directory: URL? = nil) -> PreparedStartup {
+        let file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("boundaries-v1.json")
+        let stamp = SourceStamp.read(file)
+        guard FileManager.default.fileExists(atPath: file.path) else { return .init(file: file,stamp: stamp,document: nil,error: nil) }
+        do {
+            guard stamp.map({ $0.size <= 2 * 1024 * 1024 }) ?? true else { throw BoundaryError.invalid("Boundary library is too large.") }
+            let data = try Data(contentsOf: file,options: .mappedIfSafe)
+            guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library is too large.") }
+            let doc = try JSONDecoder().decode(Document.self,from: data)
+            guard doc.areas.count <= 100,Set(doc.areas.map(\.id)).count == doc.areas.count else { throw BoundaryError.invalid("Invalid boundary library.") }
+            for area in doc.areas { try Task.checkCancellation(); _ = try BoundaryGeometry(vertices: area.vertices) }
+            return .init(file: file,stamp: stamp,document: doc,error: nil)
+        } catch { return .init(file: file,stamp: stamp,document: nil,error: "Boundary files were kept: \(error.localizedDescription)") }
+    }
+
+    init(directory: URL? = nil,startup: PreparedStartup? = nil, driver: RecordingLocationDriver? = nil, alerts: BoundaryAlerting? = nil,
          now: @escaping () -> Date = Date.init, foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
         file = dir.appendingPathComponent("boundaries-v1.json")
         self.driver = driver ?? CoreLocationRecordingDriver()
         self.alerts = alerts ?? BoundaryAlerts(); self.now = now; self.foreground = foreground
+        let prepared = startup ?? Self.prepareStartup(directory: directory)
         do {
-            if FileManager.default.fileExists(atPath: file.path) {
-                let data = try Data(contentsOf: file)
-                guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library is too large.") }
-                let doc = try JSONDecoder().decode(Document.self,from: data)
-                guard doc.areas.count <= 100, Set(doc.areas.map(\.id)).count == doc.areas.count else { throw BoundaryError.invalid("Invalid boundary library.") }
-                for area in doc.areas { _ = try BoundaryGeometry(vertices: area.vertices) }
+            guard prepared.file == file else { throw BoundaryError.invalid("Prepared boundaries belong to another library.") }
+            try prepared.validate()
+            if let failure = prepared.error { loadFailed = true; error = failure }
+            else if let doc = prepared.document {
                 areas = doc.areas; displayedID = areas.first?.id
                 if doc.interruptedID != nil { status = "Monitoring was interrupted. Open a saved boundary and start again." }
             }

@@ -387,3 +387,14 @@ normalization and malformed-settings fallback are unchanged. Full validation of 
 orientation cold relaunch and final Release pass. See [settings startup](settings-startup.md).
 Other runtime-session startup sources, ordinary preference writes, per-log/lazy
 reads and the remaining performance/physical gates are still work.
+
+## Boundary library startup
+
+Saved quiet-inside perimeters now decode and validate on the shared startup
+worker too, including the existing size/count/geometry checks and source-change
+retry. Interrupted monitoring stays off; unreadable files remain kept and
+read-only. Full native validation passes 268 cases (four opt-in local skips),
+and real simulator drawing/direct dragging/background crossing and interrupted
+worker cold relaunch pass. Final Release passes. See
+[boundary startup evidence](boundary-startup.md). Physical locked-screen alerts,
+ordinary boundary writes and the other remaining gates are still open.

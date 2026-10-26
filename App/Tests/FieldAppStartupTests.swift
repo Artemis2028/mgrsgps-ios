@@ -192,6 +192,41 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertFalse(stores.fieldData.ready); XCTAssertEqual(startup.pendingURLs,[link])
         XCTAssertEqual(try Data(contentsOf: file),bytes)
     }
+    func testInterruptedAndDamagedBoundaryStartupStayInactiveAndKeepOriginalFiles() async throws {
+        let dir = try directory(),file = dir.appendingPathComponent("boundaries-v1.json")
+        let area = BoundaryArea(name: "Quiet perimeter",vertices: [.init(lat: 35,lon: -79),.init(lat: 35.001,lon: -79),.init(lat: 35.001,lon: -78.999)])
+        for bytes in [try JSONEncoder().encode(BoundaryMonitor.Document(areas: [area],interruptedID: area.id)),Data("damaged boundary CAFÉ".utf8)] {
+            try bytes.write(to: file,options: .atomic)
+            let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false))
+            await startup.load()
+            let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
+            XCTAssertFalse(stores.boundaries.running); XCTAssertFalse(stores.fieldData.ready)
+            XCTAssertEqual(try Data(contentsOf: file),bytes)
+            if stores.boundaries.loadFailed { XCTAssertFalse(stores.boundaries.save(area)) }
+            else { XCTAssertEqual(stores.boundaries.areas,[area]); XCTAssertTrue(stores.boundaries.status.contains("interrupted")) }
+        }
+    }
+    func testChangedBoundaryLibraryRetriesBeforePublishingOneServiceGraph() async throws {
+        let dir = try directory(),file = dir.appendingPathComponent("boundaries-v1.json"),attempts = StartupAttemptCounter()
+        let area = BoundaryArea(name: "Before",vertices: [.init(lat: 35,lon: -79),.init(lat: 35.001,lon: -79),.init(lat: 35.001,lon: -78.999)])
+        try JSONEncoder().encode(BoundaryMonitor.Document(areas: [area])).write(to: file)
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepareBoundaries: { directory in
+            XCTAssertFalse(Thread.isMainThread)
+            let prepared = BoundaryMonitor.prepareStartup(directory: directory)
+            if attempts.next() == 1 {
+                var replacement = area; replacement.name = "Newer perimeter"
+                try! JSONEncoder().encode(BoundaryMonitor.Document(areas: [replacement])).write(to: file,options: .atomic)
+            }
+            return prepared
+        })
+        var publications = 0
+        let subscription = startup.$stores.sink { if $0 != nil { publications += 1 } }
+        defer { subscription.cancel(); startup.stores?.tak.disconnect() }
+        await startup.load()
+        XCTAssertNil(startup.error); XCTAssertEqual(attempts.count,2); XCTAssertEqual(publications,1)
+        XCTAssertEqual(startup.stores?.boundaries.areas.first?.name,"Newer perimeter")
+        XCTAssertEqual(startup.stores?.boundaries.running,false)
+    }
     func testFailedPreparationCanRetryWithoutDroppingQueuedLink() async throws {
         let dir = try directory(),attempts = StartupAttemptCounter()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { directory in
