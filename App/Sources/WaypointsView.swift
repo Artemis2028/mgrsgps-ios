@@ -23,6 +23,8 @@ struct WaypointsView: View {
     @State private var choosingLibraryActions = false
     @State private var showingRecovery = false
     @State private var pendingLibraryAction: LibraryAction?
+    @State private var waypointActions: Waypoint?
+    @State private var pendingWaypointAction: (id: String, action: String)?
     @State private var trackActions: Backup.TrackMeta?
     @State private var pendingTrackAction: (id: String, action: String)?
     @State private var choosingSelectionAction = false
@@ -185,6 +187,11 @@ struct WaypointsView: View {
             }
         }
         .sheet(isPresented: $showingRecovery) { WaypointRecoveryView() }
+        .sheet(item: $waypointActions,onDismiss: runWaypointAction) { point in
+            FieldChoiceSheet(title: point.name,choices: waypointChoices(point),night: settings.nightMode) { action in
+                pendingWaypointAction = (point.id,action); waypointActions = nil
+            }
+        }
         .sheet(item: $trackActions,onDismiss: runTrackAction) { track in
             FieldChoiceSheet(title: track.name,choices: trackChoices(track),night: settings.nightMode) { action in
                 pendingTrackAction = (track.id,action); trackActions = nil
@@ -397,7 +404,8 @@ struct WaypointsView: View {
     private var searchControls: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(palette.inkDim)
-            TextField("Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }))
+            TextField("Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }),
+                      prompt: Text("Search name, folder or grid").foregroundColor(palette.inkDim))
                 .textInputAutocapitalization(.never).autocorrectionDisabled().focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
                 .accessibilityIdentifier("library-search")
             if !searchQuery.isEmpty {
@@ -574,18 +582,9 @@ struct WaypointsView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
-            Menu {
-                Button("Edit", systemImage: "pencil") { beginEdit(wp) }
-                Button(wp.favorite ? "Remove favourite" : "Favourite",systemImage: wp.favorite ? "star.slash" : "star") { updateLibrary(.favorite(wp.id,!wp.favorite),label: "Saving favourite…") }.accessibilityIdentifier("toggle-favorite-\(wp.name)")
-                Button(wp.visible ? "Hide on map" : "Make visible on map", systemImage: wp.visible ? "eye.slash" : "eye") {
-                    swapWaypointVisibility(wp.id)
-                }
-                Button("Navigate", systemImage: "location.north") { navigate(to: wp) }
-                Button("Show on map",systemImage: "map") { maps.focusRequest = MapCameraRequest(action: .locate(wp.lat,wp.lon)); onShowMap() }
-                Button("Delete", systemImage: "trash", role: .destructive) { selection = LibrarySelection(); selection.waypoints = [wp.id]; deleteSelection = true }
-            } label: {
+            Button { searchFocused = false; waypointActions = wp } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)
-            }
+            }.buttonStyle(.plain)
             .foregroundStyle(palette.inkDim)
             .accessibilityLabel("Actions for \(wp.name)")
             Button { navigate(to: wp) } label: {
@@ -794,6 +793,28 @@ struct WaypointsView: View {
         case .recovery: showingRecovery = true
         }
     }
+    private func waypointChoices(_ point: Waypoint) -> [FieldChoice] {
+        [.init(id: "edit",title: "Edit"),
+         .init(id: point.favorite ? "favorite-off" : "favorite-on",title: point.favorite ? "Remove favourite" : "Favourite",accessibilityIdentifier: "toggle-favorite-"+point.name),
+         .init(id: "visibility",title: point.visible ? "Hide on map" : "Make visible on map"),
+         .init(id: "navigate",title: "Navigate"),.init(id: "show",title: "Show on map"),
+         .init(id: "delete",title: "Delete",destructive: true)]
+    }
+    private func runWaypointAction() {
+        guard let pending = pendingWaypointAction else { return }
+        pendingWaypointAction = nil
+        guard let point = store.waypoints.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "edit": beginEdit(point)
+        case "favorite-on", "favorite-off": updateLibrary(.favorite(point.id,pending.action == "favorite-on"),label: "Saving favourite…")
+        case "visibility": swapWaypointVisibility(point.id)
+        case "navigate": navigate(to: point)
+        case "show": maps.focusRequest = MapCameraRequest(action: .locate(point.lat,point.lon)); onShowMap()
+        case "delete": selection = LibrarySelection(); selection.waypoints = [point.id]; deleteSelection = true
+        default: break
+        }
+    }
+
     private func trackChoices(_ track: Backup.TrackMeta) -> [FieldChoice] {
         var choices: [FieldChoice] = [.init(id: "show",title: "Show on map"),.init(id: "details",title: "Details")]
         if maps.viewedTrackID == track.id { choices.append(.init(id: "stop",title: "Stop viewing")) }

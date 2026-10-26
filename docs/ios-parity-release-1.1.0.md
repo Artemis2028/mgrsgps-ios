@@ -25,7 +25,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Other runtime-session startup reads, older library actions and dense-map rendering/accessibility performance work; physical large-library storage checks; physical field validation and storage/interchange limits below |
 | Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Independent finished logs remove combined/per-log backup-derived caps; orphan maintenance and dense/very-large-library performance remain work; physical course/guide validation; large-course eligibility/list rendering and other runtime-session startup IO |
-| Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining runtime-session startup reads, older library actions, hosted Files regressions and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
+| Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining ordinary persistence costs, older library actions, full hosted confirmation and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement; separate bounded read-only remote scene on both watches | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired named-lane crossings and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs; Android launcher artwork for phone/iPad/watch with runtime icon evidence | Full hosted CI pass, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
@@ -562,3 +562,29 @@ regressions also pass. Day/night screenshots inspected. This test-only repair
 preserves the previously verified product source and Release build. The library
 shard remains live; full hosted green is still unproven. See
 [hosted evidence and replay](ci-field-ui-activation.md).
+
+
+## Waypoint choices and readable night secondary text
+
+Run 98 is terminal: map passes; library has two failures and field three.
+The favourite failure reproduces locally with the popup still open: the action
+never ran. Waypoint actions now use the native scrolling choice sheet already
+used for tracks/folders, execute after dismissal, revalidate saved identity and
+preserve explicit favourite on/off intent. Edit, visibility, navigation, map
+focus and confirmed deletion remain. The system-gray search prompt now uses
+the field palette; muted night text changes from roughly2.79:1 to4.95:1 solid
+contrast against black, retaining red/black styling.
+
+Final native283 (four unstaged skips), all17 selected library/search/folder/
+startup/coordinate UI workflows, a separate complete waypoint-choice walkthrough,
+and unsigned device Release pass. Day/night screenshots inspected. The focused
+walkthrough verifies cancellation, edit/save, hide/show, map focus, navigation,
+cancelled and confirmed deletion, and persisted deletion after relaunch. A
+Navigate-label ambiguity in its initial test was corrected to the exact action
+identifier; the original failed replay remains diagnostic evidence.
+
+All eight harness checks pass. Measured CI UI durations motivated moving the
+complete protected-file class (about7.6minutes) from library to map; all tests
+still run exactly once with three workers. The shared Files helper repair and
+map/TAK worker changes are included in the next full hosted candidate; hosted
+green remains unproven. See [CI evidence](ci-field-ui-activation.md).

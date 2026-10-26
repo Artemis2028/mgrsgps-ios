@@ -564,3 +564,52 @@ The supplementary three-case test parent finalized exit 0 after its exact owned
 post-test simctl diagnostic was shortened; all cases had already finished. The
 fresh five-case parent exited 0 naturally. Protected-backup restoration screenshot
 was inspected. No active test was stopped or duplicated.
+
+
+## Run 98 library replay and waypoint choices
+
+The hosted library shard is terminal: 41 cases, two failures, about 60 minutes
+of UI work. Favourite removal times out waiting for the star to disappear;
+night search cannot find its input after tab changes. The field/map conclusions
+above stand. The whole hosted run is not green.
+
+The favourite failure reproduces locally in
+`/tmp/gridfix-night-contrast-final.xcresult`. Its recording shows the actual
+Remove favourite popup still open after the attempted native tap. No save action
+ran; adding a longer persistence wait is not the fix. Waypoint actions now use
+the existing native scrolling FieldChoiceSheet, as tracks/folders do. Choices
+run after dismissal, revalidate the waypoint and preserve an explicit favourite
+on/off intent. Edit, visibility, navigation, map focus and confirmed deletion
+remain available. Cancellation has no queued action.
+
+Night secondary text is brighter red on opaque black: solid-color contrast
+changes from about 2.79:1 to 4.95:1. Search gets an explicit matching prompt
+instead of system gray. The existing night search workflow now captures the
+empty prompt, filtered results, cleared/Name-sorted results and return to day.
+The first local run passes those steps plus night folder forms, recording and
+TAK preview; its favourite failure is retained as diagnostic evidence, not counted
+as a passing suite.
+
+Measured run-98 UI durations are roughly library 59.9 minutes, map 37.1 and
+field 36.6, excluding the dedicated location stages. The complete protected-file
+class (about 7.6 minutes) moves from library to map; workers stay at three and
+all cases remain. The three partition/discovery regressions pass, proving every
+class still runs exactly once or in its dedicated location scenario.
+
+
+Final candidate: all 283 native cases pass (four unstaged local skips), and all
+17 selected library/search/folder/startup/coordinate workflows pass in
+`/tmp/gridfix-waypoint-choice-final.xcresult`. After all cases finished, its exact
+owned post-test diagnostic was shortened and the parent finalized exit 0.
+The focused waypoint-choice walkthrough passes separately in
+`/tmp/gridfix-waypoint-choice-actions-final.xcresult`: choice cancellation,
+edit/save, hide/show, map focus, target navigation, cancelled deletion, confirmed
+deletion and persisted absence after relaunch. Its parent exits 0 naturally.
+An initial walkthrough stopped on an ambiguous Navigate label (the background
+tab shares it); it now selects the sheet's existing exact action identifier.
+That failed run is not counted as passing. Favourite removal also passes again
+in that earlier two-case replay. Day/night choice and empty-search screenshots
+were inspected. Final unsigned device Release passes in
+`/tmp/gridfix-waypoint-choice-release.log`. All eight Python harness checks pass
+in `/tmp/gridfix-choice-script-checks.log`. Fresh full hosted validation is next;
+no old failure assertion or test was excluded.

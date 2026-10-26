@@ -32,7 +32,8 @@ struct FieldPalette {
 
     var background: Color { .black }
     var ink: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.ink }
-    var inkDim: Color { night ? Color(red: 0.62, green: 0.16, blue: 0.12) : Blackout.inkDim }
+    // Secondary labels stay red, with readable contrast on the opaque night surfaces.
+    var inkDim: Color { night ? Color(red: 0.90, green: 0.22, blue: 0.18) : Blackout.inkDim }
     var accent: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.accent }
     var good: Color { night ? Color(red: 1.0, green: 0.35, blue: 0.24) : Blackout.good }
     var warn: Color { night ? Color(red: 1.0, green: 0.32, blue: 0.20) : Blackout.warn }

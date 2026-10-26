@@ -6,9 +6,11 @@ from pathlib import Path
 import re
 
 SPECIAL = {name + 'WorkflowTests' for name in ('Boundary','Navigation','Practice','PositionFix','Movement')}
+# Run 98: library UI ~60 min, map ~37 min. Move the complete ~8-minute
+# protected-file class to map; keep every case and the same three workers.
 GROUPS = {
-    'library': 'Backup ImportReview Interchange KMLPackage LargeLibrary LibrarySearch Library ProtectedFile WaypointRecovery WaypointSaveFailure Waypoint'.split(),
-    'map': 'Graphic MapLasso MapLayer MapTool Measurement MilitarySymbol NavigationLane OfflineDownloadLifetime Terrain'.split(),
+    'library': 'Backup ImportReview Interchange KMLPackage LargeLibrary LibrarySearch Library WaypointRecovery WaypointSaveFailure Waypoint'.split(),
+    'map': 'Graphic MapLasso MapLayer MapTool Measurement MilitarySymbol NavigationLane OfflineDownloadLifetime Terrain ProtectedFile'.split(),
     'field': 'FieldEdit FieldExport FieldFix GridNaming LaneCue LiveActivity Orientation Planning PositionQR PositionSolar Projection RoutePDF TAKEnrollment TAKLocal TrackRecording'.split(),
 }
 

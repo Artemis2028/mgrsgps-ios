@@ -48,10 +48,68 @@ final class LibrarySearchWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [ordered],timeout: 10),.completed)
         XCTAssertLessThan(app.buttons["edit-waypoint-Alpha"].frame.minY,app.buttons["edit-waypoint-Bravo"].frame.minY)
     }
+    func testWaypointChoicesDismissBeforeEditingNavigatingAndConfirmedDeletion() {
+        launch()
+        func openChoices() {
+            let actions = app.buttons["Actions for Alpha"]
+            XCTAssertTrue(actions.waitForExistence(timeout: 8))
+            for _ in 0..<5 { if actions.isHittable { break }; app.swipeUp() }
+            tapNativeMenuItem(actions,revealing: app.buttons["Edit"])
+            XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
+        }
+        openChoices(); capture("waypoint-choices-day")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-Alpha"].waitForExistence(timeout: 5))
+        openChoices(); app.buttons["Edit"].tap()
+        XCTAssertTrue(app.textFields["waypoint-name"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["waypoint-name"].value as? String,"Alpha")
+        app.buttons["waypoint-save"].tap()
+        openChoices(); app.buttons["Hide on map"].tap()
+        XCTAssertTrue(app.images["library-waypoint-hidden-Alpha"].waitForExistence(timeout: 10))
+        openChoices(); app.buttons["Make visible on map"].tap()
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in !self.app.images["library-waypoint-hidden-Alpha"].exists },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown],timeout: 10),.completed)
+        openChoices(); app.buttons["Show on map"].tap()
+        let marker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@","map-waypoint-","Alpha")).firstMatch
+        XCTAssertTrue(marker.waitForExistence(timeout: 10))
+        app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        openChoices(); capture("waypoint-choices-night")
+        app.buttons.matching(NSPredicate(format: "identifier == %@","navigate")).element.tap()
+        XCTAssertTrue(app.buttons["Choose navigation target"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Alpha"].exists)
+        app.buttons["Waypoints"].tap()
+        openChoices(); app.buttons["Delete"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5)); app.alerts.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-Alpha"].exists)
+        openChoices(); app.buttons["Delete"].tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5)); app.alerts.buttons["Delete"].tap()
+        let deleted = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in !self.app.buttons["edit-waypoint-Alpha"].exists },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [deleted],timeout: 10),.completed)
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        XCTAssertTrue(app.buttons["edit-waypoint-Bravo"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["edit-waypoint-Alpha"].exists)
+        capture("waypoint-choice-deletion-relaunched-night")
+    }
+
     func testNightSearchSortAndClearKeepFieldCardsReadable() {
         launch()
         app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        XCTAssertTrue(app.textFields["library-search"].waitForExistence(timeout: 5))
+        capture("library-search-placeholder-night")
         query("Alpha"); XCTAssertTrue(app.buttons["edit-waypoint-Alpha"].waitForExistence(timeout: 5))
         capture("library-search-night")
+        app.buttons["library-search-clear"].tap()
+        XCTAssertTrue(app.buttons["edit-waypoint-Bravo"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["library-search-clear"].exists)
+        tapNativeMenuItem(app.buttons["library-sort"],revealing: app.buttons["Name"]); tapNativeMenuItem(app.buttons["Name"])
+        let ordered = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            self.app.buttons["library-sort"].label.contains("Name") &&
+            self.app.buttons["edit-waypoint-Alpha"].frame.minY < self.app.buttons["edit-waypoint-Bravo"].frame.minY
+        },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ordered],timeout: 10),.completed)
+        capture("library-search-cleared-and-sorted-night")
+        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        XCTAssertTrue(app.textFields["library-search"].waitForExistence(timeout: 5))
+        capture("library-search-placeholder-day")
     }
 }
