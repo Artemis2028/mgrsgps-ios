@@ -1,5 +1,8 @@
 # GridFix for Apple Watch
 
+The launcher uses Android's GridFix crosshair mark, generated into the native
+watch AppIcon catalog. See [icon source, regeneration and runtime evidence](../docs/app-icons.md).
+
 Native SwiftUI companion, watchOS 10+. Swipe between **Position**, **Navigate** and **Map**. Selecting Map opens a full-screen map cover outside the page pager, so map pan/zoom gestures do not compete with page swipes. Native close returns to the Map launcher; its Open map button reopens the cover.
 
 Position is a fixed instrument: zone, easting and northing fit together on the 40mm display. The right-side **FORMAT** button cycles **4D → 6D → 8D → 10D**, saving a local format override; **PHONE** resumes the latest synced phone precision. GPS accuracy (± metres) and age appear separately at the top: ten-digit formatting never claims one-metre GPS accuracy. Tap the zone / ⓘ row for connection/cache diagnostics and night controls. These secondary details scroll in a sheet; the primary grid does not scroll. Instrument numerals dominate the screen: approximately 48 pt Antonio for five-digit rows on 40mm and about 51 pt for shorter rows at default text size. CoreText measures the bundled digit ink bounds so unused ascender/descender space can be removed while rounded digit tops/bottoms remain intact. Width/height constraints adapt the size for large labels; the FORMAT tap target remains 44×44 pt. Labels adapt to text size. Unavailable-fix em dashes use ordinary text layout, independent of digit trimming.

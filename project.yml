@@ -26,6 +26,8 @@ targets:
       - path: Shared
       - path: App/Resources/MapAssets
         buildPhase: resources
+      - path: App/Resources/Assets.xcassets
+        buildPhase: resources
       - path: App/Resources/MilitarySymbols
         type: folder
         buildPhase: resources
@@ -41,6 +43,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
@@ -186,6 +189,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
