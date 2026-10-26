@@ -351,10 +351,60 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.follow(try route(field)); try await wait { nav.running }
         nav.pause(); XCTAssertFalse(driver.updating); XCTAssertTrue(nav.progress?.paused == true)
         nav.resume(); try await wait { nav.running }
-        let other = GuideTestDriver()
-        let reloaded = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: other,feedback: GuideTestFeedback(),foreground: { true },scheduleTicks: false)
+        let other = GuideTestDriver(),otherFeedback = GuideTestFeedback()
+        let file = dir.appendingPathComponent("navigation-session-v1.json"),before = try Data(contentsOf: file)
+        let prepared = await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            return NavigationSession.prepareStartup(directory: dir)
+        }.value
+        try prepared.validate()
+        let reloaded = NavigationSession(directory: dir,store: store,field: field,settings: settings,startup: prepared,driver: other,feedback: otherFeedback,foreground: { true },scheduleTicks: false)
         XCTAssertFalse(reloaded.running); XCTAssertFalse(other.updating); XCTAssertTrue(reloaded.progress?.paused == true)
-        XCTAssertTrue(reloaded.status.contains("interrupted")); nav.stop()
+        XCTAssertEqual(otherFeedback.begins,0); XCTAssertTrue(otherFeedback.pulses.isEmpty)
+        XCTAssertEqual(reloaded.progress?.routeID,nav.progress?.routeID); XCTAssertEqual(reloaded.haptics,nav.haptics)
+        XCTAssertEqual(try Data(contentsOf: file),before)
+        XCTAssertTrue(reloaded.status.contains("interrupted")); nav.stop(); try await wait { !nav.saving }
+    }
+    func testPreparedNavigationRejectsCreatedReplacedAndRemovedSources() async throws {
+        let (dir,store,field,settings) = try setup(),file = dir.appendingPathComponent("navigation-session-v1.json")
+        let missing = await Task.detached { NavigationSession.prepareStartup(directory: dir) }.value
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        try Data("{\"active\":false,\"haptics\":true}".utf8).write(to: file,options: .atomic)
+        XCTAssertThrowsError(try missing.validate())
+        let first = await Task.detached { NavigationSession.prepareStartup(directory: dir) }.value
+        try Data("{\"active\":false,\"haptics\":false}".utf8).write(to: file,options: .atomic)
+        XCTAssertThrowsError(try first.validate())
+        let current = await Task.detached { NavigationSession.prepareStartup(directory: dir) }.value
+        try FileManager.default.removeItem(at: file)
+        XCTAssertThrowsError(try current.validate())
+        let driver = GuideTestDriver()
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,startup: current,driver: driver,feedback: GuideTestFeedback(),scheduleTicks: false)
+        XCTAssertNotNil(nav.error); XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+    func testWorkerNavigationRejectsCorruptOversizedAndInvalidProgressWithoutWritesOrGPS() async throws {
+        let (dir,store,field,settings) = try setup(),file = dir.appendingPathComponent("navigation-session-v1.json")
+        let waypoint = store.add(.init(name: "Selected",lat: 35,lon: -79)); store.select(waypoint.id)
+        let invalid = Data("{\"progress\":{\"routeID\":\"bad\",\"name\":\"bad\",\"points\":[{\"lat\":35,\"lon\":-79},{\"lat\":35.1,\"lon\":-79}],\"index\":3,\"paused\":false},\"active\":true,\"haptics\":true}".utf8)
+        for bytes in [Data("SYNTHETIC unreadable navigation".utf8),Data(repeating: 32,count: 2*1024*1024),invalid] {
+            try bytes.write(to: file,options: .atomic)
+            let prepared = await Task.detached { NavigationSession.prepareStartup(directory: dir) }.value
+            try prepared.validate()
+            let driver = GuideTestDriver(),feedback = GuideTestFeedback()
+            let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,startup: prepared,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+            XCTAssertNotNil(nav.error); XCTAssertNil(nav.progress)
+            nav.startGuide(); nav.resume()
+            XCTAssertFalse(nav.running); XCTAssertFalse(nav.preparing); XCTAssertFalse(driver.updating)
+            XCTAssertEqual(feedback.begins,0); XCTAssertTrue(feedback.pulses.isEmpty)
+            XCTAssertEqual(try Data(contentsOf: file),bytes)
+        }
+    }
+    func testPreparedNavigationCannotBeAttachedToAnotherSessionDirectory() async throws {
+        let (dir,store,field,settings) = try setup(),(other,_,_,_) = try setup()
+        let prepared = await Task.detached { NavigationSession.prepareStartup(directory: dir) }.value
+        let nav = NavigationSession(directory: other,store: store,field: field,settings: settings,startup: prepared,driver: GuideTestDriver(),feedback: GuideTestFeedback(),scheduleTicks: false)
+        XCTAssertTrue(nav.error?.contains("another saved session") == true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: other.appendingPathComponent("navigation-session-v1.json").path))
     }
     func testHeadingFreshnessHoldDirectionAndPermissionLoss() async throws {
         let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()

@@ -44,6 +44,7 @@ final class FieldAppStartup: ObservableObject {
         let waypoints: WaypointStore.PreparedStartup
         let maps: MapLayerStore.PreparedStartup
         let course: PracticeCourseStore.PreparedStartup
+        let navigation: NavigationSession.PreparedStartup
     }
     private var worker: Task<PreparedWorkspace,Error>?
     private var generation = UUID()
@@ -82,17 +83,20 @@ final class FieldAppStartup: ObservableObject {
                     try Task.checkCancellation()
                     let courseDirectory = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
                     let course = try PracticeCourseStore.prepareStartup(directory: courseDirectory)
-                    return PreparedWorkspace(waypoints: waypoints,maps: maps,course: course)
+                    let navigation = NavigationSession.prepareStartup(directory: directory)
+                    try Task.checkCancellation()
+                    return PreparedWorkspace(waypoints: waypoints,maps: maps,course: course,navigation: navigation)
                 }
                 worker = task
             }
             do {
                 let prepared = try await task.value
                 guard generation == token,!Task.isCancelled,stores == nil else { return }
+                try prepared.navigation.validate()
                 let points = try WaypointStore(startup: prepared.waypoints)
                 let course = try PracticeCourseStore(startup: prepared.course)
                 let maps = try MapLayerStore(startup: prepared.maps)
-                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps,practiceStore: course)
+                stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps,practiceStore: course,navigationStartup: prepared.navigation)
                 worker = nil
                 return
             } catch is CancellationError {
@@ -102,6 +106,9 @@ final class FieldAppStartup: ObservableObject {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil // The file changed after preparation: read it again.
                 changedError = WaypointStore.StartupFailure.changed
+            } catch NavigationSession.StartupFailure.changed {
+                guard generation == token,!Task.isCancelled else { return }
+                worker = nil; changedError = NavigationSession.StartupFailure.changed
             } catch PracticeCourseStore.StartupFailure.changed {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil; changedError = PracticeCourseStore.StartupFailure.changed

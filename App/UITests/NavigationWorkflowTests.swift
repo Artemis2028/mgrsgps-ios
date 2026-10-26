@@ -33,6 +33,11 @@ final class NavigationWorkflowTests: XCTestCase {
         let paused = progress.label
         XCUIDevice.shared.press(.home); Thread.sleep(forTimeInterval: 2); app.activate()
         XCTAssertEqual(progress.label,paused)
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
+        let navigate = app.tabBars.buttons["Navigate"]
+        XCTAssertTrue(navigate.waitForExistence(timeout: 10)); navigate.tap()
+        XCTAssertTrue(progress.waitForExistence(timeout: 10)); XCTAssertEqual(progress.label,paused)
+        let recovered = XCTAttachment(screenshot: app.screenshot()); recovered.name = "navigation-paused-cold-start"; recovered.lifetime = .keepAlways; add(recovered)
         let resume = app.buttons["resume-route"]
         let hit = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"),object: resume)
         XCTAssertEqual(XCTWaiter.wait(for: [hit],timeout: 5),.completed)

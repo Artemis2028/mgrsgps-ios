@@ -84,3 +84,7 @@ other simulators were used. The successful five-case UI run finished all tests
 but stalled in an auxiliary simctl diagnose child; only that identified child
 was terminated, allowing xcodebuild to finalize successfully. Its feed runner
 then stopped and cleared location. No test assertion or app process was skipped.
+
+
+Navigation-session startup also now prepares on the shared app worker, with
+source validation and paused cold recovery; see [startup](navigation-startup.md).

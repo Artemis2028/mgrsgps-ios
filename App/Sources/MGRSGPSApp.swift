@@ -83,7 +83,7 @@ final class FieldAppStores {
 
     private let watchBridge: WatchPhoneBridge
 
-    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil) {
+    init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil) {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
@@ -259,7 +259,7 @@ final class FieldAppStores {
             Task { _ = try? await laneStore.save(fixture,graphics:fieldStore.document.graphics) }
         }
         #endif
-        let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
+        let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,startup: navigationStartup,lanes: laneStore)
         self.navigation = navigationSession
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession,tak: takSession)
         let practiceSession = PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession,store: practiceStore)

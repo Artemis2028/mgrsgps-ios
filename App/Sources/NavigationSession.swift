@@ -5,7 +5,7 @@ import SwiftUI
 
 @MainActor
 final class NavigationSession: ObservableObject {
-    private struct Saved: Codable, Sendable { var progress: RouteFollowingProgress?; var active: Bool; var haptics: Bool }
+    fileprivate struct Saved: Codable, Sendable { var progress: RouteFollowingProgress?; var active: Bool; var haptics: Bool }
     @Published private(set) var progress: RouteFollowingProgress?
     @Published private(set) var running = false
     @Published private(set) var preparing = false
@@ -58,7 +58,47 @@ final class NavigationSession: ObservableObject {
     private var cadence = GuideCadence()
     private var arrival = NavigationArrivalState()
 
-    init(directory: URL? = nil, store: WaypointStore, field: FieldDataStore, settings: AppSettings,
+    struct PreparedStartup: Sendable {
+        fileprivate let file: URL
+        fileprivate let stamp: SourceStamp?
+        fileprivate let saved: Saved?
+        fileprivate let error: String?
+        func validate() throws {
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+        }
+    }
+    enum StartupFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved navigation session changed while opening. Try again." }
+    }
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64,inode: UInt64,volume: UInt64
+        let modified: Date?
+        static func read(_ file: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date)
+        }
+    }
+    nonisolated static func prepareStartup(directory: URL? = nil) -> PreparedStartup {
+        let file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("navigation-session-v1.json")
+        let stamp = SourceStamp.read(file)
+        guard FileManager.default.fileExists(atPath: file.path) else { return .init(file: file,stamp: stamp,saved: nil,error: nil) }
+        do {
+            guard stamp.map({ $0.size < 2 * 1024 * 1024 }) ?? true else { throw BoundaryError.invalid("Navigation state is too large.") }
+            let data = try Data(contentsOf: file,options: .mappedIfSafe)
+            guard data.count < 2 * 1024 * 1024 else { throw BoundaryError.invalid("Navigation state is too large.") }
+            let saved = try JSONDecoder().decode(Saved.self,from: data)
+            if let p = saved.progress {
+                guard (2...10_000).contains(p.points.count),(0...p.points.count).contains(p.index),p.points.allSatisfy({ $0.lat.isFinite && $0.lon.isFinite && (-90...90).contains($0.lat) && (-180...180).contains($0.lon) }) else { throw BoundaryError.invalid("Invalid route progress.") }
+            }
+            return .init(file: file,stamp: stamp,saved: saved,error: nil)
+        } catch { return .init(file: file,stamp: stamp,saved: nil,error: "Navigation state was kept: \(error.localizedDescription). Clear the session to start again.") }
+    }
+
+    init(directory: URL? = nil, store: WaypointStore, field: FieldDataStore, settings: AppSettings,startup: PreparedStartup? = nil,
          driver: NavigationLocationDriver? = nil, feedback: NavigationFeedback? = nil, lanes: NavigationLaneStore? = nil,
          now: @escaping () -> Date = Date.init, uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }, scheduleTicks: Bool = true,
@@ -68,15 +108,13 @@ final class NavigationSession: ObservableObject {
         self.driver = driver ?? CoreLocationNavigationDriver(); self.feedback = feedback ?? SystemNavigationFeedback()
         self.now = now; self.uptime = uptime; self.foreground = foreground; self.scheduleTicks = scheduleTicks; self.stageSession = stageSession
         file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("navigation-session-v1.json")
+        let prepared = startup ?? Self.prepareStartup(directory: directory)
         do {
-            if FileManager.default.fileExists(atPath: file.path) {
-                let data = try Data(contentsOf: file)
-                guard data.count < 2 * 1024 * 1024 else { throw BoundaryError.invalid("Navigation state is too large.") }
-                let saved = try JSONDecoder().decode(Saved.self,from: data)
-                if let p = saved.progress {
-                    guard (2...10_000).contains(p.points.count), (0...p.points.count).contains(p.index), p.points.allSatisfy({ $0.lat.isFinite && $0.lon.isFinite && (-90...90).contains($0.lat) && (-180...180).contains($0.lon) }) else { throw BoundaryError.invalid("Invalid route progress.") }
-                    progress = p; progress?.paused = true
-                }
+            guard prepared.file == file else { throw BoundaryError.invalid("Prepared navigation belongs to another saved session.") }
+            try prepared.validate()
+            if let failure = prepared.error { loaded = false; error = failure }
+            else if let saved = prepared.saved {
+                progress = saved.progress; progress?.paused = true
                 haptics = saved.haptics
                 status = saved.active ? "Navigation was interrupted. Resume explicitly with the app open." : (progress?.complete == true ? "Route complete" : (progress == nil ? "Navigation guide off" : "Route paused"))
             }

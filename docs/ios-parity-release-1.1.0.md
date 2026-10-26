@@ -335,3 +335,20 @@ retry. Screenshots were inspected; final phone/watch/widget Release passes.
 See [course startup and recovery evidence](course-startup-recovery.md).
 Large-course rendering, other runtime-session/settings startup, physical storage
 pressure and field/background validation remain work.
+
+
+## Navigation-session worker startup
+
+Saved navigation now prepares before live services, with the existing 2 MiB
+limit checked before reading, worker route validation and source-change retry.
+Saved route/index/haptic preferences remain intact; restored routes stay paused
+until explicit resume. Damaged sessions remain preserved and cannot start GPS
+or cue playback. Full native validation passes 259 cases (four unstaged opt-in
+skips), and actual simulator navigation passes cold relaunch at point 2, manual
+resume, background completion and completed-state relaunch. Screenshots and the
+final phone/watch/widget Release build pass. See [startup evidence](navigation-startup.md).
+
+Hosted run 40349066649 on 2fdd91e now has a terminal failed field shard: large
+GPX Files reopen, track-detail export filename access and TAK preview opening.
+Library and map jobs remain running. These are open CI diagnostics; the prior
+four interaction fixes did not establish a complete hosted pass.

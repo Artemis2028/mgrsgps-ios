@@ -139,6 +139,18 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertNotNil(stores.practice.error); XCTAssertNil(stores.waypoints.selectedId)
         XCTAssertEqual(try Data(contentsOf: file),bytes)
     }
+    func testWorkerNavigationStartupPreservesDamagedSessionAndQueuedResumeLink() async throws {
+        let dir = try directory(),file = dir.appendingPathComponent("navigation-session-v1.json"),bytes = Data("SYNTHETIC damaged navigation session".utf8)
+        try bytes.write(to: file)
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false))
+        let link = URL(string: "gridfix://navigation")!; startup.enqueue(link)
+        await startup.load()
+        let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
+        XCTAssertNotNil(stores.navigation.error); XCTAssertNil(stores.navigation.progress)
+        XCTAssertFalse(stores.navigation.running); XCTAssertFalse(stores.navigation.preparing)
+        XCTAssertFalse(stores.fieldData.ready); XCTAssertEqual(startup.pendingURLs,[link])
+        XCTAssertEqual(try Data(contentsOf: file),bytes)
+    }
     func testFailedPreparationCanRetryWithoutDroppingQueuedLink() async throws {
         let dir = try directory(),attempts = StartupAttemptCounter()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { directory in
