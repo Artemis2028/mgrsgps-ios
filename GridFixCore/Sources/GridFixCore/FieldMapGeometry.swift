@@ -1,6 +1,69 @@
 import Foundation
 
 public enum FieldMapGeometry {
+    public struct OverlaySnapshot: Sendable {
+        public let data: Data
+        /// Exact fit extrema, independent of the sampled drawing path.
+        public let points: [GeoPoint]
+        public let routes: Int
+        public let tracks: Int
+    }
+
+    /// Android TracksOverlay uses count / 1500 stride plus the final point.
+    /// Draw only that preview; retain all local bytes and all geographic bounds.
+    public static func prepareOverlay(document: Backup.Document,folders: [FolderInfo]) throws -> OverlaySnapshot {
+        try Task.checkCancellation()
+        let hidden = Set(folders.filter { !$0.visible }.map { $0.name.lowercased() })
+        var extent = FitExtent(),features: [[String:Any]] = []
+        var routes = 0,tracks = 0
+        for graphic in document.graphics where graphic.visible && !hidden.contains(graphic.folder.lowercased()) {
+            try Task.checkCancellation()
+            let points = graphic.mapExtentPoints
+            guard !points.isEmpty else { continue }
+            guard points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }) else { throw BackupError.notABackup("Invalid map graphic coordinates") }
+            if graphic.type == "route" { routes += 1 }
+            for point in points { extent.include(point) }
+        }
+        for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
+            try Task.checkCancellation()
+            let points = try TrackCodec.decodeLocal(document.trackFiles[track.id] ?? Data())
+            guard points.count >= 2 else { continue }
+            tracks += 1
+            let step = max(1,points.count/1500)
+            var sampled: [GeoPoint] = []
+            for (i,point) in points.enumerated() {
+                if i % 4096 == 0 { try Task.checkCancellation() }
+                let coordinate = GeoPoint(lat: point.lat,lon: point.lon)
+                extent.include(coordinate)
+                if i % step == 0 || i == points.count-1 { sampled.append(coordinate) }
+            }
+            let segments = lineSegments(sampled).filter { $0.count >= 2 }
+            features.append(["type":"Feature","geometry":["type":"MultiLineString","coordinates":segments.map { $0.map { [$0.lon,$0.lat] } }],
+                             "properties":["id":track.id,"name":track.name,"kind":"track"]])
+            if let first = sampled.first {
+                features.append(["type":"Feature","geometry":["type":"Point","coordinates":[first.lon,first.lat]],
+                                 "properties":["id":track.id,"name":track.name,"kind":"label"]])
+            }
+        }
+        try Task.checkCancellation()
+        let data = try JSONSerialization.data(withJSONObject: ["type":"FeatureCollection","features":features])
+        try Task.checkCancellation()
+        return .init(data: data,points: extent.points,routes: routes,tracks: tracks)
+    }
+
+    private struct FitExtent {
+        var south: GeoPoint?,north: GeoPoint?,west: GeoPoint?,east: GeoPoint?,wrappedWest: GeoPoint?,wrappedEast: GeoPoint?
+        private func wrapped(_ point: GeoPoint) -> Double { point.lon < 0 ? point.lon+360 : point.lon }
+        mutating func include(_ point: GeoPoint) {
+            if south == nil || point.lat < south!.lat { south = point }
+            if north == nil || point.lat > north!.lat { north = point }
+            if west == nil || point.lon < west!.lon { west = point }
+            if east == nil || point.lon > east!.lon { east = point }
+            if wrappedWest == nil || wrapped(point) < wrapped(wrappedWest!) { wrappedWest = point }
+            if wrappedEast == nil || wrapped(point) > wrapped(wrappedEast!) { wrappedEast = point }
+        }
+        var points: [GeoPoint] { [south,north,west,east,wrappedWest,wrappedEast].compactMap { $0 } }
+    }
     public static func lineSegments(_ points: [GeoPoint]) -> [[GeoPoint]] {
         guard let first = points.first else { return [] }
         var segments = [[first]]

@@ -501,3 +501,18 @@ regressions pass. Final unsigned device Release passes. Both xcodebuild parents
 exit 0 without diagnostic interruption. Day/night review/restoration screenshots
 were inspected. No case, assertion, count or shard is excluded. Full hosted
 confirmation remains open. See [CI evidence](ci-field-ui-activation.md).
+
+
+## Worker-prepared saved-track map geometry
+
+Saved logs now decode once off Main and use Android release/1.1.0 drawing stride
+plus the final endpoint. Full-log fit extrema remain exact, including unsampled
+excursions. Cancellation/generation guards reject old drawings after hide/delete;
+loading and retry are explicit. Deferred Show All cannot override a newer Go To
+or manual pan. Core490, native281 (four unstaged opt-in skips), all12 selected
+map/lasso/interchange/recording UI workflows and unsigned device Release pass.
+Both test/build parents exit0 naturally. Day/night/recording screenshots inspected;
+300001-point worker check observed a maximum Main pulse gap of0.00724seconds.
+See [implementation and limits](map-geometry-preparation.md). Full hosted run
+40395046579 remains live on d153810; this validated change is held locally to
+avoid cancelling it. Huge-log memory and dense tactical rendering remain work.

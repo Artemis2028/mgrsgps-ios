@@ -17,6 +17,7 @@ struct FieldLaunchConfiguration {
             if !args.contains("-keepUITestData") { try? FileManager.default.removeItem(at: temporary) }
             try? FileManager.default.createDirectory(at: temporary,withIntermediateDirectories: true)
             directory = temporary
+            if args.contains("-uiTestHoldMapGeometry") { try? Data().write(to: temporary.appendingPathComponent("hold-map-geometry")) }
             if args.contains("-uiTestWaypointRecovery"),!args.contains("-keepUITestData") {
                 try? Data("SYNTHETIC unreadable CAFÉ waypoint library\n".utf8).write(to: temporary.appendingPathComponent("waypoints-v1.json"),options: .atomic)
             }

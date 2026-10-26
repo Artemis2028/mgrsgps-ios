@@ -31,6 +31,9 @@ struct MapScreen: View {
     @State private var overlayRoutes = 0
     @State private var overlayTracks = 0
     @State private var hasFieldPoints = false
+    @State private var overlayLoading = false
+    @State private var overlayError: String?
+    @State private var overlayRetry: UUID?
     @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
     @StateObject private var targetMutation = FieldMutation()
     @State private var selectedID: String?
@@ -146,6 +149,7 @@ struct MapScreen: View {
                          onGraphicPick: { guard !graphicMutation.working && laneDraft == nil else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
+                         onOverlayStatus: { overlayLoading = $0; overlayError = $1 },overlayRetry: overlayRetry,
                          cameraRequest: cameraRequest,
                          onSelect: { if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in
@@ -174,6 +178,18 @@ struct MapScreen: View {
                         if !compactMap && !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
                         Text((maps.preferences.offlineOnly ? "OFFLINE ONLY · " : "") + maps.layerName)
                             .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-layer-name")
+                        if overlayLoading || !fieldData.ready { Text("Loading saved map data…").font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-loading") }
+                        #if DEBUG
+                        if overlayLoading,ProcessInfo.processInfo.arguments.contains("-uiTestHoldMapGeometry") {
+                            Button("Finish saved map load") {
+                                try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/hold-map-geometry"))
+                            }.accessibilityIdentifier("finish-map-geometry")
+                        }
+                        #endif
+                        if let overlayError {
+                            Text(overlayError).font(.caption2).foregroundStyle(mapInkDim)
+                            Button("Retry map data") { overlayRetry = UUID() }.accessibilityIdentifier("retry-map-field-data")
+                        }
                         if !compactMap && (overlayRoutes > 0 || overlayTracks > 0) {
                             Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
@@ -258,7 +274,7 @@ struct MapScreen: View {
                     } label: {
                         Image(systemName: "viewfinder").frame(width: 44, height: 40)
                     }
-                    .fieldGlassButton(mapControl: true).disabled(visible.isEmpty && !hasFieldPoints && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible }))
+                    .fieldGlassButton(mapControl: true).disabled(!fieldData.ready || (visible.isEmpty && !hasFieldPoints && !overlayLoading && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible })))
                     .accessibilityLabel("Show all visible data")
                     if showsTool("record") { RecordingButton(mapControl: true) }
                     Spacer(minLength: 0)
@@ -647,6 +663,8 @@ private struct MapContainer: UIViewRepresentable {
     let onGraphicPick: (Backup.Graphic) -> Void
     let onContour: (String) -> Void
     let onOverlays: (Int, Int, Bool) -> Void
+    let onOverlayStatus: (Bool,String?) -> Void
+    let overlayRetry: UUID?
     let cameraRequest: MapCameraRequest?
     let onSelect: (String) -> Void
     let onChange: (String, CLLocationCoordinate2D, MapBounds, Double) -> Void
@@ -658,6 +676,7 @@ private struct MapContainer: UIViewRepresentable {
         view.delegate = context.coordinator
         view.isPitchEnabled = false
         view.styleURL = mapStore.styleURL
+        for gesture in view.gestureRecognizers ?? [] { gesture.addTarget(context.coordinator,action: #selector(Coordinator.cameraGesture(_:))) }
         context.coordinator.maps = mapStore
         context.coordinator.hasCentred = mapStore.preferences.hasCamera
         view.logoViewPosition = .bottomLeft
@@ -734,10 +753,17 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
         coordinator.nightMode = nightMode
         if let style = view.style { coordinator.rasterLayers.update(style: style, store: mapStore, night: nightMode); coordinator.contours.refresh(map: view, store: mapStore, night: nightMode) }
-        coordinator.fieldOverlay.onChange = onOverlays
+        coordinator.fieldOverlay.onStatus = onOverlayStatus
+        coordinator.fieldOverlay.onChange = { [weak coordinator,weak view,waypoints,recordingPoints,boundaryPoints,onOverlays] routes,tracks,hasPoints in
+            onOverlays(routes,tracks,hasPoints)
+            guard let coordinator,let view,coordinator.pendingFit != nil,
+                  coordinator.pendingFit == coordinator.lastRequest,!coordinator.fieldOverlay.preparing,coordinator.fieldOverlay.error == nil else { return }
+            coordinator.pendingFit = nil
+            coordinator.fitData(in: view,waypoints: waypoints,recording: recordingPoints,boundary: boundaryPoints)
+        }
         var overlayDocument = document
         if let i = overlayDocument.tracks.firstIndex(where: { $0.id == mapStore.viewedTrackID }) { overlayDocument.tracks[i].visible = true }
-        coordinator.fieldOverlay.update(document: overlayDocument, folders: folders, night: nightMode)
+        coordinator.fieldOverlay.update(document: overlayDocument, folders: folders, night: nightMode,retryToken: overlayRetry)
         coordinator.remote.update(remoteItems, night: nightMode)
         coordinator.liveOverlay.update(recordingPoints)
         coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
@@ -745,6 +771,7 @@ private struct MapContainer: UIViewRepresentable {
         view.bringSubviewToFront(coordinator.lasso)
         if let request = cameraRequest, coordinator.lastRequest != request.id {
             coordinator.lastRequest = request.id
+            coordinator.pendingFit = nil
             switch request.action {
             case let .showBoundary(points):
                 if let bounds = FieldMapGeometry.bounds(points), let first = points.first {
@@ -770,22 +797,19 @@ private struct MapContainer: UIViewRepresentable {
             case let .locate(lat, lon):
                 view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
             case .fitData:
-                let points = waypoints.map { GeoPoint(lat: $0.lat, lon: $0.lon) } + coordinator.fieldOverlay.points + coordinator.laneOverlay.points + recordingPoints + boundaryPoints
-                if let bounds = FieldMapGeometry.bounds(points) {
-                    if bounds.south == bounds.north && bounds.west == bounds.east {
-                        view.setCenter(CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), zoomLevel: 15, animated: true)
-                    } else {
-                        view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west),
-                                                                          ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)),
-                                                        edgePadding: UIEdgeInsets(top: 140, left: 82, bottom: 240, right: 82), animated: true, completionHandler: nil)
-                    }
-                }
+                if coordinator.fieldOverlay.preparing { coordinator.pendingFit = request.id }
+                else { coordinator.fitData(in: view,waypoints: waypoints,recording: recordingPoints,boundary: boundaryPoints) }
             }
             coordinator.hasCentred = true
         } else if let fix, !coordinator.hasCentred {
             coordinator.hasCentred = true
             view.setCenter(CLLocationCoordinate2D(latitude: fix.lat, longitude: fix.lon), zoomLevel: 14, animated: false)
         }
+    }
+
+    static func dismantleUIView(_ view: MLNMapView,coordinator: Coordinator) {
+        coordinator.pendingFit = nil; coordinator.fieldOverlay.onChange = nil; coordinator.fieldOverlay.onStatus = nil
+        coordinator.fieldOverlay.cancel()
     }
 
     @MainActor
@@ -912,6 +936,19 @@ private struct MapContainer: UIViewRepresentable {
         var nightMode = false
         var hasCentred = false
         var lastRequest: UUID?
+        var pendingFit: UUID?
+        @objc func cameraGesture(_ gesture: UIGestureRecognizer) {
+            if gesture.state == .began || (gesture is UITapGestureRecognizer && gesture.state == .ended) { pendingFit = nil }
+        }
+        func fitData(in view: MLNMapView,waypoints: [Waypoint],recording: [GeoPoint],boundary: [GeoPoint]) {
+            let points = waypoints.map { GeoPoint(lat: $0.lat,lon: $0.lon) } + fieldOverlay.points + laneOverlay.points + recording + boundary
+            guard let bounds = FieldMapGeometry.bounds(points) else { return }
+            if bounds.south == bounds.north && bounds.west == bounds.east {
+                view.setCenter(CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),zoomLevel: 15,animated: true)
+            } else {
+                view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 140,left: 82,bottom: 240,right: 82),animated: true,completionHandler: nil)
+            }
+        }
         var annotations: [String: WaypointAnnotation] = [:]
         var onSelect: ((String) -> Void)?
         var onChange: ((String, CLLocationCoordinate2D, MapBounds, Double) -> Void)?

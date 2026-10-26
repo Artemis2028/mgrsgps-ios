@@ -3,6 +3,111 @@ import UIKit
 import XCTest
 @testable import MGRSGPS
 
+@MainActor
+final class FieldOverlayPreparationTests: XCTestCase {
+    private func document(count: Int = 2) -> Backup.Document {
+        let id = UUID().uuidString.lowercased()
+        return Backup.Document(tracks: [.init(id: id,name: "Patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: count)],
+                               trackFiles: [id: Data(String(repeating: "24 54 0\n",count: count).utf8)])
+    }
+    private func wait(_ predicate: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(10)
+        while !predicate(),Date() < deadline { try await Task.sleep(nanoseconds: 1_000_000) }
+        XCTAssertTrue(predicate())
+    }
+    func testHiddenReplacementWinsEvenWhenOldWorkerIgnoresCancellation() async throws {
+        let gate = MapPreparationGate(); defer { gate.release() }
+        let overlay = FieldOverlay(prepare: gate.prepare)
+        var counts: [Int] = []
+        overlay.onChange = { _,tracks,_ in XCTAssertTrue(Thread.isMainThread); counts.append(tracks) }
+        overlay.update(document: document(),folders: [],night: false)
+        try await wait { gate.entered }
+        overlay.update(document: Backup.Document(),folders: [],night: true)
+        XCTAssertTrue(overlay.points.isEmpty)
+        try await wait { !overlay.preparing }
+        gate.release(); try await wait { gate.finished }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(overlay.tracks,0); XCTAssertTrue(overlay.points.isEmpty)
+        XCTAssertTrue(counts.allSatisfy { $0 == 0 },"The old noncooperative worker must not restore hidden geometry")
+    }
+    func testLargeLogPreparesOffMainAndThemeUpdatesReuseIt() async throws {
+        let counter = MapPreparationCounter()
+        let overlay = FieldOverlay { document,folders in
+            XCTAssertFalse(Thread.isMainThread); counter.next()
+            return try FieldMapGeometry.prepareOverlay(document: document,folders: folders)
+        }
+        let source = document(count: 300_001),start = Date()
+        overlay.update(document: source,folders: [],night: false)
+        XCTAssertLessThan(Date().timeIntervalSince(start),0.2)
+        var pulses = 0,maximumGap = 0.0,last = Date()
+        while overlay.preparing {
+            try await Task.sleep(nanoseconds: 5_000_000)
+            maximumGap = max(maximumGap,Date().timeIntervalSince(last)); last = Date(); pulses += 1
+        }
+        XCTAssertNil(overlay.error); XCTAssertEqual(overlay.tracks,1)
+        XCTAssertLessThanOrEqual(overlay.points.count,6); XCTAssertGreaterThan(pulses,1)
+        XCTAssertLessThan(maximumGap,0.25)
+        overlay.update(document: source,folders: [],night: true)
+        XCTAssertEqual(counter.count,1); XCTAssertFalse(overlay.preparing)
+        let attachment = XCTAttachment(string: "Main pulses: \(pulses); maximum gap: \(maximumGap)")
+        attachment.name = "map-track-worker-benchmark"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    func testFailureClearsOldStateAndExplicitRetryCanPrepareSameDocument() async throws {
+        let counter = MapPreparationCounter(),source = document()
+        let overlay = FieldOverlay { document,folders in
+            if counter.next() == 1 { throw CocoaError(.fileReadCorruptFile) }
+            return try FieldMapGeometry.prepareOverlay(document: document,folders: folders)
+        }
+        overlay.update(document: source,folders: [],night: false)
+        try await wait { !overlay.preparing }
+        XCTAssertNotNil(overlay.error); XCTAssertTrue(overlay.points.isEmpty)
+        overlay.update(document: source,folders: [],night: true)
+        XCTAssertEqual(counter.count,1,"GPS/theme refresh must not spin a failed preparation")
+        overlay.update(document: source,folders: [],night: true,retryToken: UUID())
+        try await wait { !overlay.preparing }
+        XCTAssertNil(overlay.error); XCTAssertEqual(overlay.tracks,1); XCTAssertEqual(counter.count,2)
+    }
+    func testReleasedOverlayCannotBeRetainedOrPublishedByHeldWorker() async throws {
+        let gate = MapPreparationGate(); defer { gate.release() }
+        var overlay: FieldOverlay? = FieldOverlay(prepare: gate.prepare)
+        weak var weakOverlay = overlay
+        var tracks: [Int] = []
+        overlay?.onChange = { _,count,_ in tracks.append(count) }
+        overlay?.update(document: document(),folders: [],night: false)
+        try await wait { gate.entered }
+        overlay?.cancel(); overlay = nil
+        XCTAssertNil(weakOverlay)
+        gate.release(); try await wait { gate.finished }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(tracks.allSatisfy { $0 == 0 })
+    }
+}
+
+private final class MapPreparationCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+    @discardableResult func next() -> Int { lock.lock(); defer { lock.unlock() }; value += 1; return value }
+}
+private final class MapPreparationGate: @unchecked Sendable {
+    private let counter = MapPreparationCounter(),lock = NSLock(),semaphore = DispatchSemaphore(value: 0)
+    private var started = false,done = false
+    var entered: Bool { lock.lock(); defer { lock.unlock() }; return started }
+    var finished: Bool { lock.lock(); defer { lock.unlock() }; return done }
+    func release() { semaphore.signal() }
+    func prepare(_ document: Backup.Document,_ folders: [FolderInfo]) throws -> FieldMapGeometry.OverlaySnapshot {
+        XCTAssertFalse(Thread.isMainThread)
+        let first = counter.next() == 1
+        let result = try FieldMapGeometry.prepareOverlay(document: document,folders: folders)
+        if first {
+            lock.lock(); started = true; lock.unlock()
+            guard semaphore.wait(timeout: .now()+15) == .success else { throw CancellationError() }
+            lock.lock(); done = true; lock.unlock()
+        }
+        return result
+    }
+}
+
 private final class TileNetworkFixture: URLProtocol, @unchecked Sendable {
     static let lock = NSLock()
     static var calls = 0

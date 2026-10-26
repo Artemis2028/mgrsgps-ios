@@ -107,9 +107,12 @@ folder successfully. Full backup export still rejects that document. A separate
 native individual GPX export counts all 250,001 output points with XMLParser.
 See the current parity checklist for final run evidence and remaining gates.
 
-A subsequent source audit confirms a concrete remaining map cost:
-`FieldOverlay.update` builds the complete geometry and a track-only geometry on
-the main actor. Long local logs now open correctly, but those repeated decodes
-and GeoJSON builds still need worker preparation with stale-result guards before
-claiming responsive very-large-track maps. The local storage regression does not
-establish that UI performance gate.
+Saved-track map preparation now runs on a worker, decodes each visible log once
+and applies Android's count/1500 drawing stride plus its final endpoint. Full-log
+bounds are retained as at most six extrema; saved bytes and individual GPX export
+remain complete. Generation/cancellation guards prevent old results restoring
+hidden or deleted data. Loading, retry and deferred Show All are visible; a newer
+Go To or manual pan cancels a pending fit. See
+[map preparation evidence](map-geometry-preparation.md). Each visible log still
+materializes its coordinates on the worker, and dense tactical overlays use a
+separate renderer, so arbitrary-size memory/performance is not established.
