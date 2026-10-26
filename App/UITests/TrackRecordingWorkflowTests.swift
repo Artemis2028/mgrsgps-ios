@@ -33,16 +33,32 @@ final class TrackRecordingWorkflowTests: XCTestCase {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
+    private func backgroundReceipt(_ token: String,phase: String) throws -> [String:Any] {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("recording-background-\(token)-\(phase).json")
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in FileManager.default.fileExists(atPath: file.path) },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 15),.completed,"Host observer must confirm the actual journal while the app stays backgrounded")
+        let value = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String:Any])
+        XCTAssertEqual(value["status"] as? String,"ok","Background journal receipt: \(value)")
+        try? FileManager.default.removeItem(at: file)
+        return value
+    }
 
-    func testLiveRecordingReceivesBackgroundLocationsThenSavesToLibraryAndMap() {
+    func testLiveRecordingReceivesBackgroundLocationsThenSavesToLibraryAndMap() throws {
         begin()
         app.buttons["recording-banner"].tap()
         let before = pointCount()
         XCTAssertGreaterThan(before, 0)
         app.buttons["Done"].tap()
         XCUIDevice.shared.press(.home)
-        // A real background interval. Core Location must keep delivering fixes.
+        let token = UUID().uuidString
+        print("RECORDING_BACKGROUND_CHECK_BEGIN \(token)")
+        _ = try backgroundReceipt(token,phase: "begin")
+        // The host reads the real journal before we may reactivate the app.
         Thread.sleep(forTimeInterval: 8)
+        print("RECORDING_BACKGROUND_CHECK_END \(token)")
+        let background = try backgroundReceipt(token,phase: "end")
+        XCTAssertEqual(background["sameSession"] as? Bool,true)
+        XCTAssertGreaterThan(try XCTUnwrap(background["after"] as? Int),try XCTUnwrap(background["before"] as? Int),"Accepted points must reach disk while the app is still backgrounded")
         app.activate()
         // activate() can return before the foreground transition's hit-testing
         // regions are ready, even though the existing banner is in the AX tree.
@@ -73,7 +89,7 @@ final class TrackRecordingWorkflowTests: XCTestCase {
     func testRelaunchRecoversRecordingWithoutResumingLocationLogging() {
         begin()
         app.terminate()
-        app.launchArguments += ["-keepUITestData"]
+        app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]
         app.launch()
         waitFor(NSPredicate(format: "label == %@", "Record track"), on: app.buttons["record-track"])
         let banner = app.buttons["recording-banner"]

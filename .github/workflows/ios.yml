@@ -123,9 +123,12 @@ jobs:
           # Deliver the real OS recording URL during the held cold-start test.
           python3 scripts/startup-link-test.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" > "$GITHUB_WORKSPACE/startup-link-test.log" 2>&1 &
           LINK_PID=$!
+          python3 scripts/recording_background_check.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" > "$GITHUB_WORKSPACE/recording-background-check.log" 2>&1 &
+          RECORDING_CHECK_PID=$!
           cleanup_route() {
             kill "$ROUTE_PID" 2>/dev/null || true
             kill "$LINK_PID" 2>/dev/null || true
+            kill "$RECORDING_CHECK_PID" 2>/dev/null || true
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_route EXIT
@@ -312,6 +315,7 @@ jobs:
             boundary-test.log
             navigation-test.log
             recording-route.log
+            recording-background-check.log
             boundary-route.log
             navigation-route.log
             practice-route.log

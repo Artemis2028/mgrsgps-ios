@@ -422,3 +422,13 @@ and retaining actual CoT accuracy. It is pushed as e6a702f to the companion draf
 458 phone and 34 watch tests, Debug and TAK-enabled unsigned Release builds pass.
 This is policy/build evidence, not a new live server exchange. The watch remains
 a read-only remote-layer receiver; physical and paired guidance gates remain.
+
+## Recording background evidence
+
+The real-location iOS 26.2 recording workflow now requires host-observed journal
+growth while the app stays on Home, before foreground activation. The same
+session grew from 3 to 6 complete saved records in that interval; save/library/map,
+confirmed discard and interrupted recovery through the shared startup worker all
+pass. Eight Python harness cases pass. Recording screenshots remain readable.
+See [recording evidence](track-recording.md). This strengthens simulator evidence;
+physical locked-screen GPS, Data Protection and battery checks remain open.

@@ -82,12 +82,10 @@ append stops queued writes and preserves earlier rows. Recovery drops only an
 incomplete final row; a malformed complete row or metadata file is preserved
 and reported, with explicit discard available.
 
-Final publication must also fit the current finished-data archive's combined
-32 MB / 250,000 track-point budget. If a large existing library prevents saving,
-export/delete finished tracks and retry; the recording journal is retained. This
-archive-based library limit is a current app implementation limit, not an iOS
-platform restriction. Android stores point logs separately. Removing this
-combined-library cap requires further finished-track storage work.
+Finished tracks now use an atomic v2 index and independent point logs, removing
+the former combined archive budget. The per-log application bounds above still
+apply. This is an application limit, not an iOS restriction. See
+[finished-track storage](finished-track-storage.md) for migration and export bounds.
 
 ## Verification
 
@@ -108,7 +106,13 @@ simulator location feed supplied by `scripts/recording-test-route.py`, outside
 the app. It checks background point growth, save/library/map, confirmed discard,
 and process termination/relaunch recovery. CI feeds locations across test app
 reinstalls and relaunches, revokes the screenshot step's Always grant, and verifies
-that the real manager has only While Using authorization.
+that the real manager has only While Using authorization. The host observer
+`scripts/recording_background_check.py` reads the actual append-only journal
+twice while the app stays on Home. Acknowledgements go only into the UI runner's
+temporary directory. The UI test cannot reactivate the app until the observer
+confirms additional complete point records in the same recording session; a
+replacement session, zero starting points or no growth fails the check. This
+excludes fixes received during foreground transitions from the evidence.
 
 A physical locked-screen walk remains required before release: with While Using
 and Precise Location, start a track, walk with the phone locked for at least ten
@@ -163,3 +167,18 @@ locked-screen walk.
 Local finished-library storage now uses an atomic v2 index and independent point
 logs, rather than the bounded backup ZIP. See [migration, limits and validation](finished-track-storage.md).
 The journal is still acknowledged only after successful publication.
+
+## Background journal observation, 26 October
+
+All three recording workflows pass on iOS 26.2 with While Using authorization.
+The host observed the same session grow from 3 to 6 durable points during the
+eight-second Home interval, before the app could reactivate. Saving, library
+details and map overlay checks then passed. Relaunch recovery now exercises the
+shared startup worker and still leaves recording inactive. Confirmed discard
+also passes. Eight Python harness tests pass; these validate the observation
+protocol and route helper, independently of the real Core Location UI evidence.
+
+Evidence: `/tmp/gridfix-ios262-recording-observed.xcresult` (exit 0),
+`/tmp/gridfix-ios262-recording-observed-background-check.log`. The earlier
+foreground-only count comparison is no longer the background proof. The
+physical locked-screen walk and Data Protection checks remain open.
