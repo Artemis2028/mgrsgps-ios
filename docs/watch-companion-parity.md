@@ -90,5 +90,6 @@ relaunch/expiry pass with an explicit standalone fixture. The user subsequently
 paired the dedicated Android simulators: real Data Layer receipt/rendering, clear
 and phone-emulator-off expiry now pass too. Subsequent paired populated-local
 preservation and actual phone-guidance active/unavailable/stop/expiry also pass;
-see [paired validation](wear-paired-validation.md). Named Wear lane crossings and
-physical radio/background checks remain. See [contract, budgets and evidence](watch-tak-layer.md).
+see [paired validation](wear-paired-validation.md). The paired Wear named-left/right/backstop and return-inside round now passes,
+including phone-on-Home delivery and exact bent-limit preservation. Physical
+radio/background/wrist checks remain. See [contract, budgets and evidence](watch-tak-layer.md).

@@ -588,3 +588,19 @@ complete protected-file class (about7.6minutes) from library to map; all tests
 still run exactly once with three workers. The shared Files helper repair and
 map/TAK worker changes are included in the next full hosted candidate; hosted
 green remains unproven. See [CI evidence](ci-field-ui-activation.md).
+
+
+## Paired Wear named-limit delivery
+
+The real dedicated phone/watch pair now verifies INSIDE → OUT_LEFT (Bear Creek),
+return INSIDE, OUT_RIGHT (Ridge Road), return INSIDE, OVERSHOT (Power Line) and
+return INSIDE. The backstop/return phases run while the phone launcher is
+foreground. Native backup restore, target selection and Haptic Guide plus real
+emulator GPS drive the production owner and Data Layer; no watch cache or guide
+decision is injected. Complete bent limits/labels arrive alongside unchanged
+original local features. Native stop/delete and original-target reselection
+restore the original scene, target and local watch overrides. Screenshots
+inspected; both owned emulators and feed are stopped. No server or app-source
+change. See [paired evidence and precise limits](wear-paired-validation.md).
+Physical lock/radio/battery/wrist and independent watch detectors/haptics remain
+open; the earlier watchOS paired named-crossing evidence stays separate.

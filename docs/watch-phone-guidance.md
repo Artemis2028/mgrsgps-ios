@@ -87,3 +87,16 @@ Data Layer checks remain required.
 The later [paired Wear validation](wear-paired-validation.md) verifies actual
 phone-service active/unavailable/stop/expiry delivery through Data Layer with a
 populated local library. Physical and named-crossing Wear checks remain.
+
+
+## Paired Wear named-limit round, 27 October
+
+Actual phone service/GPS and paired Data Layer now deliver INSIDE, named
+OUT_LEFT (Bear Creek), INSIDE, named OUT_RIGHT (Ridge Road), INSIDE, named
+OVERSHOT (Power Line), INSIDE. The backstop and final return run with the phone
+on Home. Native guide stop clears guidance; confirmed lane deletion clears the
+watch lane scene without changing local features. The original scene/target and
+watch overrides are restored afterward. No watch packet or cache was injected.
+See [paired evidence, screenshots and limits](wear-paired-validation.md).
+This does not establish physical lock/wrist behavior, independent watch alerts
+or a new paired NOT_YET case.

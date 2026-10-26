@@ -54,10 +54,67 @@ both emulators were stopped afterward.
 ## Scope
 
 This closes paired simulator populated local/remote preservation and guidance
-active/unavailable/stop/expiry gates. Named lane crossings remain owner/adapter
-and standalone rendering evidence on Wear; the earlier watchOS paired round
-separately covers a named crossing. Physical locked-phone, request-triggered cold
+active/unavailable/stop/expiry gates. Named left/right/backstop crossings and return-inside states now have paired
+Wear service evidence below; the earlier watchOS paired round separately covers
+a named crossing. Physical locked-phone, request-triggered cold
 start, radio/battery and wrist behavior remain open. Watches still do not execute
 their own crossing detectors or background steering haptics. Current source
 unit/build evidence remains 458 phone and 34 Wear tests plus Debug and unsigned
 TAK-enabled Release; this round changes no app source or server configuration.
+
+
+## Named lane crossings through the paired service, 27 October
+
+The same dedicated API 37 phone / round API 34 watch pair now verifies named
+lane states from the real PocketGuideService through actual Data Layer delivery.
+No guide packet, receiver cache or navigation repository was injected. A small
+synthetic backup was chosen through Settings → Restore; it additively imports
+one objective and one lane, leaving settings and the existing local library.
+The generic Open-with ZIP handler routes to text import rather than this backup
+workflow; that first attempt imported nothing.
+
+The lane has three vertices per left/right/backstop line, including bends, and
+labels Bear Creek, Ridge Road and Power Line. The phone's native Navigate button
+selects the objective; its native Haptic Guide button starts guidance. Real
+emulator GPS callbacks produce the following received, active/available states:
+
+| Phase | Watch state | Named crossed limit | Phone status rendered on watch |
+| --- | --- | --- | --- |
+| Inside | INSIDE | None | In the lane · silent |
+| West crossing | OUT_LEFT | Bear Creek | Turn right · two short taps |
+| Return inside | INSIDE | None | In the lane · silent |
+| East crossing | OUT_RIGHT | Ridge Road | Turn left · one long pulse |
+| Return inside | INSIDE | None | In the lane · silent |
+| Beyond backstop, phone on Home | OVERSHOT | Power Line | Turn back · three long pulses |
+| Return inside, phone on Home | INSIDE | None | In the lane · silent |
+
+Each assertion requires a newer guide revision, active=true, available=true,
+the correct lane/objective names and the exact crossedLine (absent inside).
+At the background crossing, dumpsys reports NexusLauncher as foreground. This
+proves simulator Home/background delivery, not physical screen-lock behavior or
+felt haptic patterns. The watch explicitly displays read-only/no watch alerts.
+Night crossing screenshots and the actual map were inspected.
+
+The received map retains every original local feature as an exactly equal decoded
+feature object and all three vertices of each new limit, with the exact
+three labels. The paired map renders the lane with watch GPS and existing
+waypoint/route/track overlays. A native guide stop delivers inactive/unavailable
+and removes lane/target guidance fields. Native confirmed lane deletion sends a
+complete zero-lane scene while retaining all four local features. Native
+objective/empty-folder deletion and original target reselection then restore the
+original three map features, original target and local digit/night/grid overrides.
+The test feed is stopped, apps force-stopped and both owned emulators shut down.
+User pairing and account setup are retained; no server or container is touched.
+
+Evidence: `/tmp/gridfix-wear-lane-{inside,left,inside-after-left,right,inside-after-right,backstop-home,inside-home,stopped,deleted,cleaned}.xml`,
+`/tmp/gridfix-wear-lane-{left,right,backstop-home,map}.png`,
+`/tmp/gridfix-wear-lane-feed.log`,
+`/tmp/gridfix-wear-named-lane-manifest.json`, and the phone UI restore/delete logs.
+`gridfix-wear-lane-receipt.py` controls only the host fake-location feed and reads
+actual receiver preferences; it does not write app decision/state data.
+
+This closes the paired named-left/right/backstop and return-inside Wear gate.
+NOT_YET still has owner/adapter and standalone evidence, rather than a new paired
+case in this round. Physical locked-phone/cold-start/radio/battery/wrist checks
+and independent watch crossing/background haptics remain separate. Source and
+build counts stay at 458 phone / 34 Wear tests; this round changes no app code.
