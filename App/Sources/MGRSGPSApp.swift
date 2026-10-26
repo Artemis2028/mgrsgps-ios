@@ -35,7 +35,9 @@ struct FieldStartupView: View {
                     .statusBarHidden(false)
             } else {
                 VStack(spacing: 14) {
-                    if startup.error == nil { ProgressView().tint(FieldPalette(night: startup.settings.nightMode).accent) }
+                    // Saved appearance is still loading. Keep this temporary
+                    // screen red on black so a night launch cannot flash white.
+                    if startup.error == nil { ProgressView().tint(FieldPalette(night: true).accent) }
                     Text(startup.error == nil ? "Opening saved library…" : "Could not open saved library").font(.headline).accessibilityIdentifier("waypoint-startup-loading")
                     Text(startup.error ?? "Loading your saved maps, library and selected target before navigation starts.").font(.footnote).multilineTextAlignment(.center)
                     if startup.error != nil { Button("Try again") { Task { await startup.load() } }.accessibilityIdentifier("waypoint-startup-retry") }
@@ -45,10 +47,10 @@ struct FieldStartupView: View {
                         Button("Continue loading") { released = true }.accessibilityIdentifier("waypoint-startup-continue")
                     }
                     #endif
-                }.foregroundStyle(FieldPalette(night: startup.settings.nightMode).ink).padding(24).fieldChrome()
+                }.foregroundStyle(FieldPalette(night: true).ink).padding(24).fieldChrome()
                     .padding(16).frame(maxWidth: .infinity,maxHeight: .infinity)
                     .background(Blackout.background.ignoresSafeArea())
-                    .environment(\.fieldNight,startup.settings.nightMode)
+                    .environment(\.fieldNight,true)
                     .preferredColorScheme(.dark)
             }
         }

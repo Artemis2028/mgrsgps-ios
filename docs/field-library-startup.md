@@ -16,6 +16,6 @@ TAK folder sharing distinguishes unknown saved data from deletion. Unreadied/cor
 - Actual background-location recording/save/map and large GPX native Files reopen pass: `/tmp/gridfix-field-startup-recording-files.xcresult`. Files helper acknowledges picker dismissal before retrying an ignored thumbnail tap.
 - Phone/watch/widget Release build passes: `/tmp/gridfix-field-startup-release.log`.
 
-The read still validates every finished log on its worker. This is not lazy metadata-only startup. Per-log limits, settings/other runtime-session startup reads, guarded orphan maintenance, physical storage pressure and full hosted CI remain open. Waypoints, maps, courses and saved navigation now prepare before live service construction; damaged-course archive/reset is also worker-staged. Enrolled real Android/iOS simulator exchange and sustained delivery subsequently passed; physical validation remains separate.
+The read still validates every finished log on its worker. This is not lazy metadata-only startup. Per-log limits, other runtime-session startup reads, guarded orphan maintenance, physical storage pressure and full hosted CI remain open. Settings, waypoints, maps, courses and saved navigation now prepare before live service construction; damaged-course archive/reset is also worker-staged. Enrolled real Android/iOS simulator exchange and sustained delivery subsequently passed; physical validation remains separate.
 
 Saved-map preparation now also runs before the service graph; see [map startup](map-startup.md).

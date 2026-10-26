@@ -109,6 +109,47 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertTrue(maps.preferences.offlineOnly); XCTAssertTrue(maps.pipeline.offlineOnly)
         XCTAssertFalse(maps.preferences.gridEnabled)
     }
+    func testSettingsReadWaitsForWorkerAndPublishesSavedAppearanceWithServices() async throws {
+        let dir = try directory(),saved = AppSettings(directory: dir),gate = StartupReadGate(),attempts = StartupAttemptCounter()
+        saved.nightMode = true; saved.orientation = 3; saved.liveActivitiesEnabled = true
+        saved.hiddenMapTools = ["record"]; saved.mgrsDigits = 4
+        defer { gate.release() }
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { try gate.prepare($0) },prepareSettings: { directory in
+            XCTAssertFalse(Thread.isMainThread); _ = attempts.next()
+            return AppSettings.prepareStartup(directory: directory)
+        })
+        XCTAssertEqual(attempts.count,0,"Constructing the startup view must not read settings")
+        let load = Task { await startup.load() }; try await wait { gate.entered }
+        XCTAssertNil(startup.stores); XCTAssertEqual(attempts.count,1)
+        startup.enqueue(URL(string: "gridfix://recording")!)
+        gate.release(); await load.value
+        let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
+        XCTAssertTrue(stores.settings.nightMode); XCTAssertEqual(stores.settings.orientation,3)
+        XCTAssertTrue(stores.settings.liveActivitiesEnabled); XCTAssertEqual(stores.settings.hiddenMapTools,["record"])
+        XCTAssertEqual(stores.settings.mgrsDigits,4); XCTAssertFalse(stores.navigation.running)
+        XCTAssertEqual(startup.pendingURLs,[URL(string: "gridfix://recording")!])
+    }
+    func testSettingsReplacedDuringPreparationRetryBeforeServicesPublish() async throws {
+        let dir = try directory(),saved = AppSettings(directory: dir),attempts = StartupAttemptCounter()
+        saved.nightMode = false
+        let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepareSettings: { directory in
+            let prepared = AppSettings.prepareStartup(directory: directory)
+            if attempts.next() == 1 {
+                let file = directory!.appendingPathComponent("settings-v1.json")
+                var snapshot = try! JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String:Any]
+                snapshot["nightMode"] = true; snapshot["orientation"] = 2
+                try! JSONSerialization.data(withJSONObject: snapshot).write(to: file,options: .atomic)
+            }
+            return prepared
+        })
+        var publications = 0
+        let subscription = startup.$stores.sink { if $0 != nil { publications += 1 } }
+        defer { subscription.cancel(); startup.stores?.tak.disconnect() }
+        await startup.load()
+        XCTAssertNil(startup.error); XCTAssertEqual(attempts.count,2); XCTAssertEqual(publications,1)
+        XCTAssertTrue(try XCTUnwrap(startup.stores?.settings).nightMode)
+        XCTAssertEqual(startup.stores?.settings.orientation,2)
+    }
     func testWorkerCourseStartupRetainsRunAndSplitsBeforeFieldReadiness() async throws {
         let dir = try directory(),points = WaypointStore(directory: dir)
         let first = points.add(.init(name: "First",lat: 35,lon: -79)),second = points.add(.init(name: "Second",lat: 35.1,lon: -79))

@@ -92,7 +92,7 @@ final class AppSettings: ObservableObject {
     private var revision: UInt64 = 0
     private let identity = UUID()
 
-    private struct Snapshot: Codable, Sendable {
+    fileprivate struct Snapshot: Codable, Sendable {
         var nightMode: Bool
         var mgrsDigits: Int
         var gridSystem: Int?
@@ -121,11 +121,48 @@ final class AppSettings: ObservableObject {
         var disclaimerAccepted: Bool?
     }
 
+    struct PreparedStartup: Sendable {
+        fileprivate let file: URL
+        fileprivate let stamp: SourceStamp?
+        fileprivate let snapshot: Snapshot?
+        func validate() throws {
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+        }
+    }
+    enum StartupFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved settings changed while opening. Try again." }
+    }
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64,inode: UInt64,volume: UInt64
+        let modified: Date?
+        static func read(_ file: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date)
+        }
+    }
+    nonisolated static func prepareStartup(directory: URL? = nil) -> PreparedStartup {
+        let file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("settings-v1.json")
+        let stamp = SourceStamp.read(file)
+        let snapshot = (try? Data(contentsOf: file,options: .mappedIfSafe)).flatMap { try? JSONDecoder().decode(Snapshot.self,from: $0) }
+        return .init(file: file,stamp: stamp,snapshot: snapshot)
+    }
+
     init(directory: URL? = nil) {
-        let dir = directory ?? FileManager.default.urls(for: .documentDirectory,
-                                                         in: .userDomainMask).first!
-        fileURL = dir.appendingPathComponent("settings-v1.json")
-        load()
+        let prepared = Self.prepareStartup(directory: directory)
+        fileURL = prepared.file
+        load(prepared.snapshot)
+        ready = true
+        applyLaunchFace()
+    }
+
+    init(startup: PreparedStartup) throws {
+        try startup.validate()
+        fileURL = startup.file
+        load(startup.snapshot)
         ready = true
         applyLaunchFace()
     }
@@ -155,9 +192,8 @@ final class AppSettings: ObservableObject {
         mgrsDigits = order[(i + 1) % order.count]
     }
 
-    private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let snap = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
+    private func load(_ snapshot: Snapshot?) {
+        guard let snap = snapshot else { return }
         nightMode = snap.nightMode
         mgrsDigits = [4, 6, 8, 10].contains(snap.mgrsDigits) ? snap.mgrsDigits : 10
         gridSystem = snap.gridSystem == 1 ? 1 : 0

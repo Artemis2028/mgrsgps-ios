@@ -38,7 +38,7 @@ final class OrientationWorkflowTests: XCTestCase {
         let flipped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","Current window: Flipped"),object: actual)
         XCTAssertEqual(XCTWaiter.wait(for: [flipped],timeout: 10),.completed); capture("orientation-flipped",app)
         XCUIDevice.shared.orientation = .portrait
-        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
         let pinned = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.width > app.frame.height },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [pinned],timeout: 10),.completed)
         XCUIDevice.shared.orientation = .landscapeRight

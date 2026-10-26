@@ -36,11 +36,11 @@ final class FieldAppStartup: ObservableObject {
     @Published private(set) var stores: FieldAppStores?
     @Published private(set) var error: String?
     @Published private(set) var pendingURLs: [URL] = []
-    let settings: AppSettings
     let holdsForUITest: Bool
     private let configuration: FieldLaunchConfiguration
     private let prepare: @Sendable (URL?) throws -> WaypointStore.PreparedStartup
     private struct PreparedWorkspace: Sendable {
+        let settings: AppSettings.PreparedStartup
         let waypoints: WaypointStore.PreparedStartup
         let maps: MapLayerStore.PreparedStartup
         let course: PracticeCourseStore.PreparedStartup
@@ -49,17 +49,19 @@ final class FieldAppStartup: ObservableObject {
     private var worker: Task<PreparedWorkspace,Error>?
     private var generation = UUID()
     private let prepareMaps: @Sendable (URL?) -> MapLayerStore.PreparedStartup
+    private let prepareSettings: @Sendable (URL?) -> AppSettings.PreparedStartup
 
     init(configuration: FieldLaunchConfiguration = .current(),
          prepare: @escaping @Sendable (URL?) throws -> WaypointStore.PreparedStartup = { try WaypointStore.prepareStartup(directory: $0) },
-         prepareMaps: @escaping @Sendable (URL?) -> MapLayerStore.PreparedStartup = { MapLayerStore.prepareStartup(directory: $0) }) {
+         prepareMaps: @escaping @Sendable (URL?) -> MapLayerStore.PreparedStartup = { MapLayerStore.prepareStartup(directory: $0) },
+         prepareSettings: @escaping @Sendable (URL?) -> AppSettings.PreparedStartup = { AppSettings.prepareStartup(directory: $0) }) {
         self.configuration = configuration; self.prepare = prepare; self.prepareMaps = prepareMaps
+        self.prepareSettings = prepareSettings
         holdsForUITest = configuration.holdsForUITest
-        settings = AppSettings(directory: configuration.directory)
-        OrientationState.shared.prepare(settings.orientation)
         // Existing UI fixture setup stays synchronous. Normal launches and the
         // explicit cold-launch fixtures exercise the worker path below.
         if configuration.seedFixtures {
+            let settings = AppSettings(directory: configuration.directory)
             stores = FieldAppStores(directory: configuration.directory,waypointStore: WaypointStore(directory: configuration.directory),settingsStore: settings,seedFixtures: true)
         }
     }
@@ -74,9 +76,11 @@ final class FieldAppStartup: ObservableObject {
             let task: Task<PreparedWorkspace,Error>,token: UUID
             if let worker { task = worker; token = generation }
             else {
-                let operation = prepare,mapOperation = prepareMaps,directory = configuration.directory
+                let operation = prepare,mapOperation = prepareMaps,settingsOperation = prepareSettings,directory = configuration.directory
                 generation = UUID(); token = generation
                 task = Task.detached(priority: .userInitiated) {
+                    let settings = settingsOperation(directory)
+                    try Task.checkCancellation()
                     let waypoints = try operation(directory)
                     try Task.checkCancellation()
                     let maps = mapOperation(directory)
@@ -85,7 +89,7 @@ final class FieldAppStartup: ObservableObject {
                     let course = try PracticeCourseStore.prepareStartup(directory: courseDirectory)
                     let navigation = NavigationSession.prepareStartup(directory: directory)
                     try Task.checkCancellation()
-                    return PreparedWorkspace(waypoints: waypoints,maps: maps,course: course,navigation: navigation)
+                    return PreparedWorkspace(settings: settings,waypoints: waypoints,maps: maps,course: course,navigation: navigation)
                 }
                 worker = task
             }
@@ -93,9 +97,11 @@ final class FieldAppStartup: ObservableObject {
                 let prepared = try await task.value
                 guard generation == token,!Task.isCancelled,stores == nil else { return }
                 try prepared.navigation.validate()
+                try prepared.settings.validate()
                 let points = try WaypointStore(startup: prepared.waypoints)
                 let course = try PracticeCourseStore(startup: prepared.course)
                 let maps = try MapLayerStore(startup: prepared.maps)
+                let settings = try AppSettings(startup: prepared.settings)
                 stores = FieldAppStores(directory: configuration.directory,waypointStore: points,settingsStore: settings,seedFixtures: false,mapStore: maps,practiceStore: course,navigationStartup: prepared.navigation)
                 worker = nil
                 return
@@ -109,6 +115,9 @@ final class FieldAppStartup: ObservableObject {
             } catch NavigationSession.StartupFailure.changed {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil; changedError = NavigationSession.StartupFailure.changed
+            } catch AppSettings.StartupFailure.changed {
+                guard generation == token,!Task.isCancelled else { return }
+                worker = nil; changedError = AppSettings.StartupFailure.changed
             } catch PracticeCourseStore.StartupFailure.changed {
                 guard generation == token,!Task.isCancelled else { return }
                 worker = nil; changedError = PracticeCourseStore.StartupFailure.changed
