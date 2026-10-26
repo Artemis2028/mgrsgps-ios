@@ -1,3 +1,4 @@
+import Combine
 import CoreLocation
 import GridFixCore
 import XCTest
@@ -53,6 +54,8 @@ final class TrackRecorderIntegrationTests: XCTestCase {
 
     func testBatchedFixesContinueWhenForegroundPositionManagerStopsAndQueuedFixesFinishBeforeSave() async throws {
         let dir = try directory(), field = FieldDataStore(directory: dir), driver = RecordingTestDriver(), clock = RecordingTestClock()
+        let subscription = field.$document.dropFirst().sink { _ in XCTAssertTrue(Thread.isMainThread) }
+        defer { subscription.cancel() }
         let rec = try await recorder(dir, field, driver, clock)
         rec.start(); try await wait { rec.phase == .recording }
         clock.advance(2); driver.onLocations?([clock.location(24)])
@@ -78,6 +81,10 @@ final class TrackRecorderIntegrationTests: XCTestCase {
         try await Task.sleep(nanoseconds: 30_000_000)
         XCTAssertEqual(try field.points(for: track.id).count, 3)
         XCTAssertFalse(try TrackRecordingJournal(directory: dir).hasPendingSession)
+        #if !targetEnvironment(simulator)
+        let attributes = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("field-data-v1.zip").path)
+        XCTAssertEqual(attributes[.protectionKey] as? String,FileProtectionType.completeUntilFirstUserAuthentication.rawValue)
+        #endif
     }
 
     func testPermissionLossStopsAndKeepsSavedPoints() async throws {

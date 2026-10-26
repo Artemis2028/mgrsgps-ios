@@ -85,8 +85,9 @@ and reported, with explicit discard available.
 Final publication must also fit the current finished-data archive's combined
 32 MB / 250,000 track-point budget. If a large existing library prevents saving,
 export/delete finished tracks and retry; the recording journal is retained. This
-archive-based library limit is an iOS storage constraint beyond Android's per-export
-backup limits.
+archive-based library limit is a current app implementation limit, not an iOS
+platform restriction. Android stores point logs separately. Removing this
+combined-library cap requires further finished-track storage work.
 
 ## Verification
 
@@ -124,3 +125,36 @@ behaviour.
 - [Handling background location](https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background)
 - [File protection for background apps](https://developer.apple.com/documentation/uikit/encrypting-your-app-s-files)
 - [Core Location MSL altitude](https://developer.apple.com/documentation/corelocation/cllocation/altitude)
+
+## Worker-staged archive finalization
+
+The Android finishTrack source was rechecked at 56acca2: it computes the complete
+log's statistics and updates its finished metadata through the repository. iOS
+retains its journal-first ordering, but now prepares the complete finished-data
+archive on a worker using FieldDataStore's scoped edit path. Only revision
+verification, atomic rename and Main-thread publication return to the UI actor.
+The journal is acknowledged only after that publication succeeds.
+
+A concurrent library edit discards stale preparation and rebases the recording
+onto the latest document. Repeating recovery after archive publication preserves
+newer folder/visibility metadata when the point bytes already match. A conflicting
+ID never replaces the saved log; archive failure leaves the journal pending.
+Staging uses the existing lock-compatible file protection option. Physical
+Data Protection and locked-screen delivery still require the checks above.
+
+439 core tests pass, including staged/no-early-publication, concurrent graphic
+retention, metadata-preserving retry, failed atomic publication and conflicting
+log bytes with the journal retained. All 194 native cases pass with two unstaged
+opt-in local TAK skips. The recorder's actual document publication is observed
+on Main; existing permission, failure/retry and queued-fix checks still pass.
+
+All three real-location recording UI workflows pass on the single iOS 26.5
+test phone: background point growth/save/library/map, process relaunch recovery
+and confirmed discard. The actual recording sheet and finished details were
+inspected for readable text. Final phone/watch/widget simulator Release passes.
+Evidence: `/tmp/gridfix-recording-staged-native.xcresult`,
+`/tmp/gridfix-recording-staged-core.log`,
+`/tmp/gridfix-recording-staged-release.log` and recording captures under
+`/tmp/gridfix-recording-staged-screens/`. The host feed is stopped and owned
+phone shut down after checks. Simulator Home/background is not a physical
+locked-screen walk.

@@ -40,6 +40,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         case libraryBatch(graphicIDs: Set<String>,trackIDs: Set<String>,action: LibraryBatchAction)
         case changeLibraryFolder(from: String,to: String?,deleteContents: Bool)
         case moveTrack(String,String)
+        case saveRecordedTrack(Backup.Document)
     }
 
     public func saveGraphic(_ graphic: Backup.Graphic) throws { try edit(.saveGraphic(graphic)) }
@@ -120,6 +121,15 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         case let .moveTrack(id,folder):
             guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return nil }
             next.tracks[i].folder = Folders.canonical(folder)
+        case .saveRecordedTrack(let recording):
+            try Backup.validate(recording)
+            guard recording.tracks.count == 1, let track = recording.tracks.first,
+                  let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
+            if next.tracks.contains(where: { $0.id == track.id }) {
+                guard next.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
+                return nil
+            }
+            next.tracks.append(track); next.trackFiles[track.id] = bytes
         }
         return next
     }
@@ -127,17 +137,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     /// Final publication is idempotent after a crash between archive commit and
     /// journal cleanup. Never silently replace a different log with the same ID.
     public func saveRecordedTrack(_ recording: Backup.Document) throws {
-        try Backup.validate(recording)
-        guard recording.tracks.count == 1, let track = recording.tracks.first,
-              let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
-        lock.lock(); defer { lock.unlock() }
-        if document.tracks.contains(where: { $0.id == track.id }) {
-            guard document.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
-            return
-        }
-        var next = document
-        next.tracks.append(track); next.trackFiles[track.id] = bytes
-        try commit(next)
+        try edit(.saveRecordedTrack(recording))
     }
 
     /// Existing IDs win, course results are deduplicated by start/name and the

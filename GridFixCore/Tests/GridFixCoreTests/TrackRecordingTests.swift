@@ -129,6 +129,43 @@ final class TrackRecordingTests: XCTestCase {
         XCTAssertTrue(try TrackRecordingJournal(directory: dir).hasPendingSession)
     }
 
+    func testStagedFinalizationRebasesWithoutLosingConcurrentEditsOrNewerTrackMetadata() throws {
+        let dir = try directory(), j = try journal(dir), store = FieldDataStore(directory: dir)
+        _ = try j.append(sample(meters: 0,seconds: 0))
+        let recording = try XCTUnwrap(j.finish(now: start+1000,name: "Patrol"))
+        let edit = FieldDataStore.Edit.saveRecordedTrack(recording)
+        let stale = try store.restoreSnapshot().prepare(edit: edit)
+        XCTAssertTrue(store.document.tracks.isEmpty)
+        XCTAssertTrue(FieldDataStore(directory: dir).document.tracks.isEmpty)
+        try store.saveGraphic(.init(id: "concurrent",name: "Concurrent line",type: "route",points: [.init(lat: 24,lon: 54),.init(lat: 25,lon: 55)]))
+        XCTAssertFalse(try store.publishEdit(stale))
+        XCTAssertTrue(try store.publishEdit(store.restoreSnapshot().prepare(edit: edit)))
+        XCTAssertEqual(store.document.graphics.count,1); XCTAssertEqual(store.document.tracks.count,1)
+        let id = recording.tracks[0].id
+        try store.setTrackVisible(id,visible: false); try store.moveTrack(id,to: "Later folder")
+        XCTAssertTrue(try store.publishEdit(store.restoreSnapshot().prepare(edit: edit)))
+        XCTAssertFalse(store.document.tracks[0].visible); XCTAssertEqual(store.document.tracks[0].folder,"Later folder")
+        XCTAssertEqual(store.document.trackFiles[id],recording.trackFiles[id])
+        XCTAssertTrue(try TrackRecordingJournal(directory: dir).hasPendingSession,"Only the recorder may acknowledge its journal")
+    }
+
+    func testStagedFailureAndCollisionKeepPendingJournalAndExistingArchive() throws {
+        let dir = try directory(), j = try journal(dir), store = FieldDataStore(directory: dir)
+        _ = try j.append(sample(meters: 0,seconds: 0))
+        let recording = try XCTUnwrap(j.finish(now: start+1000))
+        let path = dir.appendingPathComponent("field-data-v1.zip")
+        try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        XCTAssertThrowsError(try store.publishEdit(store.restoreSnapshot().prepare(edit: .saveRecordedTrack(recording))))
+        XCTAssertTrue(store.document.tracks.isEmpty); XCTAssertTrue(j.hasPendingSession)
+        try FileManager.default.removeItem(at: path)
+        XCTAssertTrue(try store.publishEdit(store.restoreSnapshot().prepare(edit: .saveRecordedTrack(recording))))
+        let archived = try Data(contentsOf: path)
+        var collision = recording
+        collision.trackFiles[recording.tracks[0].id] = try TrackCodec.encode([TrackPoint(lat: 25,lon: 55)])
+        XCTAssertThrowsError(try store.restoreSnapshot().prepare(edit: .saveRecordedTrack(collision)))
+        XCTAssertEqual(try Data(contentsOf: path),archived); XCTAssertTrue(j.hasPendingSession)
+    }
+
     func testEmptyRecordingAndDiscardDoNotCreateSavedTracks() throws {
         let dir = try directory(), j = try journal(dir)
         XCTAssertNil(try j.finish(now: start + 1000, discardEmpty: true))

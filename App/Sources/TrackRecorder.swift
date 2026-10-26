@@ -259,7 +259,7 @@ final class TrackRecorder: ObservableObject {
             let time = millis
             let discardEmpty = recovered || failure != nil
             let document = try await worker.perform { try $0.finish(now: time, name: name, discardEmpty: discardEmpty) }
-            if let document { try fieldData.saveRecordedTrack(document) }
+            if let document { try await FieldEditAction.apply(.saveRecordedTrack(document),to: fieldData) }
             try await worker.perform { try $0.clear() }
             active = nil; phase = .idle
             if recovered { failure = nil }
