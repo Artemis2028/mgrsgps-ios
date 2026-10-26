@@ -9,6 +9,8 @@ struct WaypointsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var maps: MapLayerStore
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var compactLandscape: Bool { verticalSizeClass == .compact }
     @EnvironmentObject private var lanes: NavigationLaneStore
 
     private var preparingOutput: Bool { fieldExport.format != nil || backupTransfer.phase == .exporting }
@@ -57,6 +59,9 @@ struct WaypointsView: View {
     @State private var selecting = false
     @State private var selection = LibrarySelection()
     @State private var deleteSelection = false
+    @State private var choosingFolderActions = false
+    @State private var folderActionTarget: String?
+    @State private var pendingFolderAction: (folder: String,action: String)?
     @State private var folderRequest: LibraryFolderRequest?
     @State private var folderToDelete: String?
     @State private var movingTrack: Backup.TrackMeta?
@@ -88,24 +93,20 @@ struct WaypointsView: View {
                         Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
                     }.padding(.horizontal,20).padding(.vertical,8)
                 }
-                Button { showingLibrary = true } label: {
-                    HStack {
-                        Label("Routes & tracks", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                        Spacer()
-                        Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
-                            .font(.caption).foregroundStyle(palette.inkDim)
-                        Image(systemName: "chevron.right").font(.caption)
-                    }.padding(.horizontal, 20).frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("open-field-library")
-                folderPicker.disabled(preparingOutput || fieldMutation.working)
+                if !compactLandscape { fieldLibraryButton }
+                if compactLandscape {
+                    HStack(spacing: 0) {
+                        folderPicker.frame(maxWidth: .infinity)
+                        searchControls.frame(maxWidth: .infinity)
+                    }.disabled(preparingOutput || fieldMutation.working)
+                } else { folderPicker.disabled(preparingOutput || fieldMutation.working) }
                 if !lanes.lanes.isEmpty {
                     Button { showingLanes = true } label: {
                         HStack { Text("Navigation lanes · \(lanes.lanes.count)"); Spacer(); Image(systemName: "chevron.right") }
                             .padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
                     }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("library-nav-lanes")
                 }
-                searchControls.disabled(preparingOutput || fieldMutation.working)
+                if !compactLandscape { searchControls.disabled(preparingOutput || fieldMutation.working) }
                 libraryCaption.disabled(preparingOutput || fieldMutation.working)
                 if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
                 if let error = fieldMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20) }
@@ -172,6 +173,15 @@ struct WaypointsView: View {
         .sheet(isPresented: $choosingLibraryActions,onDismiss: runLibraryAction) {
             FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title,enabled: ($0 != .backup || backupTransfer.phase == nil) && ($0 != .export || !exportUnavailable)) },night: settings.nightMode) { id in
                 pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
+            }
+        }
+        .sheet(isPresented: $choosingFolderActions,onDismiss: runFolderAction) {
+            FieldChoiceSheet(title: "Folder options",choices: [
+                .init(id: "rename",title: "Rename folder"),
+                .init(id: "delete",title: "Delete folder",destructive: true)
+            ],night: settings.nightMode) { action in
+                if let folder = folderActionTarget { pendingFolderAction = (folder,action) }
+                choosingFolderActions = false
             }
         }
         .sheet(isPresented: $showingRecovery) { WaypointRecoveryView() }
@@ -293,11 +303,14 @@ struct WaypointsView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Waypoints").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                Text("\(store.waypoints.count) saved · on this device")
-                    .font(.subheadline).foregroundStyle(palette.inkDim)
+                Text("Waypoints").font(.system(compactLandscape ? .title2 : .largeTitle, design: .rounded, weight: .bold))
+                if !compactLandscape {
+                    Text("\(store.waypoints.count) saved · on this device")
+                        .font(.subheadline).foregroundStyle(palette.inkDim)
+                }
             }
             Spacer()
+            if compactLandscape { fieldLibraryButton }
             Button { choosingLibraryActions = true } label: {
                 Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
             }
@@ -311,8 +324,27 @@ struct WaypointsView: View {
             .accessibilityIdentifier("add-waypoint")
         }
         .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
+        .padding(.top, compactLandscape ? 0 : 18)
+        .padding(.bottom, compactLandscape ? 0 : 12)
+    }
+
+    private var fieldLibraryButton: some View {
+        Button { showingLibrary = true } label: {
+            if compactLandscape {
+                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                    .frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
+            } else {
+                HStack {
+                    Label("Routes & tracks",systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    Spacer()
+                    Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
+                        .font(.caption).foregroundStyle(palette.inkDim)
+                    Image(systemName: "chevron.right").font(.caption)
+                }.padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
+            }
+        }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working)
+            .accessibilityLabel("Routes & tracks, \(listing.snapshot?.routeCount ?? 0) routes, \(fieldData.document.tracks.count) tracks")
+            .accessibilityIdentifier("open-field-library")
     }
 
     private var empty: some View {
@@ -403,9 +435,8 @@ struct WaypointsView: View {
                         Image(systemName: folder.visible ? "eye" : "eye.slash").frame(minWidth: 44,minHeight: 44)
                     }.accessibilityLabel(folder.visible ? "Hide folder" : "Show folder").accessibilityIdentifier("folder-visibility-\(folder.name)")
                     if folder.name != Folders.defaultFolder {
-                        Menu {
-                            Button("Rename folder") { folderRequest = LibraryFolderRequest(original: folder.name) }
-                            Button("Delete folder",role: .destructive) { folderToDelete = folder.name }
+                        Button {
+                            folderActionTarget = folder.name; choosingFolderActions = true
                         } label: { Image(systemName: "folder.badge.gearshape").frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Folder options")
                     }
                 }
@@ -695,6 +726,16 @@ struct WaypointsView: View {
             case .failure(let error): status = "Export failed: " + error.localizedDescription
             }
         }
+    }
+
+    private func runFolderAction() {
+        defer { pendingFolderAction = nil; folderActionTarget = nil }
+        guard let action = pendingFolderAction, action.folder != Folders.defaultFolder,
+              store.folders.contains(where: { $0.name == action.folder }) else { return }
+        // Present the editor/confirmation only after the choice sheet finishes
+        // dismissing. Native popup activation can leave an older iOS menu open.
+        if action.action == "rename" { folderRequest = LibraryFolderRequest(original: action.folder) }
+        else if action.action == "delete" { folderToDelete = action.folder }
     }
 
     private func runSelectionAction() {

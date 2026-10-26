@@ -5,6 +5,7 @@ final class WaypointWorkflowTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-startTab", "waypoints"]
         app.launch()
@@ -15,6 +16,10 @@ final class WaypointWorkflowTests: XCTestCase {
             }
             return false
         }
+    }
+
+    override func tearDownWithError() throws {
+        XCUIDevice.shared.orientation = .portrait
     }
 
     func testCoordinateEntryMapNavigationAndFolderVisibility() {
@@ -49,7 +54,7 @@ final class WaypointWorkflowTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         replace(name,with: "Southern point")
         XCTAssertFalse(app.buttons["waypoint-save"].isEnabled)
-        app.segmentedControls.buttons["Lat / Lon"].tap()
+        tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
         let latitude = app.textFields["waypoint-latitude"]
         XCTAssertTrue(latitude.waitForExistence(timeout: 5))
         replace(latitude,with: "-91")
@@ -63,7 +68,7 @@ final class WaypointWorkflowTests: XCTestCase {
         let edit = app.buttons["edit-waypoint-Southern point"]
         XCTAssertTrue(edit.waitForExistence(timeout: 5))
         edit.tap()
-        app.segmentedControls.buttons["Lat / Lon"].tap()
+        tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
         XCTAssertEqual(app.textFields["waypoint-latitude"].value as? String, "-33.8688")
         replace(app.textFields["waypoint-latitude"], with: "-34.0")
         app.buttons["waypoint-save"].tap()
@@ -72,7 +77,7 @@ final class WaypointWorkflowTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["edit-waypoint-Southern point"].waitForExistence(timeout: 5))
         app.buttons["edit-waypoint-Southern point"].tap()
-        app.segmentedControls.buttons["Lat / Lon"].tap()
+        tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
         XCTAssertEqual(app.textFields["waypoint-latitude"].value as? String, "-34.0")
     }
 
@@ -93,7 +98,9 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["Settings"].tap()
         let night = app.switches["Red-on-black, to keep night vision"]
         XCTAssertTrue(night.waitForExistence(timeout: 5))
-        night.tap()
+        tapNativeSwitch(night)
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","1"),object: night)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled],timeout: 5),.completed,night.debugDescription)
         XCTAssertTrue(app.buttons["Done"].exists, "Changing night mode must preserve the settings sheet")
         app.buttons["Done"].tap()
         XCTAssertFalse(app.tabBars.buttons["Waypoints"].exists, "Night mode uses only the opaque field bar")
@@ -101,17 +108,35 @@ final class WaypointWorkflowTests: XCTestCase {
         addWaypoint(name: "Night point", grid: "40R BN 3412 0700")
         capture("waypoints-night")
         XCUIDevice.shared.orientation = .landscapeLeft
+        let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            let frame = self.app.windows.firstMatch.frame
+            return frame.width > frame.height
+        },object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [rotated],timeout: 8),.completed,app.debugDescription)
         // A real interaction waits for rotation/layout to settle before the
         // screenshot; existence alone can succeed during the transition.
         app.buttons["All"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-Night point"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["add-waypoint"].isHittable)
         capture("waypoints-landscape")
+        // Older iOS can expose invalid activation points after rotation even
+        // for visible controls. Exercise the actual frames and verify results.
+        tapNativeMenuItem(app.buttons["edit-waypoint-Night point"])
+        XCTAssertTrue(app.textFields["waypoint-name"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["waypoint-name"].value as? String,"Night point")
+        tapNativeMenuItem(app.buttons["Cancel"])
+        tapNativeMenuItem(app.buttons["add-waypoint"])
+        XCTAssertTrue(app.textFields["waypoint-name"].waitForExistence(timeout: 5))
+        tapNativeMenuItem(app.buttons["Cancel"])
+        tapNativeMenuItem(app.buttons["open-field-library"])
+        XCTAssertTrue(app.buttons["create-route"].waitForExistence(timeout: 5))
+        tapNativeMenuItem(app.buttons["Done"])
         XCUIDevice.shared.orientation = .portrait
         app.buttons["Position"].tap()
         app.buttons["Settings"].tap()
         XCTAssertTrue(night.waitForExistence(timeout: 5))
-        night.tap()
+        tapNativeSwitch(night)
+        let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","0"),object: night)
+        XCTAssertEqual(XCTWaiter.wait(for: [disabled],timeout: 5),.completed,night.debugDescription)
         app.buttons["Done"].tap()
         XCTAssertTrue(app.tabBars.buttons["Waypoints"].waitForExistence(timeout: 5))
     }
@@ -212,7 +237,7 @@ final class WaypointWorkflowTests: XCTestCase {
     }
 
     private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

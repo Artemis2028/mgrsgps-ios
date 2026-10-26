@@ -77,3 +77,62 @@ The final local bundle `/tmp/gridfix-ci-library-projection-final-20261026.xcresu
 passes all five existing library search and projection workflows on iOS 26.5.
 The earlier replay passed the three library cases but still dismissed the night
 projection editor; that failed bundle is not counted as a passing run.
+
+## Sharded run 79 follow-up
+
+Hosted run `40244289326` completed all shards without the former timeout.
+The map job passed. Library reported night folder Rename, decimal coordinate
+selection and the night-mode switch workflow; field reported the real-location
+practice workflow. The remaining assertions are retained.
+
+The actual hosted night-library recording shows Rename still in its popup
+after the tap. Folder options now use the existing native scrolling field
+choice sheet, with red/black night appearance. Rename or confirmed deletion
+starts after the choice sheet dismisses; cancellation performs no action and
+the captured folder is revalidated. This avoids nested popup presentation.
+The folder-chip long-press context menu retains its existing shortcuts.
+
+Coordinate segment taps use the validated visible frame, matching the existing
+projection/save-retry workflows. Night-mode taps target the switch value side
+and assert the resulting value before dismissing Settings. Save rejection,
+corrected coordinates, edit/relaunch, opaque night navigation and day restoration
+remain checked. Landscape captures now use the whole display, with an explicit
+landscape-window wait; a rotated application-only screenshot could be clipped.
+
+The hosted practice failure already displayed Course complete and the completed
+banner: real fixes continued during native UI setup. Only this live-feed start
+check now accepts progress or an already completed result. The two scored
+points, completion, summary dismissal and persisted practice log are still
+required; other setup tests still require the progress state.
+
+Local `/tmp/gridfix-ci79-final.xcresult` passes all four former hosted failures
+on the same iOS 26.5 phone, including the real simulator-location feed.
+The subsequent folder-sheet checks are recorded separately below. The first
+three-case replay executed successfully but stalled gathering simulator
+diagnostics; that diagnostic subprocess was stopped and it is not the final
+evidence. A subsequent folder replay caught a native confirmation tap that
+left Keep contents in Base visible; it now uses the validated frame helper.
+No assertion or test class was excluded. Full hosted green remains required.
+
+The final choice-sheet bundle `/tmp/gridfix-ci79-choices-final.xcresult` passes
+the night cancellation/rename workflow, full mixed-folder rename/delete-keeping-
+contents persistence workflow and night/landscape/day-restoration workflow.
+Screenshots confirm the new red/black choice sheet. Full-display capture exposed
+a separate compact-height problem: the portrait header and vertically stacked
+filters left no visible record in landscape. Compact-height phones now put
+Routes & tracks in the header and folders/search alongside each other, preserving
+44-point controls and the ordinary portrait layout. The landscape regression
+now opens the saved waypoint, Add and Routes & tracks through their visible
+frames and verifies each resulting editor/library. It resets device orientation
+in setup and teardown so a failed rotation cannot leak into the next test.
+XCTest can report invalid activation points for these visible controls after
+rotation; actual interactions and results provide the check instead.
+
+Final compact-layout bundle
+`/tmp/gridfix-ci79-landscape-actions-final.xcresult` passes the expanded native
+night/landscape/day workflow. The landscape screenshot shows the complete
+waypoint row below folders/search, with all four night navigation buttons and
+header actions visible. Actual frame taps open the existing waypoint editor,
+new-waypoint editor and Routes & tracks library. Screenshots were inspected.
+The final phone/watch/widget simulator Release build passes. Hosted CI still
+needs a complete pass on the pushed revision.
