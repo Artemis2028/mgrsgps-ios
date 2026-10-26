@@ -21,9 +21,10 @@ bytes remain untouched at startup and show the existing preferences error.
 Unreadable sharing history retains the existing folder-sharing-disabled state,
 preserving its bytes rather than forgetting previously sent remote items.
 
-Ordinary preference/history writes and import/enrollment transactions retain
-their existing behavior. This change does not add automatic connection,
-enrollment, repair of damaged files, or network tests.
+The startup change retains ordinary preference/history writes and the existing
+import/enrollment transactions. Preference publication is subsequently tightened
+as described below. Neither change adds automatic connection, enrollment,
+repair of damaged files, or a live network test.
 
 ## Validation, 26 October
 
@@ -41,3 +42,34 @@ Evidence: `/tmp/gridfix-tak-startup-final.xcresult` and
 The earlier independently verified enrolled Android/iOS simulator exchange
 remains separate evidence; physical lock-screen behavior, renewal and crash
 recovery still need their own checks.
+
+
+## Preference publication after successful saves
+
+Callsign, shared-folder and remote-layer choices now publish after the profile
+write succeeds. A failed new folder opt-in keeps it unselected and does not
+trigger reconciliation. A failed withdrawal stays visibly selected with an
+error, so the UI does not imply a durable withdrawal. Retrying after storage is
+available writes and publishes the intended choice.
+
+Certificate approval follows the same rule: if the pin cannot be saved, the
+prior pin and approval prompt remain, and no reconnect starts. Explicit retry
+can save the pin and connect. The existing TLS chain/expiry/hostname/pin checks
+remain in force. These small writes still run on Main; moving persistence off
+Main requires serialized publication and is separate work.
+
+
+Final validation: all 283 native cases pass with four unstaged opt-in checks
+skipped. New fault cases replace the profile destination with a directory and
+verify unchanged callsign/folder/visibility, failed withdrawal still selected,
+explicit retry/reopen, and failed pin approval retaining the prompt without a
+new transport start. Existing sharing deletion/reconnect and trust-reset tests
+also pass. All three selected UI workflows pass: day/night invalid-port forms
+and the separate remote-layer focus/night preview. Screenshots inspected; final
+unsigned device Release passes. No live server was contacted.
+
+Evidence: `/tmp/gridfix-tak-preference-final.xcresult`,
+`/tmp/gridfix-tak-preference-final-images/manifest.json`, and
+`/tmp/gridfix-tak-preference-release.log`. The final test parent exits 0 naturally.
+An earlier 282-case run completed every test before its owned post-test simctl
+diagnostic was shortened; that parent also finalized exit 0.

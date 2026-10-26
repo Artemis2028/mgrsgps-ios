@@ -44,6 +44,39 @@ private final class TAKTestTransport: TAKTransportDriving {
         XCTAssertFalse(session.connected); XCTAssertFalse(session.connecting); XCTAssertFalse(session.sharePosition)
         XCTAssertEqual(transport.starts,0); XCTAssertEqual(location.starts,0); XCTAssertNil(session.failure)
     }
+    func testPreferenceWriteFailurePreservesChoicesAndRetryPersistsThem() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try TAKLocalStore(root: root)
+        let transport = TAKTestTransport()
+        let session = TAKSession(directory: root,transport: transport,driver: TAKTestLocation(),startTimer: false)
+        let original = session.profile
+        let file = store.directory.appendingPathComponent("profile.json")
+        let bytes = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        session.setCallsign("CHANGED CAFÉ")
+        session.setFolderShared("Base",shared: true)
+        session.setRemoteVisible(false)
+        XCTAssertEqual(session.profile.callsign,original.callsign)
+        XCTAssertEqual(session.sharedFolders,[])
+        XCTAssertEqual(session.profile.showRemote,original.showRemote)
+        XCTAssertNotNil(session.failure); XCTAssertEqual(transport.starts,0); XCTAssertTrue(transport.sends.isEmpty)
+        try FileManager.default.removeItem(at: file); try bytes.write(to: file,options: .atomic)
+        session.setCallsign("CHANGED CAFÉ"); session.setFolderShared("Base",shared: true); session.setRemoteVisible(false)
+        let reopened = try store.readProfile()
+        XCTAssertEqual(reopened.callsign,"CHANGED CAFÉ"); XCTAssertEqual(reopened.sharedFolders,["Base"])
+        XCTAssertFalse(reopened.showRemote); XCTAssertEqual(reopened.uid,original.uid)
+        let saved = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        session.setFolderShared("Base",shared: false)
+        XCTAssertEqual(session.sharedFolders,["Base"],"Failed withdrawal must stay visibly selected with an error")
+        try FileManager.default.removeItem(at: file); try saved.write(to: file,options: .atomic)
+        session.setFolderShared("Base",shared: false)
+        XCTAssertEqual(try store.readProfile().sharedFolders,[])
+    }
+
     func testPreparedFirstInstallHasStableIdentityAndNoSpuriousChange() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -296,6 +329,29 @@ private final class TAKTestTransport: TAKTransportDriving {
         XCTAssertEqual(transport.sends.filter { $0.contains("type=\"t-x-d-d\"") }.count,2)
         XCTAssertNil(second.sharingWaitMessage); XCTAssertTrue(try local.readSent(profile: second.profile).isEmpty)
     }
+    func testCertificateApprovalWriteFailureKeepsPromptAndDoesNotReconnectUntilRetry() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let store = try TAKLocalStore(root: root),transport = TAKTestTransport()
+        let session = TAKSession(directory: root,transport: transport,driver: TAKTestLocation(),startTimer: false)
+        defer { session.disconnect(); try? store.deleteCredentials(session.profile.credentialID ?? session.profile.uid); try? FileManager.default.removeItem(at: root) }
+        await session.importPackage(package()); session.connect(); await drain()
+        XCTAssertEqual(transport.starts,1)
+        let certificate = TAKServerTrust.Certificate(subject: "Local fixture",names: ["opentakserver"],sha256: "synthetic-pin")
+        transport.callback?(.trustRequired(certificate)); await drain()
+        XCTAssertEqual(session.trustRequest,certificate)
+        let file = store.directory.appendingPathComponent("profile.json"),bytes = try Data(contentsOf: store.directory.appendingPathComponent("profile.json"))
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        session.approveCertificate(); await drain()
+        XCTAssertNil(session.profile.pin); XCTAssertEqual(session.trustRequest,certificate)
+        XCTAssertEqual(transport.starts,1); XCTAssertFalse(session.connecting)
+        XCTAssertEqual(session.failure,"Unable to save the certificate pin")
+        try FileManager.default.removeItem(at: file); try bytes.write(to: file,options: .atomic)
+        session.approveCertificate(); await drain()
+        XCTAssertNil(session.trustRequest); XCTAssertEqual(session.profile.pin,certificate.sha256)
+        XCTAssertEqual(try store.readProfile().pin,certificate.sha256); XCTAssertEqual(transport.starts,2)
+    }
+
     func testExplicitTrustResetDisconnectsStopsLocationAndDoesNotReconnectSilently() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = try TAKLocalStore(root: root)

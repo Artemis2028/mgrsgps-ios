@@ -143,15 +143,17 @@ final class TAKSession: ObservableObject {
     func setCallsign(_ value: String) {
         let name = String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
         guard !name.isEmpty else { return }
-        profile.callsign = name; saveProfile(); lastPresence = nil
+        var next = profile; next.callsign = name
+        guard saveProfile(next) else { return }; lastPresence = nil
     }
     func setFolderShared(_ folder: String, shared: Bool) {
         var folders = sharedFolders
         if shared { folders.insert(folder) } else { folders.remove(folder) }
-        profile.sharedFolders = folders; saveProfile(); lastShareCheck = nil; tick()
+        var next = profile; next.sharedFolders = folders
+        guard saveProfile(next) else { return }; lastShareCheck = nil; tick()
         if folders.isEmpty { sharingWaitMessage = nil }
     }
-    func setRemoteVisible(_ value: Bool) { profile.showRemote = value; saveProfile() }
+    func setRemoteVisible(_ value: Bool) { var next = profile; next.showRemote = value; _ = saveProfile(next) }
     func connect() {
         guard configured, !desired else { return }
         desired = true; failure = nil; backoff = 1; retryAt = nil
@@ -166,8 +168,8 @@ final class TAKSession: ObservableObject {
     }
     func approveCertificate() {
         guard let request = trustRequest else { return }
-        profile.pin = request.sha256
-        do { try store?.write(profile) } catch { failure = "Unable to save the certificate pin"; return }
+        var next = profile; next.pin = request.sha256
+        guard saveProfile(next,failureMessage: "Unable to save the certificate pin") else { return }
         trustRequest = nil; connect()
     }
     func declineCertificate() { trustRequest = nil; disconnect() }
@@ -338,8 +340,13 @@ final class TAKSession: ObservableObject {
         default: failure = "Location permission is required to share your position"; fix = nil
         }
     }
-    private func saveProfile() {
-        do { try store?.write(profile) } catch { failure = "Unable to save TAK preferences" }
+    /// Publish choices only after durable storage succeeds. A failed sharing
+    /// toggle must not advertise data using a choice that will vanish at restart.
+    private func saveProfile(_ next: TAKProfile,failureMessage: String = "Unable to save TAK preferences") -> Bool {
+        do {
+            guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
+            try store.write(next); profile = next; return true
+        } catch { failure = failureMessage; return false }
     }
     #if DEBUG
     func seedMapPreview() {
