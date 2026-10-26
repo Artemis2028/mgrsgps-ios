@@ -174,3 +174,13 @@ after pinned Flipped relaunch, then Auto rotation. Five focused UI workflows pas
 12 related native tests and the expanded night reminder workflow pass on final
 source. See [hosted diagnostics and local evidence](ci-field-ui-activation.md).
 Full hosted CI and physical locked-screen validation remain gates.
+
+
+### Random course checkpoint writes
+
+Random generation and checkpoint-library staging now run on workers, retaining
+one proposal across retry/rebase. The course clock starts after library commit;
+later course-save retry never regenerates points or restores deleted checkpoints.
+End retains the saved points, matching Android. See [checkpoint ordering and
+validation](practice-checkpoint-persistence.md). Practice target-lock library
+writes and startup/damaged-course recovery remain work.

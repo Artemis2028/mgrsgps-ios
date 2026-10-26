@@ -81,3 +81,8 @@ use synchronous full-library writes. Course startup reads, damaged-session copy,
 large-course list/eligibility rendering and physical storage/background/field
 validation remain work. The common course-file mutations have moved off-main;
 this does not close the full parity or release goal.
+
+
+Random checkpoint generation/library writes have since moved to workers; see
+[checkpoint persistence](practice-checkpoint-persistence.md). Target-lock library
+writes, startup reads and damaged-course preservation remain synchronous.

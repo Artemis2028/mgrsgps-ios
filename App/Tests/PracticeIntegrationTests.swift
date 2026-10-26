@@ -135,6 +135,62 @@ final class PracticeIntegrationTests: XCTestCase {
         course.end(expectedRunID: course.active?.runID); try await wait { !course.working }
         XCTAssertEqual(f.waypoints.waypoints.map(\.id),ids)
     }
+    func testRandomLibraryWorkerRebasesWithoutPublishingBeforeAcknowledgement() async throws {
+        let f = try fixture(), gate = PracticePointsGate(); var wall = 1000.0
+        gate.arm()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 },preparePoints: { try gate.prepare($0,$1) })
+        course.startRandom(count: 3,radius: 500,fix: fix(f.first)); try await wait { gate.entered }
+        XCTAssertTrue(course.working); XCTAssertNil(course.active); XCTAssertEqual(f.waypoints.waypoints.count,2)
+        XCTAssertNil(PracticeCourseStore(directory: f.directory).active)
+        try f.waypoints.setFavorite(id: f.first.id,favorite: true)
+        course.startRandom(count: 5,radius: 1000,fix: fix(f.first))
+        wall = 1100; gate.release(); try await wait { !course.working }
+        XCTAssertEqual(f.waypoints.waypoints.count,5); XCTAssertTrue(f.waypoints.waypoints[0].favorite)
+        XCTAssertEqual(course.active?.startedAt,1_100_000)
+        XCTAssertEqual(course.active?.waypointIDs,gate.proposals.first)
+        XCTAssertTrue(gate.proposals.count >= 2); XCTAssertTrue(gate.proposals.allSatisfy { $0 == gate.proposals.first })
+        XCTAssertEqual(WaypointStore(directory: f.directory).waypoints,f.waypoints.waypoints)
+    }
+    func testRandomLibraryFailureRetainsProposalAndExplicitRetryDoesNotRescatter() async throws {
+        let f = try fixture(), gate = PracticePointsGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,uptime: { 100 },preparePoints: { try gate.prepare($0,$1) })
+        let path = f.directory.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        course.startRandom(count: 3,radius: 500,fix: fix(f.first)); try await wait { !course.working }
+        XCTAssertEqual(f.waypoints.waypoints.count,2); XCTAssertNil(course.active)
+        XCTAssertTrue(course.hasPendingWrite); XCTAssertTrue(course.canCancelStart); XCTAssertFalse(course.locked)
+        let proposal = try XCTUnwrap(gate.proposals.first)
+        course.setForeground(true); course.receive(fix(f.first)); course.reconcile()
+        XCTAssertEqual(gate.proposals.count,1)
+        try FileManager.default.removeItem(at: path); course.retryWrite(); try await wait { !course.working }
+        XCTAssertFalse(course.hasPendingWrite); XCTAssertEqual(course.active?.waypointIDs,proposal)
+        XCTAssertEqual(gate.proposals,[proposal,proposal]); XCTAssertEqual(f.waypoints.waypoints.count,5)
+    }
+    func testCancellingUnsavedRandomProposalDoesNotCreateFolderOrPoints() async throws {
+        let f = try fixture(), course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,uptime: { 100 })
+        let path = f.directory.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        course.startRandom(count: 3,radius: 500,fix: fix(f.first)); try await wait { !course.working }
+        XCTAssertTrue(course.hasPendingWrite); course.cancelPendingStart()
+        XCTAssertFalse(course.hasPendingWrite); XCTAssertEqual(f.waypoints.waypoints.count,2)
+        XCTAssertEqual(f.waypoints.folders.map(\.name).sorted(),["Base","Drill"])
+        try FileManager.default.removeItem(at: path); course.retryWrite()
+        XCTAssertNil(course.active); XCTAssertEqual(f.waypoints.waypoints.count,2)
+        course.startFolder("Drill"); try await wait { !course.working }; XCTAssertNotNil(course.active)
+    }
+    func testCourseSaveRetryDoesNotResurrectDeletedGeneratedCheckpoint() async throws {
+        let f = try fixture(), gate = PracticePointsGate()
+        let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,uptime: { 100 },preparePoints: { try gate.prepare($0,$1) })
+        let path = f.directory.appendingPathComponent("practice-course-v1.json")
+        try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
+        course.startRandom(count: 3,radius: 500,fix: fix(f.first)); try await wait { !course.working }
+        let proposal = try XCTUnwrap(gate.proposals.first), deleted = proposal[1]
+        f.waypoints.delete(ids: [deleted]); try FileManager.default.removeItem(at: path)
+        course.retryWrite(); try await wait { !course.working }
+        XCTAssertEqual(gate.proposals.count,1); XCTAssertEqual(f.waypoints.waypoints.count,4)
+        XCTAssertEqual(course.active?.missingIDs,[deleted]); XCTAssertTrue(course.active?.paused == true)
+        XCTAssertNil(f.waypoints.selectedId); XCTAssertTrue(f.waypoints.practiceNavigationLocked)
+    }
     func testFailedScoreRetryKeepsAcceptedTimeAndDoesNotRetryFromTimers() async throws {
         let f = try fixture(); var wall = 1000.0, buzzes = 0
         let course = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation,now: { Date(timeIntervalSince1970: wall) },uptime: { 100 },scoreFeedback: { buzzes += 1 })
@@ -317,5 +373,21 @@ private final class PracticeSaveGate: @unchecked Sendable {
         defer { if block { lock.lock(); didReturn = true; lock.unlock() } }
         if block, semaphore.wait(timeout: .now()+5) != .success { throw PracticeCourseError.invalid("Test course gate timed out") }
         return try snapshot.prepare(value)
+    }
+}
+
+private final class PracticePointsGate: @unchecked Sendable {
+    private let lock = NSLock(), semaphore = DispatchSemaphore(value: 0)
+    private var armed = false, didEnter = false
+    private var recorded: [[String]] = []
+    var entered: Bool { lock.lock(); defer { lock.unlock() }; return didEnter }
+    var proposals: [[String]] { lock.lock(); defer { lock.unlock() }; return recorded }
+    func arm() { lock.lock(); armed = true; lock.unlock() }
+    func release() { semaphore.signal() }
+    func prepare(_ snapshot: WaypointStore.RestoreSnapshot,_ edit: WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints {
+        XCTAssertFalse(Thread.isMainThread)
+        lock.lock(); recorded.append(edit.ids); let block = armed; armed = false; if block { didEnter = true }; lock.unlock()
+        if block, semaphore.wait(timeout: .now()+5) != .success { throw PracticeCourseError.invalid("Test library gate timed out") }
+        return try snapshot.preparePracticePoints(edit)
     }
 }

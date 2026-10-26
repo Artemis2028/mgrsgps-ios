@@ -11,6 +11,7 @@ final class PracticeSession: ObservableObject {
     @Published private(set) var working = false
     private enum Write {
         case start(PracticeCourse)
+        case random(WaypointStore.PracticePointsEdit,String)
         case reconcile(PracticeCourse)
         case score(previous: PracticeCourse,next: PracticeCourse,target: Waypoint)
         case end(String)
@@ -22,8 +23,11 @@ final class PracticeSession: ObservableObject {
     private var targetWriteFailed = false
     private let scoreFeedback: @MainActor () -> Void
     private let prepareCourse: @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave
+    private let preparePoints: @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints
     var hasPendingWrite: Bool { pendingWrite != nil || targetWriteFailed }
-    var canCancelStart: Bool { if case .start = pendingWrite { return saved.active == nil }; return false }
+    var canCancelStart: Bool {
+        switch pendingWrite { case .start, .random: return saved.active == nil; default: return false }
+    }
     private var finalization: Task<Void,Never>?
     private var failedFinalizationRunID: String?
     @Published private(set) var error: String?
@@ -42,9 +46,10 @@ final class PracticeSession: ObservableObject {
     init(directory: URL?,waypoints: WaypointStore,field: FieldDataStore,navigation: NavigationSession,
          now: @escaping () -> Date = Date.init,uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          prepareCourse: @escaping @Sendable (PracticeCourseStore.SaveSnapshot,PracticeCourse?) throws -> PracticeCourseStore.PreparedSave = { try $0.prepare($1) },
+         preparePoints: @escaping @Sendable (WaypointStore.RestoreSnapshot,WaypointStore.PracticePointsEdit) throws -> WaypointStore.PreparedPracticePoints = { try $0.preparePracticePoints($1) },
          scoreFeedback: @escaping @MainActor () -> Void = { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }) {
         saved = PracticeCourseStore(directory: directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!)
-        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.scoreFeedback = scoreFeedback
+        self.waypoints = waypoints; self.field = field; self.navigation = navigation; self.now = now; self.uptime = uptime; self.prepareCourse = prepareCourse; self.preparePoints = preparePoints; self.scoreFeedback = scoreFeedback
         active = saved.active; error = saved.loadError
         waypoints.$waypoints.sink { [weak self] _ in Task { @MainActor in self?.reconcile() } }.store(in: &subscriptions)
         reconcile()
@@ -59,14 +64,32 @@ final class PracticeSession: ObservableObject {
     }
     func startRandom(count: Int,radius: Int,fix: Fix?) {
         guard !locked, !hasPendingWrite else { return }
-        do {
-            guard let fix, NavigationFixPolicy.isUsable(lat: fix.lat,lon: fix.lon,accuracyMeters: fix.accuracyMeters,timestampUptime: fix.timestampUptime,nowUptime: uptime()) else { throw PracticeCourseError.invalid("A recent, precise GPS fix is required to scatter checkpoints.") }
-            let points = try PracticeCourseGenerator.scatter(origin: .init(lat: fix.lat,lon: fix.lon),count: count,radius: radius)
-            let folder = "Course "+String(Format.dtg(now()).prefix(7))
-            let added = try waypoints.addPracticePoints(folder: folder,points: points)
-            do { try begin(name: folder,ids: added.map(\.id)) }
-            catch { throw PracticeCourseError.invalid("Checkpoints were saved in \(folder), but the course could not start: \(error.localizedDescription)") }
-        } catch { self.error = error.localizedDescription }
+        guard let fix, NavigationFixPolicy.isUsable(lat: fix.lat,lon: fix.lon,accuracyMeters: fix.accuracyMeters,timestampUptime: fix.timestampUptime,nowUptime: uptime()) else {
+            error = "A recent, precise GPS fix is required to scatter checkpoints."; return
+        }
+        let origin = GeoPoint(lat: fix.lat,lon: fix.lon), date = now()
+        let createdAt = Int64(date.timeIntervalSince1970*1000)
+        let folder = "Course "+String(Format.dtg(date).prefix(7))
+        generation = UUID(); let token = generation
+        working = true; error = nil; blockedByStorage = false
+        operation = Task {
+            let grace = FinalizationGrace(); defer { grace.end() }
+            let worker = Task.detached(priority: .userInitiated) {
+                try Task.checkCancellation()
+                let points = try PracticeCourseGenerator.scatter(origin: origin,count: count,radius: radius)
+                let edit = WaypointStore.PracticePointsEdit(folder: folder,points: points,now: createdAt)
+                return edit
+            }
+            do {
+                let edit = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+                try Task.checkCancellation()
+                guard generation == token else { return }
+                operation = nil; perform(.random(edit,folder))
+            } catch {
+                guard generation == token else { return }
+                working = false; operation = nil; self.error = error.localizedDescription
+            }
+        }
     }
     private func begin(name: String,ids: [String]) throws {
         let course = try PracticeCourse(name: name,waypointIDs: ids,startedAt: millis)
@@ -155,13 +178,30 @@ final class PracticeSession: ObservableObject {
         working = true; pendingWrite = nil; targetWriteFailed = false; blockedByStorage = false; error = nil
         operation = Task {
             let grace = FinalizationGrace(); defer { grace.end() }
+            var retained = request
             do {
+                if case let .random(edit,name) = retained {
+                    while true {
+                        try Task.checkCancellation()
+                        guard generation == token, saved.active == nil else { throw CancellationError() }
+                        let snapshot = waypoints.restoreSnapshot(), factory = preparePoints
+                        let worker = Task.detached(priority: .userInitiated) { try Task.checkCancellation(); return try factory(snapshot,edit) }
+                        let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+                        try Task.checkCancellation()
+                        guard generation == token, saved.active == nil else { throw CancellationError() }
+                        if try waypoints.publishPracticePoints(prepared) != nil { break }
+                    }
+                    // No suspension between acknowledgement and phase advance:
+                    // a failed course save must never append the points again.
+                    retained = .start(try PracticeCourse(name: name,waypointIDs: edit.ids,startedAt: millis))
+                }
                 while true {
                     try Task.checkCancellation()
                     guard generation == token else { throw CancellationError() }
                     let previous = saved.active
                     var next: PracticeCourse?
-                    switch request {
+                    switch retained {
+                    case .random: throw PracticeCourseError.invalid("Checkpoints must be saved before starting the course.")
                     case .start(let course):
                         guard previous == nil else { throw PracticeCourseError.invalid("Another course is already active.") }
                         next = course
@@ -181,15 +221,15 @@ final class PracticeSession: ObservableObject {
                     let prepared = try await prepare(saved.saveSnapshot(),candidate)
                     try Task.checkCancellation()
                     guard generation == token, saved.active == previous else { throw CancellationError() }
-                    if case let .score(_,_,target) = request {
+                    if case let .score(_,_,target) = retained {
                         guard waypoints.waypoints.contains(where: { $0.id == target.id && $0.lat == target.lat && $0.lon == target.lon }) else { throw ChangedCheckpoint() }
                     }
                     var current = candidate; current?.reconcile(availableIDs: Set(waypoints.waypoints.map(\.id)))
                     if current != candidate { continue }
                     guard try saved.publish(prepared) else { continue }
                     active = candidate
-                    if case .start = request { summary = nil; if navigation.progress != nil { navigation.stop() } }
-                    if case .score = request, foreground { scoreFeedback() }
+                    if case .start = retained { summary = nil; if navigation.progress != nil { navigation.stop() } }
+                    if case .score = retained, foreground { scoreFeedback() }
                     working = false; operation = nil; reconcile()
                     let latest = queuedFix; queuedFix = nil
                     if foreground, let latest { receive(latest) }
@@ -201,8 +241,10 @@ final class PracticeSession: ObservableObject {
                 if error is ChangedCheckpoint {
                     self.error = error.localizedDescription; reconcile()
                 } else if !(error is CancellationError) {
-                    pendingWrite = request; blockedByStorage = true
-                    if case .start(let course) = request {
+                    pendingWrite = retained; blockedByStorage = true
+                    if case .random = retained {
+                        self.error = "Checkpoints could not be saved. Retry to keep the same proposed course, or cancel start. \(error.localizedDescription)"
+                    } else if case .start(let course) = retained {
                         self.error = "Course start could not be saved. Checkpoints in \(course.name) are kept. Retry or cancel start. \(error.localizedDescription)"
                     } else { self.error = "Course save failed; progress is kept. Retry saving. \(error.localizedDescription)" }
                     if saved.active != nil && (navigation.running || navigation.preparing) { navigation.pause(reason: "Course progress needs attention.") }

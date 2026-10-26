@@ -118,6 +118,43 @@ final class PracticeWorkflowTests: XCTestCase {
         XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 5")
         capture("practice-random-progress")
     }
+    private func failedRandomPointsRetry(night: Bool) {
+        launch(["-uiTestPracticePointsWriteFailure"] + (night ? ["-uiTestPracticeNight"] : []))
+        XCTAssertTrue(app.buttons["open-practice"].waitForExistence(timeout: 10)); app.buttons["open-practice"].tap()
+        let start = app.buttons["practice-start"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"),object: start)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 20),.completed,app.debugDescription)
+        tapNativeMenuItem(start)
+        XCTAssertTrue(app.staticTexts["practice-error"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["practice-error"].label.contains("Checkpoints could not be saved"))
+        XCTAssertTrue(app.buttons["practice-retry-write"].isEnabled); XCTAssertFalse(start.isEnabled)
+        capture(night ? "practice-points-save-error-night" : "practice-points-save-error-day")
+        tapNativeMenuItem(app.navigationBars.buttons["Close"])
+        XCTAssertTrue(app.buttons["Choose navigation target"].isEnabled)
+        app.buttons["practice-banner"].tap()
+        tapNativeMenuItem(app.buttons["practice-repair-points"]); tapNativeMenuItem(app.buttons["practice-retry-write"])
+        XCTAssertTrue(app.staticTexts["practice-progress"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 5")
+        capture(night ? "practice-points-retried-night" : "practice-points-retried-day")
+        tapNativeMenuItem(app.navigationBars.buttons["Close"])
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        XCTAssertTrue(app.buttons["practice-banner"].waitForExistence(timeout: 10)); app.buttons["practice-banner"].tap()
+        XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 5")
+        capture(night ? "practice-points-reopened-night" : "practice-points-reopened-day")
+        tapNativeMenuItem(app.buttons["practice-end"]); tapNativeMenuItem(app.buttons["End course"])
+        XCTAssertTrue(app.buttons["practice-start"].waitForExistence(timeout: 10))
+        tapNativeMenuItem(app.navigationBars.buttons["Close"])
+        if night { app.buttons["Waypoints"].tap() } else { app.tabBars.buttons["Waypoints"].tap() }
+        let search = app.textFields["library-search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5)); search.tap(); search.typeText("CP \n")
+        XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("5 waypoints"),app.debugDescription)
+        for name in ["CP 1","CP 2","CP 3","CP 4","CP 5"] {
+            app.buttons["library-search-clear"].tap(); search.tap(); search.typeText(name+"\n")
+            XCTAssertTrue(app.buttons["edit-waypoint-"+name].waitForExistence(timeout: 5),app.debugDescription)
+        }
+    }
+    func testRandomCheckpointWriteFailureRetryAndRelaunchDay() { failedRandomPointsRetry(night: false) }
+    func testRandomCheckpointWriteFailureRetryAndRelaunchNight() { failedRandomPointsRetry(night: true) }
     func testNightCourseFormKeepsProgressAndCoordinatesVisible() {
         launch(["-uiTestPracticeFar","-uiTestPracticeNight"]); startFolder()
         XCTAssertTrue(app.staticTexts["Alpha checkpoint"].exists); capture("practice-night")

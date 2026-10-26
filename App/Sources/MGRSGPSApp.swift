@@ -227,6 +227,14 @@ struct MGRSGPSApp: App {
             try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         }
         #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+            let file = directory.appendingPathComponent("waypoints-v1.json")
+            try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        }
+        #endif
         let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
         _recorder = StateObject(wrappedValue: recordingSession)
         _liveActivities = StateObject(wrappedValue: LiveActivityManager(recorder:recordingSession,navigation:navigationSession,settings:settingsStore))

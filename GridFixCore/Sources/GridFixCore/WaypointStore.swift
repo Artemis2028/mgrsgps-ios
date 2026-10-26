@@ -209,13 +209,32 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     }
 
     public func addPracticePoints(folder raw: String,points: [GeoPoint]) throws -> [Waypoint] {
-        lock.lock(); defer { lock.unlock() }
-        guard points.count >= 2, waypoints.count + points.count <= 10_000,
-              points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }) else { throw PracticeCourseError.invalid("Invalid checkpoints or waypoint library limit reached.") }
-        let folder = Folders.match(known: knownNamesLocked(),raw: raw)
-        let added = points.enumerated().map { Waypoint(name: "CP \($0.offset+1)",lat: $0.element.lat,lon: $0.element.lon,folder: folder,symbol: "target") }
-        try publishLibraryLocked(waypoints+added,folders: folders,selection: selectedId)
-        return added
+        let edit = PracticePointsEdit(folder: raw,points: points)
+        while true {
+            let prepared = try restoreSnapshot().preparePracticePoints(edit)
+            if let added = try publishPracticePoints(prepared) { return added }
+        }
+    }
+
+    /// One confirmed scatter retains coordinates, UUIDs and timestamps across
+    /// revision rebases and explicit retries. Construct on a worker.
+    public struct PracticePointsEdit: Sendable {
+        fileprivate let points: [Waypoint]
+        public var ids: [String] { points.map(\.id) }
+        public init(folder: String,points: [GeoPoint],now: Int64 = Int64(Date().timeIntervalSince1970*1000)) {
+            self.points = points.enumerated().map {
+                Waypoint(name: "CP \($0.offset+1)",lat: $0.element.lat,lon: $0.element.lon,createdAt: now,folder: folder,symbol: "target")
+            }
+        }
+    }
+
+    public struct PreparedPracticePoints: Sendable {
+        fileprivate let batch: PreparedBatch
+        public let added: [Waypoint]
+    }
+
+    public func publishPracticePoints(_ prepared: PreparedPracticePoints) throws -> [Waypoint]? {
+        try publishBatch(prepared.batch) ? prepared.added : nil
     }
 
     /// Legacy callers retain their signature, but failed writes never publish a
@@ -356,6 +375,25 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
         fileprivate let selectionIntent: UUID
+
+        public func preparePracticePoints(_ edit: PracticePointsEdit) throws -> PreparedPracticePoints {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            guard edit.points.count >= 2, edit.points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }) else {
+                throw PracticeCourseError.invalid("Invalid checkpoints.")
+            }
+            let folder = Folders.match(known: base.folders.map(\.name)+base.waypoints.map(\.folder),raw: edit.points[0].folder)
+            let added = edit.points.map { point -> Waypoint in var point = point; point.folder = folder; return point }
+            let existing = Dictionary(uniqueKeysWithValues: base.waypoints.map { ($0.id,$0) })
+            guard added.allSatisfy({ existing[$0.id] == nil || existing[$0.id] == $0 }) else {
+                throw PracticeCourseError.invalid("A generated checkpoint changed. Its saved version was kept.")
+            }
+            let missing = added.filter { existing[$0.id] == nil }
+            guard base.waypoints.count+missing.count <= 10_000 else { throw PracticeCourseError.invalid("Waypoint library limit reached.") }
+            var next = base; next.waypoints += missing
+            next.folders = WaypointStore.mergeFolderList(stored: base.folders,referenced: next.waypoints.map(\.folder))
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination,lockCompatible: true)
+            return .init(batch: .init(snapshot: next,revision: revision,identity: identity,file: file),added: added)
+        }
 
         public func prepareSelection(_ id: String?) throws -> PreparedSelection {
             if let loadError { throw BackupError.notABackup(loadError) }

@@ -25,7 +25,7 @@ struct PracticeCourseView: View {
                         Text(error).foregroundStyle(palette.warn).accessibilityIdentifier("practice-error")
                         if course.hasPendingWrite {
                             Button("Retry saving course") { course.retryWrite() }.disabled(course.working).accessibilityIdentifier("practice-retry-write")
-                            if course.canCancelStart { Button("Cancel start · keep saved checkpoints") { course.cancelPendingStart() } }
+                            if course.canCancelStart { Button("Cancel start") { course.cancelPendingStart() } }
                         }
                         #if DEBUG
                         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure") {
@@ -39,6 +39,12 @@ struct PracticeCourseView: View {
                                 let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/practice-course-v1.json")
                                 if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
                             }.accessibilityIdentifier("practice-repair-progress")
+                        }
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure") {
+                            Button("Repair test checkpoint storage") {
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                                if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                            }.accessibilityIdentifier("practice-repair-points")
                         }
                         #endif
                     }.listRowBackground(rowBackground)
