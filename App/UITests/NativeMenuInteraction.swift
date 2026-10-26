@@ -9,7 +9,9 @@ extension XCTestCase {
         tapVisibleControl(element,horizontal: 0.5,file: file,line: line)
     }
     func tapNativeSwitch(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
-        tapVisibleControl(element,horizontal: 0.9,file: file,line: line)
+        // SwiftUI exposes both a label-wide switch and its actual UISwitch.
+        let leaf = element.descendants(matching: .switch).allElementsBoundByIndex.last ?? element
+        tapVisibleControl(leaf,horizontal: 0.5,file: file,line: line)
     }
     /// Older runtimes report a scrolled row as hittable beneath the navigation
     /// bar; tapping its stale centre can activate Done instead of the switch.

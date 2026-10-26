@@ -4,7 +4,7 @@ final class OrientationWorkflowTests: XCTestCase {
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<8 {
             let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY : app.frame.minY
-            if element.isHittable && element.frame.midY > top+8 && element.frame.midY < app.frame.maxY-35 { return }
+            if element.isHittable && element.frame.minY > top+8 && element.frame.maxY < app.frame.maxY-35 { return }
             // In landscape the app-level swipe can start in the navigation
             // bar. Send the gesture to the presented List's scroll surface.
             let scroll = app.collectionViews.firstMatch.exists ? app.collectionViews.firstMatch : app.scrollViews.firstMatch
@@ -44,7 +44,8 @@ final class OrientationWorkflowTests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeRight
         app.buttons["Settings"].tap(); reveal(actual,in: app)
         XCTAssertEqual(actual.label,"Current window: Flipped")
-        reveal(picker,in: app); picker.buttons["Portrait"].tap()
+        reveal(picker,in: app); tapNativeMenuItem(picker.buttons["Portrait"])
+        XCTAssertTrue(picker.buttons["Portrait"].isSelected)
         let upright = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.height > app.frame.width },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [upright],timeout: 10),.completed)
         XCUIDevice.shared.orientation = .portrait

@@ -74,6 +74,8 @@ struct NavigationControlsView: View {
 struct GuideSettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    private var palette: FieldPalette { .init(night: settings.nightMode) }
+    private var rowBackground: Color { settings.nightMode ? .black : Color(white: 0.12) }
     var body: some View {
         NavigationStack {
             Form {
@@ -94,7 +96,7 @@ struct GuideSettingsView: View {
                         }
                         Text("Hold the leg azimuth from the start position. Within 100 m of the target, home on the point. A drift corridor steers you back to this straight leg; it does not change drawn boundary alerts.").font(.footnote)
                     }
-                }
+                }.listRowBackground(rowBackground)
                 Section("Navigation lanes") {
                     Picker("Early warning",selection: $settings.laneWarningM) {
                         ForEach(Array(Set([0,25,50,settings.laneWarningM])).sorted(),id: \.self) { Text($0 == 0 ? "Off" : "\($0) m inside").tag($0) }
@@ -102,17 +104,26 @@ struct GuideSettingsView: View {
                     Toggle("Side-limit cues",isOn:$settings.laneSideCues).accessibilityIdentifier("lane-side-cues")
                     Toggle("Backstop cue",isOn:$settings.laneBackstopCue).accessibilityIdentifier("lane-backstop-cue")
                     Toggle("In-the-lane tick",isOn:$settings.laneInsideTick).accessibilityIdentifier("lane-inside-tick")
-                    Picker("Not in lane reminder",selection:$settings.laneReminderMin) {
-                        ForEach(Array(Set([0,2,5,10,settings.laneReminderMin])).sorted(),id: \.self) { Text($0 == 0 ? "Off" : "Every \($0) min").tag($0) }
-                    }.accessibilityIdentifier("lane-reminder")
+                    FieldChoicePicker(
+                        selection: Binding(get: { String(settings.laneReminderMin) },set: { if let minutes = Int($0) { settings.laneReminderMin = minutes } }),
+                        title: "Not in lane reminder",
+                        choices: Array(Set([0,2,5,10,settings.laneReminderMin])).sorted().map {
+                            .init(id: String($0),title: $0 == 0 ? "Off" : "Every \($0) min",accessibilityIdentifier: "lane-reminder-\($0)")
+                        },identifier: "lane-reminder"
+                    )
                     Toggle("Position lost alert",isOn:$settings.laneGpsAlert).accessibilityIdentifier("lane-gps-alert")
                     Text("Starts silent until two distinct fixes confirm you are between the limits; behind the start does not count. The reminder is long-short-long. Position lost alerts sound once, then at most each minute. These switches do not change route checkpoint or arrival cues.").font(.footnote)
                     Text("One turn-away cue per approach. Crossing cues repeat while outside. Lane guidance replaces azimuth steering only when the selected checkpoint or route has a usable assigned lane.").font(.footnote)
+                }.listRowBackground(rowBackground)
+                Section { Text("These settings apply to navigation guidance only. Quiet-inside boundary monitoring has no heading tolerance, approach warning, heartbeat or steering cues.").font(.footnote) }.listRowBackground(rowBackground)
+            }
+                .scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                .foregroundStyle(palette.ink)
+                .navigationTitle("Guide settings").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) { Text("Guide settings").font(.headline).foregroundStyle(palette.ink) }
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
-                Section { Text("These settings apply to navigation guidance only. Quiet-inside boundary monitoring has no heading tolerance, approach warning, heartbeat or steering cues.").font(.footnote) }
-            }.navigationTitle("Guide settings").navigationBarTitleDisplayMode(.inline)
-                .tint(FieldPalette(night: settings.nightMode).accent)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
-        }.fieldSheetAppearance()
+        }.tint(palette.accent).environment(\.fieldNight,settings.nightMode).fieldSheetAppearance()
     }
 }

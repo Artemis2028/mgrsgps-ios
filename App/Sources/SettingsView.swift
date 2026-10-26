@@ -45,7 +45,7 @@ struct SettingsView: View {
                         .foregroundStyle(palette.accent)
                     Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
-                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
+                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
                     Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
                     Text(liveActivities.message).font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("live-activity-status").accessibilityValue("\(liveActivities.activityCount) active")
                     section("Grid & units")
@@ -78,6 +78,8 @@ struct SettingsView: View {
             .toolbarBackground(palette.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
+        // Keep the scene request attached to the presented settings window too.
+        .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))
         .environment(\.fieldNight, settings.nightMode)
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }

@@ -187,3 +187,48 @@ LaneCueWorkflowTests line 26, LiveActivityWorkflowTests line 21 and
 OrientationWorkflowTests line 49. Map/library were still running when inspected.
 These are pending repairs; no full hosted pass is claimed. Course progress worker
 validation is recorded separately in [course persistence](practice-progress-persistence.md).
+
+
+## Reminder choices and explicit settings hit targets
+
+The 04617f0 lane failure's accessibility dump still contains the open reminder
+menu, with Every 5 min selected and Every 10 min visible. The reminder now uses
+the existing scrolling FieldChoicePicker; the Android minute values and saved
+integer remain unchanged. Guide settings also use the field palette and an
+opaque content background in day/night mode.
+
+The Live Activities failure retained value 1 after the opt-out tap. SwiftUI
+exposed both a label-wide outer Switch and a nested actual Switch; the native
+switch helper now targets the latter's validated centre. The product row has a
+minimum 44-point height. The workflow still requires actual ActivityKit counts,
+opt-out without stopping navigation/recording, background recording, and
+pause/resume/end lifecycle transitions.
+
+The orientation failure was Portrait after a pinned Flipped relaunch, before
+the later Auto assertion. The regression now reveals the whole control and
+uses a validated segment frame, then separately checks its selected state and
+the actual window geometry. No rotation assertion is removed.
+
+Settings also attaches the orientation scene host to its presented window, so
+its observed preference changes can request geometry while the root is covered.
+The root host remains for shortcuts and normal application lifecycle. This uses
+the existing public scene/mask API and does not alter Android integer values.
+
+Local `/tmp/gridfix-settings-ci-repair.xcresult` passes all five targeted UI
+workflows: lane persistence/day-night, both actual ActivityKit lifecycles,
+pinned/Flipped/relaunch/Portrait/Auto geometry, and shortcuts on all four main
+screens. The final `/tmp/gridfix-settings-ci-final.xcresult` passes 12 related
+native cases and the expanded lane workflow after applying backgrounds directly
+to Form sections; it also opens/cancels the night choices and retains Every 10
+min. Exported day/night settings and choice screenshots were inspected. The
+native cases cover orientation masks/persistence, Live Activity consent/lifecycle
+and lane backup/failure ordering. Core math is unchanged; the previous full core
+and native checkpoints remain 449 and 223 (two opt-in local TAK skips).
+
+The final phone/watch/widget simulator Release build passes in
+`/tmp/gridfix-settings-ci-release.log`. The real-location feed was stopped and
+cleared; the single owned phone is shut down. Other devices were untouched.
+
+These are local repairs. They do not establish a full hosted pass or physical
+locked-screen reliability. No location permissions, lifecycle/count assertions,
+route-continuation assertions, or dedicated feed scenarios were removed.

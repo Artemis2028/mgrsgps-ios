@@ -162,3 +162,15 @@ Route-generated point saves and startup preparation now use [staged generation](
 Interactive target selection now uses staged saves; see [target persistence](navigation-target-persistence.md). [Runtime navigation saves](navigation-runtime-persistence.md) now stage target/session preparation off-main with failure/cancellation guards. Course persistence, startup reads/validation and the combined finished-track archive remain separate work.
 
 Practice result history and final active clear now use [worker-staged finalization](practice-result-persistence.md). [Course start/scoring/reconcile/End writes](practice-progress-persistence.md) now stage off-main with expected-run/checkpoint guards, explicit retry and accepted-time preservation. Random waypoint generation and practice target-lock writes remain implementation work.
+
+
+### Settings interaction follow-up
+
+The latest local repair uses scrolling lane-reminder choices with persisted
+Android minute values, readable day/night guide forms, a 44-point Live Activities
+row and actual native-switch hit targets. Presented Settings also owns a scene
+orientation host; its regression verifies selected Portrait and actual geometry
+after pinned Flipped relaunch, then Auto rotation. Five focused UI workflows pass;
+12 related native tests and the expanded night reminder workflow pass on final
+source. See [hosted diagnostics and local evidence](ci-field-ui-activation.md).
+Full hosted CI and physical locked-screen validation remain gates.

@@ -22,7 +22,9 @@ final class LaneCueWorkflowTests:XCTestCase {
         for key in ["lane-side-cues","lane-backstop-cue","lane-inside-tick","lane-gps-alert"] {toggle(key,to:false,in:app)}
         let reminder=app.buttons["lane-reminder"]
         XCTAssertTrue(reminder.isHittable,app.debugDescription);reminder.tap()
-        tapNativeMenuItem(app.buttons["Every 10 min"])
+        capture("lane-reminder-choices-day")
+        tapNativeMenuItem(app.buttons["lane-reminder-10"])
+        XCTAssertTrue(app.navigationBars["Guide settings"].waitForExistence(timeout:5))
         XCTAssertTrue(app.staticTexts["Every 10 min"].exists,app.debugDescription)
         capture("lane-cue-settings-day")
         app.navigationBars.buttons["Done"].tap();app.tabBars.buttons["Map"].tap()
@@ -36,5 +38,10 @@ final class LaneCueWorkflowTests:XCTestCase {
         }
         XCTAssertTrue(app.staticTexts["Every 10 min"].exists,app.debugDescription)
         capture("lane-cue-settings-night-reopened")
+        revealSettingsControl(reminder,in: app); tapNativeMenuItem(reminder)
+        XCTAssertTrue(app.buttons["lane-reminder-10"].waitForExistence(timeout:5))
+        capture("lane-reminder-choices-night")
+        tapNativeMenuItem(app.navigationBars.buttons["Cancel"])
+        XCTAssertTrue(app.staticTexts["Every 10 min"].exists,app.debugDescription)
     }
 }
