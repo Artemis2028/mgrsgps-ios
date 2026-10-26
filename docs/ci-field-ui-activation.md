@@ -178,3 +178,12 @@ shards: decimal-entry snapshot, route append, and recording Live Activity status
 reveal. All builds passed. These remain diagnostic evidence, not a full CI pass.
 Current/final-head hosted results must be evaluated separately; cancelled older
 runs are not passes.
+
+
+## Hosted 04617f0 diagnostics
+
+Run 40267500064 field job 121393243322 completed with failure. Job logs identify
+LaneCueWorkflowTests line 26, LiveActivityWorkflowTests line 21 and
+OrientationWorkflowTests line 49. Map/library were still running when inspected.
+These are pending repairs; no full hosted pass is claimed. Course progress worker
+validation is recorded separately in [course persistence](practice-progress-persistence.md).

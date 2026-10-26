@@ -60,11 +60,10 @@ storage-pressure/background interruption and locked-device checks remain open.
 
 ## Remaining implementation work
 
-Course start/reconcile/scoring still call the synchronous PracticeCourseStore.save
-wrapper, random checkpoint creation still writes the waypoint library on main,
-and practice target-lock persistence still has a synchronous full-library path.
-The new immutable save/publication API supports later migration, but those app
-call sites have not been migrated here. Startup course/field reads, damaged-course
+Course start/reconcile/scoring/End have subsequently moved to
+[worker staging](practice-progress-persistence.md). Random checkpoint creation
+still writes the waypoint library on main, and practice target-lock persistence
+still has a synchronous full-library path. Startup course/field reads, damaged-course
 recovery copying and large-course split-list presentation also need their own
 performance/interaction audit. These are app work, not iOS limitations.
 

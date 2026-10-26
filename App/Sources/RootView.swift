@@ -29,6 +29,8 @@ struct RootView: View {
     private var practiceBannerText: String {
         if practice.damaged { return "Saved course needs attention" }
         if practice.summary != nil { return "Course complete · view results" }
+        if practice.working { return "Saving course progress…" }
+        if practice.hasPendingWrite { return "Course save needs attention · retry" }
         if practice.finalizing { return "Saving course result…" }
         if practice.active?.done == true { return "Completed run kept · retry saving result" }
         if practice.active?.paused == true { return "Course paused · missing checkpoint" }
@@ -58,7 +60,7 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if practice.locked || practice.summary != nil {
+            if practice.locked || practice.hasPendingWrite || practice.summary != nil {
                 Button { showingPractice = true } label: {
                     HStack { Image(systemName: "timer"); Text(practiceBannerText); Spacer(); Image(systemName: "chevron.right") }
                         .font(.caption).padding(.horizontal,16).frame(minHeight: 44)

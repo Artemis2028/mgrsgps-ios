@@ -191,6 +191,9 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var practiceNavigationLocked = false
     private var practiceSelectionNeedsSave = false
     private var practiceTargetID: String?
+    public var practiceNavigationSavePending: Bool {
+        lock.lock(); defer { lock.unlock() }; return practiceSelectionNeedsSave
+    }
 
     /// Applies to every selection entry point, including map, imports and library.
     public func setPracticeNavigationTarget(_ id: String?,locked: Bool) throws {

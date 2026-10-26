@@ -51,7 +51,7 @@ struct NavigateView: View {
                             .buttonStyle(.bordered).tint(palette.accent).accessibilityIdentifier("stop-navigation")
                     }
                     Button("Practice course") { showingPractice = true }.buttonStyle(.bordered).accessibilityIdentifier("open-practice")
-                    NavigationControlsView().disabled(practice.blockedByStorage || practice.active?.paused == true)
+                    NavigationControlsView().disabled(practice.working || (practice.locked && practice.blockedByStorage) || practice.active?.paused == true)
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)

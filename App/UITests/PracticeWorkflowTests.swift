@@ -7,7 +7,7 @@ final class PracticeWorkflowTests: XCTestCase {
         app.launchArguments = ["-uiTesting","-uiTestPractice","-startTab","navigate"]+extra
         app.launch()
     }
-    private func startFolder(allowCompleted: Bool = false) {
+    private func startFolder(allowCompleted: Bool = false,allowFailure: Bool = false) {
         let open = app.buttons["open-practice"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
         tapNativeMenuItem(app.segmentedControls.buttons["From folder"])
         tapNativeMenuItem(app.buttons["practice-folder"])
@@ -16,7 +16,9 @@ final class PracticeWorkflowTests: XCTestCase {
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"),object: start)
         XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 5),.completed,app.debugDescription)
         tapNativeMenuItem(start)
-        if allowCompleted {
+        if allowFailure {
+            XCTAssertTrue(app.staticTexts["practice-error"].waitForExistence(timeout: 10),app.debugDescription)
+        } else if allowCompleted {
             // Real simulator fixes keep arriving during native UI interactions.
             // A fast course can finish before XCTest observes its progress row.
             let started = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
@@ -59,6 +61,26 @@ final class PracticeWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Practice log"].waitForExistence(timeout: 5))
         capture("practice-history")
     }
+    private func failedStartRetry(night: Bool) {
+        launch(["-uiTestPracticeFar","-uiTestPracticeProgressWriteFailure"] + (night ? ["-uiTestPracticeNight"] : []))
+        startFolder(allowFailure: true)
+        XCTAssertTrue(app.buttons["practice-retry-write"].isEnabled); XCTAssertFalse(app.buttons["practice-start"].isEnabled)
+        capture(night ? "practice-start-save-error-night" : "practice-start-save-error-day")
+        app.buttons["Close"].tap()
+        let banner = app.buttons["practice-banner"]
+        XCTAssertTrue(banner.waitForExistence(timeout: 5)); XCTAssertTrue(banner.label.contains("Course save needs attention"))
+        banner.tap(); tapNativeMenuItem(app.buttons["practice-repair-progress"]); tapNativeMenuItem(app.buttons["practice-retry-write"])
+        XCTAssertTrue(app.staticTexts["practice-progress"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 2")
+        capture(night ? "practice-start-retried-night" : "practice-start-retried-day")
+        app.buttons["Close"].tap(); app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        XCTAssertTrue(app.buttons["practice-banner"].waitForExistence(timeout: 10)); app.buttons["practice-banner"].tap()
+        XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP 1 of 2")
+        XCTAssertTrue(app.staticTexts["Alpha checkpoint"].exists)
+        capture(night ? "practice-start-reopened-night" : "practice-start-reopened-day")
+    }
+    func testFailedStartRetryAndRelaunchDay() { failedStartRetry(night: false) }
+    func testFailedStartRetryAndRelaunchNight() { failedStartRetry(night: true) }
     private func failedResultRetry(night: Bool) {
         launch(["-uiTestPracticeHistoryWriteFailure"] + (night ? ["-uiTestPracticeNight"] : []))
         startFolder(allowCompleted: true)

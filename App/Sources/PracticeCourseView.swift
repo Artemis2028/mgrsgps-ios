@@ -23,6 +23,10 @@ struct PracticeCourseView: View {
                 if let error = course.error {
                     Section {
                         Text(error).foregroundStyle(palette.warn).accessibilityIdentifier("practice-error")
+                        if course.hasPendingWrite {
+                            Button("Retry saving course") { course.retryWrite() }.disabled(course.working).accessibilityIdentifier("practice-retry-write")
+                            if course.canCancelStart { Button("Cancel start · keep saved checkpoints") { course.cancelPendingStart() } }
+                        }
                         #if DEBUG
                         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure") {
                             Button("Repair test result storage") {
@@ -30,9 +34,16 @@ struct PracticeCourseView: View {
                                 if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
                             }.accessibilityIdentifier("practice-repair-result")
                         }
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeProgressWriteFailure") {
+                            Button("Repair test course storage") {
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/practice-course-v1.json")
+                                if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                            }.accessibilityIdentifier("practice-repair-progress")
+                        }
                         #endif
                     }.listRowBackground(rowBackground)
                 }
+                if course.working { Section { ProgressView("Saving course…").accessibilityIdentifier("practice-saving-progress") }.listRowBackground(rowBackground) }
                 if course.damaged {
                     Section("Saved course needs attention") {
                         Text("The unreadable session is kept. Resetting preserves a copy and unlocks navigation; waypoints, tracks and results are retained.")
@@ -61,7 +72,7 @@ struct PracticeCourseView: View {
                             else { course.startFolder(folder) }
                         }.disabled(mode == 0 ? location.usableFix == nil : !eligible.contains(folder))
                             .accessibilityIdentifier("practice-start")
-                    }.listRowBackground(rowBackground)
+                    }.listRowBackground(rowBackground).disabled(course.working || course.hasPendingWrite)
                     if !field.document.courseHistory.isEmpty {
                         Section("Practice log") {
                             ForEach(Array(field.document.courseHistory.sorted { $0.started > $1.started }.enumerated()),id: \.offset) { _, result in

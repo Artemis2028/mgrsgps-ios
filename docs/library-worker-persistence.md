@@ -79,7 +79,7 @@ class is automatically assigned exactly once to the library shard.
 ## Remaining work
 
 Navigation target/session saves now use [runtime worker staging](navigation-runtime-persistence.md). Practice
-setup/selection/scoring still have synchronous paths; result history/final clear now use [worker staging](practice-result-persistence.md). Recording final archive
+random-point/target selection still have synchronous full-library paths; course-file writes now use [worker staging](practice-progress-persistence.md); result history/final clear now use [worker staging](practice-result-persistence.md). Recording final archive
 publication was subsequently staged; see [recording](track-recording.md). Older FieldLibraryView actions and startup archive reads
 need their own audit. Dense-map/large-library accessibility, physical storage
 pressure, locked-device behavior and external file-provider checks remain open.

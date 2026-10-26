@@ -217,7 +217,16 @@ struct MGRSGPSApp: App {
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession,tak: takSession)
-        _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
+        let practiceSession = PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession)
+        _practice = StateObject(wrappedValue: practiceSession)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeProgressWriteFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"), let directory {
+            let file = directory.appendingPathComponent("practice-course-v1.json")
+            try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        }
+        #endif
         let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
         _recorder = StateObject(wrappedValue: recordingSession)
         _liveActivities = StateObject(wrappedValue: LiveActivityManager(recorder:recordingSession,navigation:navigationSession,settings:settingsStore))
