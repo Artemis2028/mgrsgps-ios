@@ -1,10 +1,12 @@
+import Foundation
 import GridFixCore
 
 @MainActor
 enum WaypointEditAction {
     /// Cancelled navigation startup must not publish after its worker finishes.
+    @discardableResult
     static func select(_ id: String?,in store: WaypointStore,
-                       validate: @MainActor () throws -> Void = {}) async throws {
+                       validate: @MainActor () throws -> Void = {}) async throws -> UUID {
         try Task.checkCancellation()
         let intent = store.beginSelection()
         func check() throws {
@@ -15,9 +17,10 @@ enum WaypointEditAction {
         while true {
             try check()
             let snapshot = store.restoreSnapshot()
-            let prepared = try await Task.detached(priority: .userInitiated) { try snapshot.prepareSelection(id) }.value
+            let worker = Task.detached(priority: .userInitiated) { try snapshot.prepareSelection(id) }
+            let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
             try check()
-            if try store.publishSelection(prepared) { return }
+            if try store.publishSelection(prepared) { return intent }
         }
     }
 

@@ -53,7 +53,7 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.tick(); XCTAssertTrue(export().available)
         send(-80); send(-80); XCTAssertEqual(export().laneState,"OUT_LEFT"); XCTAssertEqual(export().crossedLine,"Creek bank")
         up += 11; date += 11; nav.tick(); XCTAssertFalse(export().available); XCTAssertNil(export().laneState)
-        nav.stop(); XCTAssertFalse(export().active); XCTAssertNil(export().targetName); XCTAssertNil(export().laneName)
+        nav.stop(); try await wait { !nav.saving }; XCTAssertFalse(export().active); XCTAssertNil(export().targetName); XCTAssertNil(export().laneName)
     }
     func testLaneIsSilentWithoutHeadingAndEmitsDistinctBackgroundCrossingEvents() async throws {
         let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
@@ -82,7 +82,7 @@ final class NavigationIntegrationTests: XCTestCase {
         up += 11; date += 11; nav.tick(); XCTAssertNil(nav.laneDecision)
         XCTAssertTrue(nav.status.contains("unavailable")); XCTAssertEqual(feedback.pulses.last,.unavailable)
         XCTAssertNil(nav.liveActivitySession()?.state.grid)
-        nav.stop();XCTAssertNil(nav.liveActivitySession())
+        nav.stop(); try await wait { !nav.saving };XCTAssertNil(nav.liveActivitySession())
     }
     func testLinkedLineMovementUpdatesGuidanceAndDeletionFallsBackToAzimuth() async throws {
         let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
@@ -103,7 +103,7 @@ final class NavigationIntegrationTests: XCTestCase {
         try field.deleteGraphic(graphic.id); nav.tick()
         XCTAssertNotNil(nav.laneProblem); XCTAssertNil(nav.laneDecision); XCTAssertEqual(nav.decision?.cue,.unavailable)
         driver.onHeading?(.init(magnetic: 0,accuracy: 5,timestamp: Date(timeIntervalSince1970: date)))
-        XCTAssertEqual(nav.decision?.cue,.onBearing); nav.stop()
+        XCTAssertEqual(nav.decision?.cue,.onBearing); nav.stop(); try await wait { !nav.saving }
     }
     func testRouteLaneStateSurvivesCheckpointAdvanceAndCheckpointLaneWins() async throws {
         let (directory,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
@@ -116,7 +116,7 @@ final class NavigationIntegrationTests: XCTestCase {
         for _ in 0..<2 { date += 1; up += 1; let p = lanePoint(0,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         for _ in 0..<2 { date += 1; up += 1; let p = lanePoint(-80,100); driver.onLocations?([fix(p.lat,p.lon,date,accuracy: 5)]) }
         XCTAssertEqual(nav.laneDecision?.state,.outLeft)
-        nav.movePoint(1); nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
+        nav.movePoint(1); try await wait { !nav.saving }; nav.tick(); XCTAssertEqual(nav.laneDecision?.state,.outLeft)
         XCTAssertEqual(feedback.begins,1,"A route-lane checkpoint change must not cancel queued crossing notifications")
         let checkpoint = try XCTUnwrap(store.waypoints.first { $0.sourceRoutePointIndex == 1 })
         var cpLane = lane(checkpoint.id); cpLane.id = "checkpoint-lane"
@@ -193,9 +193,106 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.tick();send(-80);XCTAssertEqual(nav.laneDecision?.state,.outLeft,"A reshaped entered lane must not wait silently for entry")
         let bad=lanePoint(0,1600);store.update(id:wp.id,draft:.init(name:"OBJ",lat:bad.lat,lon:bad.lon));nav.tick()
         XCTAssertTrue(nav.laneProblem?.contains("on the backstop") == true);XCTAssertNil(nav.laneDecision)
-        nav.stop()
+        nav.stop(); try await wait { !nav.saving }
     }
 
+    func testPauseWhileCheckpointSaveIsBlockedCannotPublishLateProgressOrCue() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,1000)])
+        try await wait { gate.entered }
+        XCTAssertTrue(nav.saving); XCTAssertEqual(nav.progress?.index,0); XCTAssertFalse(feedback.pulses.contains(.checkpoint))
+        let watch = nav.watchGuideSnapshot(sourceID: UUID().uuidString,revision: 1)
+        XCTAssertTrue(watch.active); XCTAssertFalse(watch.available); XCTAssertEqual(watch.status,"Saving navigation progress")
+        XCTAssertEqual(nav.liveActivitySession()?.state.status,"Saving navigation progress")
+        nav.pause(); XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating)
+        gate.release(); try await wait { !nav.saving && gate.returned }
+        XCTAssertEqual(nav.progress?.index,0); XCTAssertTrue(nav.progress?.paused == true)
+        XCTAssertFalse(feedback.pulses.contains(.checkpoint))
+        let reopened = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: GuideTestDriver(),feedback: GuideTestFeedback(),foreground: { true },scheduleTicks: false)
+        XCTAssertEqual(reopened.progress?.index,0); XCTAssertFalse(reopened.running)
+    }
+    func testRouteEditWhileCheckpointSaveIsBlockedRejectsLateSession() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        var route = try route(field)
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(route); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,1000)]); try await wait { gate.entered }
+        route.points[1].lon += 0.001; try field.saveGraphic(route)
+        gate.release(); try await wait { !nav.running && !nav.saving }
+        XCTAssertEqual(nav.progress?.index,0); XCTAssertFalse(feedback.pulses.contains(.checkpoint)); XCTAssertNotNil(nav.error)
+    }
+    func testNewTargetDuringBlockedProgressSaveIsKeptAndPausesRoute() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        let manual = store.add(.init(name: "New choice",lat: 24,lon: 54))
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,1000)]); try await wait { gate.entered }
+        try store.selectDurably(manual.id)
+        gate.release(); try await wait { !nav.running && !nav.saving }
+        XCTAssertEqual(store.selectedId,manual.id); XCTAssertEqual(nav.progress?.index,0)
+        XCTAssertFalse(feedback.pulses.contains(.checkpoint)); XCTAssertEqual(WaypointStore(directory: dir).selectedId,manual.id)
+    }
+    func testStopDuringBlockedCheckpointSaveDurablyClearsAndCannotReviveSession() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,1000)]); try await wait { gate.entered }
+        nav.stop(); XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating); XCTAssertNil(nav.progress)
+        gate.release(); try await wait { !nav.saving && gate.returned }
+        let reopened = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: GuideTestDriver(),feedback: GuideTestFeedback(),foreground: { true },scheduleTicks: false)
+        XCTAssertNil(reopened.progress); XCTAssertFalse(reopened.running); XCTAssertFalse(feedback.pulses.contains(.checkpoint))
+    }
+    func testNewSelectionIntentDuringProgressSavePreventsCheckpointCueBeforeItCommits() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,1000)]); try await wait { gate.entered }
+        store.beginSelection() // A newer UI choice has begun but not published.
+        gate.release(); try await wait { !nav.running && !nav.saving }
+        XCTAssertEqual(nav.progress?.index,0); XCTAssertFalse(feedback.pulses.contains(.checkpoint))
+    }
+    func testRouteHapticPreferenceCommitsBeforeChangingAndRejectsChangedRoute() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        var route = try route(field)
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(route); try await wait { nav.running }; XCTAssertTrue(nav.haptics)
+        gate.arm(); nav.setHaptics(false); try await wait { gate.entered }
+        XCTAssertTrue(nav.haptics); XCTAssertTrue(nav.saving)
+        route.points[1].lat += 0.001; try field.saveGraphic(route)
+        gate.release(); try await wait { !nav.running && !nav.saving }
+        XCTAssertTrue(nav.haptics,"A rejected preference must not publish its value")
+        XCTAssertNotNil(nav.error); XCTAssertFalse(driver.updating)
+    }
+    func testClockChangeDuringPendingCheckpointDoesNotDiscardFreshQueuedFix() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), gate = NavigationSaveGate()
+        var date = 1000.0, up = 100.0
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: GuideTestFeedback(),now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,date)]); try await wait { gate.entered }
+        date = 400; up += 1
+        driver.onLocations?([fix(0,0.001,date)])
+        gate.release(); try await wait { !nav.saving }
+        XCTAssertEqual(nav.progress?.index,2)
+        nav.stop(); try await wait { !nav.saving }
+    }
+    func testPendingCheckpointKeepsNewestFixAndScoresEachTimestampOnce() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback(), gate = NavigationSaveGate()
+        var date = 1000.0, up = 100.0
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false,stageSession: { try gate.prepare($0,$1) })
+        nav.follow(try route(field)); try await wait { nav.running }
+        gate.arm(); driver.onLocations?([fix(0,0,date)]); try await wait { gate.entered }
+        date += 1; up += 1
+        driver.onLocations?([fix(0,0.001,date)])
+        driver.onLocations?([fix(0.001,0.001,date+100),fix(0.001,0.001,date,accuracy: 250)]) // Invalid fixes cannot replace a usable queued sample.
+        driver.onLocations?([fix(0.001,0.001,date-1)]) // Older fix cannot replace the queued sample.
+        XCTAssertEqual(nav.progress?.index,0); XCTAssertNil(nav.decision)
+        gate.release(); try await wait { !nav.saving }
+        XCTAssertEqual(nav.progress?.index,2); XCTAssertEqual(feedback.pulses.filter { $0 == .checkpoint }.count,2)
+        driver.onLocations?([fix(0.001,0.001,date)]); XCTAssertEqual(nav.progress?.index,2)
+        nav.stop(); try await wait { !nav.saving }
+    }
     private func setup() throws -> (URL,WaypointStore,FieldDataStore,AppSettings) {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir,withIntermediateDirectories: true)
@@ -220,14 +317,14 @@ final class NavigationIntegrationTests: XCTestCase {
         var date = 1000.0, up = 100.0, foreground = true
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { foreground },scheduleTicks: false)
         let r = try route(field); nav.follow(r); try await wait { nav.running }
-        driver.onLocations?([fix(0,0,date)])
+        driver.onLocations?([fix(0,0,date)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.progress?.index,1)
-        driver.onLocations?([fix(0,0.001,date)]) // same timestamp cannot score another point
+        driver.onLocations?([fix(0,0.001,date)]); try await wait { !nav.saving } // same timestamp cannot score another point
         XCTAssertEqual(nav.progress?.index,1)
         foreground = false; date += 1; up += 1
-        driver.onLocations?([fix(0,0.001,date)])
+        driver.onLocations?([fix(0,0.001,date)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.progress?.index,2); XCTAssertTrue(driver.updating)
-        date += 1; up += 1; driver.onLocations?([fix(0.001,0.001,date)])
+        date += 1; up += 1; driver.onLocations?([fix(0.001,0.001,date)]); try await wait { !nav.saving }
         XCTAssertTrue(nav.progress?.complete == true); XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating)
         XCTAssertTrue(feedback.pulses.contains(.checkpoint)); XCTAssertEqual(feedback.pulses.last,.complete)
     }
@@ -249,7 +346,7 @@ final class NavigationIntegrationTests: XCTestCase {
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
         nav.startGuide(); try await wait { nav.running }
         driver.onHeading?(.init(magnetic: 105,accuracy: 5,timestamp: Date(timeIntervalSince1970: date)))
-        driver.onLocations?([fix(0,0,date)])
+        driver.onLocations?([fix(0,0,date)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.decision?.cue,.left); XCTAssertTrue(feedback.pulses.contains(.left))
         up += 3; date += 3; nav.tick()
         XCTAssertEqual(nav.decision?.cue,.unavailable)
@@ -276,7 +373,7 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.follow(try route(field)); try await wait { nav.running }
         driver.onLocations?([fix(0,0,980),fix(0,0,1000,accuracy: 30)])
         XCTAssertEqual(nav.progress?.index,0)
-        driver.onLocations?([fix(0,0,1000,accuracy: 2)])
+        driver.onLocations?([fix(0,0,1000,accuracy: 2)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.progress?.index,1); nav.stop()
     }
     func testSettingsPersistAndAndroidBackupApplyPreservesGuideFields() throws {
@@ -294,9 +391,9 @@ final class NavigationIntegrationTests: XCTestCase {
         var date = 1000.0, up = 100.0
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: GuideTestFeedback(),now: { Date(timeIntervalSince1970: date) },uptime: { up },foreground: { true },scheduleTicks: false)
         nav.follow(try route(field)); try await wait { nav.running }
-        driver.onLocations?([fix(0,0,date)]); XCTAssertEqual(nav.progress?.index,1)
+        driver.onLocations?([fix(0,0,date)]); try await wait { !nav.saving }; XCTAssertEqual(nav.progress?.index,1)
         date = 400; up += 1
-        driver.onLocations?([fix(0,0.001,date)]); XCTAssertEqual(nav.progress?.index,2)
+        driver.onLocations?([fix(0,0.001,date)]); try await wait { !nav.saving }; XCTAssertEqual(nav.progress?.index,2)
         nav.stop()
     }
     func testQuietBoundaryDetectionIsIndependentOfSteeringGuide() async throws {
@@ -360,12 +457,12 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.follow(try route(field)); try await wait { nav.running }
         let target = store.selectedId, file = dir.appendingPathComponent("waypoints-v1.json")
         try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
-        driver.onLocations?([fix(0,0,1000)])
+        driver.onLocations?([fix(0,0,1000)]); try await wait { !nav.saving }
         XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(nav.progress?.index,0)
         XCTAssertEqual(store.selectedId,target); XCTAssertFalse(feedback.pulses.contains(.checkpoint)); XCTAssertNotNil(nav.error)
         try FileManager.default.removeItem(at: file)
         nav.resume(); try await wait { nav.running }
-        driver.onLocations?([fix(0,0,1000)])
+        driver.onLocations?([fix(0,0,1000)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.progress?.index,1); XCTAssertNotEqual(store.selectedId,target)
         XCTAssertEqual(WaypointStore(directory: dir).selectedId,store.selectedId); nav.stop()
     }
@@ -375,8 +472,15 @@ final class NavigationIntegrationTests: XCTestCase {
         nav.follow(try route(field)); try await wait { nav.running }
         let file = dir.appendingPathComponent("navigation-session-v1.json")
         try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: true)
-        driver.onLocations?([fix(0,0,1000)])
+        driver.onLocations?([fix(0,0,1000)]); try await wait { !nav.saving }
         XCTAssertFalse(nav.running); XCTAssertEqual(nav.progress?.index,0); XCTAssertFalse(driver.updating); XCTAssertNotNil(nav.error)
+        XCTAssertEqual(store.waypoints.first { $0.id == store.selectedId }?.sourceRoutePointIndex,1,"Target committed before the blocked session file")
+        try FileManager.default.removeItem(at: file)
+        nav.resume(); try await wait { nav.running }
+        XCTAssertEqual(store.waypoints.first { $0.id == store.selectedId }?.sourceRoutePointIndex,0,"Resume restores the unscored leg")
+        driver.onLocations?([fix(0,0,1000)]); try await wait { !nav.saving }
+        XCTAssertEqual(nav.progress?.index,1)
+        nav.stop(); try await wait { !nav.saving }
     }
 }
 
@@ -388,4 +492,25 @@ private final class QuietBoundaryAlerts: BoundaryAlerting {
     func begin() {}
     func crossing(name: String) { crossings += 1 }
     func stop() {}
+}
+
+/// Blocks one real worker file preparation. Main-actor callbacks remain live;
+/// neither session progress nor file publication is injected by the gate.
+private final class NavigationSaveGate: @unchecked Sendable {
+    private let lock = NSLock(), semaphore = DispatchSemaphore(value: 0)
+    private var armed = false, didEnter = false, didReturn = false
+    var entered: Bool { lock.lock(); defer { lock.unlock() }; return didEnter }
+    var returned: Bool { lock.lock(); defer { lock.unlock() }; return didReturn }
+    func arm() { lock.lock(); armed = true; didEnter = false; didReturn = false; lock.unlock() }
+    func release() { semaphore.signal() }
+    func prepare(_ data: Data,_ destination: URL) throws -> PreparedAtomicFile {
+        XCTAssertFalse(Thread.isMainThread)
+        lock.lock(); let block = armed; armed = false
+        if block { didEnter = true }; lock.unlock()
+        if block {
+            guard semaphore.wait(timeout: .now()+5) == .success else { throw BoundaryError.invalid("Test save gate timed out") }
+        }
+        defer { if block { lock.lock(); didReturn = true; lock.unlock() } }
+        return try PreparedAtomicFile(data: data,destination: destination,lockCompatible: true)
+    }
 }

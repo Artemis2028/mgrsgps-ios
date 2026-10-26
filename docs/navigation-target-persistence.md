@@ -10,7 +10,8 @@ rebase before publication. A deleted target cannot be selected. A newer
 selection intent cancels an older staged selection, even when no library edit
 has committed yet. This follows Android's `selectNavigationTarget` generation
 check and repository existence guard (`GridFixApp.kt` / `WaypointRepository.kt`
-on canonical `56acca2`). Only selectedId is published for selection; unchanged
+present since `d5c83ab`, inspected in the canonical tree at `56acca2`; that
+last commit itself only changes the takOff stub API). Only selectedId is published for selection; unchanged
 waypoint/folder arrays do not trigger needless full-library refreshes.
 
 Guidance startup awaits durable selection before enabling GPS/haptic playback.
@@ -21,8 +22,7 @@ startup cannot switch the target after the worker returns.
 Automatic checkpoint transitions and manual previous/next now use throwing
 selection. A failed target save pauses the route before publishing the new index
 or announcing a checkpoint. Retry resumes the unscored leg. Their preparation
-is still synchronous; moving runtime selection and session writes off-main is
-remaining work, rather than a platform restriction. The waypoint and session
+and session writes now use [worker staging](navigation-runtime-persistence.md). The waypoint and session
 files are separate commits: if selection succeeds but session persistence fails,
 the route stops at its old saved index; explicit resume selects that leg again.
 Relaunch never automatically starts location or haptics.

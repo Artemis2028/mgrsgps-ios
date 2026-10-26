@@ -29,16 +29,17 @@ struct NavigationControlsView: View {
                     HStack {
                         if navigation.running { Button("Pause route") { navigation.pause() }.accessibilityIdentifier("pause-route") }
                         else { Button("Resume route") { navigation.resume() }.accessibilityIdentifier("resume-route") }
-                        Button("Previous point") { navigation.movePoint(-1) }.disabled(p.index == 0)
-                        Button("Next point") { navigation.movePoint(1) }.accessibilityIdentifier("next-route-point")
+                        Button("Previous point") { navigation.movePoint(-1) }.disabled(p.index == 0 || navigation.saving)
+                        Button("Next point") { navigation.movePoint(1) }.accessibilityIdentifier("next-route-point").disabled(navigation.saving)
                     }.buttonStyle(.bordered).font(.caption)
                     Text("Advances when your GPS accuracy circle fits inside 25 m. The haptic arrival cue uses a separate 50 m ring.")
                         .font(.caption).foregroundStyle(palette.inkDim)
                 }
             }
             Toggle("Haptic guide",isOn: Binding(get: { navigation.running && navigation.haptics },set: { navigation.setHaptics($0) }))
-                .disabled(navigation.preparing || (store.selectedId == nil && !navigation.running) || (navigation.progress != nil && !navigation.running && navigation.progress?.complete != true))
+                .disabled(navigation.saving || navigation.preparing || (store.selectedId == nil && !navigation.running) || (navigation.progress != nil && !navigation.running && navigation.progress?.complete != true))
                 .accessibilityIdentifier("haptic-guide-toggle")
+            if navigation.saving { ProgressView("Saving navigation…").accessibilityIdentifier("navigation-saving") }
             Text(navigation.preparing ? "Starting navigation…" : navigation.status).accessibilityIdentifier("navigation-guide-status")
             if let d = navigation.decision, let error = d.deviation, d.cue != .unavailable, navigation.haptics {
                 VStack(alignment: .leading,spacing: 6) {

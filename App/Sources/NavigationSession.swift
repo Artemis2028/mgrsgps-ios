@@ -5,10 +5,12 @@ import SwiftUI
 
 @MainActor
 final class NavigationSession: ObservableObject {
-    private struct Saved: Codable { var progress: RouteFollowingProgress?; var active: Bool; var haptics: Bool }
+    private struct Saved: Codable, Sendable { var progress: RouteFollowingProgress?; var active: Bool; var haptics: Bool }
     @Published private(set) var progress: RouteFollowingProgress?
     @Published private(set) var running = false
     @Published private(set) var preparing = false
+    @Published private(set) var saving = false
+    private var queuedLocation: CLLocation?
     @Published private(set) var haptics = false
     @Published private(set) var status = "Navigation guide off"
     @Published private(set) var decision: GuideDecision?
@@ -36,6 +38,7 @@ final class NavigationSession: ObservableObject {
     private let uptime: () -> TimeInterval
     private let foreground: @MainActor () -> Bool
     private let scheduleTicks: Bool
+    private let stageSession: @Sendable (Data,URL) throws -> PreparedAtomicFile
     private var subscriptions = Set<AnyCancellable>()
     private var loop: Task<Void,Never>?
     private var operation: Task<Void,Never>?
@@ -57,11 +60,12 @@ final class NavigationSession: ObservableObject {
     init(directory: URL? = nil, store: WaypointStore, field: FieldDataStore, settings: AppSettings,
          driver: NavigationLocationDriver? = nil, feedback: NavigationFeedback? = nil, lanes: NavigationLaneStore? = nil,
          now: @escaping () -> Date = Date.init, uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
-         foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }, scheduleTicks: Bool = true) {
+         foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }, scheduleTicks: Bool = true,
+         stageSession: @escaping @Sendable (Data,URL) throws -> PreparedAtomicFile = { try PreparedAtomicFile(data: $0,destination: $1,lockCompatible: true) }) {
         self.store = store; self.field = field; self.settings = settings
         self.laneStore = lanes
         self.driver = driver ?? CoreLocationNavigationDriver(); self.feedback = feedback ?? SystemNavigationFeedback()
-        self.now = now; self.uptime = uptime; self.foreground = foreground; self.scheduleTicks = scheduleTicks
+        self.now = now; self.uptime = uptime; self.foreground = foreground; self.scheduleTicks = scheduleTicks; self.stageSession = stageSession
         file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("navigation-session-v1.json")
         do {
             if FileManager.default.fileExists(atPath: file.path) {
@@ -111,6 +115,7 @@ final class NavigationSession: ObservableObject {
             pending = { [weak self] in self?.follow(route,startIndex: startIndex) }; driver.requestPermission(); return
         }
         guard permitted else { error = "Navigation needs While Using permission and Precise Location."; return }
+        operation?.cancel(); saving = false
         preparing = true; error = nil; generation = UUID(); let token = generation
         operation = Task {
             do {
@@ -148,6 +153,7 @@ final class NavigationSession: ObservableObject {
             preparing = true; pending = { [weak self] in self?.launch(progress: requested,haptics: enabled) }; driver.requestPermission(); return
         }
         guard permitted else { error = "Navigation needs While Using permission and Precise Location."; return }
+        operation?.cancel(); saving = false
         preparing = true; error = nil; generation = UUID(); let token = generation
         operation = Task {
             await feedback.prepare()
@@ -163,7 +169,7 @@ final class NavigationSession: ObservableObject {
                 } else { target = store.waypoints.first { $0.id == store.selectedId } }
                 guard let target else { throw BoundaryError.invalid("Navigation target is missing.") }
                 let originalSelection = store.selectedId
-                try await WaypointEditAction.select(target.id,in: store) {
+                let targetIntent = try await WaypointEditAction.select(target.id,in: store) {
                     guard self.generation == token else { throw CancellationError() }
                     guard self.foreground(), self.permitted else { throw BoundaryError.invalid("Start navigation with the app open and precise location enabled.") }
                     if let next {
@@ -174,7 +180,14 @@ final class NavigationSession: ObservableObject {
                               self.store.waypoints.first(where: { $0.id == target.id }) == target else { throw BoundaryError.invalid("Navigation target changed. Start guidance again.") }
                     }
                 }
-                try persist(progress: next,active: true,haptics: enabled)
+                let lease = saveGrace(token); defer { endSaveGrace(lease) }
+                try await persist(progress: next,active: true,haptics: enabled,token: token) {
+                    guard self.foreground(), self.permitted, self.store.selectedId == target.id, self.store.selectionIsCurrent(targetIntent) else { throw BoundaryError.invalid("Navigation target or location access changed. Start again.") }
+                    if let next {
+                        guard !self.store.practiceNavigationLocked else { throw BoundaryError.invalid("End the practice course before following a route.") }
+                        try self.validate(next)
+                    }
+                }
                 self.progress = next; haptics = enabled; running = true; preparing = false
                 arrivals = 0; fix = nil; lastDate = nil; receiptClock = nil; heading = nil
                 resetLeg(); feedback.begin(); feedbackStatus = feedback.status; driver.start()
@@ -197,41 +210,122 @@ final class NavigationSession: ObservableObject {
         }
     }
     func setHaptics(_ enabled: Bool) {
+        guard !saving else { return }
         guard running else { if enabled { startGuide() }; return }
         if !enabled && progress == nil { haptics = false; pause(); return }
-        do { try persist(progress: progress,active: true,haptics: enabled); haptics = enabled; resetLeg() }
-        catch { pause(reason: "Guide settings could not be saved: \(error.localizedDescription)") }
+        saving = true; let token = generation, requested = progress
+        operation = Task {
+            let lease = saveGrace(token); defer { endSaveGrace(lease) }
+            do {
+                try await persist(progress: requested,active: true,haptics: enabled,token: token) {
+                    if let requested { try self.validate(requested) }
+                    guard self.store.waypoints.contains(where: { $0.id == self.store.selectedId }) else { throw BoundaryError.invalid("Navigation target was removed.") }
+                }
+                haptics = enabled; saving = false; resetLeg(); reconcile(); drainLocation()
+            } catch {
+                guard generation == token else { return }
+                saving = false; pause(reason: "Guide settings could not be saved: \(error.localizedDescription)")
+            }
+        }
     }
-    func pause(reason: String? = nil) {
-        generation = UUID(); operation?.cancel(); pending = nil; preparing = false
+    func pause(reason: String? = nil,save: Bool = true) {
+        generation = UUID(); operation?.cancel(); pending = nil; preparing = false; saving = false; queuedLocation = nil
         loop?.cancel(); driver.stop(); feedback.stop(); running = false; fix = nil; heading = nil; decision = nil
         clearLane()
         progress?.paused = true; status = progress == nil ? "Navigation guide off" : "Route paused"
         if let reason { error = reason }
-        do { if loaded { try persist(progress: progress,active: false,haptics: haptics) } }
-        catch { self.error = "Navigation stopped; progress could not be saved: \(error.localizedDescription)" }
+        if save && loaded { saveInactive() }
     }
-    func stop() { pause(); progress = nil; status = "Navigation stopped"; do { if loaded { try persist(progress: nil,active: false,haptics: false) } } catch { self.error = error.localizedDescription } }
+    func stop() {
+        pause(save: false); progress = nil; haptics = false; status = "Navigation stopped"
+        if loaded { saveInactive() }
+    }
+    private func saveInactive() {
+        let token = generation, requested = progress, enabled = haptics
+        saving = true
+        operation = Task {
+            let lease = saveGrace(token); defer { endSaveGrace(lease) }
+            do { try await persist(progress: requested,active: false,haptics: enabled,token: token); saving = false }
+            catch {
+                guard generation == token else { return }
+                saving = false; self.error = "Navigation stopped; progress could not be saved: \(error.localizedDescription)"
+            }
+        }
+    }
     func clearSavedSession() {
-        pause()
+        pause(save: false)
         do {
             if !loaded, FileManager.default.fileExists(atPath: file.path) { try FileManager.default.moveItem(at: file,to: file.deletingLastPathComponent().appendingPathComponent("navigation-damaged-\(UUID().uuidString).json")) }
-            try persist(progress: nil,active: false,haptics: false); loaded = true; progress = nil; haptics = false; error = nil; status = "Navigation guide off"
+            let token = generation; saving = true; preparing = true
+            operation = Task {
+                let lease = saveGrace(token); defer { endSaveGrace(lease) }
+                do {
+                    try await persist(progress: nil,active: false,haptics: false,token: token)
+                    loaded = true; progress = nil; haptics = false; error = nil; status = "Navigation guide off"; saving = false; preparing = false
+                } catch {
+                    guard generation == token else { return }
+                    saving = false; preparing = false; self.error = error.localizedDescription
+                }
+            }
         } catch { self.error = error.localizedDescription }
     }
     func movePoint(_ delta: Int) {
-        guard !store.practiceNavigationLocked else { return }
-        guard var p = progress else { return }
+        guard !saving, !preparing, !store.practiceNavigationLocked, var p = progress else { return }
         p.index = min(p.points.count,max(0,p.index+delta))
-        do {
-            if !p.complete {
-                guard let next = routeTarget(p) else { throw BoundaryError.invalid("Next route waypoint is missing.") }
-                try store.selectDurably(next.id)
+        transition(to: p,announce: false)
+    }
+    private func transition(to nextProgress: RouteFollowingProgress,announce: Bool) {
+        guard !saving, let previous = progress else { return }
+        let token = generation, wasRunning = running, originalTarget = store.selectedId
+        let next = routeTarget(nextProgress)
+        saving = true; decision = nil; feedback.cancelPlayback()
+        operation = Task {
+            let lease = saveGrace(token); defer { endSaveGrace(lease) }
+            @MainActor func check(_ selected: String?) throws {
+                try Task.checkCancellation()
+                guard self.generation == token, self.progress == previous, self.running == wasRunning else { throw CancellationError() }
+                guard !self.store.practiceNavigationLocked, self.store.selectedId == selected else { throw BoundaryError.invalid("Route paused because you chose another target or started a course.") }
+                if wasRunning && !self.permitted { throw BoundaryError.invalid("Precise location permission changed.") }
+                try self.validate(nextProgress)
             }
-            try persist(progress: p,active: running && !p.complete,haptics: haptics); progress = p
-            if p.complete { finishRoute() }
-            else if let wp = routeTarget(p) { target = wp; resetLeg(); resetTargetFeedback() }
-        } catch { pause(reason: error.localizedDescription) }
+            do {
+                try check(originalTarget)
+                var targetIntent: UUID?
+                if !nextProgress.complete {
+                    guard let next else { throw BoundaryError.invalid("Next route waypoint is missing.") }
+                    targetIntent = try await WaypointEditAction.select(next.id,in: store) { try check(originalTarget) }
+                }
+                try await persist(progress: nextProgress,active: wasRunning && !nextProgress.complete,haptics: haptics,token: token) {
+                    try check(nextProgress.complete ? originalTarget : next?.id)
+                    if let targetIntent, !self.store.selectionIsCurrent(targetIntent) { throw CancellationError() }
+                }
+                progress = nextProgress; saving = false
+                if nextProgress.complete { queuedLocation = nil; finishRoute(); return }
+                guard let next else { throw BoundaryError.invalid("Next route waypoint is missing.") }
+                target = next; resetLeg(); resetTargetFeedback()
+                status = wasRunning ? "Route advanced to point \(nextProgress.index+1) of \(nextProgress.points.count)" : "Route paused"
+                if announce && wasRunning { feedback.emit(.checkpoint,name: "\(nextProgress.name) · point \(nextProgress.index+1): \(next.name)") }
+                drainLocation()
+            } catch {
+                guard generation == token else { return }
+                saving = false
+                pause(reason: error is CancellationError ? "Route paused because a newer target was chosen." : "Route progress could not be saved: \(error.localizedDescription)")
+            }
+        }
+    }
+    private func queueLocation(_ locations: [CLLocation]) {
+        let date = now(), up = uptime()
+        if let previous = receiptClock, abs(date.timeIntervalSince(previous.0)-(up-previous.1)) > 2 { queuedLocation = nil }
+        let usable = locations.filter { sample in
+            let age = date.timeIntervalSince(sample.timestamp)
+            return age >= 0 && NavigationFixPolicy.isUsable(lat: sample.coordinate.latitude,lon: sample.coordinate.longitude,accuracyMeters: sample.horizontalAccuracy,timestampUptime: up-age,nowUptime: up)
+        }
+        guard let latest = usable.max(by: { $0.timestamp < $1.timestamp }), queuedLocation.map({ latest.timestamp > $0.timestamp }) ?? true else { return }
+        queuedLocation = latest
+    }
+    private func drainLocation() {
+        let latest = queuedLocation; queuedLocation = nil
+        if running, let latest { receive([latest]) }
     }
     func foregroundChanged(_ active: Bool) { feedback.cancelPlayback(); cues = GuideCueState(); cadence = GuideCadence(); if active { reconcile(); tick() } }
     private func resetTargetFeedback() {
@@ -257,7 +351,7 @@ final class NavigationSession: ObservableObject {
         }) else { throw BoundaryError.invalid("Route waypoint changed or was deleted. Restart the route.") }
     }
     private func reconcile() {
-        guard running else { return }
+        guard running, !saving else { return }
         if let p = progress {
             do { try validate(p) } catch { pause(reason: error.localizedDescription); return }
             if store.selectedId != target?.id { pause(reason: "Route paused because you chose another target.") }
@@ -271,6 +365,7 @@ final class NavigationSession: ObservableObject {
     private func receive(_ locations: [CLLocation]) {
         guard running else { return }
         if !permitted { pause(reason: "Navigation stopped because precise location permission changed."); return }
+        if saving { queueLocation(locations); return }
         reconcile(); guard running else { return }
         let date = now(), up = uptime()
         if let previous = receiptClock, abs(date.timeIntervalSince(previous.0)-(up-previous.1)) > 2 {
@@ -288,18 +383,9 @@ final class NavigationSession: ObservableObject {
             guard var p = progress, !p.paused, let target else { continue }
             let nav = Geodesy.navInfo(fromLat: l.coordinate.latitude,fromLon: l.coordinate.longitude,toLat: target.lat,toLon: target.lon)
             if p.arrive(distance: nav.distanceMeters,accuracy: l.horizontalAccuracy) {
-                do {
-                    if !p.complete {
-                        guard let next = routeTarget(p) else { throw BoundaryError.invalid("Next route waypoint is missing.") }
-                        try store.selectDurably(next.id)
-                    }
-                    try persist(progress: p,active: !p.complete,haptics: haptics); progress = p
-                    if p.complete { finishRoute(); return }
-                    guard let next = routeTarget(p) else { pause(reason: "Next route waypoint is missing."); return }
-                    self.target = next; resetLeg(); resetTargetFeedback()
-                    status = "Route advanced to point \(p.index+1) of \(p.points.count)"
-                    feedback.emit(.checkpoint,name: "\(p.name) · point \(p.index+1): \(next.name)")
-                } catch { pause(reason: "Route progress could not be saved: \(error.localizedDescription)"); return }
+                transition(to: p,announce: true)
+                queueLocation(locations.filter { $0.timestamp > l.timestamp })
+                return
             }
         }
         tick()
@@ -309,7 +395,7 @@ final class NavigationSession: ObservableObject {
         clearLane(); status = "Route complete"; feedback.emit(.complete,name: progress?.name ?? "Route")
     }
     func tick() {
-        guard running, let target else { return }
+        guard running, !saving, let target else { return }
         defer { guideEvaluatedAt = uptime() }
         if !permitted { pause(reason: "Navigation stopped because precise location permission changed."); return }
         let up = uptime(), config = settings.guideConfiguration
@@ -411,11 +497,39 @@ final class NavigationSession: ObservableObject {
             return false
         }
     }
-    private func persist(progress: RouteFollowingProgress?,active: Bool,haptics: Bool) throws {
-        let data = try JSONEncoder().encode(Saved(progress: progress,active: active,haptics: haptics))
-        guard data.count < 2 * 1024 * 1024 else { throw BoundaryError.invalid("Navigation session is too large to save.") }
-        try data.write(to: file,options: [.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+    private func persist(progress: RouteFollowingProgress?,active: Bool,haptics: Bool,token: UUID,
+                         validate: @MainActor () throws -> Void = {}) async throws {
+        let saved = Saved(progress: progress,active: active,haptics: haptics), destination = file, prepare = stageSession
+        let worker = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let data = try JSONEncoder().encode(saved)
+            guard data.count < 2 * 1024 * 1024 else { throw BoundaryError.invalid("Navigation session is too large to save.") }
+            return try prepare(data,destination)
+        }
+        let staged = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+        try Task.checkCancellation()
+        guard generation == token else { throw CancellationError() }
+        try validate()
+        try staged.publish()
     }
+    @MainActor private final class SaveLease {
+        var identifier: UIBackgroundTaskIdentifier = .invalid
+        func end() {
+            if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier); identifier = .invalid }
+        }
+    }
+    private func saveGrace(_ token: UUID) -> SaveLease {
+        let lease = SaveLease()
+        lease.identifier = UIApplication.shared.beginBackgroundTask(withName: "Save navigation progress") { [weak self] in
+            Task { @MainActor in
+                lease.end()
+                guard let self, self.generation == token else { return }
+                self.pause(reason: "Navigation paused because iOS ended its save time. Resume with the app open.",save: false)
+            }
+        }
+        return lease
+    }
+    private func endSaveGrace(_ lease: SaveLease) { lease.end() }
 }
 
 private struct LaneShapeErrorForApp: LocalizedError {
@@ -432,7 +546,7 @@ extension NavigationSession {
         let checkpoint=progress.map { " · CP \(min($0.index+1,$0.points.count))/\($0.points.count)" } ?? ""
         let title=String((progress?.name ?? target.name).prefix(80))
         let grid=usable.flatMap { MGRS.parts(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,digits:settings.mgrsDigits)?.full }
-        let state=FieldActivityState(title:title,status:String(status.prefix(160)),detail:(distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
+        let state=FieldActivityState(title:title,status:saving ? "Saving navigation progress" : String(status.prefix(160)),detail:saving ? "Waiting for saved progress" : (distance.map { Format.distance(meters:$0,unit:settings.units) } ?? "Position unavailable")+checkpoint,
             grid:grid,fixDate:usable?.timestamp,fixExpiresAt:usable?.timestamp.addingTimeInterval(10),startedAt:nil,fixUptime:usable == nil ? nil : fixTime,night:settings.nightMode)
         return .init(id:progress.map { "route:"+$0.routeID } ?? "target:"+target.id,kind:"navigation",state:state)
     }
@@ -445,6 +559,7 @@ extension NavigationSession {
         let date = now()
         let at = Int64(date.timeIntervalSince1970 * 1000)
         guard running, let target else { return .init(sourceID: sourceID,revision: revision,at: at,active: false) }
+        if saving { return .init(sourceID:sourceID,revision:revision,at:at,active:true,available:false,targetName:String(target.name.prefix(120)),status:"Saving navigation progress") }
         let up = uptime()
         let evaluated = guideEvaluatedAt.map { up >= $0 && up-$0 <= 2 } ?? false
         let position = permitted && fix.map { NavigationFixPolicy.isUsable(lat:$0.coordinate.latitude,lon:$0.coordinate.longitude,accuracyMeters:$0.horizontalAccuracy,timestampUptime:fixTime,nowUptime:up) } == true

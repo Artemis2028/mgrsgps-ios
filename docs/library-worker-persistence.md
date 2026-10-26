@@ -78,7 +78,7 @@ class is automatically assigned exactly once to the library shard.
 
 ## Remaining work
 
-Navigation target/session persistence and practice
+Navigation target/session saves now use [runtime worker staging](navigation-runtime-persistence.md). Practice
 setup/selection/history still have synchronous paths. Recording final archive
 publication was subsequently staged; see [recording](track-recording.md). Older FieldLibraryView actions and startup archive reads
 need their own audit. Dense-map/large-library accessibility, physical storage
