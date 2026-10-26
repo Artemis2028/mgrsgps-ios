@@ -69,6 +69,10 @@ struct InterchangeImportView: View {
                             Text("GridFix backup preview").font(.headline)
                             Text("\(backup.waypoints.count) waypoints · \(backup.graphics.count) graphics/routes · \(backup.tracks.count) tracks")
                                 .accessibilityIdentifier("backup-import-counts")
+                            if !backup.quietBoundaries.isEmpty {
+                                Text(backup.quietBoundaries.count == 1 ? "1 quiet boundary · imported monitoring stays off" : "\(backup.quietBoundaries.count) quiet boundaries · imported monitoring stays off")
+                                    .accessibilityIdentifier("backup-quiet-boundary-count")
+                            }
                             Text(onRestoreBackup == nil ? "Use Import backup to restore this file." : "Confirm to restore saved records and included settings. Existing records are kept.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }

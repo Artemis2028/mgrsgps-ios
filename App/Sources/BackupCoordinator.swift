@@ -7,11 +7,12 @@ enum BackupCoordinator {
     /// goes away, like Android's NonCancellable restore. Worker tasks do not
     /// inherit cancellation. Each stale snapshot is rebuilt from current data.
     static func restore(_ document: Backup.Document,waypoints: WaypointStore,
-                        fieldData: FieldDataStore,settings: AppSettings,lanes: NavigationLaneStore? = nil) async -> String {
+                        fieldData: FieldDataStore,settings: AppSettings,lanes: NavigationLaneStore? = nil,boundaries: BoundaryMonitor? = nil) async -> String {
         var applied: [String] = []
         do {
             try await Task.detached(priority: .userInitiated) { try Backup.validate(document) }.value
             if !document.navLanes.isEmpty && lanes == nil { throw LaneRestoreUnavailable() }
+            if !document.quietBoundaries.isEmpty && boundaries == nil { throw BoundaryError.invalid("Quiet-boundary storage is unavailable") }
             if !document.tracks.isEmpty {
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
@@ -35,6 +36,10 @@ enum BackupCoordinator {
             if !document.navLanes.isEmpty,let lanes {
                 let count = try await lanes.restore(document.navLanes)
                 if count > 0 { applied.append(count == 1 ? "1 navigation lane" : "\(count) navigation lanes") }
+            }
+            if !document.quietBoundaries.isEmpty,let boundaries {
+                let count = try await boundaries.restore(document.quietBoundaries)
+                if count > 0 { applied.append(count == 1 ? "1 quiet boundary" : "\(count) quiet boundaries") }
             }
             if !document.courseHistory.isEmpty {
                 var course = Backup.Document(); course.hasSettings = false; course.courseHistory = document.courseHistory

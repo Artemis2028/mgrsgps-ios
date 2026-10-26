@@ -74,6 +74,7 @@ final class BoundaryMonitor: ObservableObject {
     @Published private(set) var lastCrossing: Date?
     @Published var displayedID: String?
     private let file: URL
+    private var sourceStamp: SourceStamp?
     private let driver: RecordingLocationDriver
     private let alerts: BoundaryAlerting
     private let now: () -> Date
@@ -98,7 +99,7 @@ final class BoundaryMonitor: ObservableObject {
     }
     enum StartupFailure: LocalizedError {
         case changed
-        var errorDescription: String? { "Saved boundaries changed while opening. Try again." }
+        var errorDescription: String? { "Saved boundaries changed. Reopen GridFix to reload them before trying again." }
     }
     fileprivate struct SourceStamp: Equatable, Sendable {
         let size: UInt64,inode: UInt64,volume: UInt64
@@ -120,8 +121,7 @@ final class BoundaryMonitor: ObservableObject {
             let data = try Data(contentsOf: file,options: .mappedIfSafe)
             guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library is too large.") }
             let doc = try JSONDecoder().decode(Document.self,from: data)
-            guard doc.areas.count <= 100,Set(doc.areas.map(\.id)).count == doc.areas.count else { throw BoundaryError.invalid("Invalid boundary library.") }
-            for area in doc.areas { try Task.checkCancellation(); _ = try BoundaryGeometry(vertices: area.vertices) }
+            try Backup.validateQuietBoundaries(doc.areas)
             return .init(file: file,stamp: stamp,document: doc,error: nil)
         } catch { return .init(file: file,stamp: stamp,document: nil,error: "Boundary files were kept: \(error.localizedDescription)") }
     }
@@ -136,6 +136,7 @@ final class BoundaryMonitor: ObservableObject {
         do {
             guard prepared.file == file else { throw BoundaryError.invalid("Prepared boundaries belong to another library.") }
             try prepared.validate()
+            sourceStamp = prepared.stamp
             if let failure = prepared.error { loadFailed = true; error = failure }
             else if let doc = prepared.document {
                 areas = doc.areas; displayedID = areas.first?.id
@@ -155,7 +156,7 @@ final class BoundaryMonitor: ObservableObject {
         do {
             _ = try BoundaryGeometry(vertices: area.vertices)
             let name = area.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty, name.count <= 100 else { throw BoundaryError.invalid("Give the boundary a name of 1–100 characters.") }
+            guard !area.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, area.id.count <= 256, !name.isEmpty, name.count <= 100 else { throw BoundaryError.invalid("Give the boundary a name of 1–100 characters.") }
             var next = areas
             let saved = BoundaryArea(id: area.id,name: name,vertices: area.vertices)
             if let i = next.firstIndex(where: { $0.id == area.id }) { next[i] = saved } else { next.append(saved) }
@@ -169,6 +170,42 @@ final class BoundaryMonitor: ObservableObject {
         do { let next = areas.filter { $0.id != area.id }; try persist(next,active: nil); areas = next; if displayedID == area.id { displayedID = next.first?.id }; error = nil }
         catch { self.error = error.localizedDescription }
     }
+    /// Additive confirmed restore. Geometry preparation and staging run off Main;
+    /// publication retains current edits and leaves any existing monitor untouched.
+    func restore(_ imported: [BoundaryArea]) async throws -> Int {
+        do {
+            while true {
+                guard !loadFailed else { throw BoundaryError.invalid("Boundary library could not be read. Its file was kept.") }
+                let original = areas, active = activeID, token = generation, file = file
+                let stamp = SourceStamp.read(file)
+                guard stamp == sourceStamp else { throw StartupFailure.changed }
+                let prepared = try await Task.detached(priority: .userInitiated) {
+                    try Backup.validateQuietBoundaries(imported)
+                    let known = Set(original.map(\.id)), fresh = imported.filter { !known.contains($0.id) }
+                    let next = original + fresh
+                    try Backup.validateQuietBoundaries(next)
+                    let bytes = try JSONEncoder().encode(Document(areas: next,interruptedID: active))
+                    guard bytes.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
+                    let staged = fresh.isEmpty ? nil : try PreparedAtomicFile(data: bytes,destination: file,lockCompatible: true)
+                    return (next,fresh.count,staged)
+                }.value
+                guard SourceStamp.read(file) == stamp else {
+                    prepared.2?.discard()
+                    // A local operation can change both memory and disk while
+                    // staging. Rebuild; an external edit must never be replaced.
+                    if areas != original || activeID != active || generation != token { continue }
+                    throw StartupFailure.changed
+                }
+                guard areas == original, activeID == active, generation == token, !loadFailed else { prepared.2?.discard(); continue }
+                try prepared.2?.publish()
+                sourceStamp = SourceStamp.read(file)
+                if prepared.1 > 0 { areas = prepared.0; if displayedID == nil { displayedID = areas.first?.id } }
+                error = nil
+                return prepared.1
+            }
+        } catch { self.error = error.localizedDescription; throw error }
+    }
+
     func start(_ area: BoundaryArea) {
         guard !running, !preparing, !loadFailed, areas.contains(area), foreground() else { return }
         error = nil
@@ -249,7 +286,10 @@ final class BoundaryMonitor: ObservableObject {
         refresh()
     }
     private func persist(_ areas: [BoundaryArea], active: String?) throws {
+        guard SourceStamp.read(file) == sourceStamp else { throw StartupFailure.changed }
         let data = try JSONEncoder().encode(Document(areas: areas,interruptedID: active))
+        guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
         try data.write(to: file,options: [.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+        sourceStamp = SourceStamp.read(file)
     }
 }

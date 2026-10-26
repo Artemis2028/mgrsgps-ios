@@ -120,6 +120,8 @@ public enum Backup {
         public var tracks: [TrackMeta]
         public var courseHistory: [CourseResult]
         public var navLanes: [NavLane]
+        /// iOS quiet-inside perimeters; geometry only, never monitoring state.
+        public var quietBoundaries: [BoundaryArea]
         /// Track id → raw points file bytes (lat lon time alt lines).
         public var trackFiles: [String: Data]
         public var hasSettings: Bool = true
@@ -135,6 +137,7 @@ public enum Backup {
                     tracks: [TrackMeta] = [],
                     courseHistory: [CourseResult] = [],
                     navLanes: [NavLane] = [],
+                    quietBoundaries: [BoundaryArea] = [],
                     trackFiles: [String: Data] = [:]) {
             self.exportedAt = exportedAt
             self.waypoints = waypoints
@@ -144,6 +147,7 @@ public enum Backup {
             self.tracks = tracks
             self.courseHistory = courseHistory
             self.navLanes = navLanes
+            self.quietBoundaries = quietBoundaries
             self.trackFiles = trackFiles
         }
     }
@@ -228,6 +232,9 @@ public enum Backup {
             ]
         }
         root["navLanes"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(doc.navLanes))
+        if !doc.quietBoundaries.isEmpty {
+            root["quietBoundaries"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(doc.quietBoundaries))
+        }
 
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
@@ -272,7 +279,7 @@ public enum Backup {
         guard ["GridFix", "MGRS GPS"].contains(root["app"] as? String ?? "") else {
             throw BackupError.notABackup("Not an MGRS GPS backup")
         }
-        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory", "navLanes"] {
+        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory", "navLanes", "quietBoundaries"] {
             guard root[key] == nil || root[key] is [[String: Any]], (root[key] as? [Any])?.count ?? 0 <= 10_000 else {
                 throw BackupError.notABackup("Invalid or oversized \(key) section")
             }
@@ -296,8 +303,10 @@ public enum Backup {
         }
         let laneBytes = try JSONSerialization.data(withJSONObject: root["navLanes"] ?? [])
         let navLanes = try JSONDecoder().decode([NavLane].self,from: laneBytes)
+        let boundaryBytes = try JSONSerialization.data(withJSONObject: root["quietBoundaries"] ?? [])
+        let quietBoundaries = try JSONDecoder().decode([BoundaryArea].self,from: boundaryBytes)
         var document = Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
-                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course,navLanes: navLanes)
+                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course,navLanes: navLanes,quietBoundaries: quietBoundaries)
         document.hasSettings = root["settings"] is [String:Any]
         let keys=Set((root["settings"] as? [String:Any] ?? [:]).keys)
         document.settingsKeys=Set(settingsJSON(AppSettings()).keys).isSubset(of:keys) ? nil : keys
@@ -326,6 +335,7 @@ public enum Backup {
         // including programmatic documents, without requiring linked records to
         // exist. An orphan is retained and can fall back to azimuth guidance.
         _ = try JSONDecoder().decode([NavLane].self,from: JSONEncoder().encode(doc.navLanes))
+        try validateQuietBoundaries(doc.quietBoundaries)
         try require(doc.folders.count <= 10_000, "Too many folders")
         for point in doc.waypoints {
             try require(TrackCodec.validCoordinates(point.lat, point.lon) && point.rotation.isFinite
@@ -361,6 +371,19 @@ public enum Backup {
         }
         if includingTrackFiles {
             try require(Set(doc.trackFiles.keys).isSubset(of: Set(doc.tracks.map(\.id))), "Track file is missing from manifest")
+        }
+    }
+
+    /// Shared limits for backup geometry and the local quiet-boundary library.
+    public static func validateQuietBoundaries(_ areas: [BoundaryArea]) throws {
+        guard areas.count <= 100, Set(areas.map(\.id)).count == areas.count,
+              areas.allSatisfy({ !$0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.id.count <= 256
+                  && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.name.count <= 100 }) else {
+            throw BackupError.notABackup("Invalid or oversized quiet-boundary library")
+        }
+        for area in areas { try Task.checkCancellation(); _ = try BoundaryGeometry(vertices: area.vertices) }
+        guard try JSONEncoder().encode(areas).count <= 2 * 1024 * 1024 else {
+            throw BackupError.notABackup("Quiet-boundary library exceeds 2 MiB")
         }
     }
 

@@ -110,6 +110,7 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         }
         unlock()
         XCTAssertTrue(app.staticTexts["backup-import-counts"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["backup-quiet-boundary-count"].label,"1 quiet boundary · imported monitoring stays off")
         capture("protected-incoming-backup-review")
         app.buttons["confirm-protected-backup"].tap()
         let next = app.buttons["Review incoming-file.mgrsgps"]
@@ -122,9 +123,23 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         let report = app.staticTexts["incoming-import-status"]
         XCTAssertTrue(report.label.contains("Restored")); XCTAssertTrue(report.label.contains("Imported"))
         XCTAssertFalse(app.buttons["Review incoming-file.mgrsgps"].exists)
+        XCTAssertTrue(report.label.contains("1 quiet boundary"))
+        verifyIncomingQuietArea(app)
         capture("protected-incoming-results-retained")
         app.terminate(); app.launchArguments.append("-keepUITestData"); app.launch()
         XCTAssertTrue(app.buttons["edit-waypoint-Protected queued point"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["edit-waypoint-Protected backup point"].exists)
+        verifyIncomingQuietArea(app)
+    }
+    private func verifyIncomingQuietArea(_ app: XCUIApplication) {
+        app.buttons["Map"].tap()
+        let open = app.buttons["map-boundaries"]
+        XCTAssertTrue(open.waitForExistence(timeout: 8)); open.tap()
+        let saved = app.buttons["monitor-boundary-Incoming quiet area"]
+        if !saved.isHittable { app.swipeUp() }
+        XCTAssertTrue(saved.waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["stop-boundary"].exists)
+        XCTAssertTrue(app.staticTexts["4 points · closed perimeter"].exists)
+        capture("incoming-quiet-boundary-inactive")
+        app.navigationBars["Boundaries"].buttons["Done"].tap(); app.buttons["Waypoints"].tap()
     }
 }

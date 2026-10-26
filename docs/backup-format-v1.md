@@ -1,4 +1,4 @@
-# GridFix backup v1 — Android contract and optional lane extension
+# GridFix backup v1 — Android contract and optional geometry extensions
 
 Inspected `gridfix` main `94c4cc4`, especially `data/Backup.kt`,
 `TrackFiles.kt`, `ImportedTracks.kt`, and route waypoint repository logic.
@@ -134,3 +134,33 @@ The post-release `hiddenMapTools` setting is an optional comma-separated string
 in Android deck order: `layers,locate,ruler,draw,goto,tools,record`. Only hidden
 keys are included. Missing/unknown keys default to shown; decode ignores unknown
 keys. See [map-button preferences](map-tool-visibility.md).
+
+## iOS quiet-boundary extension
+
+Optional `quietBoundaries` keeps version 1 and contains `{id,name,vertices}`
+records. Each vertex is an object `{lat,lon}` in WGS84 decimal degrees.
+This is the custom quiet-inside perimeter library, separate from `navLanes`
+and tactical graphics named `boundary`. IDs are unique, nonblank, at most
+256 characters; names are nonblank and at most 100 characters. At most 100
+perimeters, 256 vertices each and 2 MiB of encoded perimeter records are
+accepted. The existing geometry validator rejects invalid coordinates,
+self-intersections, degenerate edges/areas and unsupported extents. The entire
+manifest still has the Android-compatible 4 MiB limit, shared with every section.
+Malformed sections fail validation before any restore phase mutates a store.
+
+Export includes all saved perimeters in ordinary and protected backups. Restore
+runs after navigation lanes and before course history/settings, adds new IDs,
+and preserves existing local edits. Missing/empty sections leave the current
+library intact. A failed phase reports earlier durable sections and can be
+retried without duplicates. Geometry validation and file staging happen on a
+worker; publication verifies the last loaded/saved source file and current memory/session before
+atomic replacement. External file edits are kept and reported, not overwritten.
+
+No active boundary, GPS permission, detector state or alert session is exported.
+Imported geometry never starts monitoring, requests permission or emits alerts.
+An already-running local monitor remains on its original geometry; a relaunch
+still requires explicit restart. Android currently ignores this unknown root
+key and restores its supported sections (confirmed by Claude's parser source
+review and two real Android parser/envelope fixture tests, 27 October 2026). **Android does not retain it on re-export**, so an
+iOS → Android → backup round trip loses quiet perimeters. Offline maps and
+active sessions remain outside the backup contract.

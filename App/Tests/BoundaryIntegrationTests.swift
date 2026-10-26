@@ -45,6 +45,101 @@ final class BoundaryIntegrationTests: XCTestCase {
         let p = point(x,y)
         return CLLocation(coordinate: .init(latitude: p.lat,longitude: p.lon),altitude: 0,horizontalAccuracy: accuracy,verticalAccuracy: -1,timestamp: Date(timeIntervalSince1970: time))
     }
+    func testBackupRestoreIsAdditiveDurableAndNeverStartsImportedMonitor() async throws {
+        let dir = try directory(), driver = BoundaryTestDriver(), alerts = TestBoundaryAlerts()
+        let monitor = BoundaryMonitor(directory: dir,driver: driver,alerts: alerts)
+        var local = area; local.name = "Locally edited"; XCTAssertTrue(monitor.save(local))
+        var stale = local; stale.name = "Old backup name"
+        var imported = area; imported.name = "Imported quiet area"
+        let plan = try Backup.importZip(Backup.exportZip(.init(quietBoundaries: [stale,imported])))
+        let points = WaypointStore(directory: dir), field = FieldDataStore(directory: dir), settings = AppSettings(directory: dir)
+        let result = await BackupCoordinator.restore(plan,waypoints: points,fieldData: field,settings: settings,boundaries: monitor)
+        XCTAssertTrue(result.contains("1 quiet boundary"),result); XCTAssertEqual(monitor.areas,[local,imported])
+        XCTAssertFalse(monitor.running); XCTAssertFalse(driver.updating); XCTAssertFalse(alerts.active); XCTAssertEqual(driver.requests,0)
+        let file = dir.appendingPathComponent("boundaries-v1.json"), bytes = try Data(contentsOf: file)
+        let retry = try await monitor.restore(plan.quietBoundaries)
+        XCTAssertEqual(retry,0); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        let reopened = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertEqual(reopened.areas,[local,imported]); XCTAssertFalse(reopened.running)
+    }
+    func testBoundaryRestoreFailureAndCancelledConfirmedRetry() async throws {
+        let dir = try directory(), monitor = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        let a = area, file = dir.appendingPathComponent("boundaries-v1.json")
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: true)
+        do { _ = try await monitor.restore([a]); XCTFail("Must not publish after failed rename") } catch {}
+        XCTAssertTrue(monitor.areas.isEmpty)
+        try FileManager.default.removeItem(at: file)
+        let task = Task { try await monitor.restore([a]) }; task.cancel()
+        let count = try await task.value
+        XCTAssertEqual(count,1); XCTAssertEqual(monitor.areas,[a]); XCTAssertFalse(monitor.running)
+        let bad = BoundaryArea(id: "bad",name: "Invalid",vertices: [])
+        let bytes = try Data(contentsOf: file)
+        do { _ = try await monitor.restore([area,bad]); XCTFail("No partial malformed restore") } catch {}
+        XCTAssertEqual(monitor.areas,[a]); XCTAssertEqual(try Data(contentsOf: file),bytes)
+    }
+    func testRestorePreservesAlreadyRunningBoundaryAndDoesNotStartImportedArea() async throws {
+        let dir = try directory(), driver = BoundaryTestDriver(), alerts = TestBoundaryAlerts()
+        let monitor = BoundaryMonitor(directory: dir,driver: driver,alerts: alerts,foreground: { true })
+        let a = area; XCTAssertTrue(monitor.save(a)); monitor.start(a); try await wait { monitor.running }
+        let imported = area
+        let count = try await monitor.restore([imported])
+        XCTAssertEqual(count,1); XCTAssertEqual(monitor.activeID,a.id); XCTAssertTrue(driver.updating); XCTAssertTrue(alerts.active)
+        let reopened = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertEqual(reopened.areas,[a,imported]); XCTAssertFalse(reopened.running)
+        monitor.stop()
+    }
+    func testMissingBoundaryStoreRejectsBeforeOtherSectionsMutate() async throws {
+        let dir = try directory(), points = WaypointStore(directory: dir), field = FieldDataStore(directory: dir), settings = AppSettings(directory: dir)
+        let plan = Backup.Document(waypoints: [.init(name: "Must not be added",lat: 24,lon: 54)],quietBoundaries: [area])
+        let result = await BackupCoordinator.restore(plan,waypoints: points,fieldData: field,settings: settings)
+        XCTAssertTrue(result.contains("storage is unavailable"),result); XCTAssertTrue(result.contains("No records added"),result)
+        XCTAssertTrue(points.waypoints.isEmpty)
+    }
+    func testBoundaryPhaseFailureReportsPriorWaypointsAndRetryFinishesSettings() async throws {
+        let dir = try directory(), monitor = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        let points = WaypointStore(directory: dir), field = FieldDataStore(directory: dir), settings = AppSettings(directory: dir)
+        var plan = Backup.Document(waypoints: [.init(name: "Imported point",lat: 24,lon: 54)],quietBoundaries: [area])
+        plan.settings.mgrsDigits = 6
+        let file = dir.appendingPathComponent("boundaries-v1.json")
+        try FileManager.default.createDirectory(at: file,withIntermediateDirectories: true)
+        let failed = await BackupCoordinator.restore(plan,waypoints: points,fieldData: field,settings: settings,boundaries: monitor)
+        XCTAssertTrue(failed.contains("Already restored: 1 waypoints"),failed)
+        XCTAssertEqual(points.waypoints.count,1); XCTAssertTrue(monitor.areas.isEmpty); XCTAssertEqual(settings.mgrsDigits,10)
+        try FileManager.default.removeItem(at: file)
+        let retry = await BackupCoordinator.restore(plan,waypoints: points,fieldData: field,settings: settings,boundaries: monitor)
+        XCTAssertFalse(retry.contains("stopped"),retry); XCTAssertTrue(retry.contains("1 quiet boundary"),retry)
+        XCTAssertEqual(points.waypoints.count,1); XCTAssertEqual(monitor.areas,plan.quietBoundaries); XCTAssertEqual(settings.mgrsDigits,6)
+        XCTAssertFalse(monitor.running)
+    }
+    func testExternalBoundaryReplacementIsKeptBeforeRestoreOrOrdinarySave() async throws {
+        let dir = try directory(), monitor = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        let original = area; XCTAssertTrue(monitor.save(original))
+        let external = area, file = dir.appendingPathComponent("boundaries-v1.json")
+        let bytes = try JSONEncoder().encode(BoundaryMonitor.Document(areas: [external]))
+        try bytes.write(to: file,options: .atomic)
+        do { _ = try await monitor.restore([area]); XCTFail("An external replacement must be kept") } catch {}
+        XCTAssertEqual(monitor.areas,[original]); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        XCTAssertFalse(monitor.save(original)); XCTAssertEqual(try Data(contentsOf: file),bytes)
+        let reopened = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertEqual(reopened.areas,[external]); XCTAssertFalse(reopened.running)
+    }
+    func testMaximumBoundaryRestoreAllowsMainActorProgressAndReopensEveryVertex() async throws {
+        let dir = try directory(), monitor = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        let vertices = (0..<256).map { i in
+            let angle = Double(i) * 2 * Double.pi / 256
+            return GeoPoint(lat: 24 + 0.001 * sin(angle),lon: 54 + 0.001 * cos(angle))
+        }
+        let areas = (0..<100).map { BoundaryArea(id: "max-\($0)",name: "Quiet perimeter \($0)",vertices: vertices) }
+        var beats = 0
+        let pulse = Task { while !Task.isCancelled { beats += 1; try? await Task.sleep(nanoseconds: 1_000_000) } }
+        defer { pulse.cancel() }
+        let count = try await monitor.restore(areas)
+        XCTAssertEqual(count,100); XCTAssertGreaterThan(beats,2)
+        XCTAssertEqual(monitor.areas,areas); XCTAssertFalse(monitor.running)
+        let prepared = await Task.detached { BoundaryMonitor.prepareStartup(directory: dir) }.value
+        let reopened = BoundaryMonitor(directory: dir,startup: prepared,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertFalse(reopened.loadFailed); XCTAssertEqual(reopened.areas,areas); XCTAssertFalse(reopened.running)
+    }
     func testBackgroundCrossingQuietInsideNoRepeatsAndReentry() async throws {
         let driver = BoundaryTestDriver(), alerts = TestBoundaryAlerts(), dir = try directory()
         var foreground = true, clock = Date(timeIntervalSince1970: 100)
@@ -83,7 +178,11 @@ final class BoundaryIntegrationTests: XCTestCase {
         XCTAssertFalse(secondAlerts.active); XCTAssertEqual(secondDriver.requests,0)
         XCTAssertEqual(try Data(contentsOf: file),bytes)
         XCTAssertTrue(second.status.contains("interrupted"))
-        first.stop(); XCTAssertTrue(second.save(edited))
+        first.stop()
+        // The old instance wrote its stop after the startup snapshot. A real
+        // reopened editor loads that latest file before saving its edits.
+        let editable = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts())
+        XCTAssertTrue(editable.save(edited))
         let third = BoundaryMonitor(directory: dir,driver: BoundaryTestDriver(),alerts: TestBoundaryAlerts(),foreground: { true })
         XCTAssertEqual(third.areas.first?.name,"Changed"); third.delete(edited); XCTAssertTrue(third.areas.isEmpty)
     }

@@ -1016,7 +1016,11 @@ private struct MapContainer: UIViewRepresentable {
                 mapView.deselectAnnotation(annotation,animated: false); return
             }
             guard let annotation = annotation as? WaypointAnnotation else { return }
-            if graphicEditing && graphicType == "route" {
+            if boundaryEditing {
+                // Marker views own their tap. Treat it as a boundary vertex
+                // instead of silently dropping it behind the editing guard.
+                onBoundaryPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
+            } else if graphicEditing && graphicType == "route" {
                 onGraphicPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
             } else { onSelect?(annotation.waypoint.id) }
             // Deselect immediately so the same marker can reopen a dismissed card.

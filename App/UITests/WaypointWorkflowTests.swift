@@ -99,7 +99,7 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["Settings"].tap()
         let night = app.switches["Red-on-black, to keep night vision"]
         XCTAssertTrue(night.waitForExistence(timeout: 5))
-        tapNativeSwitch(night)
+        setNativeSwitch(night,to: true)
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","1"),object: night)
         XCTAssertEqual(XCTWaiter.wait(for: [enabled],timeout: 5),.completed,night.debugDescription)
         XCTAssertTrue(app.buttons["Done"].exists, "Changing night mode must preserve the settings sheet")
@@ -135,7 +135,7 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["Position"].tap()
         app.buttons["Settings"].tap()
         XCTAssertTrue(night.waitForExistence(timeout: 5))
-        tapNativeSwitch(night)
+        setNativeSwitch(night,to: false)
         let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","0"),object: night)
         XCTAssertEqual(XCTWaiter.wait(for: [disabled],timeout: 5),.completed,night.debugDescription)
         app.buttons["Done"].tap()

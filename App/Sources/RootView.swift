@@ -180,7 +180,7 @@ struct RootView: View {
         .onOpenURL { handleIncomingURL($0) }
         .sheet(item: $importRequest) { request in
             InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name),onRestoreBackup: { document in
-                let message = await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes)
+                let message = await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes,boundaries: boundaries)
                 reportIncoming(message)
                 if incomingFile == request.url && (message.hasPrefix("Restored") || message == "Nothing new to restore") { advanceIncomingFile() }
                 return message
@@ -232,6 +232,7 @@ struct RootView: View {
                     let root = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests")
                     var backup = Backup.Document(); backup.hasSettings = false
                     backup.waypoints = [.init(id: "incoming-test-backup-point",name: "Protected backup point",lat: 35.1,lon: -79)]
+                    backup.quietBoundaries = [.init(id: "incoming-quiet-area",name: "Incoming quiet area",vertices: [.init(lat: 35.1,lon: -79),.init(lat: 35.1,lon: -78.999),.init(lat: 35.101,lon: -78.999),.init(lat: 35.101,lon: -79)])]
                     let first = root.appendingPathComponent("incoming-backup.mgrsgps"), second = root.appendingPathComponent("incoming-file.mgrsgps")
                     try BackupCrypto.seal(Backup.exportZip(backup),password: "fixture password").write(to: first)
                     let gpx = GPX.build(waypoints: [.init(name: "Protected queued point",lat: 35.2,lon: -79.1)],tracks: [])

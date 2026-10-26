@@ -20,12 +20,12 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; remaining ordinary settings/boundary write costs |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
-| Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
+| Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation; Android re-export drops the optional iOS-only quiet-boundary section |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Physical lasso/large-text and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Other runtime-session startup reads, older library actions and dense-map rendering/accessibility performance work; physical large-library storage checks; physical field validation and storage/interchange limits below |
 | Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Independent finished logs remove combined/per-log backup-derived caps; orphan maintenance and dense/very-large-library performance remain work; physical course/guide validation; large-course eligibility/list rendering and other runtime-session startup IO |
-| Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining ordinary persistence costs, older library actions, full hosted confirmation and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
+| Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining ordinary persistence costs, older library actions, full hosted confirmation and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps remain separate from v1 backup; optional quiet-boundary geometry extension and Android compatibility fixtures pass |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement; separate bounded read-only remote scene on both watches | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired named-lane crossings and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs; Android launcher artwork for phone/iPad/watch with runtime icon evidence | Full hosted CI pass, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
@@ -604,3 +604,57 @@ inspected; both owned emulators and feed are stopped. No server or app-source
 change. See [paired evidence and precise limits](wear-paired-validation.md).
 Physical lock/radio/battery/wrist and independent watch detectors/haptics remain
 open; the earlier watchOS paired named-crossing evidence stays separate.
+
+
+### Quiet-boundary backup and native export sequencing — 27 October 2026
+
+Saved custom quiet-inside perimeters now have an optional `quietBoundaries`
+version-1 section in ordinary and protected backups. It is geometry only,
+separate from navigation lanes. Restore is additive, retains local edits,
+stages validation/writes off Main, checks the current source/session before
+publication, reports partial phases and retries without duplicates. Imported
+areas never start location/alerts; an existing local monitor remains unchanged.
+Limits and Android re-export loss are explicit in `backup-format-v1.md`.
+Claude independently opened both Swift-written fixtures using the Android
+crypto/parser: two tests passed with the exact accented waypoint and safely
+ignored perimeter section. No server or emulator was involved.
+
+Files round-trip validation also caught an actual boundary editing issue:
+annotation views swallowed drawing taps over saved waypoints. Those taps now
+add a vertex at the waypoint, matching route snapping. Export format selection
+uses the existing scrolling native choice sheet and starts preparation only
+after dismissal, avoiding overlap with Files or password presentation.
+
+Hosted run99 on6334c2e is terminal: map and field pass; library has three
+interaction failures (import confirmation, ATAK Files presentation, night-mode
+switch). The local confirmation/ATAK cases pass; another hosted run remains pending. The existing
+one-minute Claude watcher remains coordination, not a dependency for work.
+
+Final local validation: 494 core tests pass, including the ordinary/protected
+fixture round trip. All 290 native cases pass (four unstaged opt-in local
+checks skipped). Twelve distinct selected UI workflows pass across the final
+passes: ordinary/protected boundary backups, large GPX, export cancellation,
+single-track exports, duplicate confirmation/retry IDs, KML rejection and
+preview/map/ATAK export, KMZ, protected KML/password retry, queued protected
+incoming backup/file and night-mode settings/coordinate entry. The incoming
+fixture now includes perimeter geometry and verifies its preview, durable
+restore and inactive relaunch through RootView. The maximum 100 × 256-vertex
+native restore remains responsive and reopens every vertex. External file
+replacement, failed write/partial phases and cancelled confirmed retry pass.
+Unsigned device Release and all eight Python harness checks pass.
+
+Test development caught two night-map gesture hits over waypoint annotations
+(fixed in product), then incorrect daytime-tab and unscoped Done lookups in the
+new backup test helpers (corrected in tests). The final full native/backup pass
+had all native cases and both backup workflows green, but its old incoming
+Done lookup failed; the corrected standalone incoming test passes completely.
+One earlier completed general regression run's owned diagnostic collection was
+shortened only after every test ended; its actual failure result was retained.
+Named day/night restore screenshots were inspected. Evidence:
+`/tmp/gridfix-boundary-backup-core-final.log`,
+`/tmp/gridfix-boundary-backup-fixture.log`,
+`/tmp/gridfix-quiet-backup-validation.xcresult`,
+`/tmp/gridfix-quiet-backup-final.xcresult`,
+`/tmp/gridfix-quiet-backup-incoming-final.xcresult`,
+`/tmp/gridfix-quiet-backup-release.log` and
+`/tmp/gridfix-quiet-backup-script-checks.log`.

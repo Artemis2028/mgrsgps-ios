@@ -6,7 +6,9 @@ final class BackupWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","waypoints"]
         app.launch()
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap()
+        drawQuietBoundary(app)
+        app.buttons["Waypoints"].tap()
         let actions = app.buttons["Waypoint actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
         tapNativeMenuItem(app.buttons["Export"])
@@ -16,6 +18,7 @@ final class BackupWorkflowTests: XCTestCase {
         let name = "gridfix-backup-ui-"+UUID().uuidString.prefix(8)
         replaceTextInput(filename,String(name)); saveNativeFile(in: app)
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        deleteQuietBoundary(app)
         app.buttons["Recon"].tap()
         app.buttons["library-select-button"].tap(); app.buttons["library-select-all"].tap()
         XCTAssertEqual(app.staticTexts["library-selected-count"].label,"3 selected")
@@ -31,8 +34,11 @@ final class BackupWorkflowTests: XCTestCase {
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","Restored"),object: app.staticTexts["library-status"])
         XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 15),.completed,app.debugDescription)
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
+        XCTAssertTrue(app.staticTexts["library-status"].label.contains("1 quiet boundary"))
+        verifyQuietBoundary(app)
         capture("backup-restored-night",app)
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        verifyQuietBoundary(app)
         app.buttons["Recon"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-Bravo"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
@@ -45,7 +51,9 @@ final class BackupWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","waypoints"]
         app.launch()
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap()
+        drawQuietBoundary(app)
+        app.buttons["Waypoints"].tap()
         let actions = app.buttons["Waypoint actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
         tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export protected backup"])
@@ -68,6 +76,7 @@ final class BackupWorkflowTests: XCTestCase {
         // declared extension; restore also identifies protection by bytes.
         replaceTextInput(filename,String(name)); saveNativeFile(in: app)
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        deleteQuietBoundary(app)
         app.buttons["Recon"].tap(); app.buttons["library-select-button"].tap(); app.buttons["library-select-all"].tap()
         XCTAssertEqual(app.staticTexts["library-selected-count"].label,"3 selected")
         app.buttons["Selected item actions"].tap(); tapNativeMenuItem(app.buttons["library-delete-selected"])
@@ -93,10 +102,44 @@ final class BackupWorkflowTests: XCTestCase {
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","Restored"),object: status)
         XCTAssertEqual(XCTWaiter.wait(for: [restored],timeout: 15),.completed,app.debugDescription)
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
+        XCTAssertTrue(status.label.contains("1 quiet boundary"))
+        verifyQuietBoundary(app)
         capture("protected-backup-restored-night",app)
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        verifyQuietBoundary(app)
         app.buttons["Recon"].tap(); XCTAssertTrue(app.buttons["edit-waypoint-Bravo"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
+    }
+    private func drawQuietBoundary(_ app: XCUIApplication) {
+        let open = app.buttons["map-boundaries"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        app.buttons["draw-boundary"].tap()
+        XCTAssertTrue(app.buttons["save-boundary"].waitForExistence(timeout: 5))
+        for (i,p) in [CGVector(dx: 0.20,dy: 0.36),CGVector(dx: 0.55,dy: 0.36),CGVector(dx: 0.55,dy: 0.52),CGVector(dx: 0.20,dy: 0.52)].enumerated() {
+            app.coordinate(withNormalizedOffset: p).tap()
+            let added = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","\(i+1) points"),object: app.staticTexts["boundary-point-count"])
+            XCTAssertEqual(XCTWaiter.wait(for: [added],timeout: 5),.completed)
+        }
+        app.buttons["save-boundary"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+    }
+    private func deleteQuietBoundary(_ app: XCUIApplication) {
+        app.buttons["Map"].tap(); app.buttons["map-boundaries"].tap()
+        let delete = app.buttons["Delete boundary Boundary"]
+        if !delete.isHittable { app.swipeUp() }
+        XCTAssertTrue(delete.waitForExistence(timeout: 5)); delete.tap()
+        let alert = app.alerts["Delete boundary?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5)); alert.buttons["Delete"].tap()
+        XCTAssertTrue(app.staticTexts["No boundaries saved"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap(); app.buttons["Waypoints"].tap()
+    }
+    private func verifyQuietBoundary(_ app: XCUIApplication) {
+        app.buttons["Map"].tap(); app.buttons["map-boundaries"].tap()
+        let geometry = app.staticTexts["4 points · closed perimeter"]
+        if !geometry.isHittable { app.swipeUp() }
+        XCTAssertTrue(geometry.waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["stop-boundary"].exists)
+        capture("backup-quiet-boundary-restored-inactive",app)
+        app.buttons["Done"].tap(); app.buttons["Waypoints"].tap()
     }
     private func capture(_ name: String,_ app: XCUIApplication) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

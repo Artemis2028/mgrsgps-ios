@@ -11,6 +11,7 @@ struct WaypointsView: View {
     @EnvironmentObject private var maps: MapLayerStore
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     private var compactLandscape: Bool { verticalSizeClass == .compact }
+    @EnvironmentObject private var boundaries: BoundaryMonitor
     @EnvironmentObject private var lanes: NavigationLaneStore
 
     private var preparingOutput: Bool { fieldExport.format != nil || backupTransfer.phase == .exporting }
@@ -31,6 +32,7 @@ struct WaypointsView: View {
     @State private var pendingSelectionAction: String?
     @State private var choosingPasteFormat = false
     @State private var choosingExportFormat = false
+    @State private var pendingExportChoice: String?
     @StateObject private var listing = LibraryPresentation()
     @State private var prunedSourceRevision: UInt64?
     private var folderFilter: String? {
@@ -210,16 +212,15 @@ struct WaypointsView: View {
                 Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
             }
         }
-        .confirmationDialog("Export",isPresented: $choosingExportFormat,titleVisibility: .visible) {
-            Button("Export backup") { exportBackup() }.disabled(exportUnavailable)
-            Button("Export protected backup") { backupPasswordRequest = .init(url: nil) }.disabled(exportUnavailable)
-            Button("Export GPX") { exportOther(.gpx) }.disabled(exportUnavailable)
-            Button("Export CSV") { exportOther(.csv) }.disabled(exportUnavailable)
-            Button("Export GeoJSON") { exportOther(.geojson) }.disabled(exportUnavailable)
-            Button("Export KML") { exportOther(.kml) }.disabled(exportUnavailable)
-            Button("Export KMZ") { exportOther(.kmz) }.disabled(exportUnavailable)
-            Button("Export ATAK package") { exportOther(.atak) }.disabled(exportUnavailable)
-            Button("Export protected file…") { choosingProtectedFormat = true }.disabled(exportUnavailable)
+        .sheet(isPresented: $choosingExportFormat,onDismiss: runExportChoice) {
+            FieldChoiceSheet(title: "Export",choices: [
+                .init(id: "backup",title: "Export backup",enabled: !exportUnavailable),
+                .init(id: "protected-backup",title: "Export protected backup",enabled: !exportUnavailable)
+            ] + TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Export " + $0.label,enabled: !exportUnavailable) } + [
+                .init(id: "protected-file",title: "Export protected file…",enabled: !exportUnavailable)
+            ],night: settings.nightMode) { id in
+                pendingExportChoice = id; choosingExportFormat = false
+            }
         }
         .sheet(isPresented: $choosingProtectedFormat,onDismiss: {
             guard let format = protectedFormat else { return }; protectedFormat = nil
@@ -280,7 +281,7 @@ struct WaypointsView: View {
         }
         .sheet(item: $textImport) { request in
             InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name),onRestoreBackup: { document in
-                let message = await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
+                let message = await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes,boundaries: boundaries)
                 status = message; return message
             }) { document in
                 let result = try await InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
@@ -721,6 +722,8 @@ struct WaypointsView: View {
         do { doc = try fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings) }
         catch { status = "Backup failed: \(error.localizedDescription)"; return }
         doc.navLanes = lanes.lanes
+        guard !boundaries.loadFailed else { status = boundaries.error ?? "Boundary library is unavailable"; return }
+        doc.quietBoundaries = boundaries.areas
         status = nil
         backupTransfer.export(doc,password: password) { result in
             switch result {
@@ -734,7 +737,7 @@ struct WaypointsView: View {
 
     private func restoreBackup(_ url: URL,password: String? = nil) {
         backupTransfer.restore(url,password: password,passwordRequired: { backupPasswordRequest = .init(url: url) },apply: { document in
-            await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes)
+            await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes,boundaries: boundaries)
         },completion: { status = $0 })
     }
 
@@ -777,6 +780,19 @@ struct WaypointsView: View {
         else if action == "library-delete-selected" { deleteSelection = true }
     }
 
+    private func runExportChoice() {
+        guard let choice = pendingExportChoice else { return }
+        pendingExportChoice = nil
+        guard !exportUnavailable else { return }
+        // Native Files/password presentation begins after the choice controller
+        // has dismissed, including when a tiny export finishes immediately.
+        switch choice {
+        case "backup": exportBackup()
+        case "protected-backup": backupPasswordRequest = .init(url: nil)
+        case "protected-file": choosingProtectedFormat = true
+        default: if let format = TextInterchangeFormat(rawValue: choice) { exportOther(format) }
+        }
+    }
     private func runLibraryAction() {
         guard let action = pendingLibraryAction else { return }
         pendingLibraryAction = nil
