@@ -103,15 +103,33 @@ final class NavigationSession: ObservableObject {
         guard !store.practiceNavigationLocked else { error = "End the practice course before following a route."; return }
         guard !running, !preparing, loaded else { return }
         guard route.type == "route", (2...10_000).contains(route.points.count), route.points.indices.contains(startIndex) else { error = "Choose a route with 2–10,000 vertices and a valid start point."; return }
-        do {
-            guard field.document.graphics.contains(route) else { throw BoundaryError.invalid("The route has changed. Reopen it before following.") }
-            guard store.waypoints.filter({ $0.sourceRouteId != route.id }).count + route.points.count <= 10_000 else { throw BoundaryError.invalid("Route waypoints exceed the library limit. Remove unused waypoints first.") }
-            let points = route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) }
-            try store.replaceRouteWaypoints(routeID: route.id,name: route.name,points: points,folder: route.folder)
-            let p = RouteFollowingProgress(routeID: route.id,name: route.name,points: points,index: startIndex)
-            launch(progress: p,haptics: true)
-        } catch { self.error = error.localizedDescription }
+        guard field.document.graphics.contains(route) else { error = "The route has changed. Reopen it before following."; return }
+        guard foreground() else { error = "Open the app before starting navigation."; return }
+        guard driver.servicesEnabled else { error = "Enable Location Services for navigation."; return }
+        if driver.authorization == .notDetermined {
+            preparing = true; error = nil
+            pending = { [weak self] in self?.follow(route,startIndex: startIndex) }; driver.requestPermission(); return
+        }
+        guard permitted else { error = "Navigation needs While Using permission and Precise Location."; return }
+        preparing = true; error = nil; generation = UUID(); let token = generation
+        operation = Task {
+            do {
+                try await RouteWaypointAction.generate(route,to: store,field: field) {
+                    guard self.generation == token else { throw CancellationError() }
+                    guard !self.store.practiceNavigationLocked else { throw BoundaryError.invalid("End the practice course before following a route.") }
+                }
+                guard generation == token else { return }
+                preparing = false
+                let points = route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) }
+                launch(progress: RouteFollowingProgress(routeID: route.id,name: route.name,points: points,index: startIndex),haptics: true)
+            } catch {
+                guard generation == token else { return }
+                preparing = false
+                if !(error is CancellationError) { self.error = error.localizedDescription }
+            }
+        }
     }
+
     func resume() {
         guard let p = progress, !p.complete else { return }
         launch(progress: p,haptics: haptics)

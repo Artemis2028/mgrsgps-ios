@@ -293,6 +293,21 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         try publishBatch(prepared.batch)
     }
 
+    /// One confirmed generation keeps its proposed UUIDs/time across rebases.
+    /// Construct on a worker when generating a large route.
+    public struct RouteEdit: Sendable {
+        fileprivate let routeID: String
+        fileprivate let name: String
+        fileprivate let points: [GeoPoint]
+        fileprivate let folder: String
+        fileprivate let now: Int64
+        fileprivate let ids: [String]
+        public init(routeID: String,name: String,points: [GeoPoint],folder: String,now: Int64 = Int64(Date().timeIntervalSince1970*1000)) {
+            self.routeID = routeID; self.name = name; self.points = points; self.folder = folder; self.now = now
+            ids = points.map { _ in UUID().uuidString }
+        }
+    }
+
     public struct RestoreSnapshot: Sendable {
         fileprivate let base: Snapshot
         fileprivate let revision: UInt64
@@ -300,6 +315,36 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         fileprivate let destination: URL
         fileprivate let loadError: String?
         fileprivate let allowsDefaultSelection: Bool
+
+        public func prepareRoute(_ edit: RouteEdit) throws -> PreparedBatch {
+            if let loadError { throw BackupError.notABackup(loadError) }
+            guard !edit.routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  edit.points.allSatisfy({ TrackCodec.validCoordinates($0.lat,$0.lon) }) else { throw BackupError.notABackup("Invalid route") }
+            let folder = Folders.match(known: base.folders.map(\.name)+base.waypoints.map(\.folder),raw: edit.folder)
+            var owners: [Int:Waypoint] = [:]
+            for point in base.waypoints where point.sourceRouteId == edit.routeID {
+                if let index = point.sourceRoutePointIndex, index >= 0,
+                   owners[index] == nil || point.id == base.selectedId { owners[index] = point }
+            }
+            let generated = edit.points.enumerated().map { index,point -> Waypoint in
+                var value = owners[index] ?? Waypoint(id: edit.ids[index],name: "",lat: point.lat,lon: point.lon,createdAt: edit.now)
+                value.name = "\(edit.name) WP \(index+1)"; value.lat = point.lat; value.lon = point.lon; value.folder = folder
+                value.sourceRouteId = edit.routeID; value.sourceRoutePointIndex = index
+                return value
+            }
+            let retained = base.waypoints.compactMap { point -> Waypoint? in
+                guard point.sourceRouteId == edit.routeID else { return point }
+                if let index = point.sourceRoutePointIndex, owners[index]?.id == point.id { return nil }
+                var standalone = point; standalone.sourceRouteId = nil; standalone.sourceRoutePointIndex = nil
+                return standalone
+            }
+            let points = retained+generated
+            guard points.count <= 10_000 else { throw BackupError.notABackup("Route waypoints exceed the library limit. Remove unused waypoints first.") }
+            let selected = points.contains { $0.id == base.selectedId } ? base.selectedId : nil
+            let next = Snapshot(waypoints: points,folders: WaypointStore.mergeFolderList(stored: base.folders,referenced: points.map(\.folder)),selectedId: selected)
+            let file = try PreparedAtomicFile(data: JSONEncoder().encode(next),destination: destination)
+            return .init(snapshot: next,revision: revision,identity: identity,file: file)
+        }
 
         public func prepareLibrary(_ edit: LibraryEdit) throws -> PreparedLibraryEdit {
             if let loadError { throw BackupError.notABackup(loadError) }
@@ -487,35 +532,11 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
     /// names never do. Duplicate legacy owners are retained as standalone points.
     public func replaceRouteWaypoints(routeID: String, name: String, points: [GeoPoint], folder: String,
                                       now: Int64 = Int64(Date().timeIntervalSince1970 * 1000)) throws {
-        if let loadError { throw BackupError.notABackup(loadError) }
-        guard !routeID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              points.allSatisfy({ TrackCodec.validCoordinates($0.lat, $0.lon) }) else { throw BackupError.notABackup("Invalid route") }
-        lock.lock(); defer { lock.unlock() }
-        let storedFolder = Folders.match(known: knownNamesLocked(), raw: folder)
-        var owners: [Int: Waypoint] = [:]
-        for waypoint in waypoints where waypoint.sourceRouteId == routeID {
-            if let index = waypoint.sourceRoutePointIndex, index >= 0,
-               owners[index] == nil || waypoint.id == selectedId { owners[index] = waypoint }
+        let edit = RouteEdit(routeID: routeID,name: name,points: points,folder: folder,now: now)
+        while true {
+            let prepared = try restoreSnapshot().prepareRoute(edit)
+            if try publishBatch(prepared) { return }
         }
-        let generated = points.enumerated().map { index, point -> Waypoint in
-            var waypoint = owners[index] ?? Waypoint(name: "", lat: point.lat, lon: point.lon, createdAt: now)
-            waypoint.name = "\(name) WP \(index + 1)"
-            waypoint.lat = point.lat; waypoint.lon = point.lon; waypoint.folder = storedFolder
-            waypoint.sourceRouteId = routeID; waypoint.sourceRoutePointIndex = index
-            return waypoint
-        }
-        let retained = waypoints.compactMap { waypoint -> Waypoint? in
-            guard waypoint.sourceRouteId == routeID else { return waypoint }
-            if let index = waypoint.sourceRoutePointIndex, owners[index]?.id == waypoint.id { return nil }
-            var standalone = waypoint
-            standalone.sourceRouteId = nil; standalone.sourceRoutePointIndex = nil
-            return standalone
-        }
-        let next = retained + generated
-        let selection = next.contains { $0.id == selectedId } ? selectedId : nil
-        let nextFolders = Self.mergeFolderList(stored: folders, referenced: next.map(\.folder))
-        try JSONEncoder().encode(Snapshot(waypoints: next, folders: nextFolders, selectedId: selection)).write(to: fileURL, options: .atomic)
-        waypoints = next; folders = nextFolders; selectedId = selection
     }
 
     public func replaceAll(waypoints: [Waypoint], folders: [FolderInfo]) {

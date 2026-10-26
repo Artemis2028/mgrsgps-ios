@@ -315,6 +315,32 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertTrue(boundary.status.contains("quiet")); nav.stop(); XCTAssertTrue(boundaryDriver.updating)
         boundary.stop()
     }
+    func testRouteWaypointWriteFailureKeepsTargetAndRetryStartsOnlyAfterDurableSave() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        let target = store.add(.init(name: "Keep target",lat: 24,lon: 54)); store.select(target.id)
+        let r = try route(field)
+        let file = dir.appendingPathComponent("waypoints-v1.json")
+        try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+        nav.follow(r); try await wait { !nav.preparing && nav.error != nil }
+        XCTAssertFalse(nav.running); XCTAssertFalse(driver.updating); XCTAssertEqual(feedback.begins,0)
+        XCTAssertEqual(store.waypoints,[target]); XCTAssertEqual(store.selectedId,target.id)
+        try FileManager.default.removeItem(at: file)
+        nav.follow(r); try await wait { nav.running }
+        XCTAssertTrue(driver.updating); XCTAssertEqual(feedback.begins,1)
+        XCTAssertEqual(WaypointStore(directory: dir).waypoints.filter { $0.sourceRouteId == r.id }.count,3)
+        nav.stop()
+    }
+    func testCancelledRoutePermissionRequestCannotGeneratePointsOrStartAfterGrant() async throws {
+        let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
+        driver.authorization = .notDetermined
+        let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: feedback,foreground: { true },scheduleTicks: false)
+        nav.follow(try route(field)); XCTAssertTrue(nav.preparing)
+        nav.stop(); driver.authorization = .authorizedWhenInUse; driver.onAuthorization?()
+        await Task.yield()
+        XCTAssertFalse(nav.running); XCTAssertFalse(nav.preparing); XCTAssertFalse(driver.updating)
+        XCTAssertTrue(store.waypoints.isEmpty); XCTAssertEqual(feedback.begins,0)
+    }
     func testFailedProgressWriteStopsAndRetainsUnscoredCheckpoint() async throws {
         let (dir,store,field,settings) = try setup(), driver = GuideTestDriver()
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: driver,feedback: GuideTestFeedback(),now: { Date(timeIntervalSince1970: 1000) },uptime: { 100 },foreground: { true },scheduleTicks: false)

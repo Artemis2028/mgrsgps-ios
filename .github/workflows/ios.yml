@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 # Write access publishes the ci-status branch. Simulator builds are unsigned.
 # The optional ESRI_KEY secret enables licensed global map layers; missing keys
 # retain Android's Debug fallbacks and Release USGS/imported-map availability.

@@ -175,6 +175,7 @@ struct RouteDetailView: View {
     @State private var pdfTask: Task<Void,Never>?
     @State private var pdfGeneration = UUID()
     @State private var buildingPDF = false
+    @State private var followingRequested = false
     private var input: RouteCardRequest? {
         guard lanes.ready else { return nil }
         return route.map { RouteCardRequest(route: $0,settings: settings,lanes: lanes.lanes,waypoints: waypoints.waypoints,graphics: fieldData.document.graphics) }
@@ -189,10 +190,15 @@ struct RouteDetailView: View {
                         mutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(route.id,visible),to: fieldData) })
                     }))
                     Button("Edit route") { routeRequest = RouteEditorRequest(route: route) }
-                    Button("Follow route automatically") { navigation.follow(route); if navigation.error == nil { onNavigate() } }
-                        .disabled(navigation.running || navigation.preparing).accessibilityIdentifier("follow-route")
-                    if let error = navigation.error { Text(error).font(.footnote).foregroundStyle(palette.warn) }
-                    Button("Generate waypoints") { perform { try generate(route); status = "Route waypoints updated" } }
+                    Button("Follow route automatically") {
+                        followingRequested = true; navigation.follow(route)
+                        if navigation.error != nil { followingRequested = false }
+                    }.disabled(navigation.running || navigation.preparing).accessibilityIdentifier("follow-route")
+                    if followingRequested && navigation.preparing {
+                        ProgressView("Preparing navigation…")
+                        Button("Cancel start") { navigation.pause(); followingRequested = false }.accessibilityIdentifier("cancel-route-start")
+                    }
+                    Button("Generate waypoints") { status = nil; mutation.run("Generating route waypoints…",action: { try await generate(route); status = "Route waypoints updated" }) }
                         .accessibilityIdentifier("generate-route-waypoints")
                     NavigationLink("Elevation profile") { RouteTerrainProfileView(route: route) }.accessibilityIdentifier("route-terrain-profile")
                     if let ready { ShareLink("Share route card",item: ready.shareText).accessibilityIdentifier("share-route-card") }
@@ -214,11 +220,14 @@ struct RouteDetailView: View {
                                 Text(leg.destinationGrid).font(.system(.caption, design: .monospaced))
                                 if let limits = leg.limits { Text(limits).font(.caption).accessibilityIdentifier("route-card-limits-\(leg.index)") }
                                 Button("Navigate to vertex \(leg.index + 1)") {
-                                    perform {
-                                        try generate(route)
-                                        guard let target = waypoints.waypoints.first(where: { $0.sourceRouteId == routeID && $0.sourceRoutePointIndex == leg.index }) else { return }
-                                        waypoints.select(target.id); onNavigate()
-                                    }
+                                    var targetID: String?
+                                    mutation.run("Preparing route waypoint…",action: {
+                                        try await generate(route)
+                                        targetID = waypoints.waypoints.first(where: { $0.sourceRouteId == routeID && $0.sourceRoutePointIndex == leg.index })?.id
+                                    },completion: { visible in
+                                        guard visible, let targetID else { return }
+                                        waypoints.select(targetID); onNavigate()
+                                    })
                                 }
                             }.padding(.vertical, 6)
                         }
@@ -233,27 +242,48 @@ struct RouteDetailView: View {
                     mutation.run("Deleting route…",action: { try await FieldEditAction.apply(.deleteGraphic(route.id),to: fieldData) },completion: { if $0 { dismiss() } })
                 }
             }
-            if let label = mutation.label { ProgressView(label).tint(palette.accent) }
-            if let error = mutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn) }
-            if let status { Text(status).font(.footnote).foregroundStyle(palette.accent) }
         }
         .disabled(mutation.working)
+        .safeAreaInset(edge: .top,spacing: 0) { routeMessages }
         .onAppear { mutation.setPresented(true) }
         .scrollContentBackground(.hidden).background { FieldScreenBackground() }
         .foregroundStyle(palette.ink).tint(palette.accent)
-        .navigationTitle(route?.name ?? "Route")
+        .navigationTitle(route?.name ?? "Route").navigationBarTitleDisplayMode(.inline)
         .task(id: input) { await prepareReport() }
-        .onDisappear { mutation.setPresented(false); cancelPDF() }
+        .onDisappear { followingRequested = false; mutation.setPresented(false); cancelPDF() }
+        .onChange(of: navigation.running) { running in
+            if running && followingRequested { followingRequested = false; onNavigate() }
+        }
+        .onChange(of: navigation.error) { error in if error != nil { followingRequested = false } }
         .onChange(of: scenePhase) { phase in if phase != .active { cancelPDF() } }
         .sheet(item: $pdfRequest) { RoutePDFPreview(request: $0) }
         .sheet(item: $routeRequest) { request in RouteEditor(route: request.route) { changed in
             _ = try await FieldEditAction.saveGraphic(changed,original: request.route,field: fieldData,waypoints: waypoints)
         }.id(request.id) }
     }
-    private func generate(_ route: Backup.Graphic) throws {
-        try waypoints.replaceRouteWaypoints(routeID: route.id, name: route.name, points: route.points.map { GeoPoint(lat: $0.lat, lon: $0.lon) }, folder: route.folder)
+    @ViewBuilder private var routeMessages: some View {
+        if mutation.label != nil || mutation.error != nil || navigation.error != nil || status != nil {
+            VStack(alignment: .leading,spacing: 8) {
+                if let label = mutation.label { ProgressView(label).tint(palette.accent) }
+                if let error = mutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("route-mutation-error") }
+                if let error = navigation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("route-follow-error") }
+                if let status { Text(status).font(.footnote).foregroundStyle(palette.accent) }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibraryWriteFailure"),
+                   mutation.error != nil || navigation.error != nil {
+                    Button("Repair test storage") {
+                        let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                        if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                    }.frame(minHeight: 44).accessibilityIdentifier("route-repair-test-storage")
+                }
+                #endif
+            }.frame(maxWidth: .infinity,alignment: .leading).padding(12).background(palette.background)
+        }
     }
-    private func perform(_ action: () throws -> Void) { do { try action() } catch { status = error.localizedDescription } }
+
+    private func generate(_ route: Backup.Graphic) async throws {
+        try await RouteWaypointAction.generate(route,to: waypoints,field: fieldData)
+    }
     private func prepareReport() async {
         guard let request = input else { prepared = nil; return }
         reportError = nil

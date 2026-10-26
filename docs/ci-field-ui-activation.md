@@ -61,7 +61,7 @@ The hosted workflow now runs exhaustive library/map/field shards on separate
 runners, each with one test simulator and parallel XCTest disabled. The field
 shard also executes all app integrations and the five existing dedicated real-
 location scenarios. Core tests still gate every build; screenshots run once.
-All 41 current UI classes are accounted for: 36 assigned exactly once and five
+All 42 current UI classes are accounted for: 37 assigned exactly once and five
 retained in their dedicated feed phases. New classes automatically receive one
 stable shard; missing/renamed configured classes fail selection. Three partition
 regressions and the three existing feed-recovery script tests pass. Actionlint,
@@ -155,3 +155,12 @@ builds pass after the watch bounds refactor. Full job outcomes were still
 in progress at the library-persistence checkpoint. The new day/night library
 failure class is automatically included once in the library shard; see
 [library staging evidence](library-worker-persistence.md).
+
+## Superseded PR runs
+
+CI now uses a workflow concurrency group scoped to the PR number (or branch
+for non-PR events), cancelling older grouped runs when that same PR receives a
+new commit. Other PRs/branches remain independent. Before this change, the
+3f93b15 and 6baed60 jobs queued behind older 56d7a3f jobs. A cancelled run is
+not a pass; all three jobs on the final head still must finish successfully.
+The completed map job on 40253455102 is retained as partial older-head evidence.
