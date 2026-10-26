@@ -87,3 +87,11 @@ and transport expiry gates prevent stale steering from appearing current. The
 phone owns these decisions; watch GPS still owns grid/map/target numbers, and
 quiet-inside boundaries remain separate. No watch alerts or background guidance
 are enabled by this display. See [contract and paired evidence](../docs/watch-phone-guidance.md).
+
+## Separate TAK layer
+
+The map receives complete remote contacts, markers, lines and areas separately
+from saved field overlays. It prefixes labels with TAK and lists source-reported
+connection state, cache age and omissions in Map info. Stale deadlines expire
+on watch, including across relaunch. No server credentials, watch TAK connection,
+editing or sharing are added. See [contract and paired checks](../docs/watch-tak-layer.md).

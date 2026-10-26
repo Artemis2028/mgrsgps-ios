@@ -327,6 +327,27 @@ final class TAKSession: ObservableObject {
         }
         remoteItems = scene.items
     }
+    /// Fixed synthetic CoT events for paired-watch rendering/expiry checks; never connects.
+    func seedWatchPreview(hidden: Bool = false,cleared: Bool = false,expiry: Bool = false) {
+        scene.clear(); remoteItems = []
+        profile.showRemote = !hidden
+        status = "Synthetic watch scene · no server connection"
+        guard !cleared else { return }
+        let now = Date(),formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime,.withFractionalSeconds]
+        let stale = formatter.string(from:now.addingTimeInterval(expiry ? 45 : 600))
+        let events = [
+            try? TAKCoT.presence(uid:"watch-team",callsign:"TEAM ONE",now:now,position:.init(lat:24.4539,lon:54.3773),accuracy:5),
+            try? TAKCoT.marker(uid:"watch-op",name:"OP CAFÉ",affiliation:"hostile",position:.init(lat:24.4544,lon:54.3781),creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now),
+            try? TAKCoT.drawing(uid:"watch-line",name:"ROAD",points:[.init(lat:24.4537,lon:54.377),.init(lat:24.4542,lon:54.378),.init(lat:24.4548,lon:54.3782)],closed:false,creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now),
+            try? TAKCoT.drawing(uid:"watch-area",name:"NAI 2",points:[.init(lat:24.4546,lon:54.377),.init(lat:24.4546,lon:54.3775),.init(lat:24.455,lon:54.3775)],closed:true,creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now)
+        ]
+        for xml in events.compactMap({ $0 }) {
+            let bounded = xml.replacingOccurrences(of:"stale=\"[^\"]*\"",with:"stale=\""+stale+"\"",options:.regularExpression)
+            if let event = TAKCoT.parse(bounded,ownUID:profile.uid,now:now) { scene.apply(event,now:now,uptime:ProcessInfo.processInfo.systemUptime) }
+        }
+        remoteItems = scene.items
+    }
     func enableLocalValidation() {
         guard profile.host == "127.0.0.1", profile.port == 8089, profile.tls else { return }
         synthetic = .init(lat: 35.1388, lon: -78.9914)

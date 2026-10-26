@@ -30,6 +30,7 @@ struct WatchMapView: View {
                 ForEach(model.mapSnapshot?.features ?? [], id: \.renderID) { feature in
                     featureContent(feature)
                 }
+                ForEach(model.remoteItems(at:timeline.date)) { item in remoteContent(item) }
                 if fresh, let fix = model.fix {
                     Annotation("Watch location", coordinate: fix.coordinate, anchor: .center) {
                         Circle().fill(night ? .red : .cyan).frame(width: 9, height: 9)
@@ -71,6 +72,9 @@ struct WatchMapView: View {
         .onAppear { if following { if usable(at: Date()) { recenter() } else { fitOverlay() } } }
         .onChange(of: model.mapSnapshot?.updatedAt) { _, _ in
             if following && !usable(at: Date()) { fitOverlay() }
+        }
+        .onChange(of:model.takScene.snapshot?.revision) { _,_ in
+            if following && !usable(at:Date()) { fitOverlay() }
         }
         .onChange(of: model.fix?.timestamp) { _, _ in
             if following { recenter() }
@@ -117,7 +121,7 @@ struct WatchMapView: View {
         camera = .region(MKCoordinateRegion(center: fix.coordinate, span: span))
     }
     private func fitOverlay() {
-        let points = (model.mapSnapshot?.waypoints.map(\.coordinate) ?? []) + (model.mapSnapshot?.features.flatMap(\.points) ?? []) + (model.mapSnapshot?.laneOverlays.flatMap(\.outline) ?? [])
+        let points = model.remoteItems(at:Date()).flatMap(\.points) + (model.mapSnapshot?.waypoints.map(\.coordinate) ?? []) + (model.mapSnapshot?.features.flatMap(\.points) ?? []) + (model.mapSnapshot?.laneOverlays.flatMap(\.outline) ?? [])
         guard let bounds = FieldMapGeometry.bounds(points) else { return }
         camera = .region(MKCoordinateRegion(center: .init(latitude: (bounds.south + bounds.north) / 2,
                                                          longitude: TerrainGeometry.wrap((bounds.west + bounds.east) / 2)),
@@ -137,6 +141,28 @@ struct WatchMapView: View {
         case "neutral": return .green
         case "unknown": return .yellow
         default: return track ? .green : .orange
+        }
+    }
+
+    @MapContentBuilder private func remoteContent(_ item: WatchTAKSnapshot.Item) -> some MapContent {
+        let tint = color(item.affiliation)
+        if let first = item.points.first {
+            if item.points.count == 1 {
+                Annotation("TAK · " + item.name,coordinate:coordinate(first)) {
+                    VStack(spacing:1) {
+                        Image(systemName:item.contact ? "circle.fill" : "diamond.fill").font(.system(size:12))
+                            .overlay(Image(systemName:item.contact ? "circle" : "diamond").font(.system(size:12)).foregroundStyle(.black))
+                        Text("TAK" + (showsNames ? " · " + item.name : "")).font(.system(size:8,weight:.bold,design:.monospaced)).lineLimit(2).frame(maxWidth:80)
+                    }.foregroundStyle(tint).padding(2).background(.black.opacity(0.75))
+                        .accessibilityLabel("TAK " + (item.contact ? "contact: " : "marker: ") + item.name)
+                }.annotationTitles(.hidden)
+            } else {
+                if item.closed { MapPolygon(coordinates:item.points.map(coordinate)).foregroundStyle(tint.opacity(0.15)).stroke(tint,lineWidth:2) }
+                else { MapPolyline(coordinates:item.points.map(coordinate)).stroke(tint,lineWidth:2) }
+                Annotation("TAK · " + item.name,coordinate:coordinate(first)) {
+                    Text("TAK" + (showsNames ? " · " + item.name : "")).font(.system(size:8,weight:.bold,design:.monospaced)).lineLimit(2).frame(maxWidth:80).foregroundStyle(tint).padding(2).background(.black.opacity(0.75))
+                }.annotationTitles(.hidden)
+            }
         }
     }
 
@@ -190,6 +216,7 @@ struct WatchMapView: View {
     }
 
     private func mapInfo(at date: Date) -> some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
                 Text("PHONE MAP OVERLAY").font(.headline)
@@ -200,6 +227,16 @@ struct WatchMapView: View {
                     Text("\(snapshot.waypoints.count) waypoints · \(snapshot.features.count) items · \(snapshot.laneOverlays.count) lanes")
                     Text("\(snapshot.omittedItems) omitted · \(snapshot.simplifiedItems) simplified")
                 }
+                Text("TAK REMOTE LAYER").font(.headline).id("takDetails")
+                if let remote = model.takScene.snapshot {
+                    Text(!remote.enabled ? "Hidden on phone" : remote.connected ? "Phone reported connected · cached scene" : "Phone reported disconnected · cached scene")
+                    Text("Sync · " + WatchFixPolicy.ageLabel(date.timeIntervalSince1970-Double(remote.at)/1000))
+                    Text("\(model.remoteItems(at:date).count) unexpired · \(remote.omitted) omitted")
+                    ForEach(model.remoteItems(at:date)) { item in
+                        Text("TAK " + (item.contact ? "contact" : item.points.count == 1 ? "marker" : item.closed ? "area" : "line") + ": " + item.name)
+                    }
+                } else { Text("No phone TAK scene yet") }
+                Text("Remote items expire at their TAK stale time. Phone visibility and deletes replace this separate read-only layer. No watch server connection, sharing or editing.")
                 Text("Watch CoreLocation: " + model.status)
                 if let fix = model.fix {
                     Text(String(format: "±%.0f m · ", fix.horizontalAccuracy) + WatchFixPolicy.ageLabel(date.timeIntervalSince(fix.timestamp)))
@@ -216,12 +253,22 @@ struct WatchMapView: View {
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
                 Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")
                 Text("NATO unit PNGs are bundled. Task points use named badges with stored rotation; basic points use SF glyphs, and unknown keys use a question-mark glyph. Labels remain upright. Imported MilGPS shapes, characters and colors are preserved. Typed field paths/areas, sectors and range rings are drawn; tactical decorative teeth/arrows are not reproduced. No boundary alerts run on watch.")
-                Text("Overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
+                Text("Remote cap: 8 KiB / 64 items / 384 vertices, at most 128 per drawing. Whole drawings are omitted, never simplified. Local overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
                 Button("Position grid") { showInfo = false; showPosition() }
                 Button("Close map") { showInfo = false; closeMap() }
                 Button("Done") { showInfo = false }
             }.font(.system(size: 12)).foregroundStyle(accent).padding(.horizontal, 6)
         }.background(.black)
+        #if DEBUG
+        .task {
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-watchUITesting"),args.contains("-watchTAKInfo") {
+                try? await Task.sleep(nanoseconds:200_000_000)
+                proxy.scrollTo("takDetails",anchor:.top)
+            }
+        }
+        #endif
+        }
     }
 }
 

@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "sourceID": "synthetic-phone",
+  "revision": 7,
+  "at": 1792970000000,
+  "enabled": true,
+  "connected": true,
+  "omitted": 0,
+  "items": [
+    {
+      "id": "ca8b22d0db83a22db163b560b3e4e51527e533d31d067b614a0c33c4d2df8432",
+      "name": "TEAM ONE",
+      "affiliation": "friendly",
+      "points": [
+        {
+          "lat": 24.4539,
+          "lon": 54.3773
+        }
+      ],
+      "closed": false,
+      "contact": true,
+      "expiresAt": 1792970120000
+    },
+    {
+      "id": "ed5b8120601641c516d02ed9dc643a59648524248d5e2af877da39ea253c723e",
+      "name": "OP CAFÉ",
+      "affiliation": "hostile",
+      "points": [
+        {
+          "lat": 24.4545,
+          "lon": 54.378
+        }
+      ],
+      "closed": false,
+      "contact": false,
+      "expiresAt": 1792970600000
+    },
+    {
+      "id": "38a9c1e721584da284b90ceea4ed7eb8db15ac4ea86c2c75ec925d5f8799fcf0",
+      "name": "ROAD",
+      "affiliation": "unknown",
+      "points": [
+        {
+          "lat": 24.4537,
+          "lon": 54.377
+        },
+        {
+          "lat": 24.4542,
+          "lon": 54.378
+        },
+        {
+          "lat": 24.4548,
+          "lon": 54.3782
+        }
+      ],
+      "closed": false,
+      "contact": false,
+      "expiresAt": 1792970600000
+    },
+    {
+      "id": "4a91ee5f0106c2b35c11c168352f0abfbf4fc86165c62d6fb51b5232dfc692e6",
+      "name": "NAI 2",
+      "affiliation": "neutral",
+      "points": [
+        {
+          "lat": 24.454,
+          "lon": 54.378
+        },
+        {
+          "lat": 24.454,
+          "lon": 54.379
+        },
+        {
+          "lat": 24.455,
+          "lon": 54.379
+        }
+      ],
+      "closed": true,
+      "contact": false,
+      "expiresAt": 1792970600000
+    }
+  ]
+}

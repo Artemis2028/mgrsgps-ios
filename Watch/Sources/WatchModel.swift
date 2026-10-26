@@ -6,6 +6,7 @@ import WatchConnectivity
 @MainActor
 final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, WCSessionDelegate {
     @Published private(set) var snapshot = WatchSnapshot()
+    @Published private(set) var takScene = WatchTAKScene()
     @Published private(set) var guideSnapshot: WatchGuideSnapshot?
     @Published private(set) var mapSnapshot: WatchMapSnapshot?
     @Published private(set) var mapSyncStatus = "No phone map sync yet"
@@ -28,6 +29,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             mapSnapshot = saved; mapSyncStatus = "Cached phone overlay"
         }
         if let data = UserDefaults.standard.data(forKey:WatchGuideSnapshot.contextKey) { guideSnapshot = WatchGuideSnapshot.decode(data) }
+        if let data = UserDefaults.standard.data(forKey:"watch.tak.cache.v1"),let cache = WatchTAKScene.decodeCache(data) { takScene = cache }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 1
@@ -94,6 +96,18 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                                        nowUptime: ProcessInfo.processInfo.systemUptime)
     }
 
+    private func applyTAK(_ context: [String:Any],complete: Bool = false) {
+        if let data = context[WatchTAKSnapshot.contextKey] as? Data,let incoming = WatchTAKSnapshot.decode(data) {
+            var next = takScene
+            if next.apply(incoming,now:Date(),uptime:ProcessInfo.processInfo.systemUptime) {
+                takScene = next
+                if let cache = next.encodedCache() { UserDefaults.standard.set(cache,forKey:"watch.tak.cache.v1") }
+            }
+        } else if complete && context[WatchTAKSnapshot.contextKey] == nil { takScene.clear(); UserDefaults.standard.removeObject(forKey:"watch.tak.cache.v1") }
+    }
+    func remoteItems(at date: Date) -> [WatchTAKSnapshot.Item] {
+        takScene.visible(now:date,uptime:ProcessInfo.processInfo.systemUptime)
+    }
     private func applyGuide(_ context: [String:Any]) {
         guard let data = context[WatchGuideSnapshot.contextKey] as? Data,let incoming = WatchGuideSnapshot.decode(data),incoming.shouldApply(over:guideSnapshot) else { return }
         guideSnapshot = incoming
@@ -102,7 +116,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     private func requestGuide() {
         let session = WCSession.default
         guard session.activationState == .activated,session.isReachable else { return }
-        session.sendMessage(["gridfix.guide.request":true],replyHandler:nil,errorHandler:{ _ in })
+        session.sendMessage(["gridfix.guide.request":true,"gridfix.tak.request":true],replyHandler:nil,errorHandler:{ _ in })
     }
     private func apply(_ context: [String: Any]) {
         applyGuide(context)
@@ -115,6 +129,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             mapSyncStatus = "Older context ignored · cached overlay"
             return
         }
+        applyTAK(context,complete:true)
         snapshot = incoming; hasSync = true
         UserDefaults.standard.set(data, forKey: cacheKey)
         if let mapData = context[WatchMapSnapshot.contextKey] as? Data {
@@ -138,7 +153,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         Task { @MainActor in self.reachable = session.isReachable; self.requestGuide() }
     }
     nonisolated func session(_ session: WCSession,didReceiveMessage message: [String:Any]) {
-        Task { @MainActor in self.applyGuide(message) }
+        Task { @MainActor in self.applyGuide(message); self.applyTAK(message) }
     }
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
         Task { @MainActor in self.apply(session.receivedApplicationContext) }

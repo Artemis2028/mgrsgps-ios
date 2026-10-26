@@ -100,6 +100,12 @@ struct MGRSGPSApp: App {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKPreview") { takSession.seedMapPreview() }
         #endif
+        #if DEBUG
+        let takWatchArgs = ProcessInfo.processInfo.arguments
+        if takWatchArgs.contains("-uiTesting"),takWatchArgs.contains("-uiTestWatchTAK") {
+            takSession.seedWatchPreview(hidden:takWatchArgs.contains("-uiTestWatchTAKHidden"),cleared:takWatchArgs.contains("-uiTestWatchTAKClear"),expiry:takWatchArgs.contains("-uiTestWatchTAKExpiry"))
+        }
+        #endif
         _tak = StateObject(wrappedValue: takSession)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestLibrary"),
@@ -190,7 +196,7 @@ struct MGRSGPSApp: App {
         #endif
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,lanes: laneStore)
         _navigation = StateObject(wrappedValue: navigationSession)
-        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession)
+        watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession,tak: takSession)
         _practice = StateObject(wrappedValue: PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession))
         let recordingSession = TrackRecorder(directory: directory, fieldData: fieldStore)
         _recorder = StateObject(wrappedValue: recordingSession)

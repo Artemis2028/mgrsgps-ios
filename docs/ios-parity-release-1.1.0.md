@@ -10,7 +10,7 @@ lanes, protected backups, map-button preferences, fixes and the experimental
 TAK branch. Those additions are tracked separately from this pinned release.
 The first [navigation-lane UI and guidance integration](navigation-lanes.md)
 now includes optional lane backup/restore and shared screen/text/PDF leg limits;
-watch status remains an implementation gap; Android 4db6b21 startup/cue switches
+read-only phone guidance and a separate TAK watch scene are implemented; Android 4db6b21 startup/cue switches
 are now implemented. It does not replace the separate quiet-inside perimeter.
 
 | Area | Implemented on iOS | Still missing or incomplete |
@@ -19,7 +19,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, generated waypoint ownership, GPX, automatic following and mixed library batches | Broader interchange/output actions tracked below |
-| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Read-only phone-to-watch guidance now implemented; physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
+| Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation, boundary interchange/backup contract |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Physical lasso/large-text and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
@@ -27,7 +27,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Tracks/practice | Background recording/recovery, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history | Larger-library storage and physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining waypoint/mixed-folder/session edits and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps/boundaries are separate from v1 backup |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
-| Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, watch TAK scene sync and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
+| Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement; separate bounded read-only remote scene on both watches | Enrollment renewal/crash recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired scene delivery and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs with local regression evidence | Full hosted CI pass, app icon, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
 See [hosted field UI repairs](ci-field-ui-activation.md) for the five older-runtime cases now passing locally; a full new hosted run is still required.
@@ -90,7 +90,7 @@ local Live Activities consent stays separate. The complete core suite passes
 362 tests and all 158 app integration tests pass. A native settings workflow
 passes persistence, reminder selection and day/night inspection. See
 [lane startup and cues](navigation-lanes.md). L/Z time rows and duplicate-import review are now implemented as described
-below. Phone-to-watch status, physical field checks and the other
+below. Physical field checks and the other
 performance/distribution gates remain open.
 
 
@@ -125,8 +125,8 @@ day/night invalid-objective correction case. The existing four native
 lane/backup workflows pass in the preceding matrix. Screenshots were inspected,
 the unsigned phone/watch/activity-extension Release build passes, and the
 single test phone is shut down. Remaining eacf084 offline/lasso/protected-file
-review details need audit. Live TAK is explicitly requested and next; it is
-not yet implemented. The existing server was inspected without changing it.
+review details need audit. Live TAK was subsequently implemented and tested as
+recorded above; this earlier milestone did not yet include it.
 
 ## Unreadable waypoint recovery
 
@@ -145,3 +145,12 @@ outcome checks. The workflow now partitions every UI class into exhaustive
 library/map/field jobs and retains all five dedicated location-feed phases.
 See [CI repair and partition details](ci-field-ui-activation.md). All three hosted
 job conclusions remain required; local passes alone do not close that gate.
+
+## Watch TAK scene
+
+Both companions now display a separate bounded read-only TAK layer with complete
+contacts, markers, lines and areas, explicit omissions and watch-side stale expiry.
+See [contract and runtime evidence](watch-tak-layer.md). The current suite passes
+433 core tests and 191 native integrations (two unstaged local TAK skips).
+Hosted run 40244289326 passes the map shard; library and field shards still fail
+four UI cases. Full hosted CI remains open.

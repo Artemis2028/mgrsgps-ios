@@ -12,6 +12,7 @@ Wear OS and watchOS share this functional scope. Native controls may differ to f
 | Phone connection | Cached target/settings remain usable with their age and honest connection status |
 | Map | Read-only interactive map with pan/zoom/recenter, fresh watch position, cached visible waypoints and field geometry, sync age and explicit omission/simplification counts |
 | Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; no watch crossing detector or haptic lane guidance |
+| TAK layer | Separate read-only contacts, markers, lines and areas; complete replacements, bounded geometry, explicit omissions and expiry retained across relaunch |
 | Night mode | Local Day/Night/Follow phone choice, independent of the precision override |
 
 Digit count describes coordinate formatting, not GPS accuracy. Both platforms display reported GPS accuracy separately. Neither companion currently promises a heading compass, haptic navigation, background tracking or navigation while the screen is locked. Those require their own platform-specific implementation and physical-device validation.
@@ -78,3 +79,13 @@ Watch GPS/target metrics and quiet-inside monitoring remain separate. The
 Wear phone branch now incorporates Android review `eacf084`; Claude confirmed
 the additive evaluation fields and reserved those lines to avoid parallel edits.
 See [contract and validation](watch-phone-guidance.md).
+
+## TAK remote-layer milestone
+
+Both maps now retain a separate remote scene, without server configuration,
+watch connections or outbound sharing. Complete items are retained or omitted;
+watch expiry never renews an unchanged stale time. Actual paired Apple delivery,
+hide/clear and phone-off expiry pass. Wear round-screen day/night and cache
+relaunch/expiry pass with an explicit standalone fixture; paired Data Layer
+delivery awaits Google Play account setup on the dedicated test phone or a
+physical pair. See [contract, budgets and evidence](watch-tak-layer.md).

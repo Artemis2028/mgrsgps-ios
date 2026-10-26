@@ -11,6 +11,11 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private let boundaries: BoundaryMonitor
     private let lanes: NavigationLaneStore?
     private let navigation: NavigationSession?
+    private let tak: TAKSession?
+    private var takRevision: Int64 = 0
+    private var takGeneration = 0
+    private var takTask: Task<Void,Never>?
+    private var takSnapshot: WatchTAKSnapshot?
     private var context: [String:Any] = [:]
     private var guideRevision: Int64 = 0
     private var guideTimer: AnyCancellable?
@@ -23,8 +28,9 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     private var subscriptions = Set<AnyCancellable>()
     private var session: WCSession?
 
-    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor,lanes: NavigationLaneStore? = nil,navigation: NavigationSession? = nil) {
-        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries; self.lanes = lanes; self.navigation = navigation
+    init(store: WaypointStore, settings: AppSettings, field: FieldDataStore, boundaries: BoundaryMonitor,lanes: NavigationLaneStore? = nil,navigation: NavigationSession? = nil,tak: TAKSession? = nil) {
+        self.store = store; self.settings = settings; self.field = field; self.boundaries = boundaries; self.lanes = lanes; self.navigation = navigation; self.tak = tak
+        takRevision = max(0,(UserDefaults.standard.object(forKey:"watch.tak.revision") as? NSNumber)?.int64Value ?? 0)
         guideRevision = max(0,(UserDefaults.standard.object(forKey:"watch.guide.revision") as? NSNumber)?.int64Value ?? 0)
         let defaults = UserDefaults.standard
         sourceID = defaults.string(forKey: "watch.map.source") ?? UUID().uuidString
@@ -47,6 +53,10 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         if let navigation {
             navigation.objectWillChange.debounce(for:.milliseconds(100),scheduler:RunLoop.main)
                 .sink { [weak self] in self?.publishGuide() }.store(in:&subscriptions)
+        }
+        if let tak {
+            tak.objectWillChange.debounce(for:.milliseconds(250),scheduler:RunLoop.main)
+                .sink { [weak self] in self?.publishTAK() }.store(in:&subscriptions)
         }
         guideTimer = Timer.publish(every: 5,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.publishGuide(heartbeat:true) }
         if let lanes { sources.append(lanes.objectWillChange.map { _ in () }.eraseToAnyPublisher()) }
@@ -84,7 +94,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
                 self.context[WatchSnapshot.contextKey] = data
                 self.context.removeValue(forKey:"gridfix.map.error")
                 if let mapData { self.context[WatchMapSnapshot.contextKey] = mapData }
-                else { self.context["gridfix.map.error"] = "Phone map snapshot unavailable" }
+                else { self.context.removeValue(forKey:WatchMapSnapshot.contextKey); self.context["gridfix.map.error"] = "Phone map snapshot unavailable" }
                 self.publishGuide(force:true)
             }
         }
@@ -103,18 +113,54 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         UserDefaults.standard.set(guideRevision,forKey:"watch.guide.revision")
         previousGuide = next; guideSentAt = Date(); context[WatchGuideSnapshot.contextKey] = data
         // Complete context handles disconnect/offline stop; a reachable watch also receives it immediately.
-        try? session.updateApplicationContext(context)
+        sendContext()
         if session.isReachable { session.sendMessage([WatchGuideSnapshot.contextKey:data],replyHandler:nil,errorHandler:{ _ in }) }
     }
 
-    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        Task { @MainActor in self.publish() }
+    private func publishTAK() {
+        guard let session,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled,takRevision < .max else { return }
+        takRevision += 1; takGeneration += 1
+        UserDefaults.standard.set(takRevision,forKey:"watch.tak.revision")
+        let token = takGeneration,revision = takRevision,sourceID = sourceID
+        let items = tak?.remoteItems ?? [],enabled = tak?.profile.showRemote ?? false,connected = tak?.connected ?? false
+        takTask?.cancel()
+        takTask = Task.detached(priority:.utility) { [weak self] in
+            let value = WatchTAKSnapshot.build(items,enabled:enabled,connected:connected,sourceID:sourceID,revision:revision)
+            guard !Task.isCancelled,let data = value.encoded() else { return }
+            await MainActor.run { [weak self] in
+                guard let self,self.takGeneration == token else { return }
+                self.takSnapshot = value; self.sendContext()
+                if session.activationState == .activated,session.isReachable {
+                    session.sendMessage([WatchTAKSnapshot.contextKey:data],replyHandler:nil,errorHandler:{ _ in })
+                }
+            }
+        }
     }
-    nonisolated func sessionWatchStateDidChange(_ session: WCSession) { Task { @MainActor in self.publish() } }
-    nonisolated func sessionReachabilityDidChange(_ session: WCSession) { Task { @MainActor in self.publish() } }
+    /// Reserve a separate 8 KiB remote budget without silently truncating geometry.
+    /// A local map too large for the whole context gets an explicit cache warning.
+    static func boundedContext(_ base: [String:Any],tak: WatchTAKSnapshot?) -> [String:Any]? {
+        var result = base; result.removeValue(forKey:WatchTAKSnapshot.contextKey)
+        func size(_ value:[String:Any]) -> Int { (try? PropertyListSerialization.data(fromPropertyList:value,format:.binary,options:0).count) ?? .max }
+        if size(result) > 52*1024-512 {
+            result.removeValue(forKey:WatchMapSnapshot.contextKey)
+            result["gridfix.map.error"] = "Phone map exceeds the watch context budget · cached overlay"
+        }
+        if let data = tak?.encoded() { result[WatchTAKSnapshot.contextKey] = data }
+        return size(result) <= 60*1024 ? result : nil
+    }
+    private func sendContext() {
+        guard let session,session.activationState == .activated,let outgoing = Self.boundedContext(context,tak:takSnapshot) else { return }
+        try? session.updateApplicationContext(outgoing)
+    }
+
+    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        Task { @MainActor in self.publish(); self.publishTAK() }
+    }
+    nonisolated func sessionWatchStateDidChange(_ session: WCSession) { Task { @MainActor in self.publish(); self.publishTAK() } }
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) { Task { @MainActor in self.publish(); self.publishTAK() } }
     nonisolated func session(_ session: WCSession,didReceiveMessage message: [String:Any]) {
-        guard message["gridfix.guide.request"] as? Bool == true else { return }
-        Task { @MainActor in self.publishGuide(force:true) }
+        guard message["gridfix.guide.request"] as? Bool == true || message["gridfix.tak.request"] as? Bool == true else { return }
+        Task { @MainActor in self.publishGuide(force:true); self.publishTAK() }
     }
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }
