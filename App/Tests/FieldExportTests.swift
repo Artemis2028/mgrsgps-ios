@@ -4,6 +4,38 @@ import GridFixCore
 
 @MainActor
 final class FieldExportTests: XCTestCase {
+    func testNativeExportStagingKeepsIndependentCompleteFilesUntilTheirOwnCleanup() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root,withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let original = Data("first complete CAFÉ export".utf8),newer = Data("newer complete export".utf8)
+        let first = try await Task.detached { try PreparedNativeExport.prepare(data: original,filename: "../CAFÉ\\patrol\n",extension: "gpx",root: root) }.value
+        let second = try await Task.detached { try PreparedNativeExport.prepare(data: newer,filename: "../CAFÉ\\patrol\n",extension: "gpx",root: root) }.value
+        XCTAssertNotEqual(first.url,second.url)
+        XCTAssertEqual(first.url.pathExtension,"gpx")
+        XCTAssertEqual(first.url.deletingLastPathComponent(),first.directory)
+        XCTAssertEqual(first.directory.deletingLastPathComponent().standardizedFileURL.path,root.standardizedFileURL.path)
+        XCTAssertEqual(try Data(contentsOf: first.url),original)
+        XCTAssertEqual(try Data(contentsOf: second.url),newer)
+        first.discard()
+        let deadline = Date().addingTimeInterval(3)
+        while FileManager.default.fileExists(atPath: first.directory.path),Date() < deadline { try await Task.sleep(nanoseconds: 10_000_000) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.directory.path))
+        XCTAssertEqual(try Data(contentsOf: second.url),newer,"An earlier export's cleanup must not remove a later export")
+        second.discard()
+    }
+    func testCancelledNativeExportStagingLeavesNoPartialSource() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root,withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let task = Task.detached {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try PreparedNativeExport.prepare(data: Data("never exported".utf8),filename: "cancelled",extension: "gpx",root: root)
+        }
+        do { _ = try await task.value; XCTFail("Cancelled staging produced a provider source") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
+    }
     func testIndividualLongTrackGPXExportsEveryPointBeyondBackupCountLimit() async throws {
         let count = 250_001,id = UUID().uuidString.lowercased()
         let bytes = Data(String(repeating: "24.0000000 54.0000000 0 -32768\n",count: count).utf8)

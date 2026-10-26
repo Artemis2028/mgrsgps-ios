@@ -474,3 +474,49 @@ without saving, the next export reopens with all three waypoints, one route and
 one track. No active test/diagnostic process was interrupted in either candidate
 run; both xcodebuild parents exit 0. Fake feed/link helpers stopped, simulator
 location cleared and the single owned phone was shut down before the push.
+
+## Hosted run 97 and direct native export presentation
+
+Run 40379715936 on 2f850c9 is terminal: map succeeds; library fails its final
+post-unfavourite ordering assertion; field fails large GPX's missing native
+filename footer and route PDF's filename-focus acknowledgement. Core/native
+checks pass there. Full hosted green remains open.
+
+The complete field xcresult and both failure videos were retrieved. The large
+GPX video really has no filename accessory. The PDF video shows a selected name
+and keyboard, but the corresponding XCTest snapshot still describes the earlier
+ActivityListView/ShareSheet.RemoteContainerView and its filename query is empty.
+The input helper now reasserts its foreground owner before re-resolving focus,
+retaining the focus and exact cleared/replacement text assertions; a failure
+also retains a screen capture and hierarchy. The library test acknowledges the
+durable favourite removal and the final ordering before its original comparison.
+
+Field exports now stage a complete file on a worker in a unique temporary
+directory. A UIKit host presents UIDocumentPickerViewController directly with
+that immutable source and asCopy=true. Save/cancel/interactive dismissal retains
+the source through the modal lifetime, then cleans up only its directory; a
+dismantled host cannot complete into a newer export. This retains the native
+Files workflow and normal provider/filename choice. It replaces materialization
+through the previous SwiftUI fileExporter document bridge.
+
+An initial candidate embedded the native picker as a child of a SwiftUI sheet;
+all three field-export UI cases reproduced the missing accessory locally. That
+candidate's native checks, library/PDF/recording cases ran to completion; its
+xcodebuild outcome is failure, not evidence of a repair. The corrected host
+lets UIKit own the modal presentation. Its final replay passes all 277 native
+cases (four unstaged opt-in skips) and 11 UI workflows in
+`/tmp/gridfix-ci97-native-presentation.xcresult`. This includes all three hosted
+failure cases, exact 5,000-waypoint/1,000-route GPX reopening, cancellation/re-export,
+both single-track exports, favourite persistence/removal/order, PDF and recording.
+The large GPX and exact-content cancellation review screenshots were inspected.
+
+Seven additional UI regressions pass in
+`/tmp/gridfix-ci97-native-protected.xcresult`: native backup and protected-backup
+delete/restore/relaunch in night mode, hidden lane restoration into the route
+card/PDF, protected GPX and night KML password retry/cancel/import/relaunch,
+protected single-track export and separately confirmed queued incoming files.
+Night KML review and protected-backup restoration screenshots were inspected.
+Both xcodebuild parents finalize exit 0, with no diagnostic interruption.
+Final Release passes in `/tmp/gridfix-ci97-native-presentation-release.log`.
+No case, shard, focus check, exact content count or text-edit assertion is
+removed. Full hosted confirmation of the repaired candidate remains open.

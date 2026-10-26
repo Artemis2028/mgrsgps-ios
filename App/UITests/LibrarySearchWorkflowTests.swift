@@ -39,7 +39,13 @@ final class LibrarySearchWorkflowTests: XCTestCase {
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         XCTAssertTrue(app.images["favorite-Bravo"].waitForExistence(timeout: 5))
         tapNativeMenuItem(app.buttons["Actions for Bravo"]); tapNativeMenuItem(app.buttons["toggle-favorite-Bravo"])
+        let removed = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in !self.app.images["favorite-Bravo"].exists },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [removed],timeout: 10),.completed)
         tapNativeMenuItem(app.buttons["library-sort"],revealing: app.buttons["Name"]); tapNativeMenuItem(app.buttons["Name"])
+        let ordered = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            self.app.buttons["edit-waypoint-Alpha"].frame.minY < self.app.buttons["edit-waypoint-Bravo"].frame.minY
+        },object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ordered],timeout: 10),.completed)
         XCTAssertLessThan(app.buttons["edit-waypoint-Alpha"].frame.minY,app.buttons["edit-waypoint-Bravo"].frame.minY)
     }
     func testNightSearchSortAndClearKeepFieldCardsReadable() {

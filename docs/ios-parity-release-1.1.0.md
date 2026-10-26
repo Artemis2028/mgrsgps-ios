@@ -483,3 +483,21 @@ Hosted run40379715936: map succeeds; field finishes with two remaining UI
 failures (large GPX filename footer and route-PDF filename focus). Library still
 runs. Full hosted green remains unproven; later iOS commits stay local until that
 run ends so it is not cancelled.
+
+## Direct native Files export and complete local replay
+
+Hosted 40379715936 is terminal: map succeeds; library has one final favourite
+ordering failure; field has the large GPX footer and PDF focus failures. The
+retrieved videos show a genuinely absent footer for GPX and a selected PDF name
+with keyboard while XCTest retained a stale earlier share-service snapshot.
+The final candidate stages an immutable source on a worker and lets UIKit own
+the native export modal. Input focus is re-resolved after foreground activation;
+favourite removal/order is acknowledged before the existing assertions.
+
+All 277 native cases pass (four unstaged opt-in skips). Eleven primary UI cases
+pass, including all three hosted failures and exact complete GPX reopening and
+cancel/re-export contents; seven additional backup/protected-file/lane restore
+regressions pass. Final unsigned device Release passes. Both xcodebuild parents
+exit 0 without diagnostic interruption. Day/night review/restoration screenshots
+were inspected. No case, assertion, count or shard is excluded. Full hosted
+confirmation remains open. See [CI evidence](ci-field-ui-activation.md).

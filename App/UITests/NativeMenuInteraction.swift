@@ -88,8 +88,14 @@ extension XCTestCase {
                 else { element.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap() }
                 let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in element.debugDescription.contains("Keyboard Focused") },object: nil)
                 if XCTWaiter.wait(for: [focused],timeout: 3) == .completed { return }
+                // A remote ShareLink followed by Files can leave XCTest's
+                // application snapshot bound to the dismissed share service.
+                // Reassert the foreground owner before resolving its editor
+                // again; keep the focus and exact text-edit checks below.
+                XCUIApplication().activate()
             }
-            XCTFail("Native filename did not acquire keyboard focus",file: file,line: line)
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "native-filename-focus-failure"; shot.lifetime = .keepAlways; add(shot)
+            XCTFail("Native filename did not acquire keyboard focus: \(XCUIApplication().debugDescription)",file: file,line: line)
             return
         }
         tapVisibleControl(element,horizontal: 0.9,file: file,line: line)
