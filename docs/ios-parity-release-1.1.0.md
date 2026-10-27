@@ -1417,3 +1417,16 @@ restoration screenshots are inspected. All three artifact hashes now match.
 The new accessible waypoint/course/log/recording follow-ups are ready for their
 next full hosted run after this green source. This is not full physical/watch/
 TAK validation or a release approval. No active CI was cancelled or duplicated.
+
+
+### Follow-ups pushed; full hosted108 live, 27 October
+
+Source7fbeab55f5dd875b997cc1b85d020563068a32c8 is pushed to the same draft
+PR. All accumulated follow-ups through the written checkpoint-grid change are
+included. Hosted107 completed successfully before this push; no live run was
+cancelled. Full hosted10840508823942 is confirmed in progress on the new source:
+library122205023151, field122205023505 and map122205023915. Its result remains
+pending. New PracticeLogWorkflowTests is discovered once in the library shard;
+no new UI class is silently omitted. All three107 artifacts have verified hashes.
+The draft PR is rewritten around current behavior and scoped local/hosted
+evidence. All local parents are reaped and owned devices/feeds off.
