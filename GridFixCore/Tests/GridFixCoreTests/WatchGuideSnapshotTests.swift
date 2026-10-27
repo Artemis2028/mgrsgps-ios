@@ -43,4 +43,58 @@ final class WatchGuideSnapshotTests: XCTestCase {
         XCTAssertNil(WatchGuideSnapshot.decode(Data(repeating:32,count:4097)))
         XCTAssertNil(WatchGuideSnapshot.decode(Data("{}".utf8)))
     }
+
+    func testReceiptDeadlineRejectsClockStepsAndCannotReviveAfterExpiry() {
+        let p = packet(); var scene = WatchGuideScene()
+        XCTAssertTrue(scene.apply(p,now: Date(timeIntervalSince1970:1000),uptime:100))
+        XCTAssertTrue(scene.isFresh(now: Date(timeIntervalSince1970:1019),uptime:119))
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1001),uptime:119))
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1030),uptime:101))
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1001),uptime:121))
+        XCTAssertEqual(scene.displayStatus(now: Date(timeIntervalSince1970:1001),uptime:121),"Phone guidance expired · open phone")
+    }
+    func testReplayAndNewRevisionWithSameTimestampNeverRenewReceiptBudget() {
+        let p = packet(); var scene = WatchGuideScene()
+        XCTAssertTrue(scene.apply(p,now: Date(timeIntervalSince1970:1000),uptime:100))
+        XCTAssertTrue(scene.apply(p,now: Date(timeIntervalSince1970:1001),uptime:119))
+        XCTAssertTrue(scene.isFresh(now: Date(timeIntervalSince1970:1001),uptime:119))
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1002),uptime:121))
+        var changed = p; changed.revision = 2; changed.status = "Crossed right"; changed.laneState = "OUT_RIGHT"
+        XCTAssertTrue(scene.apply(changed,now: Date(timeIntervalSince1970:1002),uptime:121))
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1002),uptime:121))
+        changed.revision = 3; changed.at = 1_003_000
+        XCTAssertTrue(scene.apply(changed,now: Date(timeIntervalSince1970:1003),uptime:122))
+        XCTAssertTrue(scene.isFresh(now: Date(timeIntervalSince1970:1003),uptime:122))
+        XCTAssertFalse(scene.apply(p,now: Date(timeIntervalSince1970:1003),uptime:122))
+    }
+    func testCacheReloadPreservesDeadlineAndRefusesRebootOrClockChange() throws {
+        var scene = WatchGuideScene(); XCTAssertTrue(scene.apply(packet(),now: Date(timeIntervalSince1970:1005),uptime:100))
+        let cached = try XCTUnwrap(WatchGuideScene.decodeCache(try XCTUnwrap(scene.encodedCache())))
+        XCTAssertEqual(cached.snapshot,packet())
+        XCTAssertTrue(cached.isFresh(now: Date(timeIntervalSince1970:1019),uptime:114))
+        XCTAssertFalse(cached.isFresh(now: Date(timeIntervalSince1970:1021),uptime:116))
+        XCTAssertFalse(cached.isFresh(now: Date(timeIntervalSince1970:1006),uptime:1))
+        XCTAssertFalse(cached.isFresh(now: Date(timeIntervalSince1970:1001),uptime:101))
+    }
+    func testLegacyCacheKeepsOrderingButNeedsNewLivePacket() {
+        let p = packet(); var scene = WatchGuideScene.legacy(p)
+        XCTAssertEqual(scene.snapshot,p); XCTAssertNil(scene.encodedCache())
+        XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1000),uptime:100))
+        XCTAssertFalse(scene.apply(p,now: Date(timeIntervalSince1970:1000),uptime:100))
+        var fresh = p; fresh.revision = 2
+        XCTAssertTrue(scene.apply(fresh,now: Date(timeIntervalSince1970:1001),uptime:101))
+        XCTAssertTrue(scene.isFresh(now: Date(timeIntervalSince1970:1001),uptime:101))
+        scene.clear(); XCTAssertNil(scene.snapshot); XCTAssertFalse(scene.isFresh(now: Date(timeIntervalSince1970:1001),uptime:101))
+    }
+    func testMalformedCacheFuturePacketAndInvalidClocksAreRefused() throws {
+        var scene = WatchGuideScene(); var p = packet(); p.at = 1_003_000
+        XCTAssertFalse(scene.apply(p,now: Date(timeIntervalSince1970:1000),uptime:100))
+        XCTAssertFalse(scene.apply(packet(),now: Date(timeIntervalSince1970:1000),uptime:.nan))
+        XCTAssertTrue(scene.apply(packet(),now: Date(timeIntervalSince1970:1000),uptime:100))
+        var raw = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(scene.encodedCache())) as? [String:Any])
+        raw["deadline"] = 121
+        XCTAssertNil(WatchGuideScene.decodeCache(try JSONSerialization.data(withJSONObject:raw)))
+        XCTAssertNil(WatchGuideScene.decodeCache(Data(repeating:32,count:8193)))
+        XCTAssertNil(WatchGuideScene.decodeCache(Data("{}".utf8)))
+    }
 }

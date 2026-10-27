@@ -722,3 +722,13 @@ The300003-point check keeps the source and target, returns three vertices in
 about0.659seconds with332 main-thread pulses. Screenshots inspected and parent
 exits0. Hosted101 remains live on39da6e4; follow-ups are local until it finishes.
 See [source integrity and evidence](backtrack-source-and-memory.md).
+
+
+Both watch receivers now keep a monotonic phone-guidance lifetime across cache
+replay and app relaunch. Clock rollback cannot renew the original budget;
+new source packets remain supported. Swift504 core and Wear39 unit cases pass,
+as do Apple Release/paired Debug, Wear Debug/Release/lint and Android phone Debug.
+Real paired delivery, expired relaunch and preserved local scene/overrides are
+recorded with [exact limits and cleanup caveat](watch-guide-expiry.md).
+Hosted101 is terminal on39da6e4: map passes; field and library each have one
+failure. Full hosted green remains open.

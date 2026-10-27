@@ -93,3 +93,17 @@ preservation and actual phone-guidance active/unavailable/stop/expiry also pass;
 see [paired validation](wear-paired-validation.md). The paired Wear named-left/right/backstop and return-inside round now passes,
 including phone-on-Home delivery and exact bent-limit preservation. Physical
 radio/background/wrist checks remain. See [contract, budgets and evidence](watch-tak-layer.md).
+
+
+## Receipt-bound phone guidance expiry, 27 October
+
+Both watches now retain source/receipt/monotonic deadlines in their local cache.
+Replay, app relaunch and wall-clock rollback cannot extend the original budget.
+Legacy caches require a new phone packet; wire format and independent watch GPS
+are unchanged. Swift504 core and Wear39 unit cases, Apple Release/paired Debug,
+Wear Debug/Release/lint and Android phone Debug pass. Actual WatchConnectivity
+and paired Data Layer deliver fresh decisions, then cached expiry survives
+relaunch/disconnection. Runtime review also fixes Wear's prior-tick uptime
+causing a transient false expiry on new delivery. Physical clock/wrist checks
+and the recorded Wear host-process abort during cleanup remain separate.
+See [behavior and exact evidence](watch-guide-expiry.md).

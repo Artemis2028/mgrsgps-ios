@@ -100,3 +100,9 @@ watch overrides are restored afterward. No watch packet or cache was injected.
 See [paired evidence, screenshots and limits](wear-paired-validation.md).
 This does not establish physical lock/wrist behavior, independent watch alerts
 or a new paired NOT_YET case.
+
+
+The27 October [receiver expiry follow-up](watch-guide-expiry.md) adds monotonic
+receipt budgets and cache/replay guards to both watches, with actual paired
+fresh/expired runtime checks. It changes no wire protocol and adds no watch
+alerts. Clock manipulation is unit-tested without changing device clocks.

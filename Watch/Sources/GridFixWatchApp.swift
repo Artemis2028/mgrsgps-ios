@@ -282,8 +282,8 @@ struct WatchGlanceView: View {
             label("PHONE GUIDANCE")
             if let guide = model.guideSnapshot {
                 if guide.active,let name = guide.targetName { Text(name).font(.caption).fixedSize(horizontal:false,vertical:true) }
-                Text(guide.displayStatus(at:date)).font(.caption).fixedSize(horizontal:false,vertical:true)
-                if guide.isFresh(at:date),guide.active,guide.available {
+                Text(model.guideStatus(at:date)).font(.caption).fixedSize(horizontal:false,vertical:true)
+                if model.guideFresh(at:date),guide.active,guide.available {
                     if let name = guide.laneName { Text(name).font(.caption2) }
                     if let line = guide.crossedLine { Text("Limit: " + line).font(.caption2) }
                 }

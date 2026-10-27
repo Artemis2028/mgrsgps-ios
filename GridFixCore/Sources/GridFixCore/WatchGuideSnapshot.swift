@@ -52,3 +52,59 @@ public struct WatchGuideSnapshot: Codable, Equatable, Sendable {
         return status
     }
 }
+
+/// Receipt-bound lifetime for read-only phone decisions. Replaying an unchanged
+/// timestamp cannot renew guidance; wall-clock changes cannot extend its budget.
+public struct WatchGuideScene: Sendable {
+    public private(set) var snapshot: WatchGuideSnapshot?
+    private var receiptWall: Date?
+    private var receiptUptime: TimeInterval?
+    private var deadline: TimeInterval?
+    public init() {}
+    public static func legacy(_ snapshot: WatchGuideSnapshot) -> Self {
+        var value = Self(); if snapshot.isValid { value.snapshot = snapshot }; return value
+    }
+    public mutating func clear() { self = Self() }
+    @discardableResult public mutating func apply(_ incoming: WatchGuideSnapshot,now: Date,uptime: TimeInterval) -> Bool {
+        let age = now.timeIntervalSince1970-Double(incoming.at)/1000
+        guard incoming.isValid,incoming.shouldApply(over: snapshot),age.isFinite,age >= -2,
+              uptime.isFinite,uptime >= 0,uptime <= Double.greatestFiniteMagnitude-22 else { return false }
+        // Legacy caches have no trustworthy receipt. Keep their ordering but
+        // wait for a newer packet instead of re-anchoring an identical replay.
+        if incoming == snapshot,receiptUptime == nil { return false }
+        var nextDeadline = uptime+max(0,min(WatchGuideSnapshot.lifetime,WatchGuideSnapshot.lifetime-age))
+        if let prior = snapshot, incoming.at <= prior.at,let deadline { nextDeadline = min(nextDeadline,deadline) }
+        snapshot = incoming; receiptWall = now; receiptUptime = uptime; deadline = nextDeadline
+        return true
+    }
+    public func isFresh(now: Date,uptime: TimeInterval) -> Bool {
+        guard let snapshot,let receiptWall,let receiptUptime,let deadline,
+              now.timeIntervalSince1970.isFinite,uptime.isFinite,uptime >= receiptUptime,
+              abs(now.timeIntervalSince(receiptWall)-(uptime-receiptUptime)) <= 2,
+              uptime < deadline else { return false }
+        return snapshot.isFresh(at: now)
+    }
+    public func displayStatus(now: Date,uptime: TimeInterval) -> String {
+        guard isFresh(now: now,uptime: uptime),let snapshot else { return "Phone guidance expired · open phone" }
+        return snapshot.displayStatus(at: now)
+    }
+    private struct Cache: Codable {
+        let snapshot: WatchGuideSnapshot
+        let wall: Date
+        let uptime: TimeInterval
+        let deadline: TimeInterval
+    }
+    public func encodedCache() -> Data? {
+        guard let snapshot,let receiptWall,let receiptUptime,let deadline,
+              let bytes = try? JSONEncoder().encode(Cache(snapshot: snapshot,wall: receiptWall,uptime: receiptUptime,deadline: deadline)),bytes.count <= 8192 else { return nil }
+        return bytes
+    }
+    public static func decodeCache(_ data: Data) -> Self? {
+        guard data.count <= 8192,let cache = try? JSONDecoder().decode(Cache.self,from: data),cache.snapshot.isValid,
+              cache.wall.timeIntervalSince1970.isFinite,cache.uptime.isFinite,cache.uptime >= 0,
+              cache.deadline.isFinite,cache.deadline >= 0,cache.deadline <= cache.uptime+WatchGuideSnapshot.lifetime else { return nil }
+        var value = Self(); value.snapshot = cache.snapshot; value.receiptWall = cache.wall
+        value.receiptUptime = cache.uptime; value.deadline = cache.deadline
+        return value
+    }
+}

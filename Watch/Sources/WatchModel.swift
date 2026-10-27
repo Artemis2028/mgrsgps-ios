@@ -15,6 +15,8 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     @Published private(set) var hasSync = false
     @Published private(set) var status = "GPS idle"
     @Published private(set) var reducedAccuracy = false
+    private var guideScene = WatchGuideScene()
+    private let guideCacheKey = "watch.guide.cache.v1"
     private let manager = CLLocationManager()
     private var foreground = false
     private var fixTimestampUptime: TimeInterval?
@@ -28,7 +30,9 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         if let data = UserDefaults.standard.data(forKey: WatchMapSnapshot.contextKey), let saved = WatchMapSnapshot.decode(data) {
             mapSnapshot = saved; mapSyncStatus = "Cached phone overlay"
         }
-        if let data = UserDefaults.standard.data(forKey:WatchGuideSnapshot.contextKey) { guideSnapshot = WatchGuideSnapshot.decode(data) }
+        if let data = UserDefaults.standard.data(forKey: guideCacheKey),let cached = WatchGuideScene.decodeCache(data) { guideScene = cached }
+        else if let data = UserDefaults.standard.data(forKey: WatchGuideSnapshot.contextKey),let saved = WatchGuideSnapshot.decode(data) { guideScene = .legacy(saved) }
+        guideSnapshot = guideScene.snapshot
         if let data = UserDefaults.standard.data(forKey:"watch.tak.cache.v1"),let cache = WatchTAKScene.decodeCache(data) { takScene = cache }
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
@@ -109,10 +113,16 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         takScene.visible(now:date,uptime:ProcessInfo.processInfo.systemUptime)
     }
     private func applyGuide(_ context: [String:Any]) {
-        guard let data = context[WatchGuideSnapshot.contextKey] as? Data,let incoming = WatchGuideSnapshot.decode(data),incoming.shouldApply(over:guideSnapshot) else { return }
-        guideSnapshot = incoming
-        UserDefaults.standard.set(data,forKey:WatchGuideSnapshot.contextKey)
+        guard let data = context[WatchGuideSnapshot.contextKey] as? Data,let incoming = WatchGuideSnapshot.decode(data),
+              guideScene.apply(incoming,now: Date(),uptime: ProcessInfo.processInfo.systemUptime) else { return }
+        guideSnapshot = guideScene.snapshot
+        if let cache = guideScene.encodedCache() {
+            UserDefaults.standard.set(cache,forKey: guideCacheKey)
+            UserDefaults.standard.removeObject(forKey: WatchGuideSnapshot.contextKey)
+        }
     }
+    func guideFresh(at date: Date) -> Bool { guideScene.isFresh(now: date,uptime: ProcessInfo.processInfo.systemUptime) }
+    func guideStatus(at date: Date) -> String { guideScene.displayStatus(now: date,uptime: ProcessInfo.processInfo.systemUptime) }
     private func requestGuide() {
         let session = WCSession.default
         guard session.activationState == .activated,session.isReachable else { return }
