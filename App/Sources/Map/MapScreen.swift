@@ -902,11 +902,6 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.onGraphicRemove = onGraphicRemove; coordinator.onBoundaryRemove = onBoundaryRemove
         coordinator.onGraphicPoint = onGraphicPoint; coordinator.onGraphicSelect = onGraphicSelect; coordinator.onGraphicMove = onGraphicMove; coordinator.onGraphicPick = onGraphicPick; coordinator.onGraphicInsert = onGraphicInsert
         coordinator.boundarySelection = boundarySelection
-        // A quick pair of drawing taps must add vertices, not zoom the map.
-        // Pinch/pan remain available while drawing.
-        for gesture in view.gestureRecognizers ?? [] {
-            if let tap = gesture as? UITapGestureRecognizer, tap.numberOfTapsRequired == 2 { tap.isEnabled = !editing }
-        }
         coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
         coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
         coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,waypoints:laneWaypoints,night: nightMode)
@@ -914,7 +909,18 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
         coordinator.reconcileVertexPreview()
         let cameraInteraction = !lassoActive && !coordinator.isVertexDragging
-        view.isScrollEnabled = cameraInteraction; view.isZoomEnabled = cameraInteraction; view.isRotateEnabled = cameraInteraction
+        if view.isScrollEnabled != cameraInteraction { view.isScrollEnabled = cameraInteraction }
+        if view.isZoomEnabled != cameraInteraction { view.isZoomEnabled = cameraInteraction }
+        if view.isRotateEnabled != cameraInteraction { view.isRotateEnabled = cameraInteraction }
+        // The SDK's zoom setter also configures double-tap recognizers. Apply
+        // drawing policy afterwards, or a camera update re-enables zoom taps
+        // and consumes a quick pair of vertices. Pinch and pan remain usable.
+        let doubleTapEnabled = cameraInteraction && !editing
+        for gesture in view.gestureRecognizers ?? [] {
+            if let tap = gesture as? UITapGestureRecognizer,tap.numberOfTapsRequired == 2,tap.isEnabled != doubleTapEnabled {
+                tap.isEnabled = doubleTapEnabled
+            }
+        }
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)

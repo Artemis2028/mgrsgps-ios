@@ -78,11 +78,21 @@ final class MeasurementWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [away],timeout: 5),.completed)
         XCTAssertTrue(app.buttons["ruler-reset"].isHittable); XCTAssertTrue(app.buttons["ruler-done"].isHittable)
         capture("map-ruler-landscape"); app.buttons["ruler-done"].tap()
+        let map = app.otherElements.matching(NSPredicate(format:"label == %@ AND value BEGINSWITH %@","Map","Zoom ")).firstMatch
+        XCTAssertTrue(map.exists,app.debugDescription)
+        // MapLibre adds annotation counts to this value as corners appear.
+        // Compare the complete zoom token, including any fractional level.
+        func zoomReadout() -> String { String((map.value as? String ?? "").prefix { $0 != "x" }) }
+        let zoomBefore = zoomReadout()
         choose("measure-area"); tap(0.25,0.36); tap(0.58,0.36); tap(0.40,0.50)
         capture("map-area-landscape-before-results")
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"),object: app.buttons["measurement-results"])
         XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 5),.completed,app.debugDescription)
+        XCTAssertEqual(zoomReadout(),zoomBefore,"Rapid drawing taps must not zoom the map")
         XCTAssertTrue(app.buttons["measurement-results"].isHittable)
         capture("map-area-landscape"); app.buttons["measurement-done"].tap()
+        app.coordinate(withNormalizedOffset:.init(dx:0.70,dy:0.50)).doubleTap()
+        let zoomed = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in zoomReadout() != zoomBefore },object:map)
+        XCTAssertEqual(XCTWaiter.wait(for:[zoomed],timeout:8),.completed,"Double-tap zoom must return after drawing ends")
     }
 }

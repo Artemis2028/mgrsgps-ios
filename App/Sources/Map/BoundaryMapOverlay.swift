@@ -138,13 +138,18 @@ final class BoundaryVertexView: MLNAnnotationView {
     private var drag: BoundaryVertexDrag?
     private weak var dragMap: MLNMapView?
     private var previousInteraction: (scroll: Bool,zoom: Bool,rotate: Bool)?
+    private var previousDoubleTaps: [(UITapGestureRecognizer,Bool)] = []
     private var grip = CGPoint.zero
     @objc private func selectVertex() { onSelect?() }
     override func accessibilityActivate() -> Bool { cancelDrag(); onSelect?(); return true }
     private func restoreMapInteraction() {
         if let previousInteraction {
             dragMap?.isScrollEnabled = previousInteraction.scroll; dragMap?.isZoomEnabled = previousInteraction.zoom; dragMap?.isRotateEnabled = previousInteraction.rotate
+            // Restoring zoom also resets SDK tap recognizers. Preserve the
+            // drawing policy immediately, including when a drag is cancelled.
+            for (tap,enabled) in previousDoubleTaps { tap.isEnabled = enabled }
         }
+        previousDoubleTaps = []
         previousInteraction = nil; dragMap = nil
     }
     private func cancelDrag() {
@@ -171,6 +176,10 @@ final class BoundaryVertexView: MLNAnnotationView {
             let touch = gesture.location(in: map),anchor = map.convert(annotation.coordinate,toPointTo: map)
             grip = CGPoint(x: anchor.x-touch.x,y: anchor.y-touch.y)
             dragMap = map; previousInteraction = (map.isScrollEnabled,map.isZoomEnabled,map.isRotateEnabled)
+            previousDoubleTaps = (map.gestureRecognizers ?? []).compactMap { gesture in
+                guard let tap = gesture as? UITapGestureRecognizer,tap.numberOfTapsRequired == 2 else { return nil }
+                return (tap,tap.isEnabled)
+            }
             map.isScrollEnabled = false; map.isZoomEnabled = false; map.isRotateEnabled = false
             onDragStart?()
             drag = BoundaryVertexDrag(annotation: annotation,current: dragIsCurrent ?? { true },commit: commit)
