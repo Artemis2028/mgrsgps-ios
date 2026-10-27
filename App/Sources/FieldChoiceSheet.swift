@@ -21,12 +21,17 @@ struct FieldChoiceSheet: View {
     var selectedID: String?
     let night: Bool
     let choose: (String) -> Void
+    @State private var committed = false
     @Environment(\.dismiss) private var dismiss
     private var palette: FieldPalette { .init(night: night) }
     var body: some View {
         NavigationStack {
             List(choices) { choice in
-                Button(role: choice.destructive ? .destructive : nil) { choose(choice.id) } label: {
+                Button(role: choice.destructive ? .destructive : nil) {
+                    guard !committed,choice.enabled else { return }
+                    committed = true
+                    choose(choice.id)
+                } label: {
                     HStack {
                         if let point = choice.waypoint {
                             MilitaryMarker(symbol:point.symbol,affiliation:point.affiliation,echelon:point.echelon,
@@ -38,14 +43,14 @@ struct FieldChoiceSheet: View {
                         if selectedID == choice.id { Image(systemName: "checkmark").foregroundStyle(palette.accent) }
                     }.foregroundStyle(choice.destructive ? palette.warn : palette.ink)
                         .frame(maxWidth: .infinity,minHeight: 44).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(!choice.enabled)
+                }.buttonStyle(.plain).disabled(committed || !choice.enabled)
                     .accessibilityLabel(choice.title).accessibilityValue(choice.symbolDescription)
                     .accessibilityAddTraits(selectedID == choice.id ? .isSelected : [])
                     .accessibilityIdentifier(choice.accessibilityIdentifier ?? choice.id)
                     .listRowBackground(night ? Color.black : Color(white: 0.12))
             }.scrollContentBackground(.hidden).background(palette.background)
                 .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { guard !committed else { return }; committed = true; dismiss() }.disabled(committed) } }
         }.environment(\.fieldNight,night).tint(palette.accent).fieldSheetAppearance()
     }
 }

@@ -234,7 +234,7 @@ struct WaypointsView: View {
             guard let format = protectedFormat else { return }; protectedFormat = nil
             backupPasswordRequest = .init(url: nil,exportRequest: .library(format,store.waypoints,fieldData.document))
         }) {
-            FieldChoiceSheet(title: "Protect export",choices: TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Protect " + $0.label) },night: settings.nightMode) { id in
+            FieldChoiceSheet(title: "Protect export",choices: TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Protect " + $0.label,accessibilityIdentifier:"protected-format-"+$0.rawValue) },night: settings.nightMode) { id in
                 protectedFormat = TextInterchangeFormat(rawValue: id); choosingProtectedFormat = false
             }
         }

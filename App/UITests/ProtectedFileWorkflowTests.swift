@@ -13,7 +13,8 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         let actions = app.buttons["Waypoint actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
         tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export protected file…"])
-        let choice = app.buttons[format.lowercased()]
+        XCTAssertTrue(app.navigationBars["Protect export"].waitForExistence(timeout:8),app.debugDescription)
+        let choice = app.buttons["protected-format-"+format.lowercased()]
         XCTAssertTrue(choice.waitForExistence(timeout: 5)); choice.tap()
         let password = app.secureTextFields["backup-password"], confirmation = app.secureTextFields["backup-password-confirmation"]
         XCTAssertTrue(password.waitForExistence(timeout: 8))
