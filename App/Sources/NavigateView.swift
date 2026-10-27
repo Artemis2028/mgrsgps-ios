@@ -10,6 +10,8 @@ struct NavigateView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var practice: PracticeSession
     @State private var showingPractice = false
+    @State private var choosingTarget = false
+    @State private var pendingTargetID: String?
     @StateObject private var targetMutation = FieldMutation()
     @EnvironmentObject private var navigation: NavigationSession
 
@@ -30,11 +32,7 @@ struct NavigateView: View {
                         Spacer()
                         Button(action: onOrientation) { Image(systemName: "rotate.right").frame(width: 44,height: 44) }
                             .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
-                        Menu {
-                            ForEach(store.waypoints) { waypoint in
-                                Button(waypoint.name) { chooseTarget(waypoint.id) }
-                            }
-                        } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
+                        Button { choosingTarget = true } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
                         .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked || targetMutation.working)
                         .accessibilityLabel("Choose navigation target")
                     }
@@ -61,8 +59,22 @@ struct NavigateView: View {
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
+        .sheet(isPresented: $choosingTarget,onDismiss: applyTargetChoice) {
+            FieldChoiceSheet(title: "Navigation target",choices: store.waypoints.map { .init(id:$0.id,title:$0.name,waypoint:$0) },
+                             selectedID:store.selectedId,night:settings.nightMode) { id in
+                pendingTargetID = id; choosingTarget = false
+            }
+        }
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .onAppear { location.start() }
+    }
+
+    private func applyTargetChoice() {
+        guard let id = pendingTargetID else { return }
+        pendingTargetID = nil
+        // A course or library edit may have changed while the sheet closed.
+        guard !practice.locked,!targetMutation.working,store.waypoints.contains(where: { $0.id == id }) else { return }
+        chooseTarget(id)
     }
 
     private func chooseTarget(_ id: String?) {
@@ -82,7 +94,7 @@ struct NavigateView: View {
 
     @ViewBuilder
     private func targetBlock(_ wp: Waypoint) -> some View {
-        let mgrs = MGRS.string(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits) ?? "—"
+        let mgrs = MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "—"
         let nav: Geodesy.NavInfo? = {
             guard let f = location.usableFix else { return nil }
             return Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
@@ -95,12 +107,18 @@ struct NavigateView: View {
         let heading = navigationHeading()
 
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(wp.name)
-                    .font(Blackout.label(22, weight: .semibold))
-                Text(mgrs)
-                    .font(Blackout.numerals(16))
-                    .foregroundStyle(palette.inkDim)
+            HStack(alignment:.top,spacing:10) {
+                MilitaryMarker(symbol:wp.symbol,affiliation:wp.affiliation,echelon:wp.echelon,
+                               rotation:wp.rotation,metadata:wp.metadata)
+                    .frame(width:32,height:32).accessibilityIdentifier("navigation-target-symbol")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(wp.name)
+                        .font(Blackout.label(22, weight: .semibold)).accessibilityIdentifier("navigation-target-name")
+                    Text(mgrs)
+                        .accessibilityIdentifier("navigation-target-grid")
+                        .font(Blackout.numerals(16))
+                        .foregroundStyle(palette.inkDim)
+                }
             }
 
             if location.usableFix == nil {

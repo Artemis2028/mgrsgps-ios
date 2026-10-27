@@ -114,6 +114,7 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
         private var dismantled = false
         private var picker: UIDocumentPickerViewController?
         private var appeared = false
+        private var presentationTask: Task<Void,Never>?
         init(file: PreparedNativeExport,completion: @escaping (Result<URL,Error>?) -> Void) {
             self.file = file; self.completion = completion
             super.init(nibName: nil,bundle: nil)
@@ -133,12 +134,40 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
             appeared = false
         }
         private func presentIfReady() {
-            guard appeared,picker == nil,!completed,!dismantled,view.window != nil,
-                  view.bounds.width > 0,view.bounds.height > 0 else { return }
-            let picker = UIDocumentPickerViewController(forExporting: [file.url],asCopy: true)
-            self.picker = picker; picker.delegate = self
-            present(picker,animated: true)
-            picker.presentationController?.delegate = self
+            guard presentationTask == nil,picker == nil,!completed,!dismantled else { return }
+            presentationTask = Task { @MainActor [weak self] in
+                defer { self?.presentationTask = nil }
+                let deadline = ProcessInfo.processInfo.systemUptime + 30
+                while !Task.isCancelled {
+                    guard let self,!self.completed,!self.dismantled else { return }
+                    if let owner = self.readyPresenter() {
+                        let picker = UIDocumentPickerViewController(forExporting: [self.file.url],asCopy: true)
+                        // UIKit owns the complete export viewport, including its
+                        // filename bar, rather than a nested adaptive sheet.
+                        picker.modalPresentationStyle = .fullScreen
+                        self.picker = picker; picker.delegate = self
+                        owner.present(picker,animated: true)
+                        picker.presentationController?.delegate = self
+                        return
+                    }
+                    if ProcessInfo.processInfo.systemUptime >= deadline {
+                        self.finish(.failure(PresentationError.busy)); return
+                    }
+                    do { try await Task.sleep(nanoseconds:100_000_000) } catch { return }
+                }
+            }
+        }
+        private func readyPresenter() -> UIViewController? {
+            guard appeared,view.window != nil,view.bounds.width > 0,view.bounds.height > 0 else { return nil }
+            var owner: UIViewController = self
+            while let parent = owner.parent { owner = parent }
+            guard owner.view.window === view.window,!owner.isBeingPresented,!owner.isBeingDismissed,
+                  owner.presentedViewController == nil,owner.transitionCoordinator == nil else { return nil }
+            return owner
+        }
+        private enum PresentationError: LocalizedError {
+            case busy
+            var errorDescription: String? { "Files could not open while another screen was closing. Try exporting again." }
         }
         private func finish(_ result: Result<URL,Error>?) {
             guard !completed else { return }
@@ -156,6 +185,10 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
         }
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { finish(nil) }
         func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { finish(nil) }
-        func stop() { dismantled = true; completed = true; picker?.dismiss(animated: false); picker = nil }
+        func stop() {
+            dismantled = true; completed = true
+            presentationTask?.cancel(); presentationTask = nil
+            picker?.dismiss(animated:false); picker = nil
+        }
     }
 }

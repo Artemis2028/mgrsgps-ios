@@ -48,7 +48,7 @@ final class MapToolWorkflowTests: XCTestCase {
         XCTAssertFalse(app.buttons["stop-boundary"].exists); XCTAssertFalse(app.buttons["recording-banner"].exists)
         capture("map-go-to-result-night",app)
         let before = centre.label
-        app.buttons["map-goto"].tap(); app.segmentedControls["map-goto-format"].buttons["Lat / Lon"].tap()
+        app.buttons["map-goto"].tap(); selectNativeSegment(app.segmentedControls["map-goto-format"].buttons["Lat / Lon"])
         let latitude = app.textFields["map-goto-latitude"], longitude = app.textFields["map-goto-longitude"]
         replaceTextInput(latitude,"86"); replaceTextInput(longitude,"54.4")
         app.buttons["map-goto-keyboard-done"].tap(); XCTAssertFalse(show.isEnabled)

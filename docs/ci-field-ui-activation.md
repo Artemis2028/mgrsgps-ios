@@ -753,3 +753,80 @@ Field artifact `12707188391` and map artifact `12707107940` are downloaded to
 The next work is these iOS activation/Files failures. The watch follow-ups
 `12bcbf2` and `03d51c6`, and evidence `44057c7`, remain local pending that
 consolidated correction; no redundant known-failing hosted run is started.
+
+
+## Hosted 102 follow-up candidate: settled Files and target choices
+
+The native export host now waits for its own attached viewport and for its
+UIViewController owner to have no presented controller or active transition.
+It presents the same complete staged copy with UIKit full-screen presentation,
+rather than beginning an adaptive save sheet while another sheet may be closing.
+The wait is cancellable and bounded at 30 seconds, with an explicit retry error;
+parent removal cancels it. File lifetime, independent staging directories,
+exact filename edits, native Save/cancel and content checks remain. This uses
+Apple's public [document export API](https://developer.apple.com/documentation/uikit/uidocumentpickerviewcontroller).
+No private Files views, app Documents exposure or replacement filename form is
+introduced. The precise hosted footer cause remains unproven until a full
+hosted run confirms the candidate.
+
+Navigation target selection uses the existing native scrolling choice sheet
+instead of the popup left open in the failed hierarchy. A choice is applied
+after dismissal, rechecking course lock, in-flight mutation and current
+waypoint identity; Cancel leaves the saved target intact. Durable selection
+and visible failure/rollback stay in the existing worker-staged action.
+Android's NavigateScreen target selector also shows military glyphs: the
+chooser and selected-target header now render the actual symbol, affiliation,
+echelon, rotation and imported metadata. Choice rows expose a symbol value
+and selected accessibility trait. Grouped written MGRS replaces the compact
+machine string in the target header, retaining the iOS precision preference.
+Android currently asks for eight digits on that secondary line; this is a
+native presentation difference, not an iOS restriction.
+
+Go-to's test now uses the existing native segment helper and requires the
+segment's selected state before editing its actual decimal fields. It still
+checks invalid latitude, exact entry, camera movement and no navigation or
+recording side effect. The coordinate parser and all filename/content
+assertions are unchanged.
+
+Local evidence on a freshly erased owned iOS 26.2 simulator (23C52, Xcode 27.1):
+
+- `/tmp/mgrsgps-ci102-controls-files.xcresult`: 11 export integration cases
+  and 11 UI workflows pass, parent exit 0 naturally. This includes the four
+  hosted backup/protected-GPX/Go-to failures, complete large GPX, cancel/re-export,
+  nested track-detail export, target rollback/cancel/persistence and PDF save.
+- `/tmp/mgrsgps-ci102-target-symbols.xcresult`: all four target UI workflows
+  pass after military glyph/VoiceOver additions. Night chooser/header images
+  are inspected.
+- `/tmp/mgrsgps-ci102-freshness.xcresult`: actual CoreLocation feed stops after
+  observed fresh fix, assertions observe expiry/stale retention, feed resumes
+  only after the test's signal, then target selection completes and heading
+  remains unavailable rather than synthesizing north. Parent exit 0; READY,
+  RESUME and DONE receipts are in the matching log, with phase evidence in
+  `-feed.log`. This covers the fifth hosted failure.
+- `/tmp/mgrsgps-ci102-target-grid-final.xcresult`: grouped target-grid UI check
+  passes. Android's cached NGA MGRS 2.1.3 independently returns
+  `40RBN3422807099` for the synthetic point 24.4548,54.3783; the UI shows
+  `40R BN 34228 07099`. The first new expected string had a transcribed
+  easting typo; it is corrected against that independent reference, not by
+  weakening the exact assertion. Reference log:
+  `/tmp/mgrsgps-ci102-android-target-grid-reference.log`.
+- These follow-ups cover 13 distinct UI workflows across the separate runs;
+  repeated target cases are not counted twice. No claim that they are one
+  final all-test bundle is made.
+- Final unsigned device Release passes in
+  `/tmp/mgrsgps-ci102-final-release.log`. Eight Python harness checks pass in
+  `/tmp/mgrsgps-ci102-controls-harness.log`. Private local runners skip only
+  verbose sysdiagnose collection after an assertion; tests, failure artifacts,
+  screenshots and checks remain. Repository CI settings are unchanged.
+
+Screenshots inspected include the actual protected-backup native filename bar
+(`controls-files-images/1CFD4CAA-E554-4634-A3AB-F771F3D25BA5.png`), restored
+night backups, decimal Go-to, military choice/header, and final grouped grid
+(`target-grid-final-images/C197479B-91A6-48EA-896F-779BE0466BA7.png`), all under
+`/tmp/mgrsgps-ci102-`. The owned simulator and fake feeds are shut down.
+
+Hosted 102 instead uses Xcode 26.6 (17F113), iOS 26.2 build 23C54; local evidence
+does not close that toolchain/runtime gate. The consolidated follow-up needs
+a new full hosted run. Physical Files providers, iPad presentation, dense
+target-list ergonomics and imported-marker VoiceOver descriptions remain
+checks/work. No TAK server, identity or credential is changed.

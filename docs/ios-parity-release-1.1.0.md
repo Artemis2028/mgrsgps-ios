@@ -16,7 +16,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |
-| Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
+| Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library/target-chooser rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; remaining ordinary settings/boundary write costs |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
@@ -778,3 +778,23 @@ and target activation after real fix recovery. Both PDF workflows pass.
 [Failure trees and artifact locations](ci-field-ui-activation.md) define the next
 iOS corrections. Full hosted green remains open; the watch milestones above
 do not close that gate.
+
+
+## Hosted102 follow-ups: Files and navigation target activation
+
+Native Files now waits for an attached, settled presenter and uses a complete
+full-screen UIKit export, with bounded cancellation/retry. Navigation target
+choices use native scrolling rows and apply after dismissal/current-source
+checks; Cancel and save failure retain the saved target. Chooser/header
+military glyphs and grouped written MGRS follow the Android target-selector
+presentation, while retaining the existing iOS precision preference. Go-to
+UI verification requires acknowledged segment selection.
+
+Eleven export integration cases and 13 distinct UI workflows pass across
+separate follow-up runs, including all five hosted102 failures and actual
+GPS expiry/recovery. Final device Release and eight harness checks pass;
+screenshots and an independent Android NGA grid reference are inspected.
+[Exact scope and artifacts](ci-field-ui-activation.md). Local iOS 26.2 build 23C52
+remains separate from hosted 23C54/Xcode 26.6; full hosted green, physical
+providers/iPad, dense targets and imported-marker accessibility refinements
+remain open. The whole parity goal remains active.
