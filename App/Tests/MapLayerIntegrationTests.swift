@@ -223,6 +223,7 @@ final class MapLayerIntegrationTests: XCTestCase {
         let plan = try TileDownloadPlan(bounds: .init(south: 38.89,north: 38.90,west: -77.04,east: -77.03),currentZoom: 3,layer: layer)
         model.startDownload(plan: plan,name: "Patrol area")
         try await wait { model.activeDownload == nil && model.savedMaps.first?.complete == true }
+        await model.waitForPreferences()
         let reloaded = MapLayerStore(directory: dir,installPipeline: false,catalog: [layer],configuration: config())
         reloaded.setOfflineOnly(true)
         let data = try await reloaded.pipeline.fetch(layer,tile: plan.tiles[0])
@@ -318,6 +319,7 @@ final class MapLayerIntegrationTests: XCTestCase {
         let map = try XCTUnwrap(model.selectedMap)
         model.setGrid(false); model.setOfflineOnly(true)
         try FileManager.default.removeItem(at: file)
+        await model.waitForPreferences()
         let reopened = MapLayerStore(directory: dir,installPipeline: false,catalog: [layer],configuration: config())
         XCTAssertEqual(reopened.selectedMap?.id,map.id); XCTAssertFalse(reopened.preferences.gridEnabled); XCTAssertTrue(reopened.preferences.offlineOnly)
         let data = try await reopened.pipeline.data(for: URL(string: "https://tiles.gridfix.invalid/local/\(map.id)/0/0/0?effect=day")!)

@@ -89,6 +89,7 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if maps.preferenceError != nil { MapPreferenceSaveNotice(prefix: "map-preferences-root") }
             if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-root") }
             if practice.locked || practice.hasPendingWrite || practice.summary != nil {
                 Button { showingPractice = true } label: {

@@ -868,3 +868,21 @@ screenshots inspected; eight harness checks pass. See
 [drag evidence and limits](boundary-vertex-drag.md). Final device Release passes
 and all owned devices/feeds/captures are off. Hosted verification on the new
 source remains open.
+
+### Map preferences, offline policy and save failures — 27 October 2026
+
+Compared Android release MapPrefs DataStore behavior. iOS now stages/coalesces
+map choices and debounced camera saves off Main, refuses stale worker publication
+or external replacement, and keeps offline-only UI and runtime policy together
+when disk writes fail. Separate readable failure/retry notices remain available
+in Map layers and the main app. Camera normalization covers repeated map worlds
+and Mercator latitude/zoom limits. Existing map pack formats and catalog remain.
+
+All344 native cases pass (four opt-in skips), including six new map persistence
+cases; four distinct map UI workflows pass, with day/night failure/retry/relaunch
+repeated after the final accessibility identifier and tap-target changes. Initial
+new UI lookup failure and its native hierarchy evidence are retained. Final
+screenshots inspected; phone/watch/widget device Release and eight harness checks
+pass. See [map settings evidence and limits](map-preferences-persistence.md).
+All local parents finish naturally; owned phone/feed off. This candidate stays
+local while hosted104 runs on42def16; no full hosted green or full parity claim.

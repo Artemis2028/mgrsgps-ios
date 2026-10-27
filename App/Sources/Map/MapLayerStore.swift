@@ -11,6 +11,8 @@ final class MapLayerStore: ObservableObject {
     @Published private(set) var preferences = Preferences()
     @Published private(set) var savedMaps: [SavedMap] = []
     @Published private(set) var message: String?
+    @Published private(set) var preferenceError: String?
+    @Published private(set) var preferenceSaving = false
     @Published private(set) var loadError: String?
     @Published private(set) var activeDownload: String?
     @Published private(set) var downloadProgress = 0
@@ -30,6 +32,64 @@ final class MapLayerStore: ObservableObject {
     private let preferencesURL: URL
     private var downloadTask: Task<Void, Never>?
     private var cameraTask: Task<Void, Never>?
+    private var preferenceWriter: Task<Void, Never>?
+    private var preferenceRevision: UInt64 = 0
+    private var pendingPreferences: (value: Preferences, revision: UInt64)?
+    private var preferenceStamp: SourceStamp?
+    private let stage: @Sendable (Preferences, URL) async throws -> PreparedAtomicFile
+
+    nonisolated static func stagePreferences(_ value: Preferences, to file: URL) async throws -> PreparedAtomicFile {
+        try await Task.detached(priority: .utility) {
+            try PreparedAtomicFile(data: JSONEncoder().encode(value), destination: file)
+        }.value
+    }
+    func waitForPreferences() async {
+        while let task = cameraTask { await task.value }
+        while let task = preferenceWriter { await task.value }
+    }
+    func retryPreferences() { startPreferenceWriter() }
+    #if DEBUG
+    func repairPreferenceFixture() {
+        guard ProcessInfo.processInfo.arguments.contains("-uiTesting"),
+              ProcessInfo.processInfo.arguments.contains("-uiTestMapPreferenceFailure"),
+              preferencesURL.deletingLastPathComponent().lastPathComponent == "mgrsgps-ui-tests",
+              (try? preferencesURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return }
+        do {
+            try FileManager.default.removeItem(at: preferencesURL)
+            preferenceStamp = nil
+            retryPreferences()
+        } catch { preferenceError = error.localizedDescription }
+    }
+    #endif
+    private func startPreferenceWriter() {
+        guard preferenceWriter == nil, pendingPreferences != nil else { return }
+        preferenceSaving = true
+        preferenceWriter = Task { await Task.yield(); await writePreferences() }
+    }
+    private enum PreferenceFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved map settings changed outside this session. Reopen MGRS GPS to reload them before saving." }
+    }
+    private func writePreferences() async {
+        defer { preferenceWriter = nil; preferenceSaving = false }
+        while let write = pendingPreferences {
+            do {
+                let stamp = preferenceStamp
+                guard SourceStamp.read(preferencesURL) == stamp else { throw PreferenceFailure.changed }
+                let file = try await stage(write.value, preferencesURL)
+                defer { file.discard() }
+                guard pendingPreferences?.revision == write.revision else { continue }
+                guard SourceStamp.read(preferencesURL) == stamp else { throw PreferenceFailure.changed }
+                try file.publish()
+                preferenceStamp = SourceStamp.read(preferencesURL)
+                pendingPreferences = nil; preferenceError = nil
+            } catch {
+                guard pendingPreferences?.revision == write.revision else { continue }
+                preferenceError = "Map settings could not be saved. Changes apply only to this session. " + error.localizedDescription
+                return
+            }
+        }
+    }
 
     struct PreparedStartup: Sendable {
         fileprivate let directory: URL
@@ -81,8 +141,9 @@ final class MapLayerStore: ObservableObject {
         pipeline.offlineOnly = preferences.offlineOnly
         return .init(directory: directory,preferences: preferences,library: library,loadError: loadError,layers: layers,pipeline: pipeline,sources: sources)
     }
-    convenience init(directory: URL? = nil, installPipeline: Bool = true, catalog: [RasterLayer]? = nil, configuration: URLSessionConfiguration? = nil) {
-        self.init(prepared: Self.prepareStartup(directory: directory,catalog: catalog,configuration: configuration),installPipeline: installPipeline)
+    convenience init(directory: URL? = nil, installPipeline: Bool = true, catalog: [RasterLayer]? = nil, configuration: URLSessionConfiguration? = nil,
+                     stage: @escaping @Sendable (Preferences, URL) async throws -> PreparedAtomicFile = { try await MapLayerStore.stagePreferences($0,to: $1) }) {
+        self.init(prepared: Self.prepareStartup(directory: directory,catalog: catalog,configuration: configuration),installPipeline: installPipeline,stage: stage)
     }
     convenience init(startup: PreparedStartup,installPipeline: Bool = true) throws {
         // Metadata only on the main actor. Never install a stale catalog or
@@ -90,10 +151,13 @@ final class MapLayerStore: ObservableObject {
         guard startup.sources.allSatisfy({ SourceStamp.read($0.key) == $0.value }) else { throw StartupFailure.changed }
         self.init(prepared: startup,installPipeline: installPipeline)
     }
-    private init(prepared: PreparedStartup,installPipeline: Bool) {
+    private init(prepared: PreparedStartup,installPipeline: Bool,
+                 stage: @escaping @Sendable (Preferences, URL) async throws -> PreparedAtomicFile = { try await MapLayerStore.stagePreferences($0,to: $1) }) {
+        self.stage = stage
         let directory = prepared.directory
         preferencesURL = directory.appendingPathComponent("map-prefs-v1.json")
         styleURL = directory.appendingPathComponent("map-style-v1.json")
+        preferenceStamp = prepared.sources[preferencesURL] ?? nil
         layers = prepared.layers; library = prepared.library; pipeline = prepared.pipeline
         preferences = prepared.preferences; loadError = prepared.loadError
         savedMaps = library?.maps ?? []
@@ -117,6 +181,7 @@ final class MapLayerStore: ObservableObject {
                 savedMaps = library.maps; preferences.baseLayer = "mbtiles:" + map.id
                 preferences.offlineOnly = true; preferences.hasCamera = true; preferences.zoom = (ProcessInfo.processInfo.arguments.contains("-uiTestBoundaryMap") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") || ProcessInfo.processInfo.arguments.contains("-uiTestTerrainNoData")) ? 16 : 1
                 try JSONEncoder().encode(preferences).write(to: preferencesURL, options: .atomic)
+                preferenceStamp = SourceStamp.read(preferencesURL)
                 try? FileManager.default.removeItem(at: file)
             } catch { loadError = error.localizedDescription }
         }
@@ -124,6 +189,18 @@ final class MapLayerStore: ObservableObject {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting") && ProcessInfo.processInfo.arguments.contains("-uiTestTerrain") {
             do { try TerrainTestFixture.seed(pipeline) } catch { loadError = error.localizedDescription }
+        }
+        #endif
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),
+           ProcessInfo.processInfo.arguments.contains("-uiTestMapPreferenceFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"),
+           directory.lastPathComponent == "mgrsgps-ui-tests" {
+            do {
+                if FileManager.default.fileExists(atPath: preferencesURL.path) { try FileManager.default.removeItem(at: preferencesURL) }
+                try FileManager.default.createDirectory(at: preferencesURL,withIntermediateDirectories: false)
+                preferenceStamp = SourceStamp.read(preferencesURL)
+            } catch { loadError = error.localizedDescription }
         }
         #endif
         pipeline.offlineOnly = preferences.offlineOnly
@@ -139,7 +216,7 @@ final class MapLayerStore: ObservableObject {
     func setContours(_ enabled: Bool) { update { $0.contours = enabled } }
     func setOfflineOnly(_ enabled: Bool) {
         if enabled { pauseDownload() }
-        pipeline.offlineOnly = enabled; update { $0.offlineOnly = enabled }
+        update { $0.offlineOnly = enabled }
     }
     func saveCamera(lat: Double, lon: Double, zoom: Double) {
         guard lat.isFinite, lon.isFinite, zoom.isFinite else { return }
@@ -147,7 +224,14 @@ final class MapLayerStore: ObservableObject {
         cameraTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 700_000_000)
             guard !Task.isCancelled else { return }
-            self?.update { $0.latitude = lat; $0.longitude = ((lon + 540).truncatingRemainder(dividingBy: 360)) - 180; $0.zoom = min(22,max(0,zoom)); $0.hasCamera = true }
+            guard let self else { return }
+            self.cameraTask = nil
+            self.update {
+                $0.latitude = min(85.05112878,max(-85.05112878,lat))
+                let wrapped = lon.truncatingRemainder(dividingBy: 360)
+                $0.longitude = wrapped < -180 ? wrapped + 360 : (wrapped > 180 ? wrapped - 360 : wrapped)
+                $0.zoom = min(22,max(0,zoom)); $0.hasCamera = true
+            }
         }
     }
     func importMap(_ url: URL) async {
@@ -259,7 +343,11 @@ final class MapLayerStore: ObservableObject {
     func clearBrowseCache() { pipeline.clearBrowseCache(); revision += 1; message = "Browse cache cleared. Saved offline maps were kept." }
     private func update(_ mutate: (inout Preferences) -> Void) {
         var next = preferences; mutate(&next)
-        do { try JSONEncoder().encode(next).write(to: preferencesURL, options: .atomic); preferences = next }
-        catch { message = "Map preference could not be saved: \(error.localizedDescription)" }
+        guard next != preferences else { return }
+        preferences = next
+        pipeline.offlineOnly = next.offlineOnly
+        preferenceRevision &+= 1
+        pendingPreferences = (next,preferenceRevision)
+        startPreferenceWriter()
     }
 }

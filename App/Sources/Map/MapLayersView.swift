@@ -116,10 +116,11 @@ struct MapLayersView: View {
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
             .foregroundStyle(palette.ink).tint(palette.accent)
+            .safeAreaInset(edge: .bottom) { if maps.preferenceError != nil { MapPreferenceSaveNotice() } }
             .navigationTitle("Map layers").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) { Text("Map layers").font(.headline).foregroundStyle(palette.ink) }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { Task { await maps.waitForPreferences(); dismiss() } } }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
                 if case let .success(urls) = result, let url = urls.first { Task { await maps.importMap(url) } }
@@ -145,5 +146,26 @@ struct MapLayersView: View {
             proposedPlan = try TileDownloadPlan(bounds: bounds, currentZoom: tileZoom, layer: layer, elevation: layer.key == "dem")
             downloadName = layer.label; planError = nil
         } catch { proposedPlan = nil; planError = error.localizedDescription }
+    }
+}
+
+struct MapPreferenceSaveNotice: View {
+    var prefix = "map-preferences"
+    @EnvironmentObject private var maps: MapLayerStore
+    @Environment(\.fieldNight) private var night
+    var body: some View {
+        let palette = FieldPalette(night: night)
+        VStack(alignment: .leading, spacing: 6) {
+            if let error = maps.preferenceError { Text(error).font(.footnote).foregroundStyle(palette.ink).accessibilityIdentifier(prefix + "-save-notice") }
+            Button("Retry saving map settings") { maps.retryPreferences() }
+                .frame(minHeight: 44).disabled(maps.preferenceSaving).foregroundStyle(palette.accent)
+                .accessibilityIdentifier(prefix + "-retry")
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestMapPreferenceFailure") {
+                Button("Restore test map write access") { maps.repairPreferenceFixture() }
+                    .frame(minHeight: 44).foregroundStyle(palette.accent).accessibilityIdentifier(prefix + "-test-repair")
+            }
+            #endif
+        }.padding().frame(maxWidth: .infinity, alignment: .leading).fieldChrome()
     }
 }
