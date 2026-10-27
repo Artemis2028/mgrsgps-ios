@@ -74,6 +74,8 @@ struct NavigationLaneLibraryView: View {
 }
 
 struct LaneDrawingControls: View {
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    private var row: AnyLayout { dynamicType.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout()) }
     let draft: LaneEditingDraft
     let count: Int
     let selected: Bool
@@ -90,29 +92,34 @@ struct LaneDrawingControls: View {
     var body: some View {
         VStack(alignment: .leading,spacing: 8) {
             Text("Navigation lane · \(draft.role.title)").font(.headline)
-            Picker("Lane line",selection: Binding(get: { draft.role },set: chooseRole)) {
-                Text("Left").tag(LaneLimit.left); Text("Right").tag(LaneLimit.right); Text("Backstop").tag(LaneLimit.backstop)
-            }.pickerStyle(.segmented).accessibilityIdentifier("lane-line-role")
+            if dynamicType.isAccessibilitySize {
+                laneRolePicker.pickerStyle(.menu)
+            } else { laneRolePicker.pickerStyle(.segmented) }
             if draft.line.graphicId != nil {
                 Text("Follows a saved graphic. Move that graphic to move this limit.").font(.caption)
                 Button("Draw a replacement line",action: drawInstead)
             } else {
                 Text("\(count) points · tap to draw; hold and drag a point or segment to reshape.").font(.caption).accessibilityIdentifier("lane-point-count")
-                HStack {
+                row {
                     Button("Add point",action: add).disabled(count >= 500).accessibilityIdentifier("lane-add-point")
                     Button("Undo",action: undo).disabled(count == 0)
                     Button("Remove point",action: remove).disabled(!selected)
                 }.font(.caption)
             }
-            HStack {
+            row {
                 Button("Use existing line…",action: useLine).accessibilityIdentifier("lane-use-line")
-                Spacer()
+                if !dynamicType.isAccessibilitySize { Spacer() }
                 Button("Review lane",action: review).accessibilityIdentifier("review-nav-lane")
                 Button("Cancel",action: cancel)
             }.font(.caption)
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
             if busy { ProgressView("Saving lane…") }
         }.padding(12).fieldChrome().disabled(busy)
+    }
+    private var laneRolePicker: some View {
+        Picker("Lane line",selection: Binding(get: { draft.role },set: chooseRole)) {
+            Text("Left").tag(LaneLimit.left); Text("Right").tag(LaneLimit.right); Text("Backstop").tag(LaneLimit.backstop)
+        }.accessibilityIdentifier("lane-line-role")
     }
 }
 

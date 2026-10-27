@@ -75,6 +75,8 @@ struct BoundaryPanel: View {
 }
 
 struct BoundaryDrawingControls: View {
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    private var row: AnyLayout { dynamicType.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout()) }
     @Binding var draft: BoundaryDraft
     let centre: GeoPoint
     let error: String?
@@ -84,14 +86,14 @@ struct BoundaryDrawingControls: View {
     private func normal(_ point: GeoPoint) -> GeoPoint { GeoPoint(lat: point.lat,lon: ((point.lon+540).truncatingRemainder(dividingBy: 360))-180) }
     var body: some View {
         VStack(alignment: .leading,spacing: 8) {
-            HStack {
+            row {
                 TextField("Boundary name",text: $draft.name).disabled(saving).textFieldStyle(.roundedBorder).submitLabel(.done).onSubmit { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),to: nil,from: nil,for: nil) }.accessibilityIdentifier("boundary-name")
                 Button("Cancel",action: cancel).accessibilityIdentifier("cancel-boundary")
                 Button(saving ? "Saving…" : "Save",action: save).disabled(saving || draft.vertices.count < 3).accessibilityIdentifier("save-boundary")
             }
             Text("Tap to draw. Hold and drag a point or line to reshape it.")
                 .font(.caption)
-            HStack {
+            row {
                 Button("Add point") {
                     guard draft.vertices.count < 256 else { return }
                     let index = draft.selected.map { min($0+1,draft.vertices.count) } ?? draft.vertices.count

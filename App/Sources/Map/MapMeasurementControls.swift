@@ -9,31 +9,34 @@ struct MapRulerCard: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    private var compact: Bool { verticalSizeClass == .compact && !dynamicType.isAccessibilitySize }
     var body: some View {
         let fix = location.usableFix
         let reading = DeclinationService(overrideDegrees: settings.declinationOverride).declination(
             lat: fix?.lat ?? target.lat,lon: fix?.lon ?? target.lon,heightMeters: fix?.altitudeMeters ?? 0,isCurrentPosition: false)
         let value = MapMeasurement.ruler(from: anchor,to: target,northReference: settings.northRef.rawValue,declination: reading.degreesEast)
         VStack(alignment: .leading,spacing: 8) {
-            HStack {
+            let row = dynamicType.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout())
+            row {
                 Text("Ruler · anchor → crosshair").font(.headline)
-                Spacer()
+                if !dynamicType.isAccessibilitySize { Spacer() }
                 Button("Done",action: close).accessibilityIdentifier("ruler-done")
             }
-            let layout = verticalSizeClass == .compact ? AnyLayout(HStackLayout(spacing: 16)) : AnyLayout(VStackLayout(alignment: .leading,spacing: 8))
+            let layout = compact ? AnyLayout(HStackLayout(spacing: 16)) : AnyLayout(VStackLayout(alignment: .leading,spacing: 8))
             layout {
                 Text(Format.distance(meters: value.distance,unit: settings.units)).font(.title2.monospacedDigit()).accessibilityIdentifier("ruler-distance")
                 Text("AZ \(angle(value.azimuth)) \(settings.northRef.letter) · BACK \(angle(value.backAzimuth)) \(settings.northRef.letter)")
                 .font(.system(.caption,design: .monospaced)).accessibilityIdentifier("ruler-bearings")
-                if verticalSizeClass == .compact { Spacer(); Button("Anchor here",action: reset).accessibilityIdentifier("ruler-reset") }
+                if compact { Spacer(); Button("Anchor here",action: reset).accessibilityIdentifier("ruler-reset") }
             }
             if settings.northRef == .magnetic {
                 Text("Magnetic: \(reading.source.rawValue) at \(fix == nil ? "crosshair" : "current position")\(reading.modelExpired ? " · model expired" : "")").font(.caption2)
             }
             if settings.northRef == .grid && !(-80...84).contains(target.lat) { Text("Extrapolated grid north outside UTM coverage").font(.caption2) }
-            if verticalSizeClass != .compact { HStack {
+            if !compact { row {
                 Text("Tap to move the anchor; pan to measure.").font(.caption)
-                Spacer()
+                if !dynamicType.isAccessibilitySize { Spacer() }
                 Button("Anchor here",action: reset).font(.caption).accessibilityIdentifier("ruler-reset")
             } }
         }.padding(12).fieldChrome()
@@ -47,9 +50,10 @@ struct MapAreaSummary: View {
     var compact = false
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicType
     @Environment(\.fieldNight) private var night
     private var summaryLayout: AnyLayout {
-        compact && verticalSizeClass == .compact ? AnyLayout(HStackLayout(spacing: 12)) : AnyLayout(VStackLayout(alignment: .leading,spacing: 6))
+        compact && verticalSizeClass == .compact && !dynamicType.isAccessibilitySize ? AnyLayout(HStackLayout(spacing: 12)) : AnyLayout(VStackLayout(alignment: .leading,spacing: 6))
     }
     var body: some View {
         if let result = MapMeasurement.polygon(vertices) {

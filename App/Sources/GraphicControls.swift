@@ -63,6 +63,9 @@ struct GraphicPanel: View {
 }
 
 struct GraphicDrawingControls: View {
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    private var compact: Bool { verticalSizeClass == .compact && !dynamicType.isAccessibilitySize }
+    private var row: AnyLayout { dynamicType.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout()) }
     @Binding var draft: GraphicDraft
     @Binding var measuringArea: Bool
     let centre: GeoPoint
@@ -77,7 +80,7 @@ struct GraphicDrawingControls: View {
     @Environment(\.fieldNight) private var night
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if verticalSizeClass == .compact {
+            if compact {
                 HStack(alignment: .center,spacing: 16) {
                     VStack(alignment: .leading,spacing: 6) {
                         editorHeader
@@ -88,18 +91,18 @@ struct GraphicDrawingControls: View {
             } else {
                 editorHeader
             }
-            if measuringArea && verticalSizeClass != .compact { MapAreaSummary(vertices: draft.vertices,compact: true) }
-            if verticalSizeClass != .compact { Text(GraphicTypes.placementHint(draft.graphic.type)).font(.caption) }
-            if verticalSizeClass != .compact { pointActions }
-            if verticalSizeClass != .compact { Text("\(draft.graphic.points.count) points · \(draft.selected.map { "point \($0 + 1) selected" } ?? "no selection")")
+            if measuringArea && !compact { MapAreaSummary(vertices: draft.vertices,compact: true) }
+            if !compact { Text(GraphicTypes.placementHint(draft.graphic.type)).font(.caption) }
+            if !compact { pointActions }
+            if !compact { Text("\(draft.graphic.points.count) points · \(draft.selected.map { "point \($0 + 1) selected" } ?? "no selection")")
                 .font(.caption).accessibilityIdentifier("graphic-point-count")
             }
-            if verticalSizeClass != .compact && !measuringArea, let i = draft.selected, draft.graphic.points.indices.contains(i) {
+            if !compact && !measuringArea, let i = draft.selected, draft.graphic.points.indices.contains(i) {
                 Text(String(format: "%.6f, %.6f", draft.graphic.points[i].lat, draft.graphic.points[i].lon)).font(.system(.caption, design: .monospaced)).accessibilityIdentifier("graphic-selected-coordinate")
             }
             if saving { ProgressView("Saving graphic…") }
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
-        }.disabled(saving).padding(verticalSizeClass == .compact ? 8 : 12).fieldChrome()
+        }.disabled(saving).padding(compact ? 8 : 12).fieldChrome()
             .sheet(isPresented: $measureResults,onDismiss: {
                 if convertMeasurement { convertMeasurement = false; properties = true }
             }) {
@@ -134,9 +137,9 @@ struct GraphicDrawingControls: View {
             }
     }
     private var editorHeader: some View {
-        HStack {
-                Text(measuringArea ? "Area measurement" : draft.graphic.name).font(.headline).lineLimit(1)
-                Spacer()
+        row {
+                Text(measuringArea ? "Area measurement" : draft.graphic.name).font(.headline).lineLimit(dynamicType.isAccessibilitySize ? nil : 1)
+                if !dynamicType.isAccessibilitySize { Spacer() }
                 if measuringArea {
                     Button("Done",action: cancel).accessibilityIdentifier("measurement-done")
                     Button("Results") { measureResults = true }.disabled(draft.graphic.points.count < 3).accessibilityIdentifier("measurement-results")
@@ -148,7 +151,7 @@ struct GraphicDrawingControls: View {
             }
     }
     private var pointActions: some View {
-        HStack {
+        row {
                 Button("Add point") {
                     if draft.selected != nil && draft.graphic.points.count >= 2 { draft.insert(centre) } else { draft.append(centre) }
                 }.disabled(!draft.canAppend).accessibilityIdentifier("graphic-add-centre")

@@ -30,10 +30,10 @@ struct RecordingBanner: View {
         if visible {
             Button(action: onOpen) {
                 HStack(spacing: 10) {
-                    Image(systemName: recorder.canStop ? "record.circle.fill" : "exclamationmark.circle")
-                    Text(title).font(.caption.weight(.semibold))
+                    Image(systemName: recorder.canStop ? "record.circle.fill" : "exclamationmark.circle").font(.system(size:22))
+                    Text(title).font(.caption.weight(.semibold)).fixedSize(horizontal:false,vertical:true)
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.caption)
+                    Image(systemName: "chevron.right").font(.system(size:18))
                 }
                 .padding(.horizontal, 16).frame(minHeight: 44).contentShape(Rectangle())
             }
