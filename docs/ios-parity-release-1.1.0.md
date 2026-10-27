@@ -798,8 +798,8 @@ GPS expiry/recovery. Final device Release and eight harness checks pass;
 screenshots and an independent Android NGA grid reference are inspected.
 [Exact scope and artifacts](ci-field-ui-activation.md). Local iOS 26.2 build 23C52
 remains separate from hosted 23C54/Xcode 26.6; full hosted green, physical
-providers/iPad, dense targets and imported-marker accessibility refinements
-remain open. The whole parity goal remains active.
+providers/iPad, dense targets and physical marker VoiceOver checks remain open.
+The later marker-description follow-up fixes the known hidden-fallback label. The whole parity goal remains active.
 
 
 ### Quiet-boundary worker persistence — 27 October 2026
@@ -817,3 +817,19 @@ including background exits and durable night edits/deletion. Screenshots inspect
 phone/watch/widget unsigned device Release and eight harness checks pass.
 The owned simulator/feed are off.
 Full hosted103 on bc52ed8 remains a separate live gate.
+
+
+### Marker accessibility matches the artwork — 27 October 2026
+
+Imported MilGPS shape/character now overrides the hidden fallback in the iOS
+target chooser/header, map annotation value and library row, and in watchOS
+map/scene descriptions. NATO affiliation follows its actual catalog key; task
+paths omit echelons they do not draw. Shared descriptions preserve explicit
+unknown keys and spoken punctuation. All509 core cases pass, including all157
+imported combinations, all496 unit keys/echelons and a real snapshot-codec round
+trip. [Exact scope and remaining physical checks](marker-accessibility.md).
+Seven native symbol checks and all five target UI workflows pass, including exact
+day/night chooser/header/map/library description checks. Screenshots inspected;
+phone/watch/widget unsigned device Release and eight harness checks pass. The
+owned simulator is off. Full hosted103 still runs on
+the precedingbc52ed8, so this candidate and boundaryb270cc9 remain local.

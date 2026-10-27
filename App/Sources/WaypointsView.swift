@@ -587,6 +587,7 @@ struct WaypointsView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityValue(WaypointMarkerDescription.text(wp))
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
             Button { searchFocused = false; waypointActions = wp } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44)

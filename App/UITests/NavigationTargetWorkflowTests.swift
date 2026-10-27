@@ -91,4 +91,40 @@ final class NavigationTargetWorkflowTests: XCTestCase {
         for _ in 0..<6 { if picker.isHittable { break }; app.scrollViews.firstMatch.swipeDown() }
         XCTAssertTrue(app.staticTexts["Alpha"].exists); capture("navigation-target-clear-error-night")
     }
+    func testImportedMarkerDescriptionsMatchChooserHeaderMapAndLibraryInDayAndNight() {
+        for night in [false,true] {
+            let app = XCUIApplication()
+            app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestWatch","-uiTestWatchMap","-uiTestWatchSymbols","-startTab","position"]
+            app.launch()
+            if night {
+                app.buttons["Settings"].tap()
+                let toggle = app.switches["Red-on-black, to keep night vision"]
+                XCTAssertTrue(toggle.waitForExistence(timeout:5)); setNativeSwitch(toggle,to:true)
+                app.buttons["Done"].tap()
+            }
+            app.buttons["Navigate"].tap(); app.buttons["Choose navigation target"].tap()
+            let choice = app.buttons["IMPORTED"]
+            XCTAssertTrue(choice.waitForExistence(timeout:5)); XCTAssertEqual(choice.value as? String,"Circle 6 marker")
+            capture(night ? "imported-marker-chooser-night" : "imported-marker-chooser-day")
+            tapNativeMenuItem(choice)
+            let name = app.staticTexts["navigation-target-name"]
+            let selected = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","IMPORTED"),object:name)
+            XCTAssertEqual(XCTWaiter.wait(for:[selected],timeout:10),.completed)
+            XCTAssertEqual(app.images["navigation-target-symbol"].label,"Circle 6 marker")
+            capture(night ? "imported-marker-header-night" : "imported-marker-header-day")
+            app.buttons["Map"].tap()
+            let fit = app.buttons["Show all visible data"]
+            XCTAssertTrue(fit.waitForExistence(timeout:10)); fit.tap()
+            let marker = app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@ AND label == %@","map-waypoint-","IMPORTED")).firstMatch
+            capture(night ? "imported-marker-map-before-night" : "imported-marker-map-before-day")
+            XCTAssertTrue(marker.waitForExistence(timeout:10),app.debugDescription); XCTAssertEqual(marker.value as? String,"Circle 6 marker, Navigation target")
+            capture(night ? "imported-marker-map-night" : "imported-marker-map-day")
+            app.buttons["Waypoints"].tap()
+            let row = app.buttons["edit-waypoint-IMPORTED"]
+            for _ in 0..<6 { if row.exists && row.isHittable { break }; app.swipeUp() }
+            XCTAssertTrue(row.exists); XCTAssertEqual(row.value as? String,"Circle 6 marker")
+            app.terminate()
+        }
+    }
+
 }

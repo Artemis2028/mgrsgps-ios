@@ -1156,6 +1156,6 @@ private final class WaypointMarkerView: MLNAnnotationView {
         character.text = nil
         accessibilityLabel = "Waypoint \(waypoint.name)"
         accessibilityIdentifier = "map-waypoint-\(waypoint.id)"
-        accessibilityValue = selected ? "Navigation target" : ""
+        accessibilityValue = [WaypointMarkerDescription.text(waypoint),selected ? "Navigation target" : nil].compactMap { $0 }.joined(separator: ", ")
     }
 }

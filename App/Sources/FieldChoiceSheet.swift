@@ -10,11 +10,7 @@ struct FieldChoice: Identifiable {
     var waypoint: Waypoint?
     var symbolDescription: String {
         guard let waypoint else { return "" }
-        var labels = [MilitarySymbols.label(waypoint.symbol)]
-        if !waypoint.symbol.hasPrefix("nato_"),waypoint.affiliation != "none",
-           let affiliation = MilitarySymbols.affiliations.first(where: { $0.key == waypoint.affiliation }) { labels.append(affiliation.label) }
-        if let echelon = MilitarySymbols.echelons.first(where: { !$0.key.isEmpty && $0.key == waypoint.echelon }) { labels.append(echelon.label) }
-        return labels.joined(separator:", ")
+        return WaypointMarkerDescription.text(waypoint)
     }
 }
 

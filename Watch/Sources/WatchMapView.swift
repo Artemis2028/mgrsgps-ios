@@ -264,7 +264,7 @@ struct WatchMapView: View {
                 Text("L/R = lane side limits · BS = backstop. Shading is a cached phone lane, not a watch crossing detector.")
                 Text("F = displayed fence · TRK = track. Tactical symbols and route leg numbers match the phone. Simplified routes omit leg numbers because one displayed segment may span several original legs. Zoom closer for names.")
                 if let snapshot = model.mapSnapshot {
-                    ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + MilitarySymbols.label(point.symbol)) }
+                    ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + WaypointMarkerDescription.text(point)) }
                     ForEach(snapshot.laneOverlays) { lane in
                         Text(laneInfo(lane))
                     }
@@ -306,6 +306,6 @@ private struct WatchMapMarker: View {
             .overlay(alignment: .bottom) {
                 if showName { Text(point.name).font(.system(size: 8, weight: .semibold)).lineLimit(1).fixedSize().foregroundStyle(tint).padding(1).background(.black.opacity(0.7)).offset(y: 12) }
             }
-            .accessibilityLabel(point.name + ", " + MilitarySymbols.label(point.symbol))
+            .accessibilityLabel(point.name + ", " + WaypointMarkerDescription.text(point))
     }
 }
