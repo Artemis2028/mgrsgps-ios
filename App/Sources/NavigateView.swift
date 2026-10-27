@@ -8,6 +8,8 @@ struct NavigateView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @EnvironmentObject private var practice: PracticeSession
     @State private var showingPractice = false
     @State private var choosingTarget = false
@@ -27,15 +29,7 @@ struct NavigateView: View {
             FieldScreenBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    HStack {
-                        Text("Navigate").font(.system(.largeTitle, design: .rounded, weight: .bold))
-                        Spacer()
-                        Button(action: onOrientation) { Image(systemName: "rotate.right").frame(width: 44,height: 44) }
-                            .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
-                        Button { choosingTarget = true } label: { Image(systemName: "flag").frame(width: 44, height: 44) }
-                        .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked || targetMutation.working)
-                        .accessibilityLabel("Choose navigation target")
-                    }
+                    header
                     if let label = targetMutation.label { ProgressView(label) }
                     if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("navigation-target-error") }
                     if practice.locked { Text(practice.active?.done == true ? "Save the completed course result to unlock navigation." : "Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
@@ -67,6 +61,26 @@ struct NavigateView: View {
         }
         .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .onAppear { location.start() }
+    }
+
+    @ViewBuilder private var header: some View {
+        if dynamicTypeSize.isAccessibilitySize && verticalSizeClass != .compact {
+            VStack(alignment:.leading,spacing:12) {
+                heading
+                HStack { Spacer(); headerActions }
+            }
+        } else { HStack { heading; Spacer(); headerActions } }
+    }
+    private var heading: some View {
+        Text("Navigate").font(.system(.largeTitle,design:.rounded,weight:.bold))
+            .fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("navigation-title")
+    }
+    @ViewBuilder private var headerActions: some View {
+        Button(action:onOrientation) { Image(systemName:"rotate.right").font(.system(size:20)).frame(width:44,height:44) }
+            .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
+        Button { choosingTarget = true } label: { Image(systemName:"flag").font(.system(size:20)).frame(width:44,height:44) }
+            .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked || targetMutation.working)
+            .accessibilityLabel("Choose navigation target")
     }
 
     private func applyTargetChoice() {

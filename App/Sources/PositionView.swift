@@ -8,6 +8,7 @@ struct PositionView: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showSettings = false
     @State private var qrRequest: PositionQRRequest?
 
@@ -123,45 +124,46 @@ struct PositionView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("Position").font(.system(compact ? .title2 : .largeTitle, design: .rounded, weight: .bold))
-            Spacer()
-            if let quality = location.quality {
-                Text(location.reducedAccuracy ? "PRECISE OFF" : quality.word)
-                    .font(Blackout.label(11))
-                    .tracking(1.4)
-                    .foregroundStyle(quality.bars >= 4 ? palette.good : quality.bars >= 2 ? palette.accent : palette.warn)
-                    .accessibilityIdentifier("position-fix-quality")
-            } else {
-                Text("ACQUIRING")
-                    .font(Blackout.label(11))
-                    .tracking(1.4)
-                    .foregroundStyle(palette.inkDim)
+    @ViewBuilder private var header: some View {
+        if dynamicTypeSize.isAccessibilitySize && !compact {
+            VStack(alignment:.leading,spacing:12) {
+                heading
+                HStack(spacing:12) { fixQuality; Spacer(); headerActions }
             }
-            Button {
-                if let fix = location.usableFix {
-                    qrRequest = PositionQRRequest(title: "My position", lat: fix.lat, lon: fix.lon,
-                        label: "Position " + String(Format.dtg(Date()).prefix(7)), digits: settings.mgrsDigits)
-                }
-            } label: {
-                Image(systemName: "qrcode").frame(width: 44, height: 44)
-            }.buttonStyle(.plain).disabled(location.usableFix == nil)
-                .accessibilityLabel("Share position as QR code").accessibilityIdentifier("position-share-qr")
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundStyle(palette.inkDim)
-                    .frame(width: 36, height: 36)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
-            .contextMenu { Button("Orientation",action: onOrientation).accessibilityIdentifier("position-orientation-shortcut") }
-            .accessibilityHint("Touch and hold for orientation controls")
+        } else {
+            HStack(alignment:.firstTextBaseline,spacing:12) { heading; Spacer(); fixQuality; headerActions }
         }
+    }
+    private var heading: some View {
+        Text("Position").font(.system(compact ? .title2 : .largeTitle,design:.rounded,weight:.bold))
+            .fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("position-title")
+    }
+    @ViewBuilder private var fixQuality: some View {
+        if let quality = location.quality {
+            Text(location.reducedAccuracy ? "PRECISE OFF" : quality.word)
+                .font(Blackout.label(11)).tracking(1.4)
+                .foregroundStyle(quality.bars >= 4 ? palette.good : quality.bars >= 2 ? palette.accent : palette.warn)
+                .accessibilityIdentifier("position-fix-quality")
+        } else {
+            Text("ACQUIRING").font(Blackout.label(11)).tracking(1.4).foregroundStyle(palette.inkDim)
+        }
+    }
+    @ViewBuilder private var headerActions: some View {
+        Button {
+            if let fix = location.usableFix {
+                qrRequest = PositionQRRequest(title:"My position",lat:fix.lat,lon:fix.lon,
+                    label:"Position " + String(Format.dtg(Date()).prefix(7)),digits:settings.mgrsDigits)
+            }
+        } label: {
+            Image(systemName:"qrcode").font(.system(size:24)).frame(width:44,height:44)
+        }.buttonStyle(.plain).disabled(location.usableFix == nil)
+            .accessibilityLabel("Share position as QR code").accessibilityIdentifier("position-share-qr")
+        Button { showSettings = true } label: {
+            Image(systemName:"gearshape").font(.system(size:18,weight:.regular))
+                .foregroundStyle(palette.inkDim).frame(width:44,height:44).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel("Settings")
+            .contextMenu { Button("Orientation",action:onOrientation).accessibilityIdentifier("position-orientation-shortcut") }
+            .accessibilityHint("Touch and hold for orientation controls")
     }
 
     private var glance: some View {
