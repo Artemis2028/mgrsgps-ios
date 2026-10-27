@@ -18,15 +18,15 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library/target-chooser rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
-| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; ordinary settings persistence follow-up validation |
+| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Full hosted confirmation and physical long-route/readability checks |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation; Android re-export drops the optional iOS-only quiet-boundary section |
-| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Physical lasso/large-text and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
+| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; worker-coalesced camera/preferences with failure/retry and consistent offline network policy; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Global AccessibilityXXXL HUD/control layout remains a real software gap; physical lasso and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Other runtime-session startup reads, older library actions and dense-map rendering/accessibility performance work; physical large-library storage checks; physical field validation and storage/interchange limits below |
 | Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Independent finished logs remove combined/per-log backup-derived caps; orphan maintenance and dense/very-large-library performance remain work; physical course/guide validation; large-course eligibility/list rendering and other runtime-session startup IO |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Remaining ordinary persistence costs, older library actions, full hosted confirmation and physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps remain separate from v1 backup; optional quiet-boundary geometry extension and Android compatibility fixtures pass |
-| Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
+| Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points; offline seven-topic Field Reference from Settings and Map tools | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement, client certificate UTC dates/fingerprint/30-day notices and manual renewal preserving active sessions/sharing; separate bounded read-only remote scene on both watches | Live renewal verification and crash-time orphan-key recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired named-lane crossings and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
 | Release | Unsigned simulator/device builds, automated tests and draft PR; native menu/presentation and hit-target repairs; Android launcher artwork for phone/iPad/watch with runtime icon evidence | Full hosted CI pass, privacy/distribution metadata, StoreKit/purchases, signing, physical field validation, TestFlight/App Store release |
 
@@ -904,3 +904,48 @@ map-info checks inspected. Prior watch preferences restored; all owned devices
 and feeds off. [Evidence and limits](watch-route-leg-ranges.md). The iOS commits
 remain local while hosted104 is running on42def16; full hosted/physical/watch
 navigation and TAK verification gates remain open.
+
+### Hosted104 is terminal — four native Files workflows fail
+
+Run40460836747 on42def16: library succeeds, field has three Files export/reopen
+failures and map has one lane-backup export filename failure. Dedicated real-fix,
+course, boundary/route/practice steps are skipped. The boundary drag repair is
+still missing a full hosted gate. Videos and native hierarchy show the export
+picker's missing filename accessory; one saved GPX icon stays unactivated in
+import. [Exact terminal evidence and candidate](ci-field-ui-activation.md).
+0ca082c/cf9e4b5 remain validated local candidates, not hosted results. The new
+filename/provider flow and native list activation are under local validation;
+no full green or parity-complete claim.
+
+### Accessibility-size audit finding — 27 October 2026
+
+An actual global AccessibilityXXXL launch makes the map HUD and floating control
+icons overflow the viewport; this is a real app layout gap, not an iOS platform
+limit. The Settings UI helper can also activate Haptic navigation while trying
+to scroll to a reference row. Recordings retained at
+`/tmp/mgrsgps-reference-large-map-failure.png` and
+`/tmp/mgrsgps-reference-large-settings-failure.png`. Full-app accessibility-size
+navigation/readability remains implementation and validation work. A separately
+scoped DEBUG reference-only Dynamic Type stress check does not close that gap.
+
+### Reliable filename/provider flow and offline reference — 27 October 2026
+
+The export candidate8c4e1ba supplies native styled filename entry before Files
+location/provider selection, including PDF Save. Existing exact filename,
+complete-record/password/restore assertions remain; native list rows avoid
+hosted icon activation. All19 existing export/recovery workflows now validate
+across broad/final-source bundles; the two intermediate PDF/ShareLink test-
+alignment failures stay recorded. Native346 cases pass (four opt-in skips),
+final device Release/eight harness checks pass, and day/night images are inspected.
+[Filename/provider evidence](export-filename-provider-flow.md).
+
+Android's seven-topic offline Field Reference is now ported, with phonetic
+alphabet/digits, radio grid, grid precision/accuracy, pace/conditions, contours,
+north references and military affiliation/echelon reminders. It opens from
+Settings/Map tools in native day/night cards. Both entry/topic workflows pass;
+the isolated page-level largest Dynamic Type check passes with a single-column
+alphabet. Global largest-type map navigation/HUD overflow remains open. Combined
+scope:22 distinct UI workflows, not the sum of repeated runs. [Reference evidence
+and exact large-text scope](offline-field-reference.md). Local parents terminal,
+owned devices/feeds off; no TAK infrastructure or wire change. Full new hosted
+confirmation and the other implementation/physical gates remain required.

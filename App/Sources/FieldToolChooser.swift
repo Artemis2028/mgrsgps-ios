@@ -3,7 +3,7 @@ import SwiftUI
 enum MapToolChoice: String, CaseIterable, Identifiable {
     case lasso = "map-lasso"
     case distance = "measure-distance", area = "measure-area", resection = "field-resection", intersection = "field-intersection"
-    case sunMoon = "field-sunmoon", declination = "field-declination", sight = "field-los", course = "field-course", orientation = "field-orientation"
+    case sunMoon = "field-sunmoon", declination = "field-declination", sight = "field-los", course = "field-course", orientation = "field-orientation", reference = "field-reference"
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -17,6 +17,7 @@ enum MapToolChoice: String, CaseIterable, Identifiable {
         case .sight: return "Line of sight"
         case .course: return "Practice course"
         case .orientation: return "Orientation"
+        case .reference: return "Field reference"
         }
     }
 }

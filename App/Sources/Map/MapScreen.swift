@@ -47,6 +47,7 @@ struct MapScreen: View {
     @State private var showingTerrain = false
     @State private var showingTools = false
     @State private var pendingTool: MapToolChoice?
+    @State private var showingReference = false
     @State private var fieldFixRequest: FieldFixRequest?
     @State private var planningRequest: FieldPlanningRequest?
     @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
@@ -344,6 +345,7 @@ struct MapScreen: View {
             FieldToolChooser(night: settings.nightMode) { tool in pendingTool = tool; showingTools = false }
         }
         .sheet(item: $qrRequest) { PositionQRView(request: $0, night: settings.nightMode) }
+        .sheet(isPresented: $showingReference) { FieldReferenceView() }
         .sheet(item: $planningRequest) { request in
             switch request.kind {
             case .sunMoon: SunMoonPlanningView(request: request)
@@ -555,7 +557,7 @@ struct MapScreen: View {
     private func runPendingTool() {
         guard let tool = pendingTool else { return }
         pendingTool = nil
-        if tool != .lasso { endLasso() }
+        if tool != .lasso && tool != .reference { endLasso() }
         switch tool {
         case .lasso:
             guard boundaryDraft == nil && graphicDraft == nil && laneDraft == nil else { return }
@@ -573,6 +575,7 @@ struct MapScreen: View {
         case .sight: showingTerrain = true
         case .course: onOpenCourse()
         case .orientation: onOrientation()
+        case .reference: showingReference = true
         }
     }
 

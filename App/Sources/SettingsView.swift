@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showingTAK = false
     @State private var showingGuide = false
     @State private var showingMapTools = false
+    @State private var showingReference = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
     @State private var east = true
@@ -44,6 +45,7 @@ struct SettingsView: View {
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
                     Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
+                    Button("Field reference") { showingReference = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-reference")
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
                     Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).foregroundStyle(palette.ink).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
                     Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
@@ -86,6 +88,7 @@ struct SettingsView: View {
         .onAppear { loadDraft() }
         .sheet(isPresented: $showingTAK) { TAKSettingsView() }
         .sheet(isPresented: $showingGuide) { GuideSettingsView() }
+        .sheet(isPresented: $showingReference) { FieldReferenceView() }
         .sheet(isPresented: $showingMapTools) { MapToolSettingsView() }
     }
 
