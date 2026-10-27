@@ -84,11 +84,15 @@ extension XCTestCase {
             if attempt == 0 {
                 let point = CGPoint(x: item.frame.midX,y: item.frame.minY+item.frame.height*0.25)
                 files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: point.x-files.frame.minX,dy: point.y-files.frame.minY)).tap()
-            } else {
+            } else if attempt == 1 {
                 // The hosted collection can retain a valid frame yet ignore
                 // coordinate activation. Re-resolve this exact cell and use
                 // UIKit's native hit point while the same picker remains.
                 item.tap()
+            } else {
+                // If single activation leaves the same provider visible,
+                // try its native double-tap opening gesture on that exact row.
+                item.doubleTap()
             }
             // Files can ignore the first thumbnail tap while finishing its
             // provider transition. Acknowledge dismissal before proceeding;

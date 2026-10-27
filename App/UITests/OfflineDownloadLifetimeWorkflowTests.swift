@@ -23,7 +23,7 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
     }
     private func openLayers(_ app: XCUIApplication) {
         let button = app.buttons["map-layers"]
-        XCTAssertTrue(button.waitForExistence(timeout: 15)); tapNativeMenuItem(button)
+        XCTAssertTrue(button.waitForExistence(timeout: 15)); tapNativeMenuItem(button,revealing:app.navigationBars["Map layers"])
         XCTAssertTrue(app.navigationBars["Map layers"].waitForExistence(timeout: 5))
     }
     private func run(night: Bool) {

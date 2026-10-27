@@ -10,7 +10,7 @@ final class FieldFixWorkflowTests: XCTestCase {
         for _ in 0..<6 { if element.isHittable { return }; app.swipeUp() }
     }
     private func open(_ mode: String) {
-        let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); tapNativeMenuItem(menu,revealing:app.navigationBars["Map tools"])
         tapNativeMenuItem(app.buttons["field-"+mode.lowercased()])
         capture("field-"+mode.lowercased()+"-opened")
         XCTAssertTrue(app.navigationBars[mode].waitForExistence(timeout: 8),app.debugDescription)

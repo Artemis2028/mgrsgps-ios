@@ -65,7 +65,7 @@ final class WaypointRecoveryWorkflowTests: XCTestCase {
         tapNativeMenuItem(app.buttons["add-waypoint"])
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5)); tapTextInput(name); name.typeText("After recovery")
-        dismissFieldKeyboard(); tapNativeMenuItem(app.segmentedControls.buttons["Lat / Lon"])
+        dismissFieldKeyboard(); selectNativeSegment(app.segmentedControls.buttons["Lat / Lon"])
         let latitude = app.textFields["waypoint-latitude"], longitude = app.textFields["waypoint-longitude"]
         XCTAssertTrue(latitude.waitForExistence(timeout: 5)); tapTextInput(latitude); latitude.typeText("24.4539")
         tapTextInput(longitude); longitude.typeText("54.3773"); tapNativeMenuItem(app.buttons["waypoint-save"])

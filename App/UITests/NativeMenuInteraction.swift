@@ -160,11 +160,16 @@ extension XCTestCase {
             let done = app.buttons[id]
             if done.exists && done.isHittable {
                 tapNativeMenuItem(done,file: file,line: line)
-                let hidden = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
-                    !app.keyboards.firstMatch.exists || !app.keyboards.firstMatch.isHittable
-                },object: app)
-                XCTAssertEqual(XCTWaiter.wait(for: [hidden],timeout: 5),.completed,file: file,line: line)
-                return
+                for attempt in 0..<3 {
+                    let hidden = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+                        !app.keyboards.firstMatch.exists || !app.keyboards.firstMatch.isHittable
+                    },object: app)
+                    if XCTWaiter.wait(for:[hidden],timeout:3) == .completed { return }
+                    // Only repeat dismissal while this same keyboard and its
+                    // Done control remain visible. Never activate an app Save.
+                    if attempt < 2,done.exists,done.isHittable { done.tap() }
+                }
+                XCTFail("Keyboard Done did not dismiss the active keyboard",file:file,line:line); return
             }
         }
     }
@@ -180,12 +185,16 @@ extension XCTestCase {
             if !screen.minX.isFinite || !screen.minY.isFinite || screen.isEmpty { return element.isHittable }
             return screen.contains(CGPoint(x: frame.minX+frame.width*horizontal,y: frame.midY))
         },object: element)
-        guard XCTWaiter.wait(for: [visible],timeout: 5) == .completed else {
+        let settled = XCTWaiter.wait(for: [visible],timeout: 5) == .completed
+        let freshFrame = element.frame, freshScreen = XCUIApplication().windows.firstMatch.frame
+        let freshHit = element.isHittable && freshFrame.minX.isFinite && freshFrame.minY.isFinite && !freshFrame.isEmpty && freshScreen.minX.isFinite && freshScreen.minY.isFinite && freshScreen.width.isFinite && freshScreen.height.isFinite && !freshScreen.isEmpty && freshScreen.contains(CGPoint(x:freshFrame.minX+freshFrame.width*horizontal,y:freshFrame.midY))
+        guard settled || freshHit else {
             let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             shot.name = "control-frame-failure"; shot.lifetime = .keepAlways; add(shot)
             XCTFail("Control has no usable visible frame: \(element.debugDescription)\nApplication frame: \(XCUIApplication().frame)",file: file,line: line)
             return
         }
+        if !settled { element.tap(); return }
         let app = XCUIApplication(), frame = element.frame, origin = app.frame.origin
         if !origin.x.isFinite || !origin.y.isFinite || app.frame.isEmpty {
             element.coordinate(withNormalizedOffset: .init(dx: horizontal,dy: 0.5)).tap()
