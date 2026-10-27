@@ -113,7 +113,7 @@ local to avoid cancelling that run.
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; worker-coalesced camera/preferences with failure/retry and consistent offline network policy; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Broader full-app text-size and physical lasso/offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Dense-map rendering and wider accessibility/performance profiling; physical large-library storage checks; physical field validation and storage/interchange limits below |
-| Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery; compact result summary and complete native scrolling split log with first/last viewport controls | Saved-log eager validation/read cost and crash-orphan maintenance; dense/very-large-library profiling and long-course active-progress validation; physical course/guide validation |
+| Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery; bounded worker cleanup of aged unreferenced installed logs with pending-save leases; compact result summary and complete native scrolling split log with first/last viewport controls | Saved-log eager validation/read cost; physical storage-pressure/cleanup and dense/very-large-library profiling and long-course active-progress validation; physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Very-large-library read/export/rendering profiling and full hosted confirmation; physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps remain separate from v1 backup; optional quiet-boundary geometry extension and Android compatibility fixtures pass |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points; offline seven-topic Field Reference from Settings and Map tools | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement, client certificate UTC dates/fingerprint/30-day notices and manual renewal preserving active sessions/sharing; separate bounded read-only remote scene on both watches | Live renewal verification and crash-time orphan-key recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired named-lane crossings and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
@@ -1521,3 +1521,46 @@ to later worker-action milestones; compatibility core APIs remain synchronous.
 Eager saved-log startup validation, orphan maintenance and physical profiling
 remain separate work. This and the live-split fix stay local while108 runs on
 7fbeab5; no active CI cancelled/duplicated or TAK/server/credential changes.
+
+
+### Bounded abandoned-log cleanup after healthy startup, 27 October
+
+Finished-save crash leftovers now have a maintenance path. Android's
+StagedTrackFiles/TrackRepository separates created files from existing logs and
+rolls back only its own files; iOS's uniquely named installed files can survive
+process death before the metadata rename. A separate utility worker runs after
+RootView's healthy field read, considering at most64 old unreferenced canonical
+UUID `.txt` candidates per pass. Files must be at least24 hours old. Indexed
+logs, recent files, unknown names/types, symlinks, nested directories, backups
+and LiveRecording remain untouched. Missing/corrupt/legacy-only sources grant
+no cleanup authority. Source changes stop remaining deletion.
+
+New-log installation registers a preparation lease under the publication gate.
+Pending saves survive the age threshold until publication/discard. Cleanup
+checks source, lease and file identity inside short per-file sections; scanning
+stays on a worker. It does not rewrite the metadata index or publish new
+library contents. OS-owned replacement directories are excluded; this closes
+bounded abandoned installed-log maintenance, not eager log startup validation
+or physical storage-pressure profiling. See [storage scope](finished-track-storage.md).
+
+All532 core cases pass in `/tmp/mgrsgps-orphan-core.log`. Six new cases cover
+old/recent/indexed/foreign files and unrelated live/archive data, aged in-flight
+publication, corrupt/missing/changed indexes,64+6 bounded continuation, worker
+cancellation and symlinked log directories. Existing source-conflict, failed-
+preparation cleanup and long-recording cases remain green.
+
+All349 native integration cases pass (four opt-in skips) in
+`/tmp/mgrsgps-orphan-native.xcresult`. Two new integration cases verify that
+reads remain read-only, successful maintenance does not republish/change the
+library/index, unreadable and cancelled calls retain files, and a healthy call
+can later clean. Three UI workflows pass: day/night explicit field-read
+recovery/relaunch and real background recording/save/library/map. Host journal
+growth4→7 occurs in the same session while still on Home. Night recovery and
+recorded-track detail screenshots are inspected. Unsigned phone/watch/widget
+Release (`/tmp/mgrsgps-orphan-release.log`) and ten harness checks pass. All
+parents end naturally; owned simulator and fake feed are off.
+
+This follows local c259fd1/51a9287 and stays unpushed while10840508823942
+validates7fbeab5. No live run cancelled/duplicated, server round, wire or
+credential changes. Broader lazy-log startup, dense rendering, watch and
+physical/TAK gates remain open.

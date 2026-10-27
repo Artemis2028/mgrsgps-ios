@@ -126,8 +126,8 @@ point/coordinate array for the camera. At most six extrema cross to the UI;
 source revisions and presentation/camera intent are checked before showing it.
 See [track focus and remaining limits](track-map-focus.md). [Backtrack](backtrack-source-and-memory.md) now avoids the full TrackPoint,
 reversed-coordinate and keep-array copies, with source/cancellation guards
-through publication; one coordinate array and broader lazy-log/orphan
-maintenance remain.
+through publication; one coordinate array and broader lazy-log reads remain.
+Bounded installed-log orphan maintenance is described below.
 
 ## Recording handoff validation, 27 October
 
@@ -140,3 +140,24 @@ This removes one redundant full traversal, not the startup read/hash/summary
 cost: Android's track metadata flow is separate from its point-file reads,
 whereas iOS still opens and validates all finished logs on a startup worker.
 That broader lazy-loading and crash-orphan work remains open.
+
+
+## Abandoned installed-log maintenance, 27 October
+
+A separate utility worker runs after RootView's successful library load. The
+read itself remains read-only. Maintenance requires a healthy v2 index receipt
+and considers only unreferenced canonical UUID `.txt` files in the private
+finished-log directory, at least24 hours old. It processes at most64 candidates
+per pass. Indexed tracks, recent files, unknown names/types, symlinks, nested
+directories, backups and LiveRecording are retained. Missing/corrupt/legacy-only
+indexes cannot authorize cleanup. Source changes stop remaining cleanup.
+
+Installing a new finished log registers a live preparation lease under the same
+publication gate used for index commits. Even an aged pending save is protected
+until it publishes or is discarded. After process death, its unindexed file can
+be reclaimed on a later healthy startup. Final source/file-identity checks and
+deletions use short per-file gate sections; directory scanning stays on the
+worker. Committed index bytes, record order and library publications do not change.
+OS-owned replacement directories are excluded; this sweep handles abandoned
+installed log names. Eager log validation/startup costs and physical storage-
+pressure/performance measurements remain open.

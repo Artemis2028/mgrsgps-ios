@@ -69,7 +69,7 @@ enum FieldDataDisk {
                     // remove a later restore, even when IDs/point bytes are identical.
                     let name = UUID().uuidString.lowercased()+".txt"
                     let file = try PreparedAtomicFile(data: bytes,destination: directory.appendingPathComponent(name),lockCompatible: true,synchronize: true)
-                    try Task.checkCancellation(); try file.publish(replacing: false)
+                    try Task.checkCancellation(); try PreparedFieldData.install(file)
                     installed.append(file.destination); next[track.id] = .init(name: name,sha256: hash)
                 }
             }
@@ -81,7 +81,32 @@ enum FieldDataDisk {
             let obsolete = logs.values.filter { !retained.contains($0.name) }.map { directory.appendingPathComponent($0.name) }
             try Task.checkCancellation()
             return .init(index: marker,installed: installed,logs: next,obsolete: obsolete,expectedSource:expectedSource,digest:digest(data))
-        } catch { PreparedFieldData.removeLater(installed); throw error }
+        } catch { PreparedFieldData.discardInstalled(installed); throw error }
+    }
+
+    /// Bounded worker maintenance. Missing/corrupt indexes never grant deletion
+    /// authority; the caller must hold a successful read's exact source receipt.
+    static func pruneOrphans(source: FieldDataReadSource,retained: Set<String>,now: Date) throws -> Int {
+        guard source.index != nil else { return 0 }
+        let directory = source.indexURL.deletingLastPathComponent().appendingPathComponent(logsName,isDirectory:true)
+        let attributes = try directory.resourceValues(forKeys:[.isDirectoryKey,.isSymbolicLinkKey])
+        guard attributes.isDirectory == true,attributes.isSymbolicLink != true else { return 0 }
+        guard let files = FileManager.default.enumerator(at:directory,includingPropertiesForKeys:nil,options:[.skipsSubdirectoryDescendants]) else { return 0 }
+        let cutoff = now.addingTimeInterval(-24*60*60)
+        var candidates: [(URL,FieldDataReadSource.Stamp)] = []
+        while let file = files.nextObject() as? URL {
+            try Task.checkCancellation()
+            guard validName(file.lastPathComponent),!retained.contains(file.lastPathComponent),
+                  let stamp = try? FieldDataReadSource.Stamp.read(file),stamp.modified <= cutoff else { continue }
+            candidates.append((file,stamp))
+            if candidates.count == 64 { break }
+        }
+        var removed = 0
+        for (file,stamp) in candidates {
+            try Task.checkCancellation()
+            if try PreparedFieldData.removeOrphan(file,stamp:stamp,source:source) { removed += 1 }
+        }
+        return removed
     }
 }
 
@@ -90,7 +115,10 @@ enum FieldDataDisk {
 final class PreparedFieldData: @unchecked Sendable {
     // Source check and rename are one short in-process publication gate, even
     // when separate store instances prepared against the same saved index.
-    private static let publicationLock = NSLock()
+    private static let publicationLock = NSRecursiveLock()
+    // Filenames are fresh UUIDs. Counts also protect the unlikely case of the
+    // same generated name in two roots; an extra retained file is harmless.
+    private static var activeLogNames: [String:Int] = [:]
     let index: PreparedAtomicFile
     let installed: [URL]
     let logs: [String: FieldDataDisk.Log]
@@ -106,7 +134,7 @@ final class PreparedFieldData: @unchecked Sendable {
     func discard() {
         lock.lock(); guard !consumed else { lock.unlock(); return }
         consumed = true; lock.unlock()
-        index.discard(); Self.removeLater(installed)
+        index.discard(); Self.discardInstalled(installed)
     }
     func publish() throws -> FieldDataReadSource {
         Self.publicationLock.lock(); defer { Self.publicationLock.unlock() }
@@ -116,10 +144,11 @@ final class PreparedFieldData: @unchecked Sendable {
             guard try FieldDataReadSource.read(index.destination) == expectedSource else { throw FieldDataStore.WriteFailure.changed }
             try index.publish(); consumed = true; lock.unlock()
         } catch {
-            consumed = true; lock.unlock(); index.discard(); Self.removeLater(installed)
+            consumed = true; lock.unlock(); index.discard(); Self.discardInstalled(installed)
             throw error
         }
         Self.removeLater(obsolete)
+        Self.releaseInstalled(installed)
         // Publication succeeded: never remove its installed logs if a later
         // source stat fails. Reopening can recover the complete committed index.
         guard let updated = try? FieldDataReadSource.read(index.destination),updated.index != nil else { throw FieldDataStore.WriteFailure.changed }
@@ -128,6 +157,30 @@ final class PreparedFieldData: @unchecked Sendable {
     static func removeLater(_ paths: [URL]) {
         guard !paths.isEmpty else { return }
         Task.detached(priority: .utility) { for path in paths { try? FileManager.default.removeItem(at: path) } }
+    }
+    static func install(_ file: PreparedAtomicFile) throws {
+        publicationLock.lock(); defer { publicationLock.unlock() }
+        try file.publish(replacing:false)
+        activeLogNames[file.destination.lastPathComponent,default:0] += 1
+    }
+    private static func releaseInstalled(_ paths: [URL]) {
+        publicationLock.lock(); defer { publicationLock.unlock() }
+        for file in paths {
+            let name = file.lastPathComponent
+            if let count = activeLogNames[name],count > 1 { activeLogNames[name] = count-1 }
+            else { activeLogNames.removeValue(forKey:name) }
+        }
+    }
+    static func discardInstalled(_ paths: [URL]) {
+        releaseInstalled(paths); removeLater(paths)
+    }
+    static func removeOrphan(_ file: URL,stamp: FieldDataReadSource.Stamp,source: FieldDataReadSource) throws -> Bool {
+        publicationLock.lock(); defer { publicationLock.unlock() }
+        try source.validate()
+        guard activeLogNames[file.lastPathComponent] == nil,
+              (try? FieldDataReadSource.Stamp.read(file)) == stamp else { return false }
+        try FileManager.default.removeItem(at:file)
+        return true
     }
     deinit { discard() }
 }

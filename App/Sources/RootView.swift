@@ -169,6 +169,7 @@ struct RootView: View {
             if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad"), !startupLoadReleased { return }
             #endif
             await fieldStore.load()
+            await fieldStore.maintainTrackStorage()
         }
         .background(Blackout.background.ignoresSafeArea())
         .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))

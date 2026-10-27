@@ -153,6 +153,27 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
     }
 
+    public struct TrackMaintenanceSnapshot: Sendable {
+        fileprivate let source: FieldDataReadSource
+        fileprivate let retained: Set<String>
+        /// Run on a worker. Retain indexed/recent/in-flight logs and all unknown
+        /// files; remove at most64 old, unreferenced canonical log names.
+        public func prune(now: Date = Date()) throws -> Int {
+            try FieldDataDisk.pruneOrphans(source:source,retained:retained,now:now)
+        }
+    }
+    public func trackMaintenanceSnapshot() throws -> TrackMaintenanceSnapshot? {
+        lock.lock(); defer { lock.unlock() }
+        try requireReady()
+        guard let source,source.index != nil else { return nil }
+        return .init(source:source,retained:Set(logs.values.map(\.name)))
+    }
+    @MainActor public func maintainTrackStorage() async {
+        guard !Task.isCancelled,let snapshot = try? trackMaintenanceSnapshot() else { return }
+        let worker = Task.detached(priority:.utility) { try snapshot.prune() }
+        await withTaskCancellationHandler(operation:{ _ = try? await worker.value },onCancel:{ worker.cancel() })
+    }
+
     public func points(for trackID: String) throws -> [TrackPoint] {
         lock.lock()
         do { try requireReady() } catch { lock.unlock(); throw error }

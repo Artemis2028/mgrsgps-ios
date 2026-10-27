@@ -51,8 +51,9 @@ not hardware-dependent pass thresholds; map rendering is a separate cost.
 Later milestones moved ordinary waypoint, mixed batch/folder, recording and
 course-result UI operations to worker-prepared actions; the release inventory
 records their scoped evidence. The core synchronous APIs remain for compatibility
-and fixtures and share the same edit transform. Eager finished-log startup
-validation and crash-orphan maintenance remain separate implementation work.
+and fixtures and share the same edit transform. Eager finished-log startup validation remains separate implementation work.
+Bounded installed-log orphan cleanup now follows a healthy startup; physical
+storage-pressure/cleanup profiling remains open.
 Dense map rendering/accessibility, physical storage pressure, battery and file
 protection still need validation; they are not iOS permission restrictions.
 
