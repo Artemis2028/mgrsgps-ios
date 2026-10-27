@@ -178,6 +178,7 @@ targets:
     deploymentTarget: "10.0"
     sources:
       - path: Watch/Sources
+      - path: App/Sources/MilitarySymbolArtwork.swift
       - path: Watch/Resources
         buildPhase: resources
       - path: App/Resources/MilitarySymbols

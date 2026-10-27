@@ -188,6 +188,22 @@ extension WatchPhoneBridge {
         guard args.contains("-uiTesting") else { return }
         if args.contains("-uiTestWatchMapClear") { store.setFolderVisible(Folders.defaultFolder, visible: false); return }
         guard args.contains("-uiTestWatchMap") else { return }
+        if args.contains("-uiTestWatchSymbols") {
+            for point in store.waypoints where point.name == "SYNTHETIC RALLY" { store.setVisible(id:point.id,visible:false) }
+            let entries: [(String,String,String,String,Double,WaypointMetadata)] = [
+                ("SBF","task_sbf","friendly","",90,.init()),
+                ("AMBUSH","task_ambush","hostile","",0,.init()),
+                ("SCREEN","task_screen","friendly","",90,.init()),
+                ("HOSTILE","diamond","hostile","",0,.init()),
+                ("PLATOON","nato_f_inf","friendly","plt",0,.init()),
+                ("IMPORTED","flag","none","",0,.init(color:"cyan",milgpsSymbolCode:MilGpsSymbols.encode(shape:.circle,character:"6")))
+            ]
+            for (index,item) in entries.enumerated() {
+                _ = store.add(.init(name:item.0,lat:24.4555-Double(index/2)*0.0015,lon:54.3758+Double(index%2)*0.0022,
+                                    symbol:item.1,affiliation:item.2,echelon:item.3,rotation:item.4,metadata:item.5))
+            }
+            return
+        }
         _ = store.add(.init(name: "SYNTHETIC INF", lat: 24.4548, lon: 54.3783, symbol: "nato_f_inf", affiliation: "friendly"))
         _ = store.add(.init(name: "HIDDEN", lat: 24.454, lon: 54.377, folder: "Watch hidden"))
         store.setFolderVisible("Watch hidden", visible: false)

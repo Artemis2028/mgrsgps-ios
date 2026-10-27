@@ -257,7 +257,7 @@ struct WatchMapView: View {
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
                 Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")
-                Text("NATO unit PNGs are bundled. Task points use named badges with stored rotation; basic points use SF glyphs, and unknown keys use a question-mark glyph. Labels remain upright. Imported MilGPS shapes, characters and colors are preserved. Typed field paths/areas, sectors and range rings are drawn; tactical decorative teeth/arrows are not reproduced. No boundary alerts run on watch.")
+                Text("NATO unit PNGs and mission-task artwork match the phone. Directional tasks rotate; S/G/C letter badges and labels stay upright. Basic affiliation frames, echelon marks and imported MilGPS shapes, characters and colors use the shared artwork. Unknown keys use a question-mark glyph. Typed field paths/areas, sectors and range rings are drawn; tactical decorative teeth/arrows are not reproduced. No boundary alerts run on watch.")
                 Text("Remote cap: 8 KiB / 64 items / 384 vertices, at most 128 per drawing. Whole drawings are omitted, never simplified. Local overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
                 Button("Position grid") { showInfo = false; showPosition() }
                 Button("Close map") { showInfo = false; closeMap() }
@@ -281,88 +281,16 @@ private struct WatchMapMarker: View {
     var point: WatchMapSnapshot.Point
     var night: Bool
     var showName: Bool
-    private var tint: Color {
-        if night { return .red }
-        switch point.importedColor?.lowercased() {
-        case "red": return .red
-        case "orange": return .orange
-        case "yellow": return .yellow
-        case "green": return .green
-        case "blue": return .blue
-        case "cyan": return .cyan
-        case "magenta": return .pink
-        default: return point.affiliation == "hostile" ? .red : point.affiliation == "friendly" ? .cyan : .orange
-        }
-    }
+    private var tint: Color { Color(uiColor: MilitaryMarkerRenderer.color(point.affiliation,night: night,imported: point.importedColor)) }
     var body: some View {
-        glyph.frame(width: 28, height: 28)
-            .rotationEffect(.degrees(point.symbol.hasPrefix("task_") ? (point.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) : 0))
-            .foregroundStyle(tint).background(.black.opacity(0.6))
-            .overlay(alignment: .top) {
-                if !point.echelon.isEmpty { Text(["tm": "Ø", "sqd": "•", "sec": "••", "plt": "•••", "co": "I", "bn": "II", "rgt": "III", "bde": "X", "div": "XX", "corps": "XXX", "army": "XXXX"][point.echelon] ?? point.echelon.uppercased()).font(.system(size: 7, weight: .bold)).foregroundStyle(tint).offset(y: -9) }
-            }
+        Image(uiImage: MilitaryMarkerRenderer.image(symbol: point.symbol,affiliation: point.affiliation,
+                                                    echelon: point.echelon,rotation: point.rotation,night: night,
+                                                    metadata: .init(color: point.importedColor,milgpsSymbolCode: point.importedCode)))
+            .resizable().scaledToFit().frame(width: 28,height: 28)
+            .background(.black.opacity(0.6))
             .overlay(alignment: .bottom) {
                 if showName { Text(point.name).font(.system(size: 8, weight: .semibold)).lineLimit(1).fixedSize().foregroundStyle(tint).padding(1).background(.black.opacity(0.7)).offset(y: 12) }
             }
             .accessibilityLabel(point.name + ", " + MilitarySymbols.label(point.symbol))
-    }
-    @ViewBuilder private var glyph: some View {
-            if let image = WatchSymbolImages.image(point.symbol, night: night) {
-                Image(uiImage: image).resizable().renderingMode(.original).scaledToFit().frame(width: 28, height: 28)
-            } else if let imported = MilGpsSymbols.decode(point.importedCode) {
-                ZStack {
-                    Image(systemName: shape(imported.shape)).font(.system(size: 22))
-                    if let character = imported.character { Text(character).font(.system(size: 10, weight: .bold)).foregroundStyle(.black) }
-                }.frame(width: 28, height: 28)
-            } else if point.symbol.hasPrefix("task_") {
-                Text(MilitarySymbols.label(point.symbol)).font(.system(size: 9, weight: .bold)).frame(maxWidth: 50)
-                    .padding(3).overlay(Rectangle().stroke(tint))
-            } else {
-                Image(systemName: ["flag": "flag.fill", "dot": "circle.fill", "square": "square.fill", "triangle": "triangle.fill", "diamond": "diamond.fill", "cross": "xmark", "target": "scope", "star": "star.fill", "home": "house.fill", "danger": "exclamationmark.triangle", "water": "drop.fill", "camp": "tent", "vehicle": "car", "antenna": "antenna.radiowaves.left.and.right", "medic": "cross.case"][point.symbol] ?? "questionmark.square.dashed")
-                    .font(.system(size: 20)).frame(width: 24, height: 24)
-            }
-    }
-    private func shape(_ shape: MilGpsShape) -> String {
-        switch shape { case .cross: return "plus"; case .circle: return "circle.fill"; case .triangle: return "triangle.fill"; case .square: return "square.fill"; case .star: return "star.fill" }
-    }
-}
-
-@MainActor
-private enum WatchSymbolImages {
-    private static let cache: NSCache<NSString, UIImage> = {
-        let cache = NSCache<NSString, UIImage>(); cache.countLimit = 128; cache.totalCostLimit = 4 * 1024 * 1024
-        return cache
-    }()
-    static func image(_ key: String, night: Bool) -> UIImage? {
-        guard key.hasPrefix("nato_"), key.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }) else { return nil }
-        let cacheKey = "\(key)|\(night)" as NSString
-        if let value = cache.object(forKey: cacheKey) { return value }
-        guard let url = Bundle.main.url(forResource: key, withExtension: "png", subdirectory: "MilitarySymbols"), let input = UIImage(contentsOfFile: url.path)?.cgImage else { return nil }
-        let width = input.width, height = input.height
-        var bytes = [UInt8](repeating: 0, count: width * height * 4)
-        let ok = bytes.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
-                                          bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
-                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) else { return false }
-            context.draw(input, in: CGRect(x: 0, y: 0, width: width, height: height)); return true
-        }
-        guard ok else { return nil }
-        // Same transform as the phone's MilitaryMarkerRenderer.unitImage: opaque black
-        // symbol strokes become transparent, preserving internal marks in red night mode.
-        for i in stride(from: 0, to: bytes.count, by: 4) {
-            if bytes[i] < 40 && bytes[i + 1] < 40 && bytes[i + 2] < 40 {
-                bytes[i] = 0; bytes[i + 1] = 0; bytes[i + 2] = 0; bytes[i + 3] = 0
-            } else if night {
-                let red = 0.35 * Double(bytes[i]), green = 0.5 * Double(bytes[i + 1]), blue = 0.15 * Double(bytes[i + 2])
-                bytes[i] = UInt8(min(255, red + green + blue + 30)); bytes[i + 1] = 0; bytes[i + 2] = 0
-            }
-        }
-        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
-              let output = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
-                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
-                                   provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { return nil }
-        let image = UIImage(cgImage: output)
-        cache.setObject(image, forKey: cacheKey, cost: width * height * 4)
-        return image
     }
 }

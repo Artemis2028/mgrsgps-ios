@@ -39,12 +39,14 @@ final class MilitarySymbolsTests: XCTestCase {
     }
     func testEveryTaskHasDistinctArtworkAndRotationChangesDirectionalTasks() throws {
         XCTAssertEqual(MilitarySymbols.tasks.count,20)
-        var signatures = Set<String>()
-        for entry in MilitarySymbols.tasks {
-            let data = try XCTUnwrap(MilitaryMarkerRenderer.image(symbol: entry.key).pngData())
-            signatures.insert(SHA256.hash(data: data).description)
+        for bitmapContext in [false,true] {
+            var signatures = Set<String>()
+            for entry in MilitarySymbols.tasks {
+                let data = try XCTUnwrap(MilitaryMarkerRenderer.image(symbol: entry.key,bitmapContext: bitmapContext).pngData())
+                signatures.insert(SHA256.hash(data: data).description)
+            }
+            XCTAssertEqual(signatures.count,20)
         }
-        XCTAssertEqual(signatures.count,20)
         let normal = MilitaryMarkerRenderer.image(symbol: "task_sbf",rotation: 0).pngData()
         let turned = MilitaryMarkerRenderer.image(symbol: "task_sbf",rotation: 90).pngData()
         XCTAssertNotEqual(normal,turned)
@@ -70,22 +72,53 @@ final class MilitarySymbolsTests: XCTestCase {
         var items = (MilitarySymbols.tasks + MilitarySymbols.basic).map { ($0.key,"none","") }
         for aff in ["f","h","n","u"] { for function in ["inf_abn","armor","eng_cbt"] { items.append(("nato_\(aff)_\(function)","none","")) } }
         for echelon in MilitarySymbols.echelons { items.append(("nato_f_inf","friendly",echelon.key)) }
+        for bitmapContext in [false,true] {
         for night in [false,true] {
             let format = UIGraphicsImageRendererFormat(); format.scale = 1
             let image = UIGraphicsImageRenderer(size: CGSize(width: 600,height: 1200),format: format).image { context in
                 UIColor.black.setFill(); context.fill(CGRect(x: 0,y: 0,width: 600,height: 1200))
                 for (i,item) in items.enumerated() {
                     let x = Double(i%6)*100, y = Double(i/6)*120
-                    MilitaryMarkerRenderer.image(symbol: item.0,affiliation: item.1,echelon: item.2,night: night).draw(in: CGRect(x: x+18,y: y+4,width: 64,height: 64))
+                    MilitaryMarkerRenderer.image(symbol: item.0,affiliation: item.1,echelon: item.2,night: night,bitmapContext: bitmapContext).draw(in: CGRect(x: x+18,y: y+4,width: 64,height: 64))
                     ((item.0 + " " + item.2) as NSString).draw(in: CGRect(x: x+3,y: y+75,width: 94,height: 40),withAttributes: [.font:UIFont.monospacedSystemFont(ofSize: 9,weight: .regular),.foregroundColor:UIColor.white])
                 }
             }
-            let attachment = XCTAttachment(image: image); attachment.name = night ? "military-catalog-night" : "military-catalog-day"; attachment.lifetime = .keepAlways; add(attachment)
+            let attachment = XCTAttachment(image: image); attachment.name = (bitmapContext ? "watch-bitmap-" : "phone-") + (night ? "military-catalog-night" : "military-catalog-day"); attachment.lifetime = .keepAlways; add(attachment)
         }
+        }
+    }
+    func testWatchBitmapContextPreservesTaskOrientationFramesAndImportedArtwork() throws {
+        let symbols = MilitarySymbols.tasks.map(\.key) + ["dot","diamond","nato_f_inf"]
+        for symbol in symbols {
+            let phone = try pixels(MilitaryMarkerRenderer.image(symbol: symbol,affiliation: "friendly",echelon: "plt",rotation: 90))
+            let watch = try pixels(MilitaryMarkerRenderer.image(symbol: symbol,affiliation: "friendly",echelon: "plt",rotation: 90,bitmapContext: true))
+            // Different color spaces may round RGB. Alpha must occupy the same pixels,
+            // detecting a vertically flipped bitmap or misplaced UIKit text/image draw.
+            for i in stride(from: 3,to: phone.count,by: 4) {
+                XCTAssertLessThanOrEqual(abs(Int(phone[i])-Int(watch[i])),2,symbol)
+            }
+        }
+        let plain = MilitaryMarkerRenderer.image(symbol: "dot",bitmapContext: true).pngData()
+        let framed = MilitaryMarkerRenderer.image(symbol: "dot",affiliation: "hostile",bitmapContext: true).pngData()
+        XCTAssertNotEqual(plain,framed)
+        let code = MilGpsSymbols.encode(shape: .triangle,character: "6")
+        let metadata = WaypointMetadata(color: "cyan",milgpsSymbolCode: code)
+        let phone = try pixels(MilitaryMarkerRenderer.image(symbol: "flag",metadata: metadata))
+        let watch = try pixels(MilitaryMarkerRenderer.image(symbol: "flag",metadata: metadata,bitmapContext: true))
+        XCTAssertEqual(phone,watch)
+        XCTAssertNotEqual(MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: 0,bitmapContext: true).pngData(),
+                          MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: 90,bitmapContext: true).pngData())
+        XCTAssertEqual(MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: -90,bitmapContext: true).pngData(),
+                       MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: 270,bitmapContext: true).pngData())
+        XCTAssertEqual(MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: Double.greatestFiniteMagnitude,bitmapContext: true).pngData(),
+                       MilitaryMarkerRenderer.image(symbol: "task_abf",rotation: Double.greatestFiniteMagnitude.truncatingRemainder(dividingBy:360),bitmapContext: true).pngData())
+        XCTAssertEqual(MilitaryMarkerRenderer.image(symbol: "task_screen",rotation: 0,bitmapContext: true).pngData(),
+                       MilitaryMarkerRenderer.image(symbol: "task_screen",rotation: 90,bitmapContext: true).pngData(),"Android letter badges remain upright")
     }
     func testUnknownSymbolsArePreservedAndDoNotMasqueradeAsFlag() {
         XCTAssertEqual(MilitarySymbols.label("legacy_custom"),"legacy_custom")
         XCTAssertNotEqual(MilitaryMarkerRenderer.image(symbol: "legacy_custom").pngData(),MilitaryMarkerRenderer.image(symbol: "flag").pngData())
+        XCTAssertNotEqual(MilitaryMarkerRenderer.image(symbol: "legacy_custom",bitmapContext: true).pngData(),MilitaryMarkerRenderer.image(symbol: "flag",bitmapContext: true).pngData())
         XCTAssertEqual(MilitarySymbols.label("nato_h_inf_abn"),"Hostile Airborne infantry")
     }
 }

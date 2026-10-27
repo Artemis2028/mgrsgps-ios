@@ -744,3 +744,14 @@ actual journal grows from 3 to 6 before foreground activation. Release and eight
 harness checks pass; screenshots inspected and final parent exits 0 naturally.
 Full hosted run 102 (40438839779) is confirmed live on `7b36a5d`. Full hosted and physical
 checks remain open. [Exact evidence and limits](ci-field-ui-activation.md).
+
+
+## watchOS marker artwork follow-up
+
+The watch map now shares the phone marker renderer rather than replacing
+mission-task paths with named text badges. It preserves directional rotation,
+upright S/G/C badges, basic affiliation frames, echelon artwork and imported
+shapes/characters. Native utility glyphs retain system rendering differences.
+[Android source comparison, native bitmap checks and paired screenshots](watch-symbol-artwork.md).
+Decorative tactical path/area rendering, watch alerts/background guidance and
+phone offline-pack/terrain transfer remain implementation gaps.
