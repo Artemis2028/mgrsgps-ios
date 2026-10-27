@@ -13,14 +13,20 @@ now includes optional lane backup/restore and shared screen/text/PDF leg limits;
 read-only phone guidance and a separate TAK watch scene are implemented; Android 4db6b21 startup/cue switches
 are now implemented. It does not replace the separate quiet-inside perimeter.
 
-Current validation checkpoint, 27 October: hosted105 is terminal with six UI
-failures. Their artifacts are retrieved and verified. A local repair passes
-346 native cases (four opt-in skips),24 distinct UI workflows across recorded
-bundles, unsigned phone/watch/widget Release and eight harness checks. It fixes
-rapid drawing tap loss and prevents a second choice from replacing an export
-intent during dismissal. Native activation/keyboard acknowledgments retain
-complete count, password, coordinate and persistence assertions. Full hosted
-revalidation is still required; see [exact evidence](ci-field-ui-activation.md).
+Current validation checkpoint, 27 October: hosted106 on pushed `7965445`
+has a green map job (41 UI cases), one field orientation-shortcut failure, and
+a still-live library job. Both completed artifacts are retrieved and SHA-256
+verified. The earlier hosted105 six failures and repairs remain recorded in
+[exact evidence](ci-field-ui-activation.md). The orientation failure ends on
+New folder after the coordinate-based test selection of Orientation. Both
+orientation workflows pass locally before and after switching that plain List
+shortcut to a native button tap with an explicit destination assertion. This
+requires hosted confirmation; no broad product race fix is claimed.
+Local saved-read/accessibility follow-ups are held pending the live run. They
+pass 518 core cases, ordinary/global AccessibilityXXXL day/night recovery,
+large-library search/selection, final device Release and eight harness checks;
+see the scoped evidence below. Full hosted revalidation and dedicated background
+gates remain open.
 
 Local saved-library follow-up, 27 October: worker reads now retain source
 metadata and validate it again before publication. Index replacement, a new v2
@@ -1087,3 +1093,29 @@ simulator and feeds stopped. [CI evidence](ci-field-ui-activation.md).
 The full new hosted gate remains open. Android release/main/claude-tak refs are
 unchanged. No server GO/round or TAK/watch wire change; real enrolled exchange,
 independent watch guidance and physical/distribution checks remain open.
+
+
+### Hosted106 map validation and orientation activation follow-up
+
+Run `40486646955`, source `7965445cf710c7690ca26da4bfeef3c9c23daf71`:
+map job `122129976267` passes all 41 UI cases, including the formerly failing
+landscape area, night offline download/reopen and protected KML workflows.
+Artifact `12730601284` (431,483,026 bytes) is retrieved and SHA-256 verified:
+`53832861534588b196e98fc9b5288d29f6d953062708fdc48ebfde7691c703c6`.
+Native landscape area, night offline/reopen, protected-password and terrain
+viewshed images are inspected from `/tmp/mgrsgps-ci106-map`. The library job
+remains live; the field failure above still prevents a green full run.
+
+`/tmp/mgrsgps-ci106-orientation-reproduce.xcresult` passes both original
+orientation tests locally. The hosted video and failure hierarchy show that a
+coordinate-based selection of the plain native Orientation button reached
+New folder. The local candidate uses that exact button's native `tap()` and
+asserts the Screen orientation destination before testing the choice. It does
+not retry a different action or remove any rotation/relaunch assertion.
+`/tmp/mgrsgps-ci106-orientation-native.xcresult` passes both tests: actual pinned
+Landscape/Flipped, relaunch persistence, Auto rotation, and every main-screen
+shortcut with the saved Portrait assertion. Full-display landscape and final
+Position images are inspected. The product source is unchanged by this test
+adjustment; it retains the final Release validation of `79e06de`. All local
+parents ended naturally, and owned simulators and fake feeds are off. No live
+CI was cancelled or duplicated. Native hosted confirmation remains required.

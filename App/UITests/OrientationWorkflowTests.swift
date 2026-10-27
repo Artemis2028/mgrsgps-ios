@@ -71,7 +71,14 @@ final class OrientationWorkflowTests: XCTestCase {
         let rotation = app.buttons["field-orientation"]; reveal(rotation,in: app); tapNativeMenuItem(rotation)
         choose(1,in: app)
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["Waypoint actions"].tap()
-        tapNativeMenuItem(app.buttons["library-orientation-shortcut"].firstMatch); choose(1,in: app)
+        let shortcut = app.buttons["library-orientation-shortcut"].firstMatch
+        XCTAssertTrue(shortcut.waitForExistence(timeout:8)); reveal(shortcut,in:app)
+        // This is a plain native List button, not a legacy popup menu. The
+        // hosted coordinate tap opened New folder instead; let XCTest resolve
+        // this exact control's native hit point and verify its destination.
+        shortcut.tap()
+        XCTAssertTrue(app.navigationBars["Screen orientation"].waitForExistence(timeout:8),app.debugDescription)
+        choose(1,in: app)
         let upright = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.height > app.frame.width },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [upright],timeout: 10),.completed)
         XCUIDevice.shared.orientation = .portrait
