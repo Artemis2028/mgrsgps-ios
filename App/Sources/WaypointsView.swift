@@ -763,13 +763,9 @@ struct WaypointsView: View {
 
     private func exportBackup(password: String? = nil) {
         guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
-        guard lanes.ready else { status = lanes.error ?? "Loading navigation lanes. Try again in a moment."; return }
-        var doc: Backup.Document
-        do { doc = try fieldData.backup(waypoints: store.waypoints, folders: store.folders, settings: settings.backupSettings) }
+        let doc: Backup.Document
+        do { doc = try BackupCoordinator.snapshot(waypoints:store,fieldData:fieldData,settings:settings,lanes:lanes,boundaries:boundaries) }
         catch { status = "Backup failed: \(error.localizedDescription)"; return }
-        doc.navLanes = lanes.lanes
-        guard !boundaries.loadFailed else { status = boundaries.error ?? "Boundary library is unavailable"; return }
-        doc.quietBoundaries = boundaries.areas
         status = nil
         backupTransfer.export(doc,password: password) { result in
             switch result {

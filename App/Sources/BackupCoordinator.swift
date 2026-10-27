@@ -3,6 +3,17 @@ import GridFixCore
 
 @MainActor
 enum BackupCoordinator {
+    /// Every backup entry point captures the same complete saved libraries.
+    /// Encoding and protection remain on BackupTransfer's worker.
+    static func snapshot(waypoints: WaypointStore,fieldData: FieldDataStore,settings: AppSettings,
+                         lanes: NavigationLaneStore,boundaries: BoundaryMonitor) throws -> Backup.Document {
+        guard lanes.ready else { throw BackupSnapshotFailure(message:lanes.error ?? "Loading navigation lanes. Try again in a moment.") }
+        guard !boundaries.loadFailed else { throw BackupSnapshotFailure(message:boundaries.error ?? "Boundary library is unavailable") }
+        var document = try fieldData.backup(waypoints:waypoints.waypoints,folders:waypoints.folders,settings:settings.backupSettings)
+        document.navLanes = lanes.lanes
+        document.quietBoundaries = boundaries.areas
+        return document
+    }
     /// Once publication starts, finish/report ordered phases even if the caller
     /// goes away, like Android's NonCancellable restore. Worker tasks do not
     /// inherit cancellation. Each stale snapshot is rebuilt from current data.
@@ -63,4 +74,9 @@ enum BackupCoordinator {
 
 private struct LaneRestoreUnavailable: LocalizedError {
     var errorDescription: String? { "Navigation lane storage is unavailable" }
+}
+
+private struct BackupSnapshotFailure: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
 }

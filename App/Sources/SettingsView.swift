@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showingGuide = false
     @State private var showingMapTools = false
     @State private var showingReference = false
+    @State private var showingBackup = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
     @State private var east = true
@@ -46,6 +47,7 @@ struct SettingsView: View {
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
                     Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
+                    Button("Backup & restore") { showingBackup = true }.frame(minHeight:44).contentShape(Rectangle()).foregroundStyle(palette.accent).accessibilityIdentifier("settings-backup")
                     Button("Field reference") { showingReference = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-reference")
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
                     Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).foregroundStyle(palette.ink).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
@@ -98,6 +100,7 @@ struct SettingsView: View {
         .sheet(isPresented: $showingTAK) { TAKSettingsView() }
         .sheet(isPresented: $showingGuide) { GuideSettingsView() }
         .sheet(isPresented: $showingReference) { FieldReferenceView() }
+        .sheet(isPresented: $showingBackup) { SettingsBackupView() }
         .sheet(isPresented: $showingMapTools) { MapToolSettingsView() }
     }
 

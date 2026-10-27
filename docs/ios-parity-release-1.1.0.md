@@ -1643,3 +1643,28 @@ parents ended naturally; owned simulator/feed off. This source stays local while
 hosted10940527505812 runs ona002f17; all three jobs are confirmed live in UI
 workflows. No live CI cancelled, server/credential changes or full-app/physical
 accessibility claim. Android release/main/claude-tak refs rechecked unchanged.
+
+
+### Settings backup/restore entry point,27 October
+
+[Settings backup](settings-backup.md) closes an Android SettingsScreen.kt gap:
+ordinary/protected backup and native Files restore are now available from the
+Settings sheet. Shared snapshot capture gives both Settings and waypoint actions
+the same saved sections, lane/quiet-boundary checks and refusal of partial
+unreadable data. Existing worker/crypto/provider/ordered additive restore paths
+are reused. Committing restore blocks sheet dismissal; cancellation never claims
+a saved file. Offline maps and active sessions remain separate.
+
+All46 scoped native integration cases pass, including two new full-section and
+unreadable-source preservation cases. Both new Settings native round trips pass
+(day and protected night), including deleted Recon records, wrong-password retry
+and exact relaunch counts. Both existing waypoint backup/quiet-boundary workflows
+pass. The final AccessibilityXXXL night control/cancel test passes with native
+swiping; display captures inspected. Earlier invalid-fixture and reveal failures
+remain documented, including the removed button-style candidate. Ten harness
+checks pass. Current-source unsigned phone/watch/widget Release succeeds in
+`/tmp/mgrsgps-settings-backup-current-release.log`; all local parents ended
+naturally and owned simulators/fake feeds are off. This stays local behind16fad42.
+Hosted109 ona002f17 now has map success and field failure; library122270959199
+remains live. The new field failure is next triage; no active job is cancelled,
+server/credential changes or full physical/provider claim.
