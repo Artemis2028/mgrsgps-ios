@@ -168,6 +168,8 @@ private struct PracticeActiveSplitsView: View {
                 time - (index == 0 ? active.startedAt : active.foundAt[index-1])
             }
             PracticeSplitsView(splits:splits)
+        } else if let completed = course.completion,completed.runID == runID {
+            PracticeSplitsView(splits:completed.result.splits)
         } else {
             Text("This course is no longer active.")
         }

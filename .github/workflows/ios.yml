@@ -247,7 +247,7 @@ jobs:
         run: |
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
-          python3 scripts/practice-test-route.py "$DEST" > /tmp/practice-route.log 2>&1 &
+          python3 scripts/practice-test-route.py "$DEST" "$GITHUB_WORKSPACE/practice-test.log" > /tmp/practice-route.log 2>&1 &
           PRACTICE_ROUTE_PID=$!
           cleanup_practice_route() {
             kill "$PRACTICE_ROUTE_PID" 2>/dev/null || true

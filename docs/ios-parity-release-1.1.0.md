@@ -1430,3 +1430,44 @@ pending. New PracticeLogWorkflowTests is discovered once in the library shard;
 no new UI class is silently omitted. All three107 artifacts have verified hashes.
 The draft PR is rewritten around current behavior and scoped local/hosted
 evidence. All local parents are reaped and owned devices/feeds off.
+
+
+### Live recorded-log completion retains its run, 27 October
+
+A new actual Core Location workflow reproduces a real issue in the newly
+introduced active split screen. Opening the recorded log after CP1 then scoring
+CP2 successfully saves history, but the destination changes to “This course is
+no longer active.” Initial `/tmp/mgrsgps-live-splits-before.xcresult` retains
+the failed40-second final-log assertion and hierarchy showing that text while
+the root banner says Course complete. No destination assertion is weakened.
+
+PracticeSession now publishes a transient completion containing the run ID and
+result together. Summary callers still see the same result. The live split
+destination can use only its own run's completed splits; new starts/dismissal
+clear completion, and an unrelated/ended run stays unavailable. Saved files,
+arrival rules, navigation locks, result retries and haptic feedback are unchanged.
+Android's completion/result behavior remains the reference.
+
+All33 native practice integration cases pass in
+`/tmp/mgrsgps-live-splits-final.xcresult`, including a new identical-name/start-
+time two-run ownership/clearance test and existing result failure/recovery. Two
+real-location UI cases also pass there: the new live-log transition and existing
+scoring/completion/history regression. Strengthened final transition validation
+passes again in `/tmp/mgrsgps-live-splits-durable-final.xcresult`: wait for the
+saved-completion banner, retain CP2, then Back/Done returns to exactly one
+history result. Before/after full-display screenshots are inspected.
+
+The test feed accepts optional host-log HOLD/ADVANCE/RELEASE markers with
+matching-run tokens and a120-second expiry. The test holds real simulator fixes
+at CP1 until the split screen opens, then moves to CP2. Normal alternating feeds
+are unchanged; no in-app GPS mock or scoring call is introduced. Both marker
+parser cases and the existing eight harness cases pass (ten total). The field
+practice step supplies its own log path for this dedicated test; current108
+uses the prior source and is not affected by this unpushed workflow change.
+
+Final unsigned phone/watch/widget Release passes in
+`/tmp/mgrsgps-live-splits-release.log`. No core change follows the prior521-case
+core result. Parents naturally exit; the owned simulator and fake feed are off.
+This follow-up stays local while full10840508823942 runs on7fbeab5; no active
+run cancelled/duplicated or TAK/server/credential change. Physical and wider
+watch/performance gates remain open.

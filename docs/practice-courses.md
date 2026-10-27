@@ -136,3 +136,9 @@ and Android's all-remaining-checkpoints pause policy are unchanged.
 Active checkpoint grids use the written MGRS zone/square/easting/northing
 groups, retaining the chosen precision. Day and global largest-text night
 checks keep all groups visible across relaunch.
+
+When the final checkpoint is scored while the recorded-split list is open,
+the same screen now shows the completed log. The transient completion includes
+the run ID, so an old screen cannot show another run with the same name/start
+time. Back/Done retains one history entry; new starts and dismissal clear the
+completion identity. No saved format or scoring rule changes.

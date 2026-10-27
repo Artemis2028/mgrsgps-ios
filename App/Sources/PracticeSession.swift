@@ -5,7 +5,12 @@ import SwiftUI
 @MainActor
 final class PracticeSession: ObservableObject {
     @Published private(set) var active: PracticeCourse?
-    @Published private(set) var summary: Backup.CourseResult?
+    struct Completion {
+        let runID: String
+        let result: Backup.CourseResult
+    }
+    @Published private(set) var completion: Completion?
+    var summary: Backup.CourseResult? { completion?.result }
     @Published private(set) var blockedByStorage = false
     @Published private(set) var finalizing = false
     @Published private(set) var working = false
@@ -190,7 +195,8 @@ final class PracticeSession: ObservableObject {
                     guard saved.active == course else { throw PracticeCourseError.invalid("The active course changed. Reopen it before finishing.") }
                     if try saved.publish(prepared) { break }
                 }
-                active = nil; summary = result; blockedByStorage = false; failedFinalizationRunID = nil
+                completion = .init(runID:course.runID,result:result)
+                active = nil; blockedByStorage = false; failedFinalizationRunID = nil
                 if let request = waypoints.beginPracticeSelection(waypoints.selectedId,locked: false) {
                     navigation.waitForPracticeTarget()
                     try await commitTarget(request) {
@@ -283,7 +289,7 @@ final class PracticeSession: ObservableObject {
                     if current != candidate { continue }
                     guard try saved.publish(prepared) else { continue }
                     active = candidate
-                    if case .start = retained { summary = nil; if navigation.progress != nil { navigation.stop() } }
+                    if case .start = retained { completion = nil; if navigation.progress != nil { navigation.stop() } }
                     if case .score = retained, foreground { scoreFeedback() }
                     working = false; operation = nil; reconcile()
                     let latest = queuedFix; queuedFix = nil
@@ -365,6 +371,6 @@ final class PracticeSession: ObservableObject {
             }
         } catch { self.error = error.localizedDescription }
     }
-    func dismissSummary() { summary = nil }
+    func dismissSummary() { completion = nil }
     private var millis: Int64 { Int64(now().timeIntervalSince1970*1000) }
 }

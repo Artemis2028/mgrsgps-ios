@@ -31,6 +31,27 @@ private final class PracticeGuideFeedback: NavigationFeedback {
 
 @MainActor
 final class PracticeIntegrationTests: XCTestCase {
+    func testCompletedSummaryRetainsRunIdentityAndNewStartClearsIt() async throws {
+        let f = try fixture()
+        let course = PracticeSession(directory:f.directory,waypoints:f.waypoints,field:f.field,navigation:f.navigation,now:{ Date(timeIntervalSince1970:1000) },uptime:{ 100 },scoreFeedback:{})
+        course.startFolder("Drill"); try await wait { !course.working }
+        let firstRun = try XCTUnwrap(course.active?.runID)
+        course.setForeground(true)
+        course.receive(fix(f.first)); try await wait { !course.working }
+        course.receive(fix(f.second)); try await wait { !course.working && !course.finalizing }
+        XCTAssertNil(course.active); XCTAssertEqual(course.completion?.runID,firstRun)
+        XCTAssertEqual(course.completion?.result,course.summary)
+        XCTAssertEqual(course.summary?.splits.count,2)
+        course.startFolder("Drill"); try await wait { !course.working }
+        let secondRun = try XCTUnwrap(course.active?.runID)
+        XCTAssertNotEqual(secondRun,firstRun); XCTAssertNil(course.completion); XCTAssertNil(course.summary)
+        course.receive(fix(f.first)); try await wait { !course.working }
+        course.receive(fix(f.second)); try await wait { !course.working && !course.finalizing }
+        // Same name and start timestamp cannot substitute for run ownership.
+        XCTAssertEqual(course.completion?.runID,secondRun)
+        XCTAssertNotEqual(course.completion?.runID,firstRun)
+        course.dismissSummary(); XCTAssertNil(course.completion); XCTAssertNil(course.summary)
+    }
     func testSavedCourseCannotScoreOrChangeTargetWhileFieldLibraryLoads() async throws {
         let f = try fixture(), original = PracticeSession(directory: f.directory,waypoints: f.waypoints,field: f.field,navigation: f.navigation)
         original.startFolder("Drill"); try await wait { !original.working }

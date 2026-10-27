@@ -61,6 +61,35 @@ final class PracticeWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Practice log"].waitForExistence(timeout: 5))
         capture("practice-history")
     }
+    func testRealCompletionWhileViewingRecordedSplitsRetainsFinalLog() {
+        let token = UUID().uuidString
+        print("PRACTICE_SPLITS_HOLD \(token)")
+        defer { print("PRACTICE_SPLITS_RELEASE \(token)") }
+        launch(); startFolder()
+        let link = app.buttons["practice-open-active-splits"]
+        XCTAssertTrue(link.waitForExistence(timeout:25),app.debugDescription)
+        tapNativeMenuItem(link)
+        XCTAssertTrue(app.navigationBars["Checkpoint splits"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"practice-split-1").firstMatch.exists)
+        capture("practice-live-split-before-completion")
+        print("PRACTICE_SPLITS_ADVANCE \(token)")
+        let complete = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in
+            let banner = self.app.buttons["practice-banner"]
+            return banner.exists && banner.label.contains("Course complete")
+        },object:app)
+        XCTAssertEqual(XCTWaiter.wait(for:[complete],timeout:40),.completed,app.debugDescription)
+        if app.staticTexts["Course complete"].exists { tapNativeMenuItem(app.buttons["practice-open-splits"]) }
+        let last = app.descendants(matching:.any).matching(identifier:"practice-split-2").firstMatch
+        XCTAssertTrue(last.waitForExistence(timeout:10)); XCTAssertTrue(last.isHittable)
+        XCTAssertFalse(app.staticTexts["This course is no longer active."].exists)
+        capture("practice-live-split-after-completion")
+        tapNativeMenuItem(app.navigationBars.buttons["Practice course"])
+        XCTAssertTrue(app.staticTexts["Course complete"].waitForExistence(timeout:10))
+        tapNativeMenuItem(app.buttons["practice-summary-done"])
+        tapNativeMenuItem(app.buttons["open-practice"])
+        XCTAssertTrue(app.staticTexts["Practice log"].waitForExistence(timeout:10))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format:"label CONTAINS %@","2 points · Drill")).count,1)
+    }
     private func failedStartRetry(night: Bool) {
         launch(["-uiTestPracticeFar","-uiTestPracticeProgressWriteFailure"] + (night ? ["-uiTestPracticeNight"] : []))
         startFolder(allowFailure: true)
