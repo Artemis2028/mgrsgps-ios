@@ -3,7 +3,7 @@ import XCTest
 final class BoundaryWorkflowTests: XCTestCase {
     private var app: XCUIApplication!
     override func setUpWithError() throws {
-        continueAfterFailure = false
+        continueAfterFailure = false; XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","map"]
         app.launch()
@@ -28,6 +28,24 @@ final class BoundaryWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["map-boundaries"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["boundary-draw-error"].exists,app.debugDescription)
     }
+    private func moveInsertedPointRepeatedly() {
+        for destination in [CGVector(dx:0.56,dy:0.48),CGVector(dx:0.46,dy:0.43),CGVector(dx:0.54,dy:0.46)] {
+            let before = app.staticTexts["boundary-selected-coordinate"].label
+            let point = app.buttons["boundary-point-1"]
+            XCTAssertTrue(point.waitForExistence(timeout:5))
+            // No preparatory tap: holding the visible point must be sufficient.
+            point.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.5)).press(forDuration:0.8,thenDragTo:app.coordinate(withNormalizedOffset:destination),withVelocity:.slow,thenHoldForDuration:0.3)
+            let changed = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label != %@",before),object:app.staticTexts["boundary-selected-coordinate"])
+            XCTAssertEqual(XCTWaiter.wait(for:[changed],timeout:5),.completed,app.debugDescription)
+            XCTAssertTrue(app.staticTexts["boundary-point-count"].label.hasPrefix("5 points"))
+        }
+        let grid = app.staticTexts["map-centre-grid"],before = grid.label
+        let coordinate = app.staticTexts["boundary-selected-coordinate"].label
+        app.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.26)).press(forDuration:0.1,thenDragTo:app.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.32)))
+        let panned = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label != %@",before),object:grid)
+        XCTAssertEqual(XCTWaiter.wait(for:[panned],timeout:5),.completed,"Map scrolling must be restored after the point is released")
+        XCTAssertEqual(app.staticTexts["boundary-selected-coordinate"].label,coordinate,"Panning changes the viewport, not the boundary")
+    }
     func testDrawStraightSidesInsertKinkMoveVertexSaveAndRelaunch() {
         draw()
         let vertex = app.buttons["boundary-point-0"]
@@ -41,11 +59,7 @@ final class BoundaryWorkflowTests: XCTestCase {
         let added = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","5 points"),object: app.staticTexts["boundary-point-count"])
         XCTAssertEqual(XCTWaiter.wait(for: [added],timeout: 5),.completed)
         XCTAssertFalse(app.buttons["Insert kink"].exists)
-        let before = app.staticTexts["boundary-selected-coordinate"].label
-        let kink = app.buttons["boundary-point-1"]
-        kink.coordinate(withNormalizedOffset: CGVector(dx: 0.5,dy: 0.5)).press(forDuration: 0.8,thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.56,dy: 0.48)),withVelocity: .slow,thenHoldForDuration: 0.3)
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: app.staticTexts["boundary-selected-coordinate"])
-        XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 5),.completed,app.debugDescription)
+        moveInsertedPointRepeatedly()
         capture("boundary-drawing-kink")
         save()
         app.buttons["map-boundaries"].tap()
@@ -111,6 +125,20 @@ final class BoundaryWorkflowTests: XCTestCase {
         app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
         app.buttons["map-boundaries"].tap()
         XCTAssertTrue(app.staticTexts["No boundaries saved"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["stop-boundary"].exists)
+    }
+
+    func testInsertedBoundaryPointDragsRepeatedlyInNightModeWithoutStartingMonitoring() {
+        app.buttons["Toggle map night mode"].tap(); draw()
+        let handle = app.buttons["boundary-midpoint-0"]
+        XCTAssertTrue(handle.waitForExistence(timeout:5)); XCTAssertEqual(handle.label,"Add point on boundary segment 1")
+        handle.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.5)).press(forDuration:0.8,thenDragTo:app.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.44)),withVelocity:.slow,thenHoldForDuration:0.3)
+        let inserted = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label BEGINSWITH %@","5 points"),object:app.staticTexts["boundary-point-count"])
+        XCTAssertEqual(XCTWaiter.wait(for:[inserted],timeout:5),.completed)
+        moveInsertedPointRepeatedly(); capture("boundary-repeated-point-drag-night"); save()
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
+        app.buttons["map-boundaries"].tap()
+        XCTAssertTrue(app.staticTexts["5 points · closed perimeter"].waitForExistence(timeout:5))
         XCTAssertFalse(app.buttons["stop-boundary"].exists)
     }
 

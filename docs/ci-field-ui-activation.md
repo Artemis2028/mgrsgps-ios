@@ -856,3 +856,17 @@ Locally held boundary worker persistence and marker-description changes have
 separate passing evidence. They do not change the existing native vertex-drag
 implementation or prove this hosted failure fixed. The settings follow-up also
 remains local pending the gesture repair. No active CI was cancelled.
+
+
+## Hosted103 point-drag follow-up
+
+The editor now owns each handle gesture and its source/callback, previews the
+line continuously, cancels stale/reused gestures and commits once on release.
+The original coordinate-change assertion is strengthened to three successive
+moves and preserved in day/night; a following pan must move the viewport without
+changing the boundary. Final local validation passes 338 native cases (four
+opt-in skips) and all ten boundary/graphic workflows. The captured route movie
+shows attached preview lines during movement. This is local evidence on23C52/
+Xcode27.1; the original hosted23C54 failure is not relabeled as a pass.
+[Exact artifacts and behavior](boundary-vertex-drag.md). The next full push/run
+will include the previously held boundary, marker and settings follow-ups too.

@@ -123,7 +123,7 @@ struct MapScreen: View {
                          rulerAnchor: rulerAnchor,
                          onRulerAnchor: { rulerAnchor = $0; selectedID = nil },
                          onRulerTarget: { if rulerTarget != $0 { rulerTarget = $0 } },
-                         boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],
+                         boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],boundaryIdentity: boundaryDraft?.id,
                          boundaryEditing: boundaryDraft != nil && !boundaryMutation.working, boundarySelection: boundaryDraft?.selected,
                          onBoundaryPoint: { point in
                              guard !boundaryMutation.working, boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
@@ -654,6 +654,7 @@ private struct MapContainer: UIViewRepresentable {
     let onRulerAnchor: (GeoPoint) -> Void
     let onRulerTarget: (GeoPoint) -> Void
     let boundaryPoints: [GeoPoint]
+    let boundaryIdentity: String?
     let boundaryEditing: Bool
     let boundarySelection: Int?
     let onBoundaryPoint: (GeoPoint) -> Void
@@ -724,7 +725,6 @@ private struct MapContainer: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.maps = mapStore
         coordinator.lassoActive = lassoActive
-        view.isScrollEnabled = !lassoActive; view.isZoomEnabled = !lassoActive; view.isRotateEnabled = !lassoActive
         coordinator.lasso.waypoints = waypoints; coordinator.lasso.graphics = document.graphics; coordinator.lasso.folders = folders
         coordinator.lasso.onSelect = onLassoSelect; coordinator.lasso.onVertexCount = onLassoVertices
         coordinator.lasso.update(active: lassoActive,selection: lassoSelection,night: nightMode,selectVisibleRequest: lassoVisibleRequest,finishLoopRequest: lassoFinishRequest)
@@ -740,8 +740,8 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.onSelect = onSelect
         coordinator.rulerActive = rulerAnchor != nil
         coordinator.onRulerAnchor = onRulerAnchor; coordinator.onRulerTarget = onRulerTarget
-        coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryEditing = boundaryEditing
-        coordinator.graphicEditing = graphicDraft != nil; coordinator.graphicSelection = graphicSelection; coordinator.graphicType = graphicDraft?.type
+        coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryIdentity = boundaryIdentity; coordinator.boundaryEditing = boundaryEditing
+        coordinator.currentGraphicDraft = graphicDraft; coordinator.graphicEditing = graphicDraft != nil; coordinator.graphicSelection = graphicSelection; coordinator.graphicType = graphicDraft?.type
         coordinator.graphicPoints = graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? []
         coordinator.onGraphicRemove = onGraphicRemove; coordinator.onBoundaryRemove = onBoundaryRemove
         coordinator.onGraphicPoint = onGraphicPoint; coordinator.onGraphicSelect = onGraphicSelect; coordinator.onGraphicMove = onGraphicMove; coordinator.onGraphicPick = onGraphicPick; coordinator.onGraphicInsert = onGraphicInsert
@@ -756,6 +756,9 @@ private struct MapContainer: UIViewRepresentable {
         coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,waypoints:laneWaypoints,night: nightMode)
         coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
         coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
+        coordinator.reconcileVertexPreview()
+        let cameraInteraction = !lassoActive && !coordinator.isVertexDragging
+        view.isScrollEnabled = cameraInteraction; view.isZoomEnabled = cameraInteraction; view.isRotateEnabled = cameraInteraction
         coordinator.overlay.nightMode = nightMode
         coordinator.overlay.enabled = mapStore.preferences.gridEnabled
         coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
@@ -816,7 +819,7 @@ private struct MapContainer: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ view: MLNMapView,coordinator: Coordinator) {
-        coordinator.pendingFit = nil; coordinator.fieldOverlay.onChange = nil; coordinator.fieldOverlay.onStatus = nil
+        coordinator.cancelVertexDrag(); coordinator.pendingFit = nil; coordinator.fieldOverlay.onChange = nil; coordinator.fieldOverlay.onStatus = nil
         coordinator.fieldOverlay.cancel()
     }
 
@@ -839,6 +842,47 @@ private struct MapContainer: UIViewRepresentable {
         var rulerActive = false
         var onRulerAnchor: ((GeoPoint) -> Void)?
         var onRulerTarget: ((GeoPoint) -> Void)?
+        var currentGraphicDraft: Backup.Graphic?
+        private var vertexPreview: (owner: String,sourceID: String?,geometry: BoundaryVertexPreview)?
+        private weak var activeVertexView: BoundaryVertexView?
+        var isVertexDragging: Bool { vertexPreview != nil }
+        func cancelVertexDrag() { activeVertexView?.cancelEditingDrag(); endVertexPreview() }
+        func reconcileVertexPreview() {
+            guard let preview = vertexPreview else { return }
+            let valid = preview.owner == "graphic"
+                ? graphicEditing && currentGraphicDraft?.id == preview.sourceID && graphicPoints == preview.geometry.source
+                : boundaryEditing && boundaryIdentity == preview.sourceID && boundaryPoints == preview.geometry.source
+            if !valid { cancelVertexDrag() } else { applyVertexPreview() }
+        }
+        private func beginVertexPreview(_ vertex: BoundaryVertexAnnotation,view: BoundaryVertexView?) {
+            activeVertexView = view
+            let source = vertex.owner == "graphic" ? graphicPoints : boundaryPoints
+            vertexPreview = (vertex.owner,vertex.owner == "graphic" ? currentGraphicDraft?.id : boundaryIdentity,
+                             .init(source: source,index: vertex.index,midpoint: vertex.isMidpoint,point: .init(lat: vertex.coordinate.latitude,lon: vertex.coordinate.longitude)))
+        }
+        private func vertexDragIsCurrent(_ vertex: BoundaryVertexAnnotation) -> Bool {
+            guard let preview = vertexPreview,preview.owner == vertex.owner,preview.geometry.index == vertex.index,preview.geometry.midpoint == vertex.isMidpoint else { return false }
+            if vertex.owner == "graphic" { return graphicEditing && currentGraphicDraft?.id == preview.sourceID && graphicPoints == preview.geometry.source }
+            return boundaryEditing && boundaryIdentity == preview.sourceID && boundaryPoints == preview.geometry.source
+        }
+        func applyVertexPreview() {
+            guard let preview = vertexPreview,let points = preview.geometry.points else { return }
+            if preview.owner == "graphic",graphicEditing,currentGraphicDraft?.id == preview.sourceID,graphicPoints == preview.geometry.source,var graphic = currentGraphicDraft {
+                graphic.points = points.map { .init(lat: $0.lat,lon: $0.lon) }; tactical.draft = graphic; tactical.setNeedsDisplay()
+            } else if preview.owner == "boundary",boundaryEditing,boundaryIdentity == preview.sourceID,boundaryPoints == preview.geometry.source {
+                boundaryOverlay.preview(points)
+            }
+        }
+        private func previewVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
+            guard vertexDragIsCurrent(vertex) else { return }
+            vertexPreview?.geometry.point = .init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude)); applyVertexPreview()
+        }
+        private func endVertexPreview() {
+            guard let preview = vertexPreview else { return }
+            vertexPreview = nil; activeVertexView = nil
+            if preview.owner == "boundary" { boundaryOverlay.preview(nil) }
+            else { tactical.draft = currentGraphicDraft; tactical.setNeedsDisplay() }
+        }
         var graphicType: String?
         var graphicPoints: [GeoPoint] = []
         weak var lineHold: UILongPressGestureRecognizer?
@@ -852,6 +896,7 @@ private struct MapContainer: UIViewRepresentable {
         var onGraphicMove: ((Int,GeoPoint) -> Void)?
         var onGraphicPick: ((Backup.Graphic) -> Void)?
         var boundaryPoints: [GeoPoint] = []
+        var boundaryIdentity: String?
         var boundaryEditing = false
         var boundarySelection: Int?
         var onBoundaryPoint: ((GeoPoint) -> Void)?
@@ -999,11 +1044,16 @@ private struct MapContainer: UIViewRepresentable {
                     if vertex.isMidpoint { self?.insertVertex(vertex,at: vertex.coordinate) }
                     else { self?.selectVertex(vertex) }
                 }
-                view.onDragStart = { [weak self] in self?.selectVertex(vertex) }
+                view.onDragStart = { [weak self,weak view] in self?.pendingFit = nil; self?.beginVertexPreview(vertex,view: view); self?.selectVertex(vertex) }
+                view.dragIsCurrent = { [weak self] in self?.vertexDragIsCurrent(vertex) ?? false }
+                view.onDragPreview = { [weak self] point in self?.previewVertex(vertex,at: point) }
+                view.onDragCancel = { [weak self] in self?.endVertexPreview() }
                 view.onDragEnd = { [weak self] point in
-                    if vertex.isMidpoint { self?.insertVertex(vertex,at: point); return }
+                    guard let self,self.vertexDragIsCurrent(vertex) else { return }
+                    self.endVertexPreview()
+                    if vertex.isMidpoint { self.insertVertex(vertex,at: point); return }
                     let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
-                    if vertex.owner == "graphic" { self?.onGraphicMove?(vertex.index,p) } else { self?.onBoundaryMove?(vertex.index,p) }
+                    if vertex.owner == "graphic" { self.onGraphicMove?(vertex.index,p) } else { self.onBoundaryMove?(vertex.index,p) }
                 }
                 return view
             }
@@ -1045,7 +1095,7 @@ private struct MapContainer: UIViewRepresentable {
             boundaryOverlay.install(style: style)
             graphicHandles.install(style: style)
             boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: mapView)
-            redraw(mapView)
+            reconcileVertexPreview(); redraw(mapView)
         }
 
         func insertVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {

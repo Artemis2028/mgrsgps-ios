@@ -34,11 +34,19 @@ final class GraphicWorkflowTests: XCTestCase {
         let added = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label BEGINSWITH %@","4 points"),object: app.staticTexts["graphic-point-count"])
         XCTAssertEqual(XCTWaiter.wait(for: [added],timeout: 5),.completed)
         XCTAssertFalse(app.buttons["Insert kink"].exists)
+        for destination in [CGVector(dx:0.47,dy:0.47),CGVector(dx:0.40,dy:0.43)] {
+            let coordinate = app.staticTexts["graphic-selected-coordinate"]
+            XCTAssertTrue(coordinate.waitForExistence(timeout:5)); let before = coordinate.label
+            app.buttons["graphic-point-1"].coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.5)).press(forDuration:0.8,thenDragTo:app.coordinate(withNormalizedOffset:destination))
+            let moved = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label != %@",before),object:coordinate)
+            XCTAssertEqual(XCTWaiter.wait(for:[moved],timeout:5),.completed,app.debugDescription)
+            XCTAssertTrue(app.staticTexts["graphic-point-count"].label.hasPrefix("4 points"))
+        }
         capture("map-route-drawing")
         saveGraphic()
         XCTAssertTrue(app.buttons["Not now"].waitForExistence(timeout: 5),app.debugDescription)
         capture("route-navigation-waypoint-offer"); app.buttons["Not now"].tap()
-        app.coordinate(withNormalizedOffset: .init(dx: 0.335,dy: 0.425)).tap()
+        app.coordinate(withNormalizedOffset: .init(dx: 0.40,dy: 0.43)).tap()
         XCTAssertTrue(app.buttons["save-graphic"].waitForExistence(timeout: 5), "Tapping a saved route opens its map editor")
         app.buttons["Cancel"].tap(); app.buttons["map-graphics"].tap()
         XCTAssertTrue(app.staticTexts["Route · 4 points · Base"].waitForExistence(timeout: 5))

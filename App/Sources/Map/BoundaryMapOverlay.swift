@@ -58,14 +58,15 @@ final class BoundaryMapOverlay {
             if let view = map.view(for: vertex) as? BoundaryVertexView { view.configure(index: vertex.index,selected: !vertex.isMidpoint && selected == vertex.index,night: night,owner: identifier,isMidpoint: vertex.isMidpoint) }
         }
     }
-    private func redraw(_ points: [GeoPoint],editing: Bool) {
+    func preview(_ points: [GeoPoint]?) { redraw(points ?? previous,editing: editing,preview: points != nil) }
+    private func redraw(_ points: [GeoPoint],editing: Bool,preview: Bool = false) {
         var features: [[String: Any]] = []
         if drawArea && points.count >= 2 {
             let closed = points.count >= 3 ? points + [points[0]] : points
             let segments = FieldMapGeometry.lineSegments(closed)
             features.append(["type":"Feature","properties":["kind":"line"],"geometry":["type":"MultiLineString","coordinates":segments.map { $0.map { [$0.lon,$0.lat] } }]])
             // Unwrap dateline polygons so the permitted fill stays local.
-            if points.count >= 3, (try? BoundaryGeometry(vertices: points)) != nil {
+            if !preview, points.count >= 3, (try? BoundaryGeometry(vertices: points)) != nil {
                 let ref = points[0].lon
                 let ring = (points + [points[0]]).map { p in [ref + ((p.lon-ref+540).truncatingRemainder(dividingBy: 360))-180,p.lat] }
                 features.append(["type":"Feature","properties":["kind":"area"],"geometry":["type":"Polygon","coordinates":[ring]]])
@@ -84,27 +85,112 @@ final class BoundaryVertexAnnotation: MLNPointAnnotation {
     init(index: Int,point: GeoPoint,owner: String = "boundary",isMidpoint: Bool = false) {
         self.index = index; self.owner = owner; self.isMidpoint = isMidpoint; super.init()
         coordinate = CLLocationCoordinate2D(latitude: point.lat,longitude: point.lon)
-        title = "\(owner.capitalized) point \(index + 1)"
+        title = isMidpoint ? "Add point on \(owner) segment \(index+1)" : "\(owner.capitalized) point \(index+1)"
     }
     required init?(coder: NSCoder) { fatalError("Created by boundary editor") }
 }
+/// Transient geometry for a drag. The source remains unchanged until release.
+struct BoundaryVertexPreview: Sendable {
+    let source: [GeoPoint]
+    let index: Int
+    let midpoint: Bool
+    var point: GeoPoint
+    var points: [GeoPoint]? {
+        guard source.indices.contains(index) else { return nil }
+        var copy = source
+        if midpoint { copy.insert(point,at: index+1) } else { copy[index] = point }
+        return copy
+    }
+}
+
+/// One accepted finger gesture owns its exact source and callback. Previewing
+/// never edits the draft; cancellation/reuse restores only that source object.
+@MainActor
+final class BoundaryVertexDrag {
+    private let annotation: BoundaryVertexAnnotation
+    private let origin: CLLocationCoordinate2D
+    private let commit: (CLLocationCoordinate2D) -> Void
+    private(set) var active = true
+    private let current: () -> Bool
+    init(annotation: BoundaryVertexAnnotation,current: @escaping () -> Bool = { true },commit: @escaping (CLLocationCoordinate2D) -> Void) {
+        self.annotation = annotation; origin = annotation.coordinate; self.current = current; self.commit = commit
+    }
+    func move(to coordinate: CLLocationCoordinate2D) {
+        guard active else { return }; guard current() else { cancel(); return }; annotation.coordinate = coordinate
+    }
+    func finish(at coordinate: CLLocationCoordinate2D) {
+        guard active else { return }; guard current() else { cancel(); return }; active = false
+        annotation.coordinate = coordinate; commit(coordinate)
+    }
+    func cancel() {
+        guard active else { return }; active = false; annotation.coordinate = origin
+    }
+}
+
 final class BoundaryVertexView: MLNAnnotationView {
     private let label = UILabel()
     var onSelect: (() -> Void)?
     var onDragStart: (() -> Void)?
-    @objc private func selectVertex() { onSelect?() }
-    override func accessibilityActivate() -> Bool { onSelect?(); return true }
     var onDragEnd: ((CLLocationCoordinate2D) -> Void)?
-    private var dragOrigin: CLLocationCoordinate2D?
-    override func setDragState(_ dragState: MLNAnnotationViewDragState,animated: Bool) {
-        if dragState == .starting { dragOrigin = annotation?.coordinate; onDragStart?() }
-        super.setDragState(dragState,animated: animated)
-        if dragState == .ending {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, let point = self.annotation?.coordinate else { return }
-                self.onDragEnd?(point)
-            }
-        } else if dragState == .canceling, let dragOrigin { (annotation as? MLNPointAnnotation)?.coordinate = dragOrigin }
+    var onDragPreview: ((CLLocationCoordinate2D) -> Void)?
+    var onDragCancel: (() -> Void)?
+    var dragIsCurrent: (() -> Bool)?
+    private var drag: BoundaryVertexDrag?
+    private weak var dragMap: MLNMapView?
+    private var previousInteraction: (scroll: Bool,zoom: Bool,rotate: Bool)?
+    private var grip = CGPoint.zero
+    @objc private func selectVertex() { onSelect?() }
+    override func accessibilityActivate() -> Bool { cancelDrag(); onSelect?(); return true }
+    private func restoreMapInteraction() {
+        if let previousInteraction {
+            dragMap?.isScrollEnabled = previousInteraction.scroll; dragMap?.isZoomEnabled = previousInteraction.zoom; dragMap?.isRotateEnabled = previousInteraction.rotate
+        }
+        previousInteraction = nil; dragMap = nil
+    }
+    private func cancelDrag() {
+        let hadDrag = drag != nil
+        drag?.cancel(); drag = nil; restoreMapInteraction()
+        if hadDrag { onDragCancel?() }
+    }
+    func cancelEditingDrag() { cancelDrag() }
+    override func prepareForReuse() {
+        cancelDrag(); onSelect = nil; onDragStart = nil; onDragEnd = nil; onDragPreview = nil; onDragCancel = nil; dragIsCurrent = nil
+        super.prepareForReuse()
+    }
+    override func willMove(toSuperview newSuperview: UIView?) {
+        if newSuperview == nil { cancelDrag() }
+        super.willMove(toSuperview: newSuperview)
+    }
+    @objc private func moveVertex(_ gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began {
+            guard gesture.numberOfTouches == 1 else { return }
+            var parent = superview
+            while parent != nil && !(parent is MLNMapView) { parent = parent?.superview }
+            guard let map = parent as? MLNMapView,let annotation = annotation as? BoundaryVertexAnnotation,let commit = onDragEnd else { return }
+            cancelDrag()
+            let touch = gesture.location(in: map),anchor = map.convert(annotation.coordinate,toPointTo: map)
+            grip = CGPoint(x: anchor.x-touch.x,y: anchor.y-touch.y)
+            dragMap = map; previousInteraction = (map.isScrollEnabled,map.isZoomEnabled,map.isRotateEnabled)
+            map.isScrollEnabled = false; map.isZoomEnabled = false; map.isRotateEnabled = false
+            onDragStart?()
+            drag = BoundaryVertexDrag(annotation: annotation,current: dragIsCurrent ?? { true },commit: commit)
+            return
+        }
+        guard let map = dragMap,let drag else { return }
+        guard dragIsCurrent?() ?? true else { cancelDrag(); return }
+        let touch = gesture.location(in: map)
+        let point = map.convert(CGPoint(x: touch.x+grip.x,y: touch.y+grip.y),toCoordinateFrom: map)
+        switch gesture.state {
+        case .changed:
+            guard gesture.numberOfTouches == 1 else { cancelDrag(); return }
+            drag.move(to: point); onDragPreview?(point)
+        case .ended:
+            // End interaction before publishing: publication can replace or
+            // recycle this annotation view during the same run-loop turn.
+            self.drag = nil; restoreMapInteraction(); drag.finish(at: point)
+        case .cancelled,.failed: cancelDrag()
+        default: break
+        }
     }
     override init(reuseIdentifier: String?) {
         super.init(reuseIdentifier: reuseIdentifier)
@@ -112,9 +198,12 @@ final class BoundaryVertexView: MLNAnnotationView {
         label.frame = CGRect(x: 6,y: 6,width: 32,height: 32)
         label.textAlignment = .center; label.font = .monospacedSystemFont(ofSize: 15,weight: .bold)
         label.layer.cornerRadius = 16; label.clipsToBounds = true
-        addSubview(label); isDraggable = true; isAccessibilityElement = true; accessibilityTraits = .button
+        addSubview(label); isDraggable = false; isAccessibilityElement = true; accessibilityTraits = .button
+        let hold = UILongPressGestureRecognizer(target: self,action: #selector(moveVertex(_:)))
+        hold.minimumPressDuration = 0.45; hold.numberOfTouchesRequired = 1
+        addGestureRecognizer(hold)
         let tap = UITapGestureRecognizer(target: self,action: #selector(selectVertex))
-        tap.cancelsTouchesInView = false; addGestureRecognizer(tap)
+        tap.cancelsTouchesInView = false; tap.require(toFail: hold); addGestureRecognizer(tap)
     }
     required init?(coder: NSCoder) { fatalError("Created by boundary editor") }
     func configure(index: Int, selected: Bool,night: Bool,owner: String = "boundary",isMidpoint: Bool = false) {
@@ -123,7 +212,7 @@ final class BoundaryVertexView: MLNAnnotationView {
         label.text = isMidpoint ? "+" : "\(index+1)"; label.textColor = selected ? .black : (night ? .systemRed : .white)
         label.backgroundColor = selected ? (night ? .systemRed : .systemOrange) : .black
         label.layer.borderWidth = 2; label.layer.borderColor = (night ? UIColor.systemRed : UIColor.systemOrange).cgColor
-        accessibilityLabel = isMidpoint ? "Add point on segment \(index+1)" : "\(owner.capitalized) point \(index+1)"
+        accessibilityLabel = isMidpoint ? "Add point on \(owner) segment \(index+1)" : "\(owner.capitalized) point \(index+1)"
         accessibilityIdentifier = "\(owner)-\(isMidpoint ? "midpoint" : "point")-\(index)"
         accessibilityValue = isMidpoint ? "Long-press and drag to add a point. Double-tap to insert here." : (selected ? "Selected. Drag to move. Add point inserts after this point." : "Tap to select. Long-press and drag to move.")
     }

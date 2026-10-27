@@ -852,3 +852,19 @@ map passes; field integration/UI, fix expiry/recovery and GPS course/speed pass,
 but boundary inserted-point movement fails. Library also completes successfully;
 hosted103 is fully terminal. The failure
 requires a gesture follow-up; local persistence success does not close it.
+
+
+### Reliable point dragging and live line feedback — 27 October 2026
+
+Boundary and route handles now own a native hold/drag transaction with current
+draft/source guards, grip preservation, viewport-interaction restoration and
+transient line previews. Release publishes once; cancel/reuse/source replacement
+restores the point. Midpoints retain direct insertion and accurate accessibility
+titles. The formerly failing workflow now requires three moves without a
+preparatory tap in day/night, then viewport panning without changing the geometry.
+Full native validation runs 338 cases with four skips and no failures, followed
+by all ten boundary/graphic UI workflows passing. Actual preview recording and
+screenshots inspected; eight harness checks pass. See
+[drag evidence and limits](boundary-vertex-drag.md). Final device Release passes
+and all owned devices/feeds/captures are off. Hosted verification on the new
+source remains open.
