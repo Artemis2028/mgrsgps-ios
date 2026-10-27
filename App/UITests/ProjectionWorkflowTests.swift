@@ -20,7 +20,7 @@ final class ProjectionWorkflowTests: XCTestCase {
     }
     private func project() {
         let method = app.segmentedControls["waypoint-position-method"]
-        reveal(method); XCTAssertTrue(method.waitForExistence(timeout: 5)); tapNativeMenuItem(method.buttons["Project"])
+        reveal(method); XCTAssertTrue(method.waitForExistence(timeout: 5)); selectNativeSegment(method.buttons["Project"])
         tapNativeMenuItem(app.buttons["projection-base"])
         tapNativeMenuItem(app.buttons["projection-base-West observer"].firstMatch)
         let base = app.buttons["projection-base"]
@@ -54,7 +54,7 @@ final class ProjectionWorkflowTests: XCTestCase {
         reveal(preview); XCTAssertTrue(preview.waitForExistence(timeout: 5)); XCTAssertNotEqual(preview.label,original)
         XCTAssertTrue(app.buttons["waypoint-save"].isEnabled); capture("waypoint-projection-night-valid")
         reveal(app.segmentedControls["waypoint-position-method"])
-        tapNativeMenuItem(app.segmentedControls["waypoint-position-method"].buttons["Coordinate"])
+        selectNativeSegment(app.segmentedControls["waypoint-position-method"].buttons["Coordinate"])
         reveal(preview); XCTAssertEqual(preview.label,original); XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
         app.buttons["waypoint-save"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-West observer"].waitForExistence(timeout: 5))

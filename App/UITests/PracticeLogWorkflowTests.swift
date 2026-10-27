@@ -4,11 +4,25 @@ final class PracticeLogWorkflowTests: XCTestCase {
     override func setUp() { super.setUp(); continueAfterFailure = false }
     private func reveal(_ element: XCUIElement,in app: XCUIApplication) {
         for _ in 0..<24 {
-            let top = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY + 8 : app.windows.firstMatch.frame.minY + 60
-            let bottom = app.windows.firstMatch.frame.maxY - 35
-            if element.exists,element.isHittable,element.frame.minY >= top,element.frame.maxY <= bottom { return }
             let surface = app.collectionViews.allElementsBoundByIndex.last ?? app.scrollViews.firstMatch
-            if element.exists,element.frame.midY < top { surface.swipeDown() } else { surface.swipeUp() }
+            let header = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY + 8 : app.windows.firstMatch.frame.minY + 60
+            let top = max(header,surface.frame.minY)
+            let bottom = min(app.windows.firstMatch.frame.maxY - 35,surface.frame.maxY)
+            if element.exists,element.isHittable,element.frame.minY >= top,element.frame.maxY <= bottom { return }
+            if element.exists,element.frame.height <= bottom-top {
+                // Full-screen swipes can oscillate around a tall row at the
+                // bottom of a large-text sheet. Move only the missing distance
+                // inside the sheet's unobscured viewport, then let it settle.
+                let needed = element.frame.minY < top ? top-element.frame.minY+12 : bottom-element.frame.maxY-12
+                let limit = (bottom-top)*0.6
+                let delta = min(limit,max(-limit,needed))
+                // Centre both ends in the content viewport. Starting near
+                // the bottom can hit Navigate's floating tab controls instead.
+                let startY = (top+bottom)/2-delta/2
+                let start = surface.coordinate(withNormalizedOffset:.zero).withOffset(.init(dx:surface.frame.width/2,dy:startY-surface.frame.minY))
+                let finish = start.withOffset(.init(dx:0,dy:delta))
+                start.press(forDuration:0.1,thenDragTo:finish,withVelocity:.slow,thenHoldForDuration:0.3)
+            } else { surface.swipeUp() }
         }
         XCTFail("Saved course control is not fully visible: " + app.debugDescription)
     }
@@ -80,7 +94,11 @@ final class PracticeLogWorkflowTests: XCTestCase {
         tapNativeMenuItem(app.navigationBars.buttons["Practice course"])
         let end = app.buttons["practice-end"]; reveal(end,in:app); tapNativeMenuItem(end)
         tapNativeMenuItem(app.buttons["End course"])
-        XCTAssertTrue(app.buttons["practice-start"].waitForExistence(timeout:15))
+        let create = app.staticTexts["Create course"]
+        XCTAssertTrue(create.waitForExistence(timeout:15),app.debugDescription)
+        let start = app.buttons["practice-start"]
+        reveal(start,in:app); XCTAssertTrue(start.exists); XCTAssertTrue(start.isHittable)
+        capture(night ? "active-course-ended-largest-night" : "active-course-ended-day")
     }
     func testLongActiveCourseKeepsControlsReachableAndAllRecordedSplits() { activeLog(night:false) }
     func testLongActiveCourseLargestNightPreservesProgressAndControls() { activeLog(night:true) }

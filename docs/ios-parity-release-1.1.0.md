@@ -25,9 +25,13 @@ digests and representative captures are verified. This validates that pushed sou
 Subsequent local follow-ups below cover accessible waypoint cards, cached
 practice folder eligibility, complete finished/active split lists, large-course
 missing-checkpoint validation and recording-handoff work. The latest local
-core suite passes521 cases; scoped native UI, screenshots, final device Release
-and eight harness checks are recorded with each milestone. The newer source
-still needs its next full hosted run. No live job is cancelled or duplicated.
+core suite passes532 cases; scoped native UI, screenshots, final device Release
+and ten harness checks are recorded with each milestone. Hosted108 on7fbeab5
+is terminal: map passes; two field activation cases and one largest-night course
+visibility case fail. Dedicated field background checks were skipped after the
+UI failure. Later local live-completion, write-source, orphan-maintenance and
+pace-entry work is outside that hosted source. Repairs are being validated;
+no live job is cancelled or duplicated.
 
 Local saved-library follow-up, 27 October: worker reads now retain source
 metadata and validate it again before publication. Index replacement, a new v2
@@ -1582,3 +1586,26 @@ largest-night active-course control visibility check. Dedicated field background
 steps were skipped after its UI failure. Both field failures pass locally on the
 current product with unchanged test helpers (`/tmp/mgrsgps-ci108-local-before.xcresult`);
 that does not resolve the hosted failures. Artifact/tree investigation continues.
+
+
+### Hosted108 repairs and night tactical labels, 27 October
+
+[Hosted108 evidence and repairs](hosted108-repairs.md) records all three
+verified artifact hashes, actual native failure recordings/trees, unchanged local
+reproductions and two retained failed reveal candidates. Projection acknowledges
+native segment selection. Files activates the matching filename leaf. Course
+reveal uses bounded centred drags and requires the post-End Start control fully
+visible. All nine Files/export cases, two projection cases and all four saved/
+active long-course cases pass across the scoped final/source-compatible bundles.
+The last run includes final-source day/largest-night active course checks,
+terrain LOS/profile/viewshed and five tactical rendering cases. Full hosted
+confirmation remains required.
+
+The green hosted map screenshot exposed a real label contrast gap over night
+viewshed shading. Tactical names and leg numbers now use bright-red-on-black
+labels while geometry retains Android affiliation colors and hostile ENY suffix.
+The phone/watch shared renderer and exact original route numbering stay intact;
+final30-type contact sheet and actual viewshed captures are inspected. Unsigned
+phone/watch/widget Release and ten harness checks pass; no new paired-watch or
+physical-device claim. All local parents exited naturally; owned simulator/feed
+off. No TAK server or credential changes.

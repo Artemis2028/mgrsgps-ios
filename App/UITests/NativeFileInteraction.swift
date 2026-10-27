@@ -49,11 +49,19 @@ extension XCTestCase {
             item = files.cells.containing(match).firstMatch
         }
         let tabs = app.tabBars["DOC.browsingModeTabBar"]
+        // A provider can expose an enclosing cell whose activation point is
+        // the search bar. Prefer the actual filename leaf in this File View;
+        // keep the cell fallback for providers that combine row accessibility.
+        func target() -> XCUIElement {
+            let filename = item.staticTexts.matching(match).firstMatch
+            return filename.exists ? filename : item
+        }
         func unobscured() -> Bool {
-            guard item.exists && item.isHittable else { return false }
+            let visible = target()
+            guard visible.exists && visible.isHittable else { return false }
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
             let bottom = tabs.exists ? tabs.frame.minY : files.frame.maxY
-            let iconY = item.frame.minY+item.frame.height*0.25
+            let iconY = target().frame.midY
             return iconY > top+8 && iconY < bottom-8
         }
         func scroll(down: Bool) {
@@ -73,26 +81,25 @@ extension XCTestCase {
         for _ in 0..<16 {
             if unobscured() { break }
             let top = navigation.exists ? navigation.frame.maxY : files.frame.minY
-            scroll(down: item.exists && item.frame.minY+item.frame.height*0.25 < top+8)
+            scroll(down: item.exists && target().frame.midY < top+8)
         }
         XCTAssertTrue(item.exists,app.debugDescription,file: file,line: line)
         XCTAssertTrue(unobscured(),app.debugDescription,file: file,line: line)
-        // In icon view the cell centre is the filename's upper edge. Hosted
-        // Files can leave that text tap unhandled. Open the visible thumbnail,
-        // using the collection view's valid space if the app AX origin is invalid.
+        // Activate the resolved filename in the collection view's valid
+        // coordinate space, even when the app AX origin is invalid.
         for attempt in 0..<3 {
             if attempt == 0 {
-                let point = CGPoint(x: item.frame.midX,y: item.frame.minY+item.frame.height*0.25)
+                let point = CGPoint(x: target().frame.midX,y: target().frame.midY)
                 files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: point.x-files.frame.minX,dy: point.y-files.frame.minY)).tap()
             } else if attempt == 1 {
                 // The hosted collection can retain a valid frame yet ignore
                 // coordinate activation. Re-resolve this exact cell and use
                 // UIKit's native hit point while the same picker remains.
-                item.tap()
+                target().tap()
             } else {
                 // If single activation leaves the same provider visible,
                 // try its native double-tap opening gesture on that exact row.
-                item.doubleTap()
+                target().doubleTap()
             }
             // Files can ignore the first thumbnail tap while finishing its
             // provider transition. Acknowledge dismissal before proceeding;
@@ -100,7 +107,7 @@ extension XCTestCase {
             let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !files.exists },object: nil)
             if XCTWaiter.wait(for: [dismissed],timeout: 10) == .completed { return }
         }
-        XCTAssertFalse(files.exists,"The selected file did not leave the native picker",file: file,line: line)
+        XCTAssertFalse(files.exists,"The selected file did not leave the native picker: " + app.debugDescription,file: file,line: line)
     }
 
     func chooseNativeExportLocation(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
