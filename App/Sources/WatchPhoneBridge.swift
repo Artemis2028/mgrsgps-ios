@@ -188,6 +188,32 @@ extension WatchPhoneBridge {
         guard args.contains("-uiTesting") else { return }
         if args.contains("-uiTestWatchMapClear") { store.setFolderVisible(Folders.defaultFolder, visible: false); return }
         guard args.contains("-uiTestWatchMap") else { return }
+        if args.contains("-uiTestWatchTactical") {
+            for point in store.waypoints { store.setVisible(id:point.id,visible:false) }
+            let values: [(String,[(Double,Double)])]
+            if args.contains("-uiTestWatchTacticalDateline") {
+                values = [("wire",[(10.0005,179.999),(10,-179.999),(10.0005,-179.997)])]
+            } else {
+                values = [
+                    ("axis",[(24.456,54.3748),(24.4563,54.3757),(24.456,54.3766)]),
+                    ("wire",[(24.456,54.3776),(24.4563,54.3785),(24.456,54.3794)]),
+                    ("screen_l",[(24.4545,54.3748),(24.4548,54.3757),(24.4545,54.3766)]),
+                    ("strongpoint",[(24.4545,54.3776),(24.4548,54.3785),(24.4543,54.3794)]),
+                    ("route",[(24.453,54.3748),(24.4533,54.3757),(24.453,54.3766)]),
+                    ("minefield",[(24.453,54.3776),(24.4533,54.3785),(24.4528,54.3794)])
+                ]
+            }
+            for (index,item) in values.enumerated() {
+                try? field.saveGraphic(.init(id:"watch-tactical-\(index)",name:item.0,type:item.0,
+                                            points:item.1.map { .init(lat:$0.0,lon:$0.1) },affiliation:index%2 == 0 ? "friendly" : "hostile",echelon:"bn"))
+                if index < 2,let start = item.1.first,let end = item.1.last {
+                    for (label,point) in [("START",start),("END",end)] {
+                        _ = store.add(.init(name:"\(item.0) \(label)",lat:point.0,lon:point.1,symbol:"dot"))
+                    }
+                }
+            }
+            return
+        }
         if args.contains("-uiTestWatchSymbols") {
             for point in store.waypoints where point.name == "SYNTHETIC RALLY" { store.setVisible(id:point.id,visible:false) }
             let entries: [(String,String,String,String,Double,WaypointMetadata)] = [

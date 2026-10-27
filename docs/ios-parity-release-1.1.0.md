@@ -753,5 +753,20 @@ mission-task paths with named text badges. It preserves directional rotation,
 upright S/G/C badges, basic affiliation frames, echelon artwork and imported
 shapes/characters. Native utility glyphs retain system rendering differences.
 [Android source comparison, native bitmap checks and paired screenshots](watch-symbol-artwork.md).
-Decorative tactical path/area rendering, watch alerts/background guidance and
-phone offline-pack/terrain transfer remain implementation gaps.
+The subsequent tactical drawing milestone below closes decorative path/area
+rendering. Watch alerts/background guidance and phone offline-pack/terrain
+transfer remain implementation gaps.
+
+
+## watchOS tactical control-measure drawing
+
+All 30 phone tactical graphic drawings now compile for watchOS rather than
+reducing field graphics to plain polylines/polygons. Actual MapProxy coordinates
+plus nearest-world unwrapping retain bends across the date line; continuous
+camera updates keep decoration aligned during pan/zoom. The transparent layer
+keeps gestures, native Legal attribution and the fresh own-location marker
+available. Quiet-inside fences, L/R/BS lanes, tracks and TAK remain their
+separate layers. [Source comparison, six native checks and paired screenshots](watch-tactical-graphics.md).
+Phone offline/terrain transfer and independent watch alerts/background guidance
+remain implementation gaps; physical rendering/battery/resource checks remain
+open. Full hosted102 has new field/map UI failures under investigation.

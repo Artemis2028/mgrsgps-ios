@@ -71,8 +71,9 @@ TAK server, key, credential or real location is involved.
 
 ## Still missing
 
-Decorative tactical teeth/arrows/control measures on watch paths/areas, MGRS
-grid/terrain/contours/viewshed layers, custom tiles/offline-pack transfer and
+The subsequent [tactical drawing milestone](watch-tactical-graphics.md) closes
+the decorative path/area rendering gap. MGRS grid/terrain/contours/viewshed
+layers, custom tiles/offline-pack transfer and
 independent watch boundary/haptic/background guidance remain implementation
 gaps. Physical wrist/touch readability, radio, battery and resource-pressure
 checks remain open. The broader iOS parity goal and real enrolled TAK gate

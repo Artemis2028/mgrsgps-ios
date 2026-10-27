@@ -179,6 +179,8 @@ targets:
     sources:
       - path: Watch/Sources
       - path: App/Sources/MilitarySymbolArtwork.swift
+      - path: App/Sources/Map/TacticalGraphicCanvas.swift
+      - path: App/Sources/Map/WatchGraphicProjection.swift
       - path: Watch/Resources
         buildPhase: resources
       - path: App/Resources/MilitarySymbols

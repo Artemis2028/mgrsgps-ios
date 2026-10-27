@@ -24,7 +24,7 @@ Current map implementation differences:
 - watchOS uses Apple Maps and opens its interactive map full-screen from the third Map page. Wear OS uses OSM browse tiles with attribution and an MGRS grid toggle. Neither transfers phone MBTiles, downloaded map areas, contours, DEMs or viewsheds.
 - Both retain a bounded copy of field overlays. Basemap caches are controlled separately and do not guarantee offline coverage.
 - watchOS additionally receives the iOS phone's displayed quiet-inside perimeter. The Android reference has no matching custom perimeter store; Wear renders its ordinary tactical boundary/area graphics.
-- Wear reuses Android's tactical renderer. watchOS now shares the iOS phone's military marker artwork (496 NATO assets, 20 task symbols, affiliation frames, echelons and imported characters). Native utility glyphs use the same SF names as iOS. Decorative control-measure details on lines/areas remain simplified. See [marker evidence](watch-symbol-artwork.md) and the watch README for the exact rendering limits.
+- Wear reuses Android's tactical renderer. watchOS now shares the iOS phone's military marker artwork (496 NATO assets, 20 task symbols, affiliation frames, echelons and imported characters). Native utility glyphs use the same SF names as iOS. watchOS also shares all 30 iOS tactical control-measure drawings, projected by MapProxy and continuously updated with the camera. See [marker evidence](watch-symbol-artwork.md), [tactical rendering evidence](watch-tactical-graphics.md) and the watch README for exact limits.
 
 ## Navigation-lane map milestone
 

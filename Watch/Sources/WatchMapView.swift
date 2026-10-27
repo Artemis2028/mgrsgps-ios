@@ -10,6 +10,7 @@ struct WatchMapView: View {
     var closeMap: () -> Void = {}
     @State private var camera: MapCameraPosition = .automatic
     @State private var region: MKCoordinateRegion?
+    @State private var visibleMapRect: MKMapRect?
     @State private var following = true
     @State private var hasCentered = false
     @State private var showInfo = false
@@ -20,53 +21,67 @@ struct WatchMapView: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             let fresh = usable(at: timeline.date)
-            Map(position: $camera, interactionModes: [.pan, .zoom]) {
-                ForEach(model.mapSnapshot?.waypoints ?? []) { point in
-                    Annotation(point.name, coordinate: coordinate(point.coordinate)) {
-                        WatchMapMarker(point: point, night: night, showName: showsNames || point.id == model.snapshot.target?.id)
-                    }.annotationTitles(.hidden)
+            MapReader { proxy in
+                Map(position: $camera, interactionModes: [.pan, .zoom]) {
+                    ForEach(model.mapSnapshot?.waypoints ?? []) { point in
+                        Annotation(point.name, coordinate: coordinate(point.coordinate)) {
+                            WatchMapMarker(point: point, night: night, showName: showsNames || point.id == model.snapshot.target?.id)
+                        }.annotationTitles(.hidden)
+                    }
+                    ForEach(model.mapSnapshot?.laneOverlays ?? []) { lane in laneContent(lane) }
+                    ForEach(model.mapSnapshot?.features ?? [], id: \.renderID) { feature in
+                        if feature.kind != "graphic" { featureContent(feature) }
+                    }
+                    ForEach(model.remoteItems(at:timeline.date)) { item in remoteContent(item) }
+                    if fresh, let fix = model.fix {
+                        Annotation("Watch location", coordinate: fix.coordinate, anchor: .center) {
+                            Circle().fill(night ? .red : .cyan).frame(width: 9, height: 9)
+                                .overlay(Circle().stroke(.black, lineWidth: 2))
+                                .accessibilityLabel("Fresh watch location")
+                        }.annotationTitles(.hidden)
+                    }
                 }
-                ForEach(model.mapSnapshot?.laneOverlays ?? []) { lane in laneContent(lane) }
-                ForEach(model.mapSnapshot?.features ?? [], id: \.renderID) { feature in
-                    featureContent(feature)
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
+                .colorMultiply(night ? .red : .white)
+                .overlay {
+                    WatchTacticalGraphicLayer(features:model.mapSnapshot?.features ?? [],proxy:proxy,mapRect:visibleMapRect,night:night,showsNames:showsNames,ownLocation:fresh ? model.fix?.coordinate : nil)
                 }
-                ForEach(model.remoteItems(at:timeline.date)) { item in remoteContent(item) }
-                if fresh, let fix = model.fix {
-                    Annotation("Watch location", coordinate: fix.coordinate, anchor: .center) {
-                        Circle().fill(night ? .red : .cyan).frame(width: 9, height: 9)
-                            .overlay(Circle().stroke(.black, lineWidth: 2))
-                            .accessibilityLabel("Fresh watch location")
-                    }.annotationTitles(.hidden)
+                .onMapCameraChange(frequency: .continuous) { context in
+                    region = context.region
+                    visibleMapRect = context.rect
+                    if camera.positionedByUser { following = false }
+                    #if DEBUG
+                    let args = ProcessInfo.processInfo.arguments
+                    if !appliedFixture,args.contains("-watchUITesting"),args.contains("-watchMapOverlayPan") {
+                        appliedFixture = true; following = false
+                        camera = .region(.init(center:.init(latitude:context.region.center.latitude+0.0007,
+                                                            longitude:TerrainGeometry.wrap(context.region.center.longitude+0.0007)),
+                                               span:.init(latitudeDelta:context.region.span.latitudeDelta*0.75,
+                                                          longitudeDelta:context.region.span.longitudeDelta*0.75)))
+                    }
+                    if args.contains("-watchUITesting") {
+                        NSLog("GridFix map center %.6f %.6f span %.6f follow %@", context.region.center.latitude, context.region.center.longitude, context.region.span.latitudeDelta, following ? "yes" : "no")
+                    }
+                    #endif
                 }
-            }
-            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
-            .colorMultiply(night ? .red : .white)
-            .onMapCameraChange(frequency: .onEnd) { context in
-                region = context.region
-                if camera.positionedByUser { following = false }
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("-watchUITesting") {
-                    NSLog("GridFix map center %.6f %.6f span %.6f follow %@", context.region.center.latitude, context.region.center.longitude, context.region.span.latitudeDelta, following ? "yes" : "no")
+                .overlay(alignment: .topLeading) {
+                    HStack(spacing: 3) {
+                        Button { showInfo = true } label: {
+                            Image(systemName: "info.circle").frame(width: 28, height: 24)
+                                .background(.black.opacity(0.65), in: Circle())
+                        }.buttonStyle(.plain).accessibilityLabel("Map sync, limits and basemap details")
+                        Text(fresh ? (following ? "WATCH FIX" : "BROWSING") : model.usable(at: timeline.date) ? "OUTSIDE MAP RANGE" : "NO FRESH FIX")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.7)
+                            .padding(3).background(.black.opacity(0.65), in: Capsule())
+                    }.padding(.leading, 2).foregroundStyle(accent)
                 }
-                #endif
-            }
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: 3) {
-                    Button { showInfo = true } label: {
-                        Image(systemName: "info.circle").frame(width: 28, height: 24)
-                            .background(.black.opacity(0.65), in: Circle())
-                    }.buttonStyle(.plain).accessibilityLabel("Map sync, limits and basemap details")
-                    Text(fresh ? (following ? "WATCH FIX" : "BROWSING") : model.usable(at: timeline.date) ? "OUTSIDE MAP RANGE" : "NO FRESH FIX")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.7)
-                        .padding(3).background(.black.opacity(0.65), in: Capsule())
-                }.padding(.leading, 2).foregroundStyle(accent)
-            }
-            .overlay(alignment: .trailing) {
-                VStack(spacing: 0) {
-                    mapButton("plus.magnifyingglass", label: "Zoom in") { zoom(0.5) }
-                    mapButton("minus.magnifyingglass", label: "Zoom out") { zoom(2) }
-                    mapButton("location.fill", label: "Recenter on fresh watch location") { recenter() }.disabled(!fresh)
-                }.foregroundStyle(accent).padding(.trailing, 2)
+                .overlay(alignment: .trailing) {
+                    VStack(spacing: 0) {
+                        mapButton("plus.magnifyingglass", label: "Zoom in") { zoom(0.5) }
+                        mapButton("minus.magnifyingglass", label: "Zoom out") { zoom(2) }
+                        mapButton("location.fill", label: "Recenter on fresh watch location") { recenter() }.disabled(!fresh)
+                    }.foregroundStyle(accent).padding(.trailing, 2)
+                }
             }
         }
         .onAppear { if following { if usable(at: Date()) { recenter() } else { fitOverlay() } } }
@@ -247,7 +262,7 @@ struct WatchMapView: View {
                     Text(String(format: "±%.0f m · ", fix.horizontalAccuracy) + WatchFixPolicy.ageLabel(date.timeIntervalSince(fix.timestamp)))
                 }
                 Text("L/R = lane side limits · BS = backstop. Shading is a cached phone lane, not a watch crossing detector.")
-                Text("F = displayed fence · TRK = track · R = route · RG = range ring · A = area. Zoom closer for names.")
+                Text("F = displayed fence · TRK = track. Tactical symbols and route leg numbers match the phone. Simplified routes omit leg numbers because one displayed segment may span several original legs. Zoom closer for names.")
                 if let snapshot = model.mapSnapshot {
                     ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + MilitarySymbols.label(point.symbol)) }
                     ForEach(snapshot.laneOverlays) { lane in
@@ -257,7 +272,7 @@ struct WatchMapView: View {
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
                 Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")
-                Text("NATO unit PNGs and mission-task artwork match the phone. Directional tasks rotate; S/G/C letter badges and labels stay upright. Basic affiliation frames, echelon marks and imported MilGPS shapes, characters and colors use the shared artwork. Unknown keys use a question-mark glyph. Typed field paths/areas, sectors and range rings are drawn; tactical decorative teeth/arrows are not reproduced. No boundary alerts run on watch.")
+                Text("NATO unit PNGs and mission-task artwork match the phone. Directional tasks rotate; S/G/C letter badges and labels stay upright. Basic affiliation frames, echelon marks and imported MilGPS shapes, characters and colors use the shared artwork. Unknown keys use a question-mark glyph. All 30 phone tactical control measures share its drawing code: attack arrows, wire/obstacle marks, screen/guard/cover badges, numbered route legs, areas, sectors and range rings. The Legal control stays clear of artwork. No boundary alerts run on watch.")
                 Text("Remote cap: 8 KiB / 64 items / 384 vertices, at most 128 per drawing. Whole drawings are omitted, never simplified. Local overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
                 Button("Position grid") { showInfo = false; showPosition() }
                 Button("Close map") { showInfo = false; closeMap() }
