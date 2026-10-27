@@ -1668,3 +1668,18 @@ naturally and owned simulators/fake feeds are off. This stays local behind16fad4
 Hosted109 ona002f17 now has map success and field failure; library122270959199
 remains live. The new field failure is next triage; no active job is cancelled,
 server/credential changes or full physical/provider claim.
+
+### Hosted109 partial outcome,27 October
+
+On pusheda002f17, map122270958719 passes41 UI cases. Field122270958991
+passes350 native cases (four opt-in skips) but its36 main UI cases have one
+failure (five TAK opt-in skips): large GPX stays in the native Files picker.
+The filename-leaf candidate did not fix this hosted activation. Dedicated
+background/practice steps were skipped. The new failure tree shows a local,
+List-mode file row187...251pt with its filename199.7...220pt; artifact/movie
+inspection remains required before choosing another repair. Field artifact
+12749242138 (459,954,694 bytes), expected SHA-256
+`2159317e76d676f8382056b3d4dcfb5233725b20f2725e561b47a389b82df88c`,
+is downloading to `/tmp/mgrsgps-ci109-field.zip`; digest verification is pending.
+Library122270959199 remains live, so there is no whole-run outcome or new push.
+Local16fad42 and31bb327 stay held; draft PR updated, no active run cancelled.
