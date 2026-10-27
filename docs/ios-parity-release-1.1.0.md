@@ -13,6 +13,15 @@ now includes optional lane backup/restore and shared screen/text/PDF leg limits;
 read-only phone guidance and a separate TAK watch scene are implemented; Android 4db6b21 startup/cue switches
 are now implemented. It does not replace the separate quiet-inside perimeter.
 
+Current validation checkpoint, 27 October: hosted105 is terminal with six UI
+failures. Their artifacts are retrieved and verified. A local repair passes
+346 native cases (four opt-in skips),24 distinct UI workflows across recorded
+bundles, unsigned phone/watch/widget Release and eight harness checks. It fixes
+rapid drawing tap loss and prevents a second choice from replacing an export
+intent during dismissal. Native activation/keyboard acknowledgments retain
+complete count, password, coordinate and persistence assertions. Full hosted
+revalidation is still required; see [exact evidence](ci-field-ui-activation.md).
+
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |
@@ -986,3 +995,22 @@ activation. Logs retrieved; artifact metadata12722295252/12722860249 recorded,
 archives not yet retrieved/verified. These five failures are open triage, not
 platform limitations or cancelled jobs. No dedicated background-gate success is
 claimed. The accessibility changes remain local while library runs.
+
+
+### Hosted105 repair validated locally — 27 October 2026
+
+0b36f46 fixes the SDK camera/double-tap policy order and restores saved tap
+states after vertex drags. f4b50c0 commits one choice per sheet and distinguishes
+protected format identifiers. f589974 acknowledges actual native controls and
+picker dismissal. Original fast-tap geometry, exact file/count/password checks
+and saved coordinates remain. All six failed hosted workflows pass locally.
+Across the final/source-compatible bundles24 distinct UI workflows pass, plus
+346 native cases (four opt-in skips), final phone/watch/widget device Release
+and eight harness checks. Original105 failures, intermediate configuration and
+assertion failures stay recorded; corrected real background crossing, camera
+zoom restoration and drag/lasso checks pass. Screenshots inspected, test-owned
+simulator and feeds stopped. [CI evidence](ci-field-ui-activation.md).
+
+The full new hosted gate remains open. Android release/main/claude-tak refs are
+unchanged. No server GO/round or TAK/watch wire change; real enrolled exchange,
+independent watch guidance and physical/distribution checks remain open.

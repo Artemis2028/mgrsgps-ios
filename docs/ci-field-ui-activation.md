@@ -930,3 +930,86 @@ f85b789cadbf066aade167d19e1aee8db257e909bad17266d18e74abc02671be.
 These archives have not yet been downloaded or verified. Exact video/hierarchy
 triage and repair remain next; do not infer causes or weaken assertions from
 these log locations. The live library job is left undisturbed.
+
+
+## Hosted105 terminal triage and local repair candidate — 27 October 2026
+
+All three jobs are terminal failures on d9e7aba. Library122083456715 adds one
+WaypointRecoveryWorkflowTests day failure at line68: keyboard dismissal/latitude
+entry after recovery. Six failures total; dedicated background gates remain
+skipped. Map/field archives above are downloaded, SHA256-verified and extracted
+under `/tmp/mgrsgps-ci105-map` and `/tmp/mgrsgps-ci105-field`. Library archive
+12723181909 is606499679 bytes, SHA256
+384a4a1c7f13a52c05304666fc5c2515af134be6e55d5ac41cf388e18cda7451,
+verified and extracted under `/tmp/mgrsgps-ci105-library`. The connector rejects
+archives over512MiB; the authenticated GitHub CLI retrieved this one.
+
+Inspected hosted screen captures and hierarchy:
+
+- Landscape area has two vertices and disabled Results after three quick taps.
+  The same test fails locally. Scoped temporary pixel-touch tracing sees three
+  received touches but only two drawing callbacks. The first idempotent-setter
+  candidate still fails. Moving drawing double-tap policy after SDK camera
+  settings makes the unchanged original rapid-tap test pass. Pinch/pan remain
+  enabled. Drag completion/cancellation now restores saved tap-recognizer states
+  after zoom restoration, so the SDK does not briefly re-enable drawing zoom.
+- Protected KML reaches ordinary `.kml` naming, not a password sheet. Format
+  choosers shared IDs and could accept another action while dismissing. A sheet
+  now commits one choice; protected format accessibility IDs are distinct and
+  the test acknowledges Protect export before selecting. All four protected-file
+  UI workflows pass in `/tmp/mgrsgps-ci105-area-gesture-state.xcresult`; that
+  bundle still fails its earlier area candidate.
+- Night layers remain closed after activation. The test now acknowledges the
+  actual destination and retries only while the same opener remains visible.
+- Resection is visibly present with a valid final frame. A final fresh native
+  window/hit-test fallback handles transient AX frame-wait failures; exact
+  intersection/resection coordinates and saved-waypoint assertions remain.
+- Large GPX remains in Files' native list despite thumbnail/cell activation. A
+  final same-row native double-tap is a test candidate; it does not bypass Files,
+  file import or complete6000-record assertions. Hosted reliability is unproven.
+- Recovery ends on MGRS with no saved waypoint. The test now acknowledges actual
+  Lat/Lon selection and retries keyboard Done only while that keyboard/control
+  stays visible. Coordinate, recovery-original and saved/relaunch checks remain.
+
+`/tmp/mgrsgps-ci105-reproduce.xcresult` passes four of the five original hosted
+failures locally; area fails. `/tmp/mgrsgps-ci105-gesture-final.xcresult` passes
+346 native cases (four opt-in skips) and12/14 UI workflows. Its background case
+was mistakenly run with recording's feed; its new zoom assertion compared
+annotation-count suffixes as well as zoom. Those failures are retained.
+The corrected boundary-specific feed run
+`/tmp/mgrsgps-ci105-boundary-feed-final.xcresult` passes real background crossing
+and interrupted restart. The zoom check now compares the full zoom token and
+requires normal double-tap zoom after drawing. Final six-workflow activation and
+drag-restoration validation now pass; do not claim hosted green.
+Temporary touch diagnostics have been removed from source.
+
+
+### Validated repair candidate
+
+Production commits0b36f46/f4b50c0 preserve drawing tap policy across camera
+updates and vertex drag restoration, and commit one native choice per sheet.
+Test follow-up f589974 retains native Files, exact complete counts, password
+checks, persisted coordinates and destination assertions. It refreshes valid
+hit frames, acknowledges sheet/segment activation and repeats keyboard dismissal
+only while that keyboard/Done remains visible. A native same-row double-tap is
+the final Files activation fallback; no import or password validation is skipped.
+
+`/tmp/mgrsgps-ci105-activation-final.xcresult` passes all six hosted-failure
+workflows, including rapid landscape taps at unchanged coordinates, unchanged
+zoom during drawing and restored native double-tap zoom afterwards.
+`/tmp/mgrsgps-ci105-drag-policy-final.xcresult` passes repeated boundary drag,
+route draw/edit/save/relaunch, direct line bends and both day/night lasso cases.
+Across the recorded final/source-compatible bundles,24 distinct UI workflows
+pass: five boundary, five graphic, four measurement, four protected-file and
+large-GPX/field-fix/night-offline/recovery workflows. Repeats are counted once.
+346 native cases pass with four opt-in skips, final phone/watch/widget unsigned
+device Release passes (`/tmp/mgrsgps-ci105-policy-release-final.log`) and eight
+harness checks pass. Route, lasso, three-corner landscape area and protected
+password-sheet screenshots are inspected.
+
+All local parents finish naturally; the owned simulator and fake feeds are off.
+The source is ready for a new full hosted run; no105 result is reclassified as
+green and no original assertion is weakened. Hosted provider reliability and
+dedicated real-fix/course/boundary/route/practice gates remain open until that
+run completes. Android refs independently rechecked unchanged: release482b417,
+main94c4cc4, claude/tak b31f36c. No TAK wire, server or credential change.
