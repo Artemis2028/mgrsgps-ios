@@ -95,7 +95,9 @@ struct WaypointsView: View {
         ZStack {
             FieldScreenBackground()
             if accessibleLayout {
-                ScrollView { workspace }.accessibilityIdentifier("library-workspace-scroll")
+                ScrollView {
+                    workspace.padding(.bottom,settings.nightMode ? FieldTabBar.controlHeight : 0)
+                }.accessibilityIdentifier("library-workspace-scroll")
             } else { workspace }
         }
         .foregroundStyle(palette.ink)
@@ -599,18 +601,23 @@ struct WaypointsView: View {
         }.padding(12).fieldContentSurface(night: settings.nightMode)
     }
 
+    private func waypointCardMarker(_ wp: Waypoint) -> some View {
+        MilitaryMarker(symbol:wp.symbol,affiliation:wp.affiliation,echelon:wp.echelon,rotation:wp.rotation,metadata:wp.metadata)
+            .frame(width:44,height:48)
+            .background(palette.accent.opacity(0.09),in:RoundedRectangle(cornerRadius:12))
+            .accessibilityHidden(true)
+    }
+
     private func row(_ wp: Waypoint) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            MilitaryMarker(symbol: wp.symbol,affiliation: wp.affiliation,echelon: wp.echelon,rotation: wp.rotation,metadata: wp.metadata)
-                .frame(width: 44, height: 48)
-                .background(palette.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
-                .accessibilityHidden(true)
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment:.leading,spacing:12)) : AnyLayout(HStackLayout(alignment:.center,spacing:12))
+        return layout {
+            if !accessibleLayout { waypointCardMarker(wp) }
             Button { beginEdit(wp) } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text(wp.name).font(.headline).foregroundStyle(palette.ink)
-                        if wp.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") }
-                        if !wp.visible { Image(systemName: "eye.slash").foregroundStyle(palette.ink).accessibilityLabel("Hidden on map").accessibilityIdentifier("library-waypoint-hidden-\(wp.name)") }
+                        if wp.favorite { Image(systemName: "star.fill").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") }
+                        if !wp.visible { Image(systemName: "eye.slash").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.ink).accessibilityLabel("Hidden on map").accessibilityIdentifier("library-waypoint-hidden-\(wp.name)") }
                     }
                     Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
                         .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
@@ -625,19 +632,20 @@ struct WaypointsView: View {
             .buttonStyle(.plain)
             .accessibilityValue(WaypointMarkerDescription.text(wp))
             .accessibilityIdentifier("edit-waypoint-\(wp.name)")
-            Button { searchFocused = false; waypointActions = wp } label: {
-                Image(systemName: "ellipsis").frame(width: 44, height: 44)
-            }.buttonStyle(.plain)
-            .foregroundStyle(palette.inkDim)
-            .accessibilityLabel("Actions for \(wp.name)")
-            Button { navigate(to: wp) } label: {
-                Image(systemName: "arrow.up.right").frame(width: 44, height: 44)
+            HStack(spacing:12) {
+                if accessibleLayout { waypointCardMarker(wp); Spacer() }
+                Button { searchFocused = false; waypointActions = wp } label: {
+                    Image(systemName: "ellipsis").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44, height: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                .foregroundStyle(palette.inkDim)
+                .accessibilityLabel("Actions for \(wp.name)")
+                Button { navigate(to: wp) } label: {
+                    Image(systemName: "arrow.up.right").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .fieldGlassButton()
+                .accessibilityLabel("Navigate to \(wp.name)")
             }
-            .fieldGlassButton()
-            .accessibilityLabel("Navigate to \(wp.name)")
-        }
-        .padding(12)
-        .fieldContentSurface(night: settings.nightMode)
+        }.padding(12).fieldContentSurface(night:settings.nightMode)
     }
 
     private func navigate(to waypoint: Waypoint) {

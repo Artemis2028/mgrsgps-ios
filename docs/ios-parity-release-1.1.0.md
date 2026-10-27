@@ -26,8 +26,11 @@ and the dedicated background gates remain required.
 Local saved-read/accessibility follow-ups pass 518 core cases,
 ordinary/global AccessibilityXXXL day/night recovery, large-library
 search/selection, final device Release and eight harness checks; scoped evidence
-is below. These validated candidates and activation test corrections are ready
-for the next full hosted run on the same draft PR.
+is below. These validated candidates and activation test corrections are pushed through
+`02d67f611070a6006a9e4ef0d2cc1c505de3bfa0`. Full hosted107 (`40496657566`)
+is confirmed live on that source; its field/library/map jobs are running.
+The later waypoint-card accessibility candidate below remains local while107
+finishes. No live run was cancelled or duplicated.
 
 Local saved-library follow-up, 27 October: worker reads now retain source
 metadata and validate it again before publication. Index replacement, a new v2
@@ -1151,3 +1154,41 @@ this helper-only change. All local parents ended naturally and the single owned
 simulator/fake feed is off.106 is fully terminal; publishing the held candidate
 can now start a new full run without cancelling live work. Full hosted107 and
 dedicated real-fix/course/boundary/route/practice gates remain open.
+
+
+### Full-width accessible waypoint cards, 27 October
+
+The actual global AccessibilityXXXL setting with5,000 waypoints/1,000 graphics
+exposed a point-summary button only114points wide and845points high, taller
+than the phone window. The grid was squeezed between its symbol and action
+buttons. The failed native reveal and hierarchy are retained in
+`/tmp/mgrsgps-waypoint-card-ax-before.xcresult`; no initial screenshot claim is
+made for that failure. At accessibility sizes the name, complete MGRS, folder
+and distance now use the card width; the same symbol and menu/navigation
+controls form a separate row. Ordinary sizes keep the horizontal layout.
+A first night test found that the last actions could not scroll clear of the
+opaque tab bar and that the plain image menu exposed only its tiny glyph as a
+hit target. The workspace uses the existing FieldTabBar control-height reserve
+as bottom scroll padding at accessibility sizes, and the44point image frames
+now define rectangular hit shapes. The failed first night result remains in
+`/tmp/mgrsgps-waypoint-card-ax-final.xcresult`.
+
+All three workflows in `/tmp/mgrsgps-waypoint-card-clearance-final.xcresult`
+pass: the existing ordinary large-library search/grid-selection/night-card
+workflow, and largest-text card workflows in day/night. They assert a full-width
+summary, a44×44 menu control, the actual Edit destination with the saved name,
+and navigation to the exact selected target. Final day/night screenshots show
+the full five-digit easting/northing groups. The existing night-landscape
+create/edit/cancel/library/night-opt-out workflow also passes on this source in
+`/tmp/mgrsgps-waypoint-card-landscape-final.xcresult`; its screenshot is inspected.
+Four distinct UI workflows, not repeated runs counted again. Final unsigned
+phone/watch/widget Release (`/tmp/mgrsgps-waypoint-card-clearance-release.log`)
+and eight harness checks pass. No shared-core behavior changed;518core remains
+the prior core validation. All local test/build parents ended naturally; the
+single owned simulator and fake feed are off. Long-name/mixed-symbol cards,
+VoiceOver and wider whole-app accessibility remain separate coverage gates.
+
+This candidate stays local while all three107jobs run on02d67f6; a later push
+must wait for authoritative terminal state. The one-minute Claude handoff is
+unchanged and no TAK server GO, infrastructure, wire or credential changes are
+part of this waypoint-only layout work.
