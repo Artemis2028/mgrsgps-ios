@@ -30,8 +30,19 @@ the saved files and refuse edits/exports/false empty point reads. Both library
 screens offer an explicit retry; healthy stores are never reset. Empty-library
 prompts are suppressed while reading or after a read error. This candidate
 passes 518 core tests (including seven new source-change/retry regressions),
-the unsigned phone/watch/widget Release build and eight harness checks. The
-new retry buttons still need simulator UI validation. This does not make
+the unsigned phone/watch/widget Release build and eight harness checks.
+Both native day/night recovery workflows now pass: an unreadable source stays
+unreadable after retry; repairing the synthetic source alone does not publish
+it; retry then recovers the named route and two-point track without restart,
+and both survive relaunch. The primary error/retry is above the list so an
+otherwise empty library cannot hide it. Four display-level screenshots were
+inspected. The repair control exists only in the explicitly enabled DEBUG
+synthetic fixture. An initial night run exposed automatic List-row activation
+of both fixture buttons; borderless hit handling fixes it, and both final tests
+pass. Bundles: `/tmp/mgrsgps-field-read-ui.xcresult` (initial failure retained)
+and `/tmp/mgrsgps-field-read-ui-final.xcresult` (both pass). Final Release log:
+`/tmp/mgrsgps-field-read-recovery-final-release.log`. All local parents ended
+naturally and the single owned simulator/fake feed is off. This does not make
 finished logs lazy, detect every in-place external write, or protect later
 writes from all external changes. Android release/1.1.0 TrackRepository keeps
 metadata and point logs separate; large-library startup costs remain open.

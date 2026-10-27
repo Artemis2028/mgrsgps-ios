@@ -17,10 +17,13 @@ struct FieldLibraryView: View {
             List {
                 if let failure = fieldData.loadError {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(failure).foregroundStyle(palette.warn)
+                        Text(failure).foregroundStyle(palette.warn).accessibilityIdentifier("field-library-read-error")
                         Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
                             .accessibilityIdentifier("field-library-retry")
-                    }
+                        #if DEBUG
+                        FieldLibraryReadValidationRepair(identifier: "field-library-test-repair")
+                        #endif
+                    }.buttonStyle(.borderless)
                 }
                 Button("Practice course") { showingPractice = true }.accessibilityIdentifier("library-practice")
                 Section("Routes") {

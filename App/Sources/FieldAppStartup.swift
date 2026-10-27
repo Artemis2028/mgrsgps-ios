@@ -16,6 +16,9 @@ struct FieldLaunchConfiguration {
             let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests",isDirectory: true)
             if !args.contains("-keepUITestData") { try? FileManager.default.removeItem(at: temporary) }
             try? FileManager.default.createDirectory(at: temporary,withIntermediateDirectories: true)
+            if args.contains("-uiTestFieldReadRecovery"),!args.contains("-keepUITestData") {
+                FieldLibraryReadValidation.seed(in: temporary)
+            }
             directory = temporary
             if args.contains("-uiTestHoldMapGeometry") { try? Data().write(to: temporary.appendingPathComponent("hold-map-geometry")) }
             if args.contains("-uiTestWaypointRecovery"),!args.contains("-keepUITestData") {

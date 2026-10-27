@@ -100,6 +100,16 @@ struct WaypointsView: View {
                         Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
                     }.padding(.horizontal,20).padding(.vertical,8)
                 }
+                if let failure = fieldData.loadError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(failure).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("field-data-read-error")
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                            .frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
+                        #if DEBUG
+                        FieldLibraryReadValidationRepair(identifier: "field-data-test-repair")
+                        #endif
+                    }.padding(.horizontal,20).padding(.vertical,8)
+                }
                 if !compactLandscape { fieldLibraryButton }
                 if compactLandscape {
                     HStack(spacing: 0) {
@@ -148,7 +158,7 @@ struct WaypointsView: View {
                 } else if !query.isEmpty && listedSelection.count == 0 {
                     Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
                 } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
-                    empty
+                    if fieldData.loadError == nil { empty } else { Spacer() }
                 } else {
                     list.disabled(preparingOutput || fieldMutation.working)
                 }
@@ -505,11 +515,6 @@ struct WaypointsView: View {
                 }
                 if listedSelection.count == 0 && fieldData.ready && fieldData.loadError == nil { Text("Nothing in \(folderFilter ?? "the library") yet.").font(.footnote).foregroundStyle(palette.inkDim) }
                 if let status { Text(status).font(.footnote).foregroundStyle(palette.accent).padding(.vertical,8).accessibilityIdentifier("library-status") }
-                if let failure = fieldData.loadError {
-                    Text(failure).font(.footnote).foregroundStyle(palette.warn)
-                    Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
-                        .frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
-                }
             }.padding(.horizontal,20).padding(.bottom,20)
         }.accessibilityIdentifier("library-list")
     }
