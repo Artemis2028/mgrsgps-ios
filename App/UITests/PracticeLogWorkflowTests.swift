@@ -54,6 +54,10 @@ final class PracticeLogWorkflowTests: XCTestCase {
             XCTAssertTrue(app.staticTexts["practice-progress"].waitForExistence(timeout:15))
             XCTAssertEqual(app.staticTexts["practice-progress"].label,"CP \(10_000.formatted()) of \(10_000.formatted())")
             XCTAssertTrue(app.staticTexts["Last checkpoint"].exists)
+            let grid = app.staticTexts["practice-target-grid"]
+            reveal(grid,in:app)
+            XCTAssertEqual(grid.label,"18S TD 26201 77156")
+            capture(night ? "active-course-grouped-grid-largest-night" : "active-course-grouped-grid-day")
             let end = app.buttons["practice-end"]
             reveal(end,in:app); XCTAssertTrue(end.isHittable)
             capture(night ? "active-course-controls-largest-night" : "active-course-controls-day")

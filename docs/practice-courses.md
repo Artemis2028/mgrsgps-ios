@@ -132,3 +132,7 @@ restores remaining IDs without requiring an already-scored checkpoint, and
 resumes at the correct target. Malformed duplicate, reversed, completed and
 unknown missing IDs retain the original file and prevent writes. Pause wording
 and Android's all-remaining-checkpoints pause policy are unchanged.
+
+Active checkpoint grids use the written MGRS zone/square/easting/northing
+groups, retaining the chosen precision. Day and global largest-text night
+checks keep all groups visible across relaunch.

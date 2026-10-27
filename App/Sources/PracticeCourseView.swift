@@ -123,7 +123,8 @@ struct PracticeCourseView: View {
                 .font(.title2.monospacedDigit()).accessibilityIdentifier("practice-progress")
             if let id = active.targetID, let target = waypoints.waypoints.first(where: { $0.id == id }) {
                 Text(target.name).font(.headline)
-                Text(MGRS.string(lat: target.lat,lon: target.lon,digits: settings.mgrsDigits) ?? "—").font(.system(.body,design: .monospaced))
+                Text(MGRS.parts(lat: target.lat,lon: target.lon,digits: settings.mgrsDigits)?.full ?? "—")
+                    .font(.system(.body,design: .monospaced)).accessibilityIdentifier("practice-target-grid")
             }
             TimelineView(.periodic(from: .now,by: 1)) { timeline in
                 let end = active.done ? (active.foundAt.last ?? active.startedAt) : Int64(timeline.date.timeIntervalSince1970*1000)

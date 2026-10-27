@@ -13,24 +13,21 @@ now includes optional lane backup/restore and shared screen/text/PDF leg limits;
 read-only phone guidance and a separate TAK watch scene are implemented; Android 4db6b21 startup/cue switches
 are now implemented. It does not replace the separate quiet-inside perimeter.
 
-Current validation checkpoint, 27 October: hosted106 on `7965445` is
-fully terminal. Its map job passes 41 UI cases; field and library each have one
-activation failure. All three artifacts are retrieved and SHA-256 verified.
-The earlier hosted105 six failures and repairs remain recorded in
-[exact evidence](ci-field-ui-activation.md). The orientation shortcut now uses
-the plain List button's native tap with a destination assertion. The validated
-visible-frame path no longer probes an unnecessary native hit point after
-rotation. Both orientation workflows and the night-landscape waypoint workflow
-pass together locally. Product behavior is not weakened; hosted revalidation
-and the dedicated background gates remain required.
-Local saved-read/accessibility follow-ups pass 518 core cases,
-ordinary/global AccessibilityXXXL day/night recovery, large-library
-search/selection, final device Release and eight harness checks; scoped evidence
-is below. These validated candidates and activation test corrections are pushed through
-`02d67f611070a6006a9e4ef0d2cc1c505de3bfa0`. Full hosted107 (`40496657566`)
-is confirmed live on that source; its field/library/map jobs are running.
-The later waypoint-card accessibility candidate below remains local while107
-finishes. No live run was cancelled or duplicated.
+Current validation checkpoint, 27 October: **hosted107 is green** on
+`02d67f611070a6006a9e4ef0d2cc1c505de3bfa0` (run40496657566).
+Field passes346 native cases (four opt-in skips),36 main UI cases (five
+opt-in TAK skips), real-fix recovery, GPS course/speed, five background boundary
+cases, automatic background route following and fourteen practice cases.
+Map passes41 UI cases; library passes52 UI cases. All jobs pass518 core tests.
+The earlier activation failures pass on the hosted runtime. All three artifact
+digests and representative captures are verified. This validates that pushed source, not full physical parity.
+
+Subsequent local follow-ups below cover accessible waypoint cards, cached
+practice folder eligibility, complete finished/active split lists, large-course
+missing-checkpoint validation and recording-handoff work. The latest local
+core suite passes521 cases; scoped native UI, screenshots, final device Release
+and eight harness checks are recorded with each milestone. The newer source
+still needs its next full hosted run. No live job is cancelled or duplicated.
 
 Local saved-library follow-up, 27 October: worker reads now retain source
 metadata and validate it again before publication. Index replacement, a new v2
@@ -1370,6 +1367,7 @@ protected interchange, navigation lanes/targets and terrain analysis. The
 previous orientation-shortcut failure passes on the hosted runtime.
 
 Artifacts downloaded and SHA-256 verified before extraction:
+
 - Field12734763542,574579765 bytes:
   `3d86aaf17656a24cb6d0b89fcd1476b659eed59a4fdb73b3e4158f8616b007a9`.
   `/tmp/mgrsgps-ci107-field.zip` and `/tmp/mgrsgps-ci107-field`.
@@ -1389,3 +1387,33 @@ No active job was cancelled or duplicate run started. Library/full hosted
 confirmation, the next-source full run, physical/watch/TAK and documented
 implementation/performance gaps remain open. No local device was booted for
 this artifact audit; completed download/extract parents have exited naturally.
+
+
+### Written checkpoint grids and fully green hosted107, 27 October
+
+Practice progress uses MGRS.parts.full with separated zone/square/easting/
+northing groups, matching Android CourseDialog's written coordinate form. iOS
+retains the user's precision instead of forcing Android's eight digits. No
+coordinate conversion, saved coordinate or scoring behavior changed. Both
+active10,000-checkpoint UI cases pass with exact `18S TD 26201 77156`, day and
+global AccessibilityXXXL night, visible complete grid groups, recorded splits,
+worker-loaded relaunch and confirmed End. Captures inspected in
+`/tmp/mgrsgps-practice-written-grid-images`; passing bundle
+`/tmp/mgrsgps-practice-written-grid-final.xcresult`. Final unsigned
+phone/watch/widget Release (`/tmp/mgrsgps-practice-written-grid-release.log`)
+and eight harness checks pass. No additional core change followed the521-case
+result. All local parents finish naturally, simulator/feed off.
+
+Hosted10740496657566 is authoritatively completed/success on02d67f6. Library
+122163714264 passes52 UI cases with no skips/failures, joining the already
+verified green field/map jobs above. The previously failed night-landscape
+waypoint activation passes. Library artifact12734454892 is616891512 bytes;
+SHA-256 `0654cbca9f589bce251352fbbb0626927897880e060e91e0703bb276d5734ef2`
+is verified before extraction to `/tmp/mgrsgps-ci107-library`. Its archive is
+`/tmp/mgrsgps-ci107-library.zip`; authenticated CLI download handles its size
+above the connector512MiB limit. Night field-read recovery and protected-backup
+restoration screenshots are inspected. All three artifact hashes now match.
+
+The new accessible waypoint/course/log/recording follow-ups are ready for their
+next full hosted run after this green source. This is not full physical/watch/
+TAK validation or a release approval. No active CI was cancelled or duplicated.
