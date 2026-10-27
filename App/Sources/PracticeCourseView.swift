@@ -129,8 +129,12 @@ struct PracticeCourseView: View {
                 let end = active.done ? (active.foundAt.last ?? active.startedAt) : Int64(timeline.date.timeIntervalSince1970*1000)
                 Text("Elapsed \(PracticeCourse.time(end-active.startedAt))").monospacedDigit()
             }
-            ForEach(Array(active.foundAt.enumerated()),id: \.offset) { i,time in
-                Text("CP \(i+1) · \(PracticeCourse.time(time-(i == 0 ? active.startedAt : active.foundAt[i-1])))")
+            if !active.foundAt.isEmpty {
+                NavigationLink {
+                    PracticeActiveSplitsView(runID:active.runID)
+                } label: {
+                    Text("View all \(active.foundAt.count) recorded splits")
+                }.accessibilityIdentifier("practice-open-active-splits")
             }
             if !active.paused && !active.done { Text("Navigate is locked to this checkpoint and advances automatically. Haptic guidance is optional and separate from scoring.").font(.footnote) }
             Button("Continue") { dismiss() }
@@ -144,7 +148,7 @@ struct PracticeCourseView: View {
             Text(PracticeCourse.time(result.total)).font(.largeTitle.monospacedDigit())
             Text("\(result.points) points · \(result.name)")
             NavigationLink {
-                PracticeSplitsView(result:result)
+                PracticeSplitsView(splits:result.splits)
             } label: {
                 Text("View all \(result.splits.count) splits")
             }.accessibilityIdentifier("practice-open-splits")
@@ -152,22 +156,39 @@ struct PracticeCourseView: View {
     }
 }
 
+/// Observe the live run only while its split screen is open. The progress form
+/// does not allocate every split on GPS-driven redraws.
+private struct PracticeActiveSplitsView: View {
+    let runID: String
+    @EnvironmentObject private var course: PracticeSession
+    var body: some View {
+        if let active = course.active,active.runID == runID {
+            let splits = active.foundAt.enumerated().map { index,time in
+                time - (index == 0 ? active.startedAt : active.foundAt[index-1])
+            }
+            PracticeSplitsView(splits:splits)
+        } else {
+            Text("This course is no longer active.")
+        }
+    }
+}
+
 /// A native List keeps long result logs out of the eager summary Form row.
 /// Every saved split is available; jumps change the viewport, never the data.
 private struct PracticeSplitsView: View {
-    let result: Backup.CourseResult
+    let splits: [Int64]
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var palette: FieldPalette { FieldPalette(night:settings.nightMode) }
     var body: some View {
         ScrollViewReader { scroll in
             List {
-                ForEach(result.splits.indices,id: \.self) { index in
+                ForEach(splits.indices,id: \.self) { index in
                     let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:6)) : AnyLayout(HStackLayout())
                     layout {
                         Text("CP \(index + 1)").font(.headline)
                         if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-                        Text(PracticeCourse.time(result.splits[index])).monospacedDigit()
+                        Text(PracticeCourse.time(splits[index])).monospacedDigit()
                     }.accessibilityElement(children:.combine)
                         .accessibilityIdentifier("practice-split-\(index + 1)").id(index)
                         .listRowBackground(settings.nightMode ? Color.black : Color(white:0.12))
@@ -178,9 +199,9 @@ private struct PracticeSplitsView: View {
                         Button("First") { scroll.scrollTo(0,anchor:.top) }
                             .frame(minHeight:44).accessibilityLabel("Go to first split").accessibilityIdentifier("practice-splits-first")
                         Spacer()
-                        Button("Last") { if let last = result.splits.indices.last { scroll.scrollTo(last,anchor:.bottom) } }
+                        Button("Last") { if let last = splits.indices.last { scroll.scrollTo(last,anchor:.bottom) } }
                             .frame(minHeight:44).accessibilityLabel("Go to last split").accessibilityIdentifier("practice-splits-last")
-                    }.padding(.horizontal,20).disabled(result.splits.isEmpty)
+                    }.padding(.horizontal,20).disabled(splits.isEmpty)
                         .fieldContentSurface(night:settings.nightMode)
                 }
         }.foregroundStyle(palette.ink).tint(palette.accent)

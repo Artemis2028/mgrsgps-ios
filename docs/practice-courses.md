@@ -118,6 +118,12 @@ do not cap or sample it. Accessibility-size checkpoint/time rows stack. Native
 and the real-location two-checkpoint completion/history regression passes.
 Physical long-course scoring and active-progress performance remain separate.
 
+Active runs also open their recorded splits in the complete native list. The
+target, elapsed time, Continue and End controls stay together in the progress
+form instead of following thousands of split rows. The split screen observes
+the current run; no history is sampled or converted into a finished result.
+Android's ordered checkpoints, live scoring and navigation lock remain intact.
+
 Missing-checkpoint validation and pause text now build a membership set once,
 avoiding repeated linear searches across a large paused course. The saved list
 must still contain only remaining checkpoints, exactly once and in course order.

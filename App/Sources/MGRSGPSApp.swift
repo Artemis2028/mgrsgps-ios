@@ -279,7 +279,22 @@ final class FieldAppStores {
         let navigationSession = NavigationSession(directory: directory,store: waypointStore,field: fieldStore,settings: settingsStore,startup: navigationStartup,lanes: laneStore)
         self.navigation = navigationSession
         watchBridge = WatchPhoneBridge(store: waypointStore, settings: settingsStore, field: fieldStore, boundaries: boundaryStore,lanes: laneStore,navigation: navigationSession,tak: takSession)
-        let practiceSession = PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession,store: practiceStore)
+        var effectivePracticeStore = practiceStore
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestPracticeActiveLog"),!ProcessInfo.processInfo.arguments.contains("-keepUITestData"),let directory {
+            let ids = (0..<10_000).map { "long-course-\($0)" }
+            let started = Int64(Date().timeIntervalSince1970*1000) - 10_000_000
+            let bytes = try? JSONSerialization.data(withJSONObject:["runID":"long-active-course","name":"Long active course","waypointIDs":ids,"startedAt":started,"foundAt":(1..<10_000).map { started + Int64($0)*1000 },"missingIDs":[String]()])
+            let fixtureStore = practiceStore ?? PracticeCourseStore(directory:directory)
+            if let bytes,let fixture = try? JSONDecoder().decode(PracticeCourse.self,from:bytes) {
+                _ = try? waypointStore.restore(waypoints:[.init(id:ids.last!,name:"Last checkpoint",lat:35,lon:-78)],folders:[])
+                try? fixtureStore.save(fixture)
+            }
+            effectivePracticeStore = fixtureStore
+            if ProcessInfo.processInfo.arguments.contains("-uiTestPracticeLogNight") { settingsStore.nightMode = true }
+        }
+        #endif
+        let practiceSession = PracticeSession(directory: directory,waypoints: waypointStore,field: fieldStore,navigation: navigationSession,store: effectivePracticeStore)
         self.practice = practiceSession
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeProgressWriteFailure"),

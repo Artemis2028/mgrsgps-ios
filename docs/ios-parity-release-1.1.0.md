@@ -1288,3 +1288,41 @@ results, not full hosted success. Newer local changes are not covered by107.
 Final unsigned phone/watch/widget Release passes in
 `/tmp/mgrsgps-course-missing-release.log`. All local test/build parents ended
 naturally; no simulator or fake feed was started for this core-only change.
+
+
+### Reachable active-course controls and complete recorded splits, 27 October
+
+Android CourseDialog keeps target/time, ordered recorded splits and Continue/End
+actions in one scrolling progress dialog. iOS previously placed every split
+before those actions. Active runs now keep target/time and controls together,
+with a link to the same complete native split List used by finished results.
+The live destination observes the current run; its split arrays are computed
+there rather than in the GPS-redrawn progress form. No split is capped/sampled,
+no unfinished run becomes a result, and scoring/navigation lock behavior stays.
+
+Two new UI cases pass in
+`/tmp/mgrsgps-active-course-scroll-final.xcresult`: ordinary day and actual
+global AccessibilityXXXL night. A DEBUG-only fixture seeds9,999 recorded splits
+in a10,000-checkpoint unfinished course with its actual remaining checkpoint.
+Both cases verify the current CP/target, reachable End control, first/last
+recorded splits, retained progress after worker-loaded relaunch and confirmed
+End returning to setup. Full-display day/night controls and last-split
+screenshots are inspected. This does not claim10,000 actual location scores.
+
+The initial `/tmp/mgrsgps-active-course-native.xcresult` passes the two existing
+10,000-result-log workflows and real Core Location two-checkpoint scoring/
+summary/history, but fails both new tests before their log checks: localized
+10,000 grouping and offscreen root Practice activation. The next
+`/tmp/mgrsgps-active-course-controls-final.xcresult` exposes the reveal helper's
+assumption that the root has a native navigation bar. A native-root-aware
+viewport fallback fixes that helper; exact progress, split, persistence and
+End assertions remain. Five distinct UI workflows pass across these bundles;
+initial failures remain recorded.
+
+Final unsigned phone/watch/widget Release passes in
+`/tmp/mgrsgps-active-course-release.log`; eight harness checks pass. No further
+core change followed the520-case result in the preceding milestone. All local
+parents finish naturally, and the owned simulator and practice feed are off.
+Physical long-course scoring, wider live-update/performance/battery profiling
+remain open. This follow-up is local while107 validates02d67f6; no CI run
+was cancelled or duplicated, TAK/server/credentials changed.
