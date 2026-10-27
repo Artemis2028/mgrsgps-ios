@@ -724,3 +724,32 @@ Final viewport candidate validation:
   documentation follows locally until it finishes, without cancelling the run.
   The one owned test phone and fake feeds are off after checks. No server,
   credential, container or database changes.
+
+
+## Hosted 102: five UI failures, October 27
+
+Run `40438839779` on `7b36a5d` is fully terminal; all three shards fail.
+The five failing cases are:
+
+- Library: ordinary backup export filename (`BackupWorkflowTests.swift:17`)
+  and protected backup filename (`:72`).
+- Map: protected GPX filename (`ProtectedFileWorkflowTests.swift:26`) and
+  decimal Go-to activation (`MapToolWorkflowTests`).
+- Field: navigation target activation after actual fix expiry/recovery
+  (`PositionFixWorkflowTests.swift:45`). The fresh/stale/recovery assertions
+  have passed; the missing heading readout follows target selection.
+
+Both route-PDF cases pass this run. The exporter viewport candidate does not
+resolve all Files naming failures. In the protected-GPX hierarchy the native
+Save button exists but the filename accessory does not. In the Go-to failure
+hierarchy MGRS remains selected and its grid field is still present after the
+attempted Lat/Lon switch. The fix-recovery failure hierarchy retains the
+Alpha/Bravo/Charlie popup and the underlying empty-target prompt after the
+attempted Alpha action. These are concrete activation/presentation failures;
+no assertion has been weakened or mislabeled as a full hosted pass.
+
+Field artifact `12707188391` and map artifact `12707107940` are downloaded to
+`/tmp/mgrsgps-ci102-field` and `/tmp/mgrsgps-ci102-map`; library logs are read.
+The next work is these iOS activation/Files failures. The watch follow-ups
+`12bcbf2` and `03d51c6`, and evidence `44057c7`, remain local pending that
+consolidated correction; no redundant known-failing hosted run is started.

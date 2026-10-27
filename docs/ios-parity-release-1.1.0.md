@@ -770,3 +770,11 @@ separate layers. [Source comparison, six native checks and paired screenshots](w
 Phone offline/terrain transfer and independent watch alerts/background guidance
 remain implementation gaps; physical rendering/battery/resource checks remain
 open. Full hosted102 has new field/map UI failures under investigation.
+
+
+Hosted102 (`40438839779`, `7b36a5d`) is terminal with five UI failures: ordinary
+and protected backup filenames, protected-GPX filename, decimal Go-to activation
+and target activation after real fix recovery. Both PDF workflows pass.
+[Failure trees and artifact locations](ci-field-ui-activation.md) define the next
+iOS corrections. Full hosted green remains open; the watch milestones above
+do not close that gate.
