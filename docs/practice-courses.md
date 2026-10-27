@@ -117,3 +117,12 @@ do not cap or sample it. Accessibility-size checkpoint/time rows stack. Native
 10,000-split day and largest-text night workflows verify both ends and relaunch,
 and the real-location two-checkpoint completion/history regression passes.
 Physical long-course scoring and active-progress performance remain separate.
+
+Missing-checkpoint validation and pause text now build a membership set once,
+avoiding repeated linear searches across a large paused course. The saved list
+must still contain only remaining checkpoints, exactly once and in course order.
+The 10,000-checkpoint regression saves/reopens a paused course, refuses scoring,
+restores remaining IDs without requiring an already-scored checkpoint, and
+resumes at the correct target. Malformed duplicate, reversed, completed and
+unknown missing IDs retain the original file and prevent writes. Pause wording
+and Android's all-remaining-checkpoints pause policy are unchanged.

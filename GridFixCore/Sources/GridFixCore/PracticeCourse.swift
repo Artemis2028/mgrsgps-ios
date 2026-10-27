@@ -13,11 +13,12 @@ public struct PracticeCourse: Codable, Equatable, Sendable {
     public var paused: Bool { !missingIDs.isEmpty }
     public var targetID: String? { !paused && waypointIDs.indices.contains(nextIndex) ? waypointIDs[nextIndex] : nil }
     public var valid: Bool {
-        !runID.isEmpty && (2...10_000).contains(waypointIDs.count)
+        let missing = Set(missingIDs)
+        return !runID.isEmpty && (2...10_000).contains(waypointIDs.count)
         && waypointIDs.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } && Set(waypointIDs).count == waypointIDs.count
         && startedAt >= 0 && foundAt.count <= waypointIDs.count
         && zip([startedAt] + foundAt,foundAt).allSatisfy { $0 <= $1 }
-        && missingIDs == waypointIDs.dropFirst(nextIndex).filter { missingIDs.contains($0) }
+        && missingIDs == waypointIDs.dropFirst(nextIndex).filter { missing.contains($0) }
     }
     public init(name: String,waypointIDs: [String],startedAt: Int64,runID: String = UUID().uuidString.lowercased()) throws {
         self.runID = runID; self.name = name; self.waypointIDs = waypointIDs; self.startedAt = startedAt
@@ -40,7 +41,8 @@ public struct PracticeCourse: Codable, Equatable, Sendable {
     }
     public var pauseReason: String? {
         guard paused else { return nil }
-        let positions = waypointIDs.enumerated().filter { missingIDs.contains($0.element) }.map { String($0.offset+1) }.joined(separator: ", ")
+        let missing = Set(missingIDs)
+        let positions = waypointIDs.enumerated().filter { missing.contains($0.element) }.map { String($0.offset+1) }.joined(separator: ", ")
         return "Missing checkpoint\(missingIDs.count == 1 ? "" : "s") \(positions). Restore the same checkpoint IDs or end the course. Elapsed time continues."
     }
     public static func canScore(distance: Double,accuracy: Double) -> Bool {

@@ -1263,3 +1263,28 @@ are off. Physical long-course scoring/battery checks and active-progress
 profiling remain open. This follows held af90cfc/8aef669 and stays local while
 hosted107 runs on02d67f6. No CI cancelled, duplicate started, TAK/server or
 credential changes occurred.
+
+
+### Large paused-course validation, 27 October
+
+Missing-checkpoint membership now uses one Set per validation/pause-message
+calculation instead of a linear search per checkpoint. Exact saved-list order,
+uniqueness and remaining-checkpoint checks stay intact. Android
+release/1.1.0 CourseNavigationPolicy confirms that any missing remaining point
+pauses navigation; restored points resume without requiring completed IDs.
+No pause wording, scoring threshold, timestamps or saved format changed.
+
+All520 core cases pass in `/tmp/mgrsgps-course-missing-core.log`, including
+the10,000-checkpoint paused save/reopen/restore/resume regression and malformed
+missing-list original-byte/write-refusal checks. Twelve focused course cases
+and eight harness checks pass separately. This is algorithmic validation, not
+a physical long-course battery/performance measurement. No UI changed.
+
+Hosted10740496657566 remains on02d67f6: map has completed successfully; field
+main UI, real-fix recovery and GPS course/speed steps pass, with background
+boundary testing in progress; library UI remains live. These are scoped step
+results, not full hosted success. Newer local changes are not covered by107.
+
+Final unsigned phone/watch/widget Release passes in
+`/tmp/mgrsgps-course-missing-release.log`. All local test/build parents ended
+naturally; no simulator or fake feed was started for this core-only change.

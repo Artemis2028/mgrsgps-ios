@@ -31,6 +31,41 @@ final class PracticeCourseTests: XCTestCase {
         XCTAssertThrowsError(try course.markFound(runID: course.runID,checkpointID: "b",now: 199))
         XCTAssertEqual(course.foundAt,[200])
     }
+    func testMaximumCourseMissingCheckpointsPersistAndRestoreWithoutRescoringCompletedPoint() throws {
+        let ids = (0..<10_000).map { "checkpoint-\($0)" }
+        var course = try PracticeCourse(name: "Full course",waypointIDs: ids,startedAt: 100)
+        XCTAssertTrue(try course.markFound(runID: course.runID,checkpointID: ids[0],now: 200))
+        course.reconcile(availableIDs: [])
+        XCTAssertTrue(course.valid); XCTAssertTrue(course.paused); XCTAssertNil(course.targetID)
+        XCTAssertEqual(course.missingIDs,Array(ids.dropFirst()))
+        let positions = (2...10_000).map(String.init).joined(separator: ", ")
+        XCTAssertEqual(course.pauseReason,"Missing checkpoints \(positions). Restore the same checkpoint IDs or end the course. Elapsed time continues.")
+        XCTAssertFalse(try course.markFound(runID: course.runID,checkpointID: ids[1],now: 300))
+        let dir = try directory(), saved = PracticeCourseStore(directory: dir)
+        try saved.save(course)
+        course = try XCTUnwrap(PracticeCourseStore(directory: dir).active)
+        XCTAssertEqual(course.foundAt,[200]); XCTAssertEqual(course.missingIDs,Array(ids.dropFirst()))
+        course.reconcile(availableIDs: Set(ids.dropFirst()))
+        XCTAssertTrue(course.valid); XCTAssertFalse(course.paused); XCTAssertNil(course.pauseReason)
+        XCTAssertEqual(course.targetID,ids[1])
+        XCTAssertTrue(try course.markFound(runID: course.runID,checkpointID: ids[1],now: 800))
+        XCTAssertEqual(course.foundAt,[200,800]); XCTAssertEqual(course.targetID,ids[2])
+    }
+    func testInvalidMissingCheckpointListsKeepOriginalSavedBytes() throws {
+        var course = try PracticeCourse(name: "Practice",waypointIDs: ["a","b","c"],startedAt: 100)
+        XCTAssertTrue(try course.markFound(runID: course.runID,checkpointID: "a",now: 200))
+        course.reconcile(availableIDs: [])
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(course)) as? [String:Any])
+        for missing in [["b","b"],["c","b"],["a","b","c"],["b","unknown"]] {
+            var invalid = original; invalid["missingIDs"] = missing
+            let bytes = try JSONSerialization.data(withJSONObject: ["version":1,"active":invalid],options: [.sortedKeys])
+            let dir = try directory(), path = dir.appendingPathComponent("practice-course-v1.json")
+            try bytes.write(to: path)
+            let saved = PracticeCourseStore(directory: dir)
+            XCTAssertNotNil(saved.loadError,"\(missing)"); XCTAssertNil(saved.active)
+            XCTAssertThrowsError(try saved.save(nil)); XCTAssertEqual(try Data(contentsOf: path),bytes)
+        }
+    }
     func testUncertaintyThresholdStrictAndMissingAccuracyCannotScore() {
         XCTAssertTrue(PracticeCourse.canScore(distance: 19.99,accuracy: 5))
         XCTAssertFalse(PracticeCourse.canScore(distance: 20,accuracy: 5))
