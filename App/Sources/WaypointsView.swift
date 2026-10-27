@@ -9,6 +9,8 @@ struct WaypointsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var fieldData: FieldDataStore
     @EnvironmentObject private var maps: MapLayerStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var accessibleLayout: Bool { dynamicTypeSize.isAccessibilitySize }
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     private var compactLandscape: Bool { verticalSizeClass == .compact }
     @EnvironmentObject private var boundaries: BoundaryMonitor
@@ -92,78 +94,9 @@ struct WaypointsView: View {
     var body: some View {
         ZStack {
             FieldScreenBackground()
-            VStack(alignment: .leading, spacing: 0) {
-                header.disabled(preparingOutput || fieldMutation.working)
-                if let error = store.loadError {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-library-load-error")
-                        Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
-                    }.padding(.horizontal,20).padding(.vertical,8)
-                }
-                if let failure = fieldData.loadError {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(failure).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("field-data-read-error")
-                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
-                            .frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
-                        #if DEBUG
-                        FieldLibraryReadValidationRepair(identifier: "field-data-test-repair")
-                        #endif
-                    }.padding(.horizontal,20).padding(.vertical,8)
-                }
-                if !compactLandscape { fieldLibraryButton }
-                if compactLandscape {
-                    HStack(spacing: 0) {
-                        folderPicker.frame(maxWidth: .infinity)
-                        searchControls.frame(maxWidth: .infinity)
-                    }.disabled(preparingOutput || fieldMutation.working)
-                } else { folderPicker.disabled(preparingOutput || fieldMutation.working) }
-                if !lanes.lanes.isEmpty {
-                    Button { showingLanes = true } label: {
-                        HStack { Text("Navigation lanes · \(lanes.lanes.count)"); Spacer(); Image(systemName: "chevron.right") }
-                            .padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
-                    }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("library-nav-lanes")
-                }
-                if !compactLandscape { searchControls.disabled(preparingOutput || fieldMutation.working) }
-                libraryCaption.disabled(preparingOutput || fieldMutation.working)
-                if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
-                if let error = fieldMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20) }
-                if let format = fieldExport.format {
-                    HStack {
-                        ProgressView().tint(palette.accent)
-                        Text("Preparing " + format.label + "…").font(.footnote)
-                        Spacer()
-                        Button("Cancel") { fieldExport.cancel(); status = "Export cancelled" }
-                            .frame(minHeight: 44).accessibilityIdentifier("field-export-cancel")
-                    }.padding(.horizontal,20).accessibilityIdentifier("field-export-progress")
-                }
-                if let phase = backupTransfer.phase {
-                    HStack {
-                        ProgressView().tint(palette.accent)
-                        Text(phase.title).font(.footnote)
-                        Spacer()
-                        if phase != .restoring {
-                            Button("Cancel") { backupTransfer.cancel(); status = "Backup cancelled" }
-                                .frame(minHeight: 44).accessibilityIdentifier("backup-cancel")
-                        }
-                    }.padding(.horizontal,20).accessibilityIdentifier("backup-progress")
-                }
-                if listing.updating || listing.snapshot == nil && listing.error == nil {
-                    ProgressView("Updating library…").tint(palette.accent)
-                        .frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-updating")
-                } else if let error = listing.error {
-                    VStack(spacing: 12) {
-                        Text(error)
-                        Button("Retry") { listing.retry() }
-                    }.frame(maxWidth: .infinity,maxHeight: .infinity)
-                } else if !query.isEmpty && listedSelection.count == 0 {
-                    Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
-                } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
-                    if fieldData.loadError == nil { empty } else { Spacer() }
-                } else {
-                    list.disabled(preparingOutput || fieldMutation.working)
-                }
-            }
-            .padding(.bottom, 12)
+            if accessibleLayout {
+                ScrollView { workspace }.accessibilityIdentifier("library-workspace-scroll")
+            } else { workspace }
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
@@ -327,37 +260,121 @@ struct WaypointsView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Waypoints").font(.system(compactLandscape ? .title2 : .largeTitle, design: .rounded, weight: .bold))
-                if !compactLandscape {
-                    Text("\(store.waypoints.count) saved · on this device")
-                        .font(.subheadline).foregroundStyle(palette.inkDim)
+    private var workspace: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                header.disabled(preparingOutput || fieldMutation.working)
+                if let error = store.loadError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-library-load-error")
+                        Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
+                    }.padding(.horizontal,20).padding(.vertical,8)
+                }
+                if let failure = fieldData.loadError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(failure).font(.footnote).foregroundStyle(palette.warn).fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("field-data-read-error")
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                            .fixedSize(horizontal:false,vertical:true).frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
+                        #if DEBUG
+                        FieldLibraryReadValidationRepair(identifier: "field-data-test-repair")
+                        #endif
+                    }.padding(.horizontal,20).padding(.vertical,8)
+                }
+                if !compactLandscape { fieldLibraryButton }
+                if compactLandscape {
+                    HStack(spacing: 0) {
+                        folderPicker.frame(maxWidth: .infinity)
+                        searchControls.frame(maxWidth: .infinity)
+                    }.disabled(preparingOutput || fieldMutation.working)
+                } else { folderPicker.disabled(preparingOutput || fieldMutation.working) }
+                if !lanes.lanes.isEmpty {
+                    Button { showingLanes = true } label: {
+                        HStack { Text("Navigation lanes · \(lanes.lanes.count)"); Spacer(); Image(systemName: "chevron.right") }
+                            .padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("library-nav-lanes")
+                }
+                if !compactLandscape { searchControls.disabled(preparingOutput || fieldMutation.working) }
+                libraryCaption.disabled(preparingOutput || fieldMutation.working)
+                if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
+                if let error = fieldMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20) }
+                if let format = fieldExport.format {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text("Preparing " + format.label + "…").font(.footnote)
+                        Spacer()
+                        Button("Cancel") { fieldExport.cancel(); status = "Export cancelled" }
+                            .frame(minHeight: 44).accessibilityIdentifier("field-export-cancel")
+                    }.padding(.horizontal,20).accessibilityIdentifier("field-export-progress")
+                }
+                if let phase = backupTransfer.phase {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text(phase.title).font(.footnote)
+                        Spacer()
+                        if phase != .restoring {
+                            Button("Cancel") { backupTransfer.cancel(); status = "Backup cancelled" }
+                                .frame(minHeight: 44).accessibilityIdentifier("backup-cancel")
+                        }
+                    }.padding(.horizontal,20).accessibilityIdentifier("backup-progress")
+                }
+                if listing.updating || listing.snapshot == nil && listing.error == nil {
+                    ProgressView("Updating library…").tint(palette.accent)
+                        .frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-updating")
+                } else if let error = listing.error {
+                    VStack(spacing: 12) {
+                        Text(error)
+                        Button("Retry") { listing.retry() }
+                    }.frame(maxWidth: .infinity,maxHeight: .infinity)
+                } else if !query.isEmpty && listedSelection.count == 0 {
+                    Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
+                } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
+                    if fieldData.loadError == nil { empty } else { Spacer() }
+                } else {
+                    list.disabled(preparingOutput || fieldMutation.working)
                 }
             }
-            Spacer()
-            if compactLandscape { fieldLibraryButton }
-            Button { choosingLibraryActions = true } label: {
-                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
+            .padding(.bottom, 12)
+    }
+
+    private var header: some View {
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment: .leading,spacing: 10)) : AnyLayout(HStackLayout())
+        return layout {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Waypoints").font(.system(compactLandscape ? .title2 : .largeTitle, design: .rounded, weight: .bold))
+                    .fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("library-heading")
+                if !compactLandscape {
+                    Text("\(store.waypoints.count) saved · on this device")
+                        .font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
+                }
             }
-            .fieldGlassButton()
-            .accessibilityLabel("Waypoint actions")
-            Button { beginAdd(atFix: false) } label: {
-                Image(systemName: "plus").frame(width: 44, height: 44)
+            if !accessibleLayout { Spacer() }
+            HStack {
+                if compactLandscape { fieldLibraryButton }
+                Button { choosingLibraryActions = true } label: {
+                    Image(systemName: "ellipsis").font(accessibleLayout ? .system(size:22) : .body)
+                        .frame(width:44,height:44).contentShape(Rectangle())
+                }.fieldGlassButton().accessibilityLabel("Waypoint actions")
+                Button { beginAdd(atFix: false) } label: {
+                    Image(systemName: "plus").font(accessibleLayout ? .system(size:22) : .body).frame(width:44,height:44)
+                }.fieldGlassButton().accessibilityLabel("Add waypoint").accessibilityIdentifier("add-waypoint")
             }
-            .fieldGlassButton()
-            .accessibilityLabel("Add waypoint")
-            .accessibilityIdentifier("add-waypoint")
         }
-        .padding(.horizontal, 20)
-        .padding(.top, compactLandscape ? 0 : 18)
-        .padding(.bottom, compactLandscape ? 0 : 12)
+        .padding(.horizontal,20)
+        .padding(.top,compactLandscape ? 0 : 18)
+        .padding(.bottom,compactLandscape ? 0 : 12)
     }
 
     private var fieldLibraryButton: some View {
         Button { showingLibrary = true } label: {
-            if compactLandscape {
+            if accessibleLayout && !compactLandscape {
+                VStack(alignment:.leading,spacing:6) {
+                    HStack(spacing:8) {
+                        Image(systemName:"point.topleft.down.to.point.bottomright.curvepath").font(.system(size:22)).accessibilityHidden(true)
+                        Text("Routes & tracks").font(.headline).fixedSize(horizontal:false,vertical:true)
+                    }
+                    Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
+                        .font(.caption).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
+                }.frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,20).padding(.vertical,12).contentShape(Rectangle())
+            } else if compactLandscape {
                 Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
                     .frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
             } else {
@@ -422,9 +439,9 @@ struct WaypointsView: View {
 
     private var searchControls: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(palette.inkDim)
-            TextField("Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }),
-                      prompt: Text("Search name, folder or grid").foregroundColor(palette.inkDim))
+            Image(systemName: "magnifyingglass").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.inkDim).accessibilityHidden(true)
+            TextField(accessibleLayout ? "Search library" : "Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }),
+                      prompt: Text(accessibleLayout ? "Search library" : "Search name, folder or grid").foregroundColor(palette.inkDim))
                 .textInputAutocapitalization(.never).autocorrectionDisabled().focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
                 .accessibilityIdentifier("library-search")
             if !searchQuery.isEmpty {
@@ -432,7 +449,7 @@ struct WaypointsView: View {
                     .accessibilityLabel("Clear library search").accessibilityIdentifier("library-search-clear")
             }
             Button { searchFocused = false; choosingSort = true } label: {
-                Image(systemName: "arrow.up.arrow.down").frame(width: 44,height: 44).contentShape(Rectangle())
+                Image(systemName: "arrow.up.arrow.down").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44,height: 44).contentShape(Rectangle())
             }.buttonStyle(.plain)
                 .accessibilityLabel("Sort waypoints, \(waypointSort.label)").accessibilityIdentifier("library-sort")
         }.padding(.horizontal,12).frame(minHeight: 44)
@@ -440,41 +457,52 @@ struct WaypointsView: View {
     }
 
     private var libraryCaption: some View {
-        HStack(spacing: 10) {
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment:.leading,spacing:10)) : AnyLayout(HStackLayout(spacing:10))
+        return layout {
             if selecting {
                 Text("\(selection.count) selected").font(.caption.bold()).accessibilityIdentifier("library-selected-count")
-                Spacer()
+                if !accessibleLayout { Spacer() }
+                HStack {
                 Button {
                     guard listing.isReady else { return }
                     selection = selection == listedSelection ? LibrarySelection() : listedSelection
-                } label: { Image(systemName: selection == listedSelection ? "checkmark.circle.fill" : "checkmark.circle").frame(minWidth: 44,minHeight: 44) }
+                } label: { Image(systemName: selection == listedSelection ? "checkmark.circle.fill" : "checkmark.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }
                     .accessibilityLabel(selection == listedSelection ? "Select none" : "Select all").accessibilityIdentifier("library-select-all").disabled(!listing.isReady)
                 Button { choosingSelectionAction = true } label: {
-                    Image(systemName: "ellipsis.circle").frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
+                    Image(systemName: "ellipsis.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
                 }
                     .disabled(selection.count == 0 || !listing.isReady).accessibilityLabel("Selected item actions")
                 Button("Done") { selecting = false; selection = LibrarySelection() }.accessibilityIdentifier("library-selection-done")
+                }
             } else {
                 Text("\(waypointSort.label) · \(listedWaypoints.count) waypoints · \(listedGraphics.count) graphics · \(listedTracks.count) tracks")
-                    .font(.caption).foregroundStyle(palette.inkDim).accessibilityIdentifier("library-listed-count")
-                Spacer(minLength: 0)
+                    .font(.caption).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("library-listed-count")
+                if !accessibleLayout { Spacer(minLength: 0) }
+                HStack {
                 if let folder = libraryFolders.first(where: { $0.name == folderFilter }) ?? (libraryFolders.count == 1 ? libraryFolders.first : nil) {
                     Button { setFolderVisible(folder.name,visible: !folder.visible) } label: {
-                        Image(systemName: folder.visible ? "eye" : "eye.slash").frame(minWidth: 44,minHeight: 44)
+                        Image(systemName: folder.visible ? "eye" : "eye.slash").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44)
                     }.accessibilityLabel(folder.visible ? "Hide folder" : "Show folder").accessibilityIdentifier("folder-visibility-\(folder.name)")
                     if folder.name != Folders.defaultFolder {
                         Button {
                             folderActionTarget = folder.name; choosingFolderActions = true
-                        } label: { Image(systemName: "folder.badge.gearshape").frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Folder options")
+                        } label: { Image(systemName: "folder.badge.gearshape").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Folder options")
                     }
                 }
-                Button { selecting = true; selection = LibrarySelection() } label: { Image(systemName: "checkmark.circle").frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Select items").accessibilityIdentifier("library-select-button")
+                Button { selecting = true; selection = LibrarySelection() } label: { Image(systemName: "checkmark.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Select items").accessibilityIdentifier("library-select-button")
+                }
             }
         }.font(.caption).padding(.horizontal,20).frame(minHeight: 44)
     }
 
     private var list: some View {
-        ScrollView {
+        Group {
+            if accessibleLayout { libraryRows }
+            else { ScrollView { libraryRows } }
+        }.accessibilityIdentifier("library-list")
+    }
+
+    private var libraryRows: some View {
             LazyVStack(alignment: .leading,spacing: 12) {
                 if let folder = libraryFolders.first(where: { $0.name == folderFilter }), !folder.visible {
                     Text("\(folder.name) is hidden on the map. Its saved records remain listed here.").font(.footnote).foregroundStyle(palette.inkDim)
@@ -516,7 +544,6 @@ struct WaypointsView: View {
                 if listedSelection.count == 0 && fieldData.ready && fieldData.loadError == nil { Text("Nothing in \(folderFilter ?? "the library") yet.").font(.footnote).foregroundStyle(palette.inkDim) }
                 if let status { Text(status).font(.footnote).foregroundStyle(palette.accent).padding(.vertical,8).accessibilityIdentifier("library-status") }
             }.padding(.horizontal,20).padding(.bottom,20)
-        }.accessibilityIdentifier("library-list")
     }
 
     private func selectionRow<Content: View>(id: String,name: String,kind: String,visible: Bool,ids: Binding<Set<String>>,@ViewBuilder content: () -> Content) -> some View {

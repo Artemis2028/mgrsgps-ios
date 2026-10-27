@@ -49,6 +49,52 @@ metadata and point logs separate; large-library startup costs remain open.
 The product display name is **MGRS GPS** on phone and both watch platforms;
 verified in the iOS/watchOS project settings and Android/Wear resources.
 
+Accessibility library follow-up, 27 October: the real global
+AccessibilityXXXL setting exposed truncated Waypoints/error/retry/library labels
+that ordinary recovery tests did not detect. At accessibility sizes the whole
+library workspace now scrolls, with lazy record rows in that same scroll
+container; ordinary sizes retain the separate scrolling record list. The
+heading, action controls, route-library label and counts stack/wrap, with bounded
+search/action artwork and a shorter search prompt. Two largest-text recovery
+workflows now exercise day and night, including retry after source repair,
+saved-track access and relaunch. The initial large-text bundle
+`/tmp/mgrsgps-field-read-ax.xcresult` retains the clipped UI evidence. The first
+layout bundle `/tmp/mgrsgps-library-ax-layout.xcresult` retains a test reveal
+failure: dragging blank edge space did not scroll the content. The corrected
+native content drag is used in the final workflow; no data assertions were
+removed. Full-app accessibility, spoken VoiceOver and physical readability
+remain separate gates; large waypoint-card action layouts still need wider
+coverage. Startup still eagerly validates saved logs; no lazy-load or orphan
+cleanup implementation is claimed by this UI milestone.
+Final validation: all five workflows in
+`/tmp/mgrsgps-library-ax-scroll-final.xcresult` pass (ordinary day/night recovery,
+largest-text day/night recovery, and ordinary 5,000-waypoint/1,000-graphic
+search/grid-selection/night cards). Screenshot review then found a truncated
+native large sheet title; accessibility sizes now use the native inline title.
+The subsequent `/tmp/mgrsgps-library-ax-title-final.xcresult` passes and its images
+show the complete title. The recording icon is bounded to 22 points after
+largest-text review showed it outgrowing its control; the final
+`/tmp/mgrsgps-library-record-icon-final.xcresult` passes with the icon contained.
+Final unsigned phone/watch/widget Release
+(`/tmp/mgrsgps-library-record-icon-release.log`) and eight harness checks pass.
+Key full-display day/night/large-text screenshots are inspected. Repeat runs
+are not counted as extra distinct workflows. All owned simulators/feeds are off
+and all local parents ended naturally. The wider core remains at its previously
+validated 518 cases; no new core behavior is part of this layout change.
+
+Hosted106 field job `122129976193` is terminal with one failure in
+`OrientationWorkflowTests.testQuickOrientationControlsAreAvailableAcrossMainScreens`
+at line 17. Its 36 UI cases include five opt-in skips and one failure; dedicated
+fix/course/boundary/route/practice steps are skipped. The native failure hierarchy
+shows a New folder sheet after the orientation shortcut was tapped. Artifact
+`12729019595` (401,938,844 bytes) is retrieved, SHA-256 verified:
+`a3737ca882192cfc1b72c1a355c5c3757c24524df1c1976d4a05ffb7744ee5c0`.
+Archive `/tmp/mgrsgps-ci106-field.zip`, extracted `/tmp/mgrsgps-ci106-field`;
+native video and failure hierarchy are inspected. This new activation failure
+remains open, not attributed to iOS limitations. Library/map jobs are still live
+on pushed `7965445`; the saved-read and accessibility-library candidates remain
+local to avoid cancelling that run.
+
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |

@@ -11,6 +11,7 @@ struct RecordingButton: View {
             else { showingPanel = true }
         } label: {
             Image(systemName: recorder.canStop ? "stop.circle.fill" : "record.circle")
+                .font(.system(size:22))
                 .frame(width: 44, height: 40)
         }
         .fieldGlassButton(mapControl: mapControl)

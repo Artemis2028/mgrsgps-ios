@@ -6,6 +6,7 @@ struct FieldLibraryView: View {
     @EnvironmentObject private var waypoints: WaypointStore
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onNavigate: () -> Void = {}
     var onShowMap: () -> Void = {}
     @State private var showingPractice = false
@@ -67,6 +68,7 @@ struct FieldLibraryView: View {
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
             .sheet(isPresented: $showingPractice) { PracticeCourseView() }
             .navigationTitle("Routes & tracks")
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(item: $routeRequest) { request in
                 RouteEditor(route: request.route) { route in
