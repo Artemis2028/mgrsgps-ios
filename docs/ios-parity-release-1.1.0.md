@@ -1683,3 +1683,14 @@ inspection remains required before choosing another repair. Field artifact
 is downloading to `/tmp/mgrsgps-ci109-field.zip`; digest verification is pending.
 Library122270959199 remains live, so there is no whole-run outcome or new push.
 Local16fad42 and31bb327 stay held; draft PR updated, no active run cancelled.
+
+### Usage-saving pause,27 October
+
+[Resume handoff](pause-handoff-2026-10-27.md) supersedes the preceding live/pending
+CI109 statuses: all jobs are terminal. Map passes; field has one Files failure;
+library reports three UI failures and then deadline/artifact-finalization failure.
+Both available field/map ZIP digests are verified and captures inspected.
+The new Files candidate passes two scoped local iOS26.5 large-GPX cases; shared
+consumer regression is still finishing at pause. Course reveal/CI balancing
+candidates are saved locally with validation limits explicit. Watcher paused at
+Rafael's request; no new hosted run, push, server change, merge or release.

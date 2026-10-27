@@ -27,9 +27,10 @@ jobs:
       fail-fast: false
       matrix:
         shard: [library, map, field]
-    # Run 40231275491 hit 90 minutes mid-suite. Each isolated runner owns one
-    # phone and an exhaustive UI shard; field also runs the native/location suites.
-    timeout-minutes: 90
+    # Run 109 reached the 90-minute deadline during XCTest finalization,
+    # leaving a changing xcresult for artifact upload. Rebalance measured UI
+    # work and retain headroom for finalization on the same three runners.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4

@@ -4,9 +4,12 @@ extension XCTestCase {
     /// A saved export is not necessarily indexed in Recents. Hosted iOS 26.5
     /// starts the backup picker there with an empty list; browse the local
     /// provider used by these native save/reopen fixtures instead.
-    func openSavedNativeFile(_ name: String,in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+    func openSavedNativeFile(_ name: String,in app: XCUIApplication,startingInIcons: Bool = false,file: StaticString = #filePath,line: UInt = #line) {
         let match = NSPredicate(format: "label CONTAINS %@",name)
-        var item = app.cells.containing(match).firstMatch
+        // Search suggestions can also contain the requested text. Match a
+        // document's basename/extension prefix, not an ancestor or suggestion.
+        let documentMatch = NSPredicate(format:"identifier == %@ OR identifier BEGINSWITH %@ OR identifier BEGINSWITH %@ OR label == %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@",name,name+".",name+", ",name,name+".",name+", ")
+        var item = app.cells.matching(documentMatch).firstMatch
         let browse = app.tabBars["DOC.browsingModeTabBar"].buttons["Browse"]
         XCTAssertTrue(browse.waitForExistence(timeout: 10),app.debugDescription,file: file,line: line)
         browse.tap()
@@ -20,6 +23,16 @@ extension XCTestCase {
         }
         var files = app.collectionViews["File View"].firstMatch
         XCTAssertTrue(files.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
+        if startingInIcons && (files.value as? String)?.localizedCaseInsensitiveContains("Icon") != true {
+            let more = navigation.buttons["More"]
+            XCTAssertTrue(more.waitForExistence(timeout:8),app.debugDescription,file:file,line:line); more.tap()
+            let icons = app.buttons["Icons"]
+            XCTAssertTrue(icons.waitForExistence(timeout:8),app.debugDescription,file:file,line:line); icons.tap()
+            let settled = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in
+                (files.value as? String)?.localizedCaseInsensitiveContains("Icon") == true
+            },object:nil)
+            XCTAssertEqual(XCTWaiter.wait(for:[settled],timeout:8),.completed,app.debugDescription,file:file,line:line)
+        }
         // Use Files' native list layout for activation. Hosted icon cells can
         // expose valid thumbnail frames while ignoring coordinate/cell taps.
         if (files.value as? String)?.localizedCaseInsensitiveContains("Icon") == true {
@@ -33,7 +46,7 @@ extension XCTestCase {
                 (files.value as? String)?.localizedCaseInsensitiveContains("List") == true
             },object:nil)
             XCTAssertEqual(XCTWaiter.wait(for:[settled],timeout:8),.completed,app.debugDescription,file:file,line:line)
-            item = files.cells.containing(match).firstMatch
+            item = files.cells.matching(documentMatch).firstMatch
         }
         if !item.exists {
             // Repeated native export tests retain older documents. Ask the
@@ -42,17 +55,18 @@ extension XCTestCase {
             let search = navigation.searchFields["Search"]
             XCTAssertTrue(search.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
             search.tap(); search.typeText(name+"\n")
-            XCTAssertTrue(item.waitForExistence(timeout: 15),app.debugDescription,file: file,line: line)
             // Files keeps its underlying folder collection in the AX tree
             // while presenting a second File View for search results.
             files = app.collectionViews.matching(identifier: "File View").allElementsBoundByIndex.last(where: { $0.isHittable }) ?? files
-            item = files.cells.containing(match).firstMatch
+            item = files.cells.matching(documentMatch).firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout:15),app.debugDescription,file:file,line:line)
         }
         let tabs = app.tabBars["DOC.browsingModeTabBar"]
-        // A provider can expose an enclosing cell whose activation point is
-        // the search bar. Prefer the actual filename leaf in this File View;
-        // keep the cell fallback for providers that combine row accessibility.
+        // The hosted List row exposes distinct thumbnail and filename views.
+        // Tap the actual thumbnail, never an inferred fraction of the row.
         func target() -> XCUIElement {
+            let thumbnails = item.images.allElementsBoundByIndex.filter { !$0.frame.isEmpty && $0.frame.width.isFinite && $0.frame.height.isFinite }
+            if let thumbnail = thumbnails.max(by: { $0.frame.width*$0.frame.height < $1.frame.width*$1.frame.height }) { return thumbnail }
             let filename = item.staticTexts.matching(match).firstMatch
             return filename.exists ? filename : item
         }
@@ -85,7 +99,7 @@ extension XCTestCase {
         }
         XCTAssertTrue(item.exists,app.debugDescription,file: file,line: line)
         XCTAssertTrue(unobscured(),app.debugDescription,file: file,line: line)
-        // Activate the resolved filename in the collection view's valid
+        // Activate the resolved thumbnail in the collection view's valid
         // coordinate space, even when the app AX origin is invalid.
         for attempt in 0..<3 {
             if attempt == 0 {

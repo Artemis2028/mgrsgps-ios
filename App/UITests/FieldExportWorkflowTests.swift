@@ -10,7 +10,7 @@ final class FieldExportWorkflowTests: XCTestCase {
     private func exportLibraryGPX() {
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export GPX"])
     }
-    private func saveAndReview(_ stem: String,fromDetails: Bool = false) {
+    private func saveAndReview(_ stem: String,fromDetails: Bool = false,startingInIcons: Bool = false) {
         let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
         let name = stem + String(UUID().uuidString.prefix(8))
@@ -24,7 +24,7 @@ final class FieldExportWorkflowTests: XCTestCase {
         }
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["import-field-file"])
-        openSavedNativeFile(name,in: app)
+        openSavedNativeFile(name,in: app,startingInIcons:startingInIcons)
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)
     }
     private func counts(_ expected: String) {
@@ -39,6 +39,13 @@ final class FieldExportWorkflowTests: XCTestCase {
         exportLibraryGPX(); saveAndReview("large-field-export-")
         counts("5000 waypoints · 1000 graphics/routes · 0 tracks")
         capture("large-gpx-export-file-preview"); app.buttons["Cancel"].tap()
+    }
+    func testLargeLibraryGPXReopensAfterNativeIconToListTransition() {
+        launch("-uiTestLargeLibrary")
+        XCTAssertTrue(app.buttons["edit-waypoint-Point 4999"].waitForExistence(timeout:10))
+        exportLibraryGPX(); saveAndReview("icons-field-export-",startingInIcons:true)
+        counts("5000 waypoints · 1000 graphics/routes · 0 tracks")
+        capture("large-gpx-icon-transition-preview"); app.buttons["Cancel"].tap()
     }
     func testNativeExportCancellationAllowsAnotherCompleteExport() {
         launch("-uiTestLibrary"); exportLibraryGPX()

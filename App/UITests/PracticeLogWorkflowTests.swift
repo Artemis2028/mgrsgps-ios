@@ -2,7 +2,7 @@ import XCTest
 
 final class PracticeLogWorkflowTests: XCTestCase {
     override func setUp() { super.setUp(); continueAfterFailure = false }
-    private func reveal(_ element: XCUIElement,in app: XCUIApplication) {
+    private func reveal(_ element: XCUIElement,in app: XCUIApplication,searchUp: Bool = false) {
         for _ in 0..<24 {
             let surface = app.collectionViews.allElementsBoundByIndex.last ?? app.scrollViews.firstMatch
             let header = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY + 8 : app.windows.firstMatch.frame.minY + 60
@@ -22,7 +22,8 @@ final class PracticeLogWorkflowTests: XCTestCase {
                 let start = surface.coordinate(withNormalizedOffset:.zero).withOffset(.init(dx:surface.frame.width/2,dy:startY-surface.frame.minY))
                 let finish = start.withOffset(.init(dx:0,dy:delta))
                 start.press(forDuration:0.1,thenDragTo:finish,withVelocity:.slow,thenHoldForDuration:0.3)
-            } else { surface.swipeUp() }
+            } else if searchUp { surface.swipeDown() }
+            else { surface.swipeUp() }
         }
         XCTFail("Saved course control is not fully visible: " + app.debugDescription)
     }
@@ -95,7 +96,10 @@ final class PracticeLogWorkflowTests: XCTestCase {
         let end = app.buttons["practice-end"]; reveal(end,in:app); tapNativeMenuItem(end)
         tapNativeMenuItem(app.buttons["End course"])
         let create = app.staticTexts["Create course"]
-        XCTAssertTrue(create.waitForExistence(timeout:15),app.debugDescription)
+        // Ending retains this Form's scroll position. On hosted 26.5 the
+        // new form opens at Start, with its Create header virtualized above.
+        // Reveal and verify that header before checking Start below it.
+        reveal(create,in:app,searchUp:true); XCTAssertTrue(create.exists)
         let start = app.buttons["practice-start"]
         reveal(start,in:app); XCTAssertTrue(start.exists); XCTAssertTrue(start.isHittable)
         capture(night ? "active-course-ended-largest-night" : "active-course-ended-day")
