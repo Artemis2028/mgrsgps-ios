@@ -11,6 +11,7 @@ struct TAKSettingsView: View {
     @State private var resetTrust = false
     @State private var callsign = ""
     @State private var enrollment = false
+    @State private var showingCertificateDetails = false
     var onShow: ((TAKRemoteItem) -> Void)?
     private var palette: FieldPalette { .init(night: settings.nightMode) }
     var body: some View {
@@ -41,6 +42,39 @@ struct TAKSettingsView: View {
                             tak.setCallsign(callsign)
                             if tak.connected || tak.connecting { tak.disconnect() } else { tak.connect() }
                         }.accessibilityIdentifier("tak-connect")
+                        if tak.profile.tls {
+                            Button { showingCertificateDetails.toggle() } label: {
+                                HStack {
+                                    VStack(alignment: .leading,spacing: 4) {
+                                        Text("Client certificate").font(.subheadline.weight(.semibold))
+                                        if let info = tak.clientCertificate {
+                                            Text(info.status(at: Date())).font(.caption).foregroundStyle(info.state(at: Date()) == .withinDates ? palette.inkDim : palette.warn)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: showingCertificateDetails ? "chevron.up" : "chevron.down")
+                                }.frame(minHeight: 44).contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityIdentifier("tak-certificate-details")
+                                .accessibilityValue(showingCertificateDetails ? "Expanded" : "Collapsed")
+                            if showingCertificateDetails {
+                                if let info = tak.clientCertificate {
+                                    TimelineView(.periodic(from: Date(),by: 60)) { context in
+                                        TAKCertificateDetailsView(info: info,now: context.date,night: settings.nightMode)
+                                    }
+                                } else if tak.loadingCertificateDetails {
+                                    ProgressView("Reading saved certificate…").tint(palette.accent)
+                                } else {
+                                    Text(tak.certificateDetailsStatus).font(.footnote).foregroundStyle(palette.inkDim)
+                                    Button("Reload certificate details") { Task { await tak.refreshCertificateDetails() } }
+                                        .accessibilityIdentifier("tak-reload-certificate-details")
+                                }
+                                Button("Renew client certificate") { if tak.suggestCertificateRenewal() { enrollment = true } }
+                                    .frame(minHeight: 44).buttonStyle(.bordered).accessibilityIdentifier("tak-renew-certificate")
+                                if let message = tak.certificateRenewalMessage { Text(message).font(.footnote).foregroundStyle(palette.ink) }
+                                Text("Sign in again to request a replacement. Cancelling keeps this saved connection. Your account password or token is not saved.")
+                                    .font(.footnote).foregroundStyle(palette.inkDim)
+                            }
+                        }
                         if let pin = tak.profile.pin {
                             Text("Trusted server SHA-256\n" + pin).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                             Button("Reset server trust", role: .destructive) { resetTrust = true }.accessibilityIdentifier("tak-reset-trust")
@@ -113,7 +147,8 @@ struct TAKSettingsView: View {
                 .tint(palette.accent)
         }.preferredColorScheme(.dark)
             .onAppear { callsign = tak.profile.callsign }
-            .sheet(isPresented: $enrollment, onDismiss: { callsign = tak.profile.callsign; tak.clearEnrollmentSuggestion() }) { TAKEnrollmentView(suggestion: tak.enrollmentSuggestion) }
+            .task(id: tak.profile.credentialID ?? tak.profile.uid) { await tak.refreshCertificateDetails() }
+            .sheet(isPresented: $enrollment, onDismiss: { callsign = tak.profile.callsign; tak.clearEnrollmentSuggestion() }) { TAKEnrollmentView(suggestion: tak.enrollmentSuggestion,renewal: tak.renewalContext,usernameSuggestion: tak.renewalContext == nil ? nil : tak.clientCertificate?.subject) }
             .confirmationDialog("Reset the trusted server certificate?", isPresented: $resetTrust, titleVisibility: .visible) {
                 Button("Reset server trust", role: .destructive) { tak.resetServerTrust() }
                 Button("Cancel", role: .cancel) {}

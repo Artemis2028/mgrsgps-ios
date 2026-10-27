@@ -14,6 +14,7 @@ struct TAKProfile: Codable, Sendable {
     var title = ""
     var pin: String?
     var credentialID: String?
+    var enrollmentPort: Int?
     var showRemote = true
     var sharedFolders: Set<String>?
 }

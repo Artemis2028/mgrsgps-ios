@@ -14,7 +14,19 @@ final class TAKSession: ObservableObject {
     @Published private(set) var failure: String?
     @Published private(set) var sharingWaitMessage: String?
     @Published private(set) var positionWaitMessage: String?
+    @Published private(set) var clientCertificate: TAKClientCertificateInfo?
+    @Published private(set) var certificateDetailsStatus = "Client certificate details have not been loaded"
+    @Published private(set) var loadingCertificateDetails = false
+    private var certificateDetailsGeneration = UUID()
+    struct Renewal: Equatable, Sendable {
+        let uid: String
+        let credentialID: String
+        let target: TAKEnrollment.Target
+        let pin: String?
+    }
     @Published private(set) var enrollmentSuggestion: TAKEnrollment.Target?
+    @Published private(set) var renewalContext: Renewal?
+    @Published private(set) var certificateRenewalMessage: String?
     @Published var sharePosition = false { didSet { if oldValue != sharePosition { if !sharePosition { positionWaitMessage = nil }; updateLocationDemand(); lastPresence = nil; tick() } } }
     private let transport: TAKTransportDriving
     private let location: RecordingLocationDriver
@@ -79,7 +91,8 @@ final class TAKSession: ObservableObject {
     }
     func importPackage(_ bytes: Data) async {
         disconnect()
-        enrollmentSuggestion = nil
+        clearEnrollmentSuggestion()
+        certificateRenewalMessage = nil
         do {
             let package = try await Task.detached(priority: .userInitiated) { try TAKConnectionPackage.read(bytes) }.value
             guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
@@ -92,6 +105,7 @@ final class TAKSession: ObservableObject {
             var next = profile
             if next.host != package.host || next.port != package.port || next.tls != package.usesTLS { next.pin = nil }
             next.host = package.host; next.port = package.port; next.title = package.description; next.tls = package.usesTLS
+            next.enrollmentPort = nil
             // Secrets stay in a device-only Keychain item; the profile contains
             // endpoint/callsign/pin only and is excluded from backups.
             let oldCredentialID = profile.credentialID ?? profile.uid
@@ -104,33 +118,97 @@ final class TAKSession: ObservableObject {
             profile = next
             do { sent = try store.readSent(profile: next); sharingAvailable = true }
             catch { sent = [:]; sharingAvailable = false }
-            credentials = imported; trustRequest = nil; failure = nil
+            credentials = imported; publishCertificateInfo(TAKClientCertificateInfo.credentials(imported)); trustRequest = nil; failure = nil
             status = "Ready to connect"
             scene.clear(); remoteItems = []
         } catch { failure = error.localizedDescription; status = "Import failed" }
     }
-    func clearEnrollmentSuggestion() { enrollmentSuggestion = nil }
+    func refreshCertificateDetails(reader: @escaping @Sendable (TAKLocalStore,String) throws -> TAKClientCertificateInfo? = { try TAKClientCertificateInfo.read(store: $0,id: $1) }) async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestTAKCertificateDetails") { return }
+        #endif
+        guard configured,profile.tls,let store else { publishCertificateInfo(nil); return }
+        let id = profile.credentialID ?? profile.uid,token = UUID()
+        certificateDetailsGeneration = token; loadingCertificateDetails = true
+        let worker = Task.detached(priority: .userInitiated) { try Task.checkCancellation(); return try reader(store,id) }
+        do {
+            let value = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+            guard certificateDetailsGeneration == token,id == (profile.credentialID ?? profile.uid) else { return }
+            loadingCertificateDetails = false
+            guard !Task.isCancelled else { return }
+            clientCertificate = value
+            certificateDetailsStatus = value == nil ? "No client certificate is saved for this connection" : ""
+        } catch {
+            guard certificateDetailsGeneration == token,id == (profile.credentialID ?? profile.uid) else { return }
+            loadingCertificateDetails = false
+            guard !(error is CancellationError) else { return }
+            clientCertificate = nil
+            certificateDetailsStatus = "Unable to read client certificate details. Retry or import the connection package again."
+        }
+    }
+    private func publishCertificateInfo(_ value: TAKClientCertificateInfo?) {
+        certificateDetailsGeneration = UUID(); loadingCertificateDetails = false; clientCertificate = value
+        certificateDetailsStatus = value == nil ? "No client certificate is saved for this connection" : ""
+    }
+    @discardableResult func suggestCertificateRenewal() -> Bool {
+        guard configured,profile.tls else { return false }
+        enrollmentSuggestion = nil; renewalContext = nil
+        do {
+            let target = try TAKEnrollment.Target(host: profile.host,enrollmentPort: profile.enrollmentPort ?? 8446,streamPort: profile.port)
+            enrollmentSuggestion = target
+            renewalContext = .init(uid: profile.uid,credentialID: profile.credentialID ?? profile.uid,target: target,pin: profile.pin)
+            return true
+        } catch { failure = "Check the saved server address and ports before renewing"; return false }
+    }
+
+    func clearEnrollmentSuggestion() { enrollmentSuggestion = nil; renewalContext = nil }
     /// Installing a new sign-in is transactional: failure leaves the old
     /// profile/identity intact, and the pending key is deleted by its owner.
-    func installEnrollment(_ enrollment: TAKEnrollmentClient.Result) throws {
+    func installEnrollment(_ enrollment: TAKEnrollmentClient.Result,renewal: Renewal? = nil) throws {
+        if let renewal {
+            guard profile.uid == renewal.uid, (profile.credentialID ?? profile.uid) == renewal.credentialID,
+                  profile.host == renewal.target.host,profile.port == renewal.target.streamPort,profile.tls,
+                  (profile.enrollmentPort ?? 8446) == renewal.target.enrollmentPort,profile.pin == renewal.pin,
+                  enrollment.server.target == renewal.target else {
+                throw TAKCoT.Failure(message: "The saved TAK connection changed during renewal. Start renewal again.")
+            }
+        }
         guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
         let previous = profile, credentialID = profile.uid + "-enrolled-" + UUID().uuidString
         var next = profile
         next.host = enrollment.server.target.host; next.port = enrollment.server.target.streamPort
         next.title = enrollment.server.target.host; next.tls = true
-        next.pin = enrollment.server.explicitlyApproved ? enrollment.server.certificate.sha256 : nil
+        next.enrollmentPort = enrollment.server.target.enrollmentPort
+        next.pin = renewal == nil ? (enrollment.server.explicitlyApproved ? enrollment.server.certificate.sha256 : nil) : previous.pin
         next.credentialID = credentialID
-        // A new account/server never inherits folder sharing choices.
-        next.sharedFolders = []
+        // A fresh account/server never inherits folder sharing choices. Explicit
+        // renewal keeps current policy for the same captured server/credential.
+        if renewal == nil { next.sharedFolders = [] }
         try store.saveCredentials(.init(enrollment: enrollment), uid: credentialID)
         do { try store.write(next) }
         catch { try? store.deleteCredentials(credentialID); throw TAKCoT.Failure(message: "Unable to save the enrolled server; the previous connection was preserved") }
         enrollment.key.retainForProfile()
-        disconnect(); profile = next; credentials = enrollment.credentials
-        do { sent = try store.readSent(profile: next); sharingAvailable = true }
-        catch { sent = [:]; sharingAvailable = false }
-        trustRequest = nil; failure = nil; scene.clear(); remoteItems = []; lastReceivedAt = nil
-        status = "Signed in · ready to connect"
+        if renewal != nil {
+            // A ready transport retains its existing TLS session. Future
+            // connection attempts use the newly saved identity. Invalidate an
+            // unfinished old credential read before it can overwrite this one.
+            let reconnect = desired && !connected
+            if !connected { attempt = UUID(); transport.stop(); connecting = false; retryAt = nil }
+            profile = next; credentials = enrollment.credentials
+            publishCertificateInfo(TAKClientCertificateInfo.credentials(enrollment.credentials))
+            failure = nil; trustRequest = nil
+            certificateRenewalMessage = "Renewed certificate saved. An open connection uses it when it next reconnects."
+            if reconnect { beginAttempt() }
+            else if !connected { status = "Certificate renewed · ready to connect" }
+        } else {
+            disconnect(); profile = next; credentials = enrollment.credentials
+            publishCertificateInfo(TAKClientCertificateInfo.credentials(enrollment.credentials))
+            do { sent = try store.readSent(profile: next); sharingAvailable = true }
+            catch { sent = [:]; sharingAvailable = false }
+            trustRequest = nil; failure = nil; scene.clear(); remoteItems = []; lastReceivedAt = nil
+            certificateRenewalMessage = nil
+            status = "Signed in · ready to connect"
+        }
         removeReplacedCredentials(previous.credentialID ?? previous.uid, store: store)
     }
     private func removeReplacedCredentials(_ id: String, store: TAKLocalStore) {
@@ -205,6 +283,7 @@ final class TAKSession: ObservableObject {
                     // Keychain worker is running. Never publish its old identity.
                     guard attempt == token, desired else { return }
                     credentials = loaded
+                    publishCertificateInfo(TAKClientCertificateInfo.credentials(loaded))
                 }
                 guard attempt == token, desired, let credentials else { return }
                 transport.start(host: profile.host, port: port, tls: profile.tls, identity: credentials.identity,
@@ -361,6 +440,14 @@ final class TAKSession: ObservableObject {
             if let event = TAKCoT.parse(xml, ownUID: profile.uid, now: now) { scene.apply(event, now: now, uptime: ProcessInfo.processInfo.systemUptime) }
         }
         remoteItems = scene.items
+    }
+    func seedCertificateDetailsPreview(expired: Bool) {
+        let now = Date()
+        profile.host = "127.0.0.1"; profile.port = 8089; profile.enrollmentPort = 8446; profile.tls = true
+        profile.title = "Synthetic certificate preview"
+        status = "Synthetic certificate preview · no connection"
+        publishCertificateInfo(.init(subject: "MGRS GPS SYNTHETIC CLIENT",sha256: Array(repeating: "AA",count: 32).joined(separator: ":"),
+                                     validity: .init(notBefore: now.addingTimeInterval(-86400),notAfter: now.addingTimeInterval(expired ? -60 : 7*86400))))
     }
     /// Fixed synthetic CoT events for paired-watch rendering/expiry checks; never connects.
     func seedWatchPreview(hidden: Bool = false,cleared: Bool = false,expiry: Bool = false) {

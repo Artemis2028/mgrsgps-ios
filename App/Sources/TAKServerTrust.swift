@@ -86,6 +86,47 @@ enum TAKServerTrust {
         }
         return names
     }
+    struct Validity: Equatable, Sendable {
+        let notBefore: Date
+        let notAfter: Date
+    }
+    /// RFC 5280 section 4.1.2.5 display metadata only. This never authorizes a
+    /// connection; Security.framework still validates the complete chain.
+    static func validity(_ data: Data) -> Validity? {
+        guard data.count <= 1024 * 1024 else { return nil }
+        let bytes = [UInt8](data)
+        guard let root = DER.read(bytes,at: 0,end: bytes.count),root.tag == 0x30,root.next == bytes.count,
+              let certificate = DER.children(bytes,in: root),certificate.count == 3,
+              certificate[0].tag == 0x30,let fields = DER.children(bytes,in: certificate[0]) else { return nil }
+        let offset = fields.first?.tag == 0xA0 ? 1 : 0
+        guard fields.count >= offset+6, fields[offset].tag == 0x02,
+              fields[offset+1].tag == 0x30, fields[offset+2].tag == 0x30,
+              fields[offset+3].tag == 0x30,let times = DER.children(bytes,in: fields[offset+3]),times.count == 2,
+              let start = certificateTime(bytes,times[0]),let end = certificateTime(bytes,times[1]),start <= end else { return nil }
+        return .init(notBefore: start,notAfter: end)
+    }
+    private static func certificateTime(_ bytes: [UInt8],_ node: DER) -> Date? {
+        let text = Array(bytes[node.body]),yearDigits: Int
+        switch node.tag {
+        case 0x17: yearDigits = 2
+        case 0x18: yearDigits = 4
+        default: return nil
+        }
+        guard text.count == yearDigits+11,text.last == 90,text.dropLast().allSatisfy({ (48...57).contains($0) }) else { return nil }
+        func number(_ offset: Int,_ count: Int = 2) -> Int { text[offset..<(offset+count)].reduce(0) { $0*10+Int($1-48) } }
+        var year = number(0,yearDigits)
+        if yearDigits == 2 { year += year >= 50 ? 1900 : 2000 }
+        let month = number(yearDigits),day = number(yearDigits+2),hour = number(yearDigits+4),minute = number(yearDigits+6),second = number(yearDigits+8)
+        guard (1...9999).contains(year),(1...12).contains(month),(1...31).contains(day),
+              (0...23).contains(hour),(0...59).contains(minute),(0...59).contains(second) else { return nil }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let components = DateComponents(year: year,month: month,day: day,hour: hour,minute: minute,second: second)
+        guard let date = calendar.date(from: components) else { return nil }
+        let actual = calendar.dateComponents([.year,.month,.day,.hour,.minute,.second],from: date)
+        guard actual.year == year,actual.month == month,actual.day == day,actual.hour == hour,actual.minute == minute,actual.second == second else { return nil }
+        return date
+    }
+
     private struct DER {
         let tag: UInt8
         let body: Range<Int>

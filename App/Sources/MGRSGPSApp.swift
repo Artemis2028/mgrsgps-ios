@@ -146,6 +146,9 @@ final class FieldAppStores {
         let takSession = TAKSession(directory: directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0], startup: takStartup, waypoints: waypointStore, field: fieldStore)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKPreview") { takSession.seedMapPreview() }
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestTAKCertificateDetails") {
+            takSession.seedCertificateDetailsPreview(expired: ProcessInfo.processInfo.arguments.contains("-uiTestTAKCertificateExpired"))
+        }
         #endif
         #if DEBUG
         let takWatchArgs = ProcessInfo.processInfo.arguments

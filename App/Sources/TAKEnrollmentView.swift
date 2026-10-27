@@ -17,7 +17,10 @@ struct TAKEnrollmentView: View {
     @State private var busy = false
     @State private var worker: Task<Void, Never>?
     @FocusState private var focused: String?
-    init(suggestion: TAKEnrollment.Target? = nil) {
+    private let renewal: TAKSession.Renewal?
+    init(suggestion: TAKEnrollment.Target? = nil,renewal: TAKSession.Renewal? = nil,usernameSuggestion: String? = nil) {
+        self.renewal = renewal
+        _username = State(initialValue: usernameSuggestion ?? "")
         _host = State(initialValue: suggestion?.host ?? "")
         _enrollmentPort = State(initialValue: String(suggestion?.enrollmentPort ?? 8446))
         _streamPort = State(initialValue: String(suggestion?.streamPort ?? 8089))
@@ -41,7 +44,7 @@ struct TAKEnrollmentView: View {
                                 field("8089", text: $streamPort, id: "tak-enroll-stream-port").keyboardType(.numberPad)
                             }
                         }
-                    }.disabled(busy || verified != nil || approval != nil)
+                    }.disabled(busy || verified != nil || approval != nil || renewal != nil)
                     if let verified {
                         Label("Server verified", systemImage: "checkmark.shield").font(.headline)
                         Text("SHA-256\n" + fingerprint(verified.certificate.sha256)).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
@@ -54,7 +57,7 @@ struct TAKEnrollmentView: View {
                         Button(busy ? "Signing in…" : "Sign in") { signIn(verified) }
                             .frame(minHeight: 44).buttonStyle(.borderedProminent).foregroundStyle(busy || username.isEmpty || password.isEmpty ? palette.inkDim : .black)
                             .disabled(busy || username.isEmpty || password.isEmpty).accessibilityIdentifier("tak-enroll-submit")
-                        if !busy { Button("Change server") { self.verified = nil; password = "" }.frame(minHeight: 44).buttonStyle(.bordered) }
+                        if !busy { Button(renewal == nil ? "Change server" : "Verify server again") { self.verified = nil; password = "" }.frame(minHeight: 44).buttonStyle(.bordered) }
                     } else if let approval {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Verify this server").font(.headline)
@@ -69,7 +72,9 @@ struct TAKEnrollmentView: View {
                             Button("Trust this certificate") { verify(pin: approval.sha256) }.disabled(busy)
                                 .frame(minHeight: 44).buttonStyle(.borderedProminent).foregroundStyle(busy ? palette.inkDim : .black)
                                 .accessibilityIdentifier("tak-enroll-trust")
-                            Button("Use another server") { self.approval = nil }.disabled(busy).frame(minHeight: 44).buttonStyle(.bordered)
+                            Button(renewal == nil ? "Use another server" : "Cancel renewal") {
+                                if renewal == nil { self.approval = nil } else { cancel(); dismiss() }
+                            }.disabled(busy).frame(minHeight: 44).buttonStyle(.bordered)
                         }.padding().fieldChrome()
                     } else {
                         Button(busy ? "Checking server…" : "Verify server") { verify() }.disabled(busy || host.isEmpty)
@@ -77,15 +82,17 @@ struct TAKEnrollmentView: View {
                             .accessibilityIdentifier("tak-enroll-verify")
                         Text("No username, password or token is sent until the server is verified.")
                             .font(.footnote).foregroundStyle(palette.inkDim)
-                        Divider()
-                        Text("Have an enrollment link?").font(.headline)
-                        // Enrollment links can contain a secret token. Use a
-                        // secure field and never echo the link in an error.
-                        SecureField("Paste TAK enrollment link", text: $link, prompt: Text("Paste TAK enrollment link").foregroundColor(palette.inkDim)).textInputAutocapitalization(.never).autocorrectionDisabled()
-                            .focused($focused, equals: "link").submitLabel(.done).onSubmit { focused = nil }
-                            .padding(12).background(palette.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-                            .accessibilityIdentifier("tak-enroll-link")
-                        Button("Use enrollment link") { applyLink() }.disabled(busy || link.isEmpty).frame(minHeight: 44).buttonStyle(.bordered)
+                        if renewal == nil {
+                            Divider()
+                            Text("Have an enrollment link?").font(.headline)
+                            // Enrollment links can contain a secret token. Use a
+                            // secure field and never echo the link in an error.
+                            SecureField("Paste TAK enrollment link", text: $link, prompt: Text("Paste TAK enrollment link").foregroundColor(palette.inkDim)).textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .focused($focused, equals: "link").submitLabel(.done).onSubmit { focused = nil }
+                                .padding(12).background(palette.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                                .accessibilityIdentifier("tak-enroll-link")
+                            Button("Use enrollment link") { applyLink() }.disabled(busy || link.isEmpty).frame(minHeight: 44).buttonStyle(.bordered)
+                        }
                     }
                     if busy { ProgressView().tint(palette.accent) }
                     if let error { Text(error).foregroundStyle(palette.warn).font(.footnote).accessibilityIdentifier("tak-enroll-error") }
@@ -127,7 +134,9 @@ struct TAKEnrollmentView: View {
         guard let enrollmentPort = Int(enrollmentPort), let streamPort = Int(streamPort) else {
             throw TAKCoT.Failure(message: "Enter valid sign-in and stream ports")
         }
-        return try .init(host: host, enrollmentPort: enrollmentPort, streamPort: streamPort)
+        let target = try TAKEnrollment.Target(host: host,enrollmentPort: enrollmentPort,streamPort: streamPort)
+        guard renewal == nil || target == renewal?.target else { throw TAKCoT.Failure(message: "Renewal uses the saved server. Cancel to choose a different server.") }
+        return target
     }
     private func verify(pin: String? = nil) {
         focused = nil; error = nil
@@ -136,7 +145,7 @@ struct TAKEnrollmentView: View {
             worker = Task { @MainActor in
                 defer { busy = false; worker = nil }
                 do {
-                    let result = try await TAKEnrollmentClient.verify(target, approvedPin: pin)
+                    let result = try await TAKEnrollmentClient.verify(target, approvedPin: pin ?? renewal?.pin)
                     try Task.checkCancellation(); verified = result; approval = nil
                 } catch let request as TAKEnrollmentClient.NeedsApproval {
                     if !Task.isCancelled { approval = request.certificate }
@@ -153,7 +162,7 @@ struct TAKEnrollmentView: View {
             do {
                 let result = try await TAKEnrollmentClient.enroll(server: server, username: username, password: password, deviceUID: deviceUID)
                 try Task.checkCancellation()
-                try tak.installEnrollment(result)
+                try tak.installEnrollment(result,renewal: renewal)
                 dismiss()
             } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
         }

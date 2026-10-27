@@ -71,7 +71,7 @@ three-case regression passes in `/tmp/gridfix-enrollment-readable-ui-20261025.xc
 exported fingerprint, retry and day/night validation screenshots were inspected.
 The final Release phone/watch/widget build passes in
 `/tmp/gridfix-enrollment-final-release.log`. Hosted CI remains required. Physical devices, hosted production servers, official
-TAK Server, account provisioning/revocation, renewal/expiry UX, crash-time orphan
+TAK Server, account provisioning/revocation, live renewal verification, crash-time orphan
 key reclamation and sustained/background reliability remain open. Server-side
 IN/OUT group access is an administrator responsibility; enrollment does not
 change server permissions or guarantee the server relays a user's traffic.
@@ -94,3 +94,46 @@ were issued with CN `enroll_ios` and that five TLS stream connections authentica
 as that user (22:50 shared handoff). This corroborates the native tests; it is not
 a new two-enrolled-app map exchange. That further peer round is still available
 by explicit GO through the shared handoff.
+
+
+## Client certificate dates and manual renewal, 27 October 2026
+
+The TAK settings screen now shows the current client certificate's subject,
+full uppercase colon-separated Client SHA-256 and UTC validity dates. The
+expandable card distinguishes these from the server pin. The expiry notices,
+30-day inclusive warning threshold and second-resolution UTC formatting match
+Android `claude/tak` b31f36c. Date parsing is bounded and display-only;
+Security.framework remains responsible for certificate trust and validity.
+Missing or unsupported dates are explicit. Enrolled public metadata can be
+read without loading a missing or expired device key, and worker reads cannot
+replace metadata from a newer connection.
+
+Renew client certificate opens the existing verified sign-in form with the
+saved server and ports locked. New sign-ins retain their enrollment port;
+legacy profiles default to 8446. The saved pin is reused; a changed certificate
+is refused by the existing trust flow. Account credentials remain unsaved.
+Cancelling or failing leaves the old saved connection, key, pin and sharing.
+A replacement archive is saved before the atomic profile swap and the old
+archive is removed only after success. A connected session remains open with
+its existing identity until it reconnects; renewed credentials are used for
+that reconnect. Current callsign, remote items, location demand and sharing
+remain intact. Renewing a disconnected profile does not itself opt into
+connection or position sharing. A stale renewal cannot overwrite a different
+connection imported while sign-in was open.
+
+Final local evidence: `/tmp/mgrsgps-tak-renewal-verified.xcresult` passes all
+309 native cases (four unstaged opt-in cases skipped) and four UI cases:
+expiring day, expired night, and day/night sign-in port validation. The two
+new UI cases verify locked saved endpoints and cancellation with sharing off.
+Certificate and renewal screenshots were inspected in both palettes. The
+unsigned device Release build passes in
+`/tmp/mgrsgps-tak-renewal-release.log`; all eight harness checks pass.
+OpenSSL independently agrees with the public synthetic certificate's validity
+and fingerprint. Native lifecycle tests cover connected replacement,
+profile-write rollback, stale replacement refusal and fresh-sign-in behavior.
+Their accepted-result seam uses a synthetic public certificate and mock
+transport; it does not prove a real signed key or live renewal. No server,
+container, credential package or database was changed for these checks.
+Real enrolled two-app exchange and real renewal continuity remain verification
+gates for a coordinated local server round. Crash-time orphan key reclamation,
+physical devices and sustained/background reliability remain open.
