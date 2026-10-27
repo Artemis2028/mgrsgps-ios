@@ -57,7 +57,8 @@ fixtures/tests; the production coordinator continues to prepare restores off Mai
   unsigned device Release passes. Eight harness checks pass in
   `/tmp/mgrsgps-settings-worker-harness.log`. Parents finish naturally with 0;
   the route feed is stopped/cleared and the one owned simulator is shut down.
-  Hosted103 is on the preceding `bc52ed8`, not this local settings candidate.
+  Hosted103 is on the preceding `bc52ed8`, not this local settings candidate. It is now fully terminal: library/map pass,
+  field has one boundary point-drag failure. The next push awaits that repair.
 
 The opt-in DEBUG UI obstruction fixture is restricted to `mgrsgps-ui-tests` and
 creates a directory at the settings destination. The source guard refuses that

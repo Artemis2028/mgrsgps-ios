@@ -849,5 +849,6 @@ validation runs 331 cases with four opt-in skips and no failures. See
 and the focused final night-label rerun pass, as do final device Release and eight
 harness checks. All owned devices/feeds are off. Hosted103 stays on bc52ed8:
 map passes; field integration/UI, fix expiry/recovery and GPS course/speed pass,
-but boundary inserted-point movement fails. Library remains live. The failure
+but boundary inserted-point movement fails. Library also completes successfully;
+hosted103 is fully terminal. The failure
 requires a gesture follow-up; local persistence success does not close it.
