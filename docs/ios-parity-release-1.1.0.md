@@ -1354,3 +1354,38 @@ Final unsigned phone/watch/widget Release
 checks pass. All parents end naturally; owned simulator/feed are off. No new
 physical locked-screen/battery or lazy-read performance claim is made. Changes
 stay local while107 runs on02d67f6; no CI/server/credential change.
+
+
+### Hosted107 field/background and map gates verified, 27 October
+
+Run40496657566 on pushed02d67f611070a6006a9e4ef0d2cc1c505de3bfa0
+now has successful field122163714094 and map122163714387 jobs. Library
+122163714264 is still running; the whole run is not yet green. The field job
+passes518 core tests,346 native integration cases (four opt-in skips),36
+main UI cases (five opt-in TAK skips), real-fix expiry/recovery (one), real GPS
+course/speed (one), background boundary/drawing (five), automatic background
+route following (one) and practice scoring/recovery (fourteen). Map passes41
+UI cases, including military artwork, typed graphics, route editing, layers,
+protected interchange, navigation lanes/targets and terrain analysis. The
+previous orientation-shortcut failure passes on the hosted runtime.
+
+Artifacts downloaded and SHA-256 verified before extraction:
+- Field12734763542,574579765 bytes:
+  `3d86aaf17656a24cb6d0b89fcd1476b659eed59a4fdb73b3e4158f8616b007a9`.
+  `/tmp/mgrsgps-ci107-field.zip` and `/tmp/mgrsgps-ci107-field`.
+- Map12734246031,420616775 bytes:
+  `e5113f44f01280c28471ba1d5a7c758a963bf847a493c8f224c2c94c5139fe23`.
+  `/tmp/mgrsgps-ci107-map.zip` and `/tmp/mgrsgps-ci107-map`.
+
+The field archive exceeds the connector512MiB limit, so its authenticated
+GitHub CLI download is verified against the same artifact digest. Hosted
+boundary capture shows two exits, automatic route capture shows completion,
+practice capture shows scored history/splits, and the map night viewshed
+capture is inspected. These are simulator decisions/UI with synthetic fixes
+and terrain, not physical buzz/compass/terrain-provider accuracy proof.
+
+All newer local follow-ups af90cfc through1128971 remain outside107's source.
+No active job was cancelled or duplicate run started. Library/full hosted
+confirmation, the next-source full run, physical/watch/TAK and documented
+implementation/performance gaps remain open. No local device was booted for
+this artifact audit; completed download/extract parents have exited naturally.
