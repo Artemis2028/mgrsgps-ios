@@ -186,8 +186,13 @@ extension XCTestCase {
             return screen.contains(CGPoint(x: frame.minX+frame.width*horizontal,y: frame.midY))
         },object: element)
         let settled = XCTWaiter.wait(for: [visible],timeout: 5) == .completed
-        let freshFrame = element.frame, freshScreen = XCUIApplication().windows.firstMatch.frame
-        let freshHit = element.isHittable && freshFrame.minX.isFinite && freshFrame.minY.isFinite && !freshFrame.isEmpty && freshScreen.minX.isFinite && freshScreen.minY.isFinite && freshScreen.width.isFinite && freshScreen.height.isFinite && !freshScreen.isEmpty && freshScreen.contains(CGPoint(x:freshFrame.minX+freshFrame.width*horizontal,y:freshFrame.midY))
+        // A validated frame needs no native activation-point query. After
+        // rotation that query can itself fail XCTest despite a usable frame.
+        var freshHit = false
+        if !settled {
+            let freshFrame = element.frame, freshScreen = XCUIApplication().windows.firstMatch.frame
+            freshHit = freshFrame.minX.isFinite && freshFrame.minY.isFinite && !freshFrame.isEmpty && freshScreen.minX.isFinite && freshScreen.minY.isFinite && freshScreen.width.isFinite && freshScreen.height.isFinite && !freshScreen.isEmpty && freshScreen.contains(CGPoint(x:freshFrame.minX+freshFrame.width*horizontal,y:freshFrame.midY)) && element.isHittable
+        }
         guard settled || freshHit else {
             let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             shot.name = "control-frame-failure"; shot.lifetime = .keepAlways; add(shot)

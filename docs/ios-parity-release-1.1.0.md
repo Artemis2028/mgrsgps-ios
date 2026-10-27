@@ -13,20 +13,21 @@ now includes optional lane backup/restore and shared screen/text/PDF leg limits;
 read-only phone guidance and a separate TAK watch scene are implemented; Android 4db6b21 startup/cue switches
 are now implemented. It does not replace the separate quiet-inside perimeter.
 
-Current validation checkpoint, 27 October: hosted106 on pushed `7965445`
-has a green map job (41 UI cases), one field orientation-shortcut failure, and
-a still-live library job. Both completed artifacts are retrieved and SHA-256
-verified. The earlier hosted105 six failures and repairs remain recorded in
-[exact evidence](ci-field-ui-activation.md). The orientation failure ends on
-New folder after the coordinate-based test selection of Orientation. Both
-orientation workflows pass locally before and after switching that plain List
-shortcut to a native button tap with an explicit destination assertion. This
-requires hosted confirmation; no broad product race fix is claimed.
-Local saved-read/accessibility follow-ups are held pending the live run. They
-pass 518 core cases, ordinary/global AccessibilityXXXL day/night recovery,
-large-library search/selection, final device Release and eight harness checks;
-see the scoped evidence below. Full hosted revalidation and dedicated background
-gates remain open.
+Current validation checkpoint, 27 October: hosted106 on `7965445` is
+fully terminal. Its map job passes 41 UI cases; field and library each have one
+activation failure. All three artifacts are retrieved and SHA-256 verified.
+The earlier hosted105 six failures and repairs remain recorded in
+[exact evidence](ci-field-ui-activation.md). The orientation shortcut now uses
+the plain List button's native tap with a destination assertion. The validated
+visible-frame path no longer probes an unnecessary native hit point after
+rotation. Both orientation workflows and the night-landscape waypoint workflow
+pass together locally. Product behavior is not weakened; hosted revalidation
+and the dedicated background gates remain required.
+Local saved-read/accessibility follow-ups pass 518 core cases,
+ordinary/global AccessibilityXXXL day/night recovery, large-library
+search/selection, final device Release and eight harness checks; scoped evidence
+is below. These validated candidates and activation test corrections are ready
+for the next full hosted run on the same draft PR.
 
 Local saved-library follow-up, 27 October: worker reads now retain source
 metadata and validate it again before publication. Index replacement, a new v2
@@ -1119,3 +1120,34 @@ Position images are inspected. The product source is unchanged by this test
 adjustment; it retains the final Release validation of `79e06de`. All local
 parents ended naturally, and owned simulators and fake feeds are off. No live
 CI was cancelled or duplicated. Native hosted confirmation remains required.
+
+
+### Hosted106 completed: library hit-point correction
+
+Library job `122129976070` is terminal: 48 UI cases, one failure in
+`WaypointWorkflowTests.testNightModeKeepsSettingsAndWaypointEntryUsable`.
+The Add waypoint button has a usable landscape frame (centre within the
+844×390 window); the helper then unconditionally calls `isHittable` despite
+having already accepted its frame. XCTest throws an invalid activation-point
+failure at that redundant query before any tap. Only the fallback path now
+checks native hittability; the successful frame path keeps its existing bounds
+checks and coordinate tap. Editor appearance/cancel, saved name/grid, Routes &
+tracks access, night opt-out and real rotation assertions are retained.
+
+Artifact `12729149254` (607,909,561 bytes) exceeds the connector download cap and
+was retrieved with the authenticated GitHub CLI. ZIP SHA-256 is verified:
+`9f27a5340915c44bfc799e554dd44cb9f85b0dc8298d2f9bf6dc9652405651a4`.
+Archive `/tmp/mgrsgps-ci106-library.zip`, extracted `/tmp/mgrsgps-ci106-library`;
+video, native failure hierarchy and landscape control frames are inspected.
+All three106 artifacts are now retrieved/verified. The two activation failures
+are not reclassified as hosted passes.
+
+`/tmp/mgrsgps-ci106-activation-final.xcresult` passes all three regressions:
+both orientation workflows and the full night-landscape waypoint workflow.
+Its landscape and coordinate-entry screenshots are inspected. The change is
+test-only; the final product Release of79e06de and 518 core/eight harness results
+remain applicable. No Release re-run or wider native-unit claim is invented for
+this helper-only change. All local parents ended naturally and the single owned
+simulator/fake feed is off.106 is fully terminal; publishing the held candidate
+can now start a new full run without cancelling live work. Full hosted107 and
+dedicated real-fix/course/boundary/route/practice gates remain open.
