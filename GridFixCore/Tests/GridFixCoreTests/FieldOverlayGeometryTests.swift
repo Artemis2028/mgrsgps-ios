@@ -6,6 +6,21 @@ final class FieldOverlayGeometryTests: XCTestCase {
         let id = UUID().uuidString.lowercased()
         return Backup.Document(tracks: [.init(id: id,name: "Patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: points.count,folder: folder)],trackFiles: [id: try TrackCodec.encode(points)])
     }
+    func testTrackFitScansEveryRowWithConstantOutputAndDatelineBounds() throws {
+        var bytes = Data("10 179.9 0 -32768\n70 -178.7 0 -32768\n".utf8)
+        bytes.append(Data(String(repeating: "10 -179.9 0 -32768\n",count: 300_001).utf8))
+        let fit = try FieldMapGeometry.trackFitPoints(bytes), bounds = try XCTUnwrap(FieldMapGeometry.bounds(fit))
+        XCTAssertLessThanOrEqual(fit.count,6)
+        XCTAssertEqual(bounds.south,10); XCTAssertEqual(bounds.north,70)
+        XCTAssertEqual(bounds.west,179.9); XCTAssertEqual(bounds.east,181.3,accuracy: 1e-9)
+    }
+    func testTrackFitValidatesHiddenTailAndSupportsEmptyAndSinglePointLogs() throws {
+        XCTAssertTrue(try FieldMapGeometry.trackFitPoints(Data()).isEmpty)
+        let single = try FieldMapGeometry.trackFitPoints(Data("24 54 0 -32768".utf8))
+        XCTAssertFalse(single.isEmpty); XCTAssertTrue(single.allSatisfy { $0 == GeoPoint(lat: 24,lon: 54) })
+        XCTAssertThrowsError(try FieldMapGeometry.trackFitPoints(Data("24 54 0 -32768\n91 54 1 -32768".utf8)))
+        XCTAssertThrowsError(try FieldMapGeometry.trackFitPoints(Data([0xff])))
+    }
     func testAndroidDrawingStrideKeepsBothEndsAndExactUnsampledExtrema() throws {
         var points = (0..<6001).map { TrackPoint(lat: 10,lon: 10+Double($0)/10_000) }
         points[2] = .init(lat: 70,lon: 30)

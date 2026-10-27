@@ -111,6 +111,26 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         return try TrackCodec.decodeLocal(bytes)
     }
 
+    public struct TrackReadSnapshot: Sendable {
+        public let track: Backup.TrackMeta
+        public let bytes: Data
+        fileprivate let revision: UInt64
+        fileprivate let identity: UUID
+    }
+    /// Capture immutable bytes and their library revision under the store lock.
+    /// No point decoding or whole-log equality comparison runs on the caller.
+    public func trackReadSnapshot(_ id: String) throws -> TrackReadSnapshot {
+        lock.lock(); defer { lock.unlock() }
+        try requireReady()
+        if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
+        guard let track = document.tracks.first(where: { $0.id == id }) else { throw BackupError.notABackup("This track is no longer saved.") }
+        return .init(track: track,bytes: document.trackFiles[id] ?? Data(),revision: revision,identity: identity)
+    }
+    public func isCurrent(_ snapshot: TrackReadSnapshot) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return ready && loadError == nil && snapshot.identity == identity && snapshot.revision == revision
+    }
+
     public enum Edit: Sendable {
         case saveGraphic(Backup.Graphic)
         case createGraphic(Backup.Graphic)

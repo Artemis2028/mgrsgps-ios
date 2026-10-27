@@ -71,6 +71,24 @@ final class FieldEditActionTests: XCTestCase {
         for _ in 0..<50 where retained != nil { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertNil(retained)
     }
+    func testFinishedMutationCannotDismissAReopenedPresentationAndPublishesOnMain() async throws {
+        let mutation = FieldMutation(), gate = EditGate()
+        let entered = expectation(description: "old presentation work entered"), finished = expectation(description: "old work finished")
+        var applied = false
+        let subscription = mutation.$label.dropFirst().sink { _ in XCTAssertTrue(Thread.isMainThread) }
+        defer { subscription.cancel() }
+        mutation.setPresented(true)
+        XCTAssertTrue(mutation.run("Saving…",action: {
+            XCTAssertTrue(Thread.isMainThread); entered.fulfill(); await gate.wait(); applied = true
+        },completion: { current in XCTAssertTrue(Thread.isMainThread); XCTAssertFalse(current); finished.fulfill() }))
+        await fulfillment(of: [entered],timeout: 3)
+        mutation.setPresented(false); mutation.setPresented(true)
+        await gate.finish(); await fulfillment(of: [finished],timeout: 3)
+        XCTAssertTrue(applied); XCTAssertFalse(mutation.working)
+        let next = expectation(description: "new presentation remains usable")
+        XCTAssertTrue(mutation.run("Next",action: {},completion: { XCTAssertTrue($0); next.fulfill() }))
+        await fulfillment(of: [next],timeout: 3)
+    }
     func testMutationFailureKeepsErrorAndReleasesBusyStateForRetry() async throws {
         let mutation = FieldMutation(), done = expectation(description: "failed edit finished")
         let subscription = mutation.$label.dropFirst().filter { $0 == nil }.sink { _ in done.fulfill() }

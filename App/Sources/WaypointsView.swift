@@ -71,6 +71,7 @@ struct WaypointsView: View {
     @State private var movingTrack: Backup.TrackMeta?
     @State private var routeDetail: Backup.Graphic?
     @State private var trackDetail: Backup.TrackMeta?
+    @State private var trackFocusToken: UUID?
     @State private var backtrackingID: String?
     @State private var backtrackWork: Task<Void,Never>?
     @StateObject private var backupTransfer = BackupTransfer()
@@ -155,7 +156,7 @@ struct WaypointsView: View {
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
         .onAppear { fieldMutation.setPresented(true); listing.activate() }
-        .onDisappear { fieldMutation.setPresented(false); listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
+        .onDisappear { trackFocusToken = nil; fieldMutation.setPresented(false); listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
         .onReceive(store.$waypoints) { listing.setWaypoints($0) }
         .onReceive(store.$folders) { listing.setFolders($0) }
         .onReceive(fieldData.$document) { listing.setField(graphics: $0.graphics,tracks: $0.tracks) }
@@ -682,21 +683,17 @@ struct WaypointsView: View {
         maps.focusRequest = MapCameraRequest(action: .showBoundary(current.mapExtentPoints)); onShowMap()
     }
     private func showTrack(_ track: Backup.TrackMeta) {
-        var focus: [GeoPoint] = []
+        let token = UUID(), camera = maps.focusRequest?.id
+        var prepared: TrackMapFocusAction.Prepared?
+        trackFocusToken = token
         fieldMutation.run("Opening track…",action: {
-            guard fieldData.document.tracks.contains(where: { $0.id == track.id }) else { throw LibraryActionError.partial("This track is no longer saved.") }
-            let bytes = fieldData.document.trackFiles[track.id] ?? Data()
-            let points = try await Task.detached(priority: .userInitiated) {
-                try TrackCodec.decodeLocal(bytes).map { GeoPoint(lat: $0.lat,lon: $0.lon) }
-            }.value
-            guard !points.isEmpty else { throw LibraryActionError.partial("This track has no saved points to show.") }
-            if store.folders.first(where: { $0.name == track.folder })?.visible == false {
-                _ = try await LibraryMutationAction.apply(.folderVisibility(track.folder,true),to: store)
-            }
-            focus = points
+            prepared = try await TrackMapFocusAction.prepare(trackID: track.id,field: fieldData,waypoints: store)
         },completion: { visible in
-            guard visible, fieldData.document.tracks.contains(where: { $0.id == track.id }) else { return }
-            maps.viewedTrackID = track.id; maps.focusRequest = MapCameraRequest(action: .showBoundary(focus)); onShowMap()
+            guard visible, trackFocusToken == token, maps.focusRequest?.id == camera,
+                  let prepared, prepared.isCurrent(in: fieldData) else { return }
+            trackFocusToken = nil
+            maps.viewedTrackID = prepared.trackID
+            maps.focusRequest = MapCameraRequest(action: .showBoundary(prepared.points)); onShowMap()
         })
     }
     private func backtrack(_ track: Backup.TrackMeta) {

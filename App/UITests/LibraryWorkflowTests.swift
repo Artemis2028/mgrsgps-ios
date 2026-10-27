@@ -134,7 +134,10 @@ final class LibraryWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
         let overlays = app.staticTexts["map-field-overlays"]
         XCTAssertTrue(overlays.waitForExistence(timeout: 10)); XCTAssertTrue(overlays.label.contains("1 tracks"))
-        app.tabBars.buttons["Waypoints"].tap()
+        capture("library-track-fit-day")
+        app.buttons["Toggle map night mode"].tap()
+        capture("library-track-fit-night")
+        app.buttons["Waypoints"].tap()
         reveal(actions); actions.tap(); XCTAssertTrue(app.buttons["Make visible on map"].exists)
         app.buttons["Move to folder"].tap()
         let destination = app.buttons["move-track-to-Base"]

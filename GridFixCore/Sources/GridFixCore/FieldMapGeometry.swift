@@ -54,6 +54,14 @@ public enum FieldMapGeometry {
         return .init(data: data,points: extent.points,routes: routes,tracks: tracks)
     }
 
+    /// Exact camera extent of every validated saved row, with constant output
+    /// space. A single-point log still has a useful camera location.
+    public static func trackFitPoints(_ data: Data) throws -> [GeoPoint] {
+        var extent = FitExtent()
+        try TrackCodec.visitLocal(data) { extent.include(.init(lat: $0.lat,lon: $0.lon)) }
+        return extent.points
+    }
+
     private struct FitExtent {
         var south: GeoPoint?,north: GeoPoint?,west: GeoPoint?,east: GeoPoint?,wrappedWest: GeoPoint?,wrappedEast: GeoPoint?
         private func wrapped(_ point: GeoPoint) -> Double { point.lon < 0 ? point.lon+360 : point.lon }

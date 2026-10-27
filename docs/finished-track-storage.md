@@ -117,3 +117,11 @@ Go To or manual pan cancels a pending fit. See
 materializing a full coordinate array for saved-track drawing. Focus/backtrack
 still need complete coordinates, and dense tactical overlays use a separate
 renderer, so arbitrary-size memory/performance is not established.
+
+## Saved-track focus update
+
+Opening a saved track now uses a streaming exact fit instead of decoding a full
+point/coordinate array for the camera. At most six extrema cross to the UI;
+source revisions and presentation/camera intent are checked before showing it.
+See [track focus and remaining limits](track-map-focus.md). Backtrack's full
+coordinate materialization and broader lazy-log/orphan maintenance remain.

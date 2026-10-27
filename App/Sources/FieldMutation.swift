@@ -9,19 +9,24 @@ final class FieldMutation: ObservableObject {
     @Published private(set) var error: String?
     var working: Bool { label != nil }
     private var presented = false
+    private var presentation = UUID()
     private var work: Task<Void,Never>?
-    func setPresented(_ value: Bool) { presented = value }
+    func setPresented(_ value: Bool) {
+        if presented != value { presentation = UUID() }
+        presented = value
+    }
     func clearError() { if !working { error = nil } }
 
     @discardableResult
     func run(_ label: String,action: @escaping () async throws -> Void,completion: @escaping (Bool) -> Void = { _ in }) -> Bool {
         guard !working else { return false }
         self.label = label; error = nil
+        let token = presentation
         work = Task {
             do {
                 try await action()
                 work = nil; self.label = nil
-                completion(presented)
+                completion(presented && presentation == token)
             } catch {
                 work = nil; self.error = error.localizedDescription; self.label = nil
             }

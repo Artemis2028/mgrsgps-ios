@@ -169,7 +169,8 @@ struct MapScreen: View {
                             .accessibilityIdentifier("map-centre-grid")
                         Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                             .font(.caption2.weight(.semibold)).tracking(1)
-                            .foregroundStyle(mapInkDim)
+                            .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
+                            .foregroundStyle(mapInkDim).accessibilityIdentifier("map-grid-interval")
                         if !compactMap, let readout = terrain.readout {
                             Text(readout.elevation.map { String(format: "ELEV %.0f m",$0) } ?? "ELEV unavailable")
                                 .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-elevation")
@@ -199,6 +200,7 @@ struct MapScreen: View {
                                 .font(.caption).frame(minHeight: 44)
                         }.accessibilityIdentifier("map-tak")
                     }
+                    .fixedSize(horizontal: false,vertical: true)
                     .padding(compactMap ? 8 : 14).fieldChrome()
                     Spacer(minLength: 0)
                     if compactMap {

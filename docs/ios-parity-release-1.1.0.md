@@ -658,3 +658,32 @@ Named day/night restore screenshots were inspected. Evidence:
 `/tmp/gridfix-quiet-backup-incoming-final.xcresult`,
 `/tmp/gridfix-quiet-backup-release.log` and
 `/tmp/gridfix-quiet-backup-script-checks.log`.
+
+
+### Streaming track focus and presentation ownership — 27 October 2026
+
+Opening a saved track no longer constructs full TrackPoint/coordinate arrays
+just for a camera fit. A worker validates every row and returns at most six
+exact normal/wrapped extrema, including one-point logs and unsampled excursions.
+Track source identity/revision is checked before and after revealing the parent
+folder, and again at publication. Replacement retries the current log; deletion
+and cancellation cannot return old geometry. Leaving the library or issuing a
+newer camera request prevents late map focus. Track visibility, stored bytes
+and the selected navigation target remain unchanged. Android's temporary view /
+unhide-parent behavior is retained; fitting is the existing iOS convenience.
+
+The shared field-edit completion also checks its original presentation token,
+so confirmed work finishes without dismissing a closed-and-reopened screen.
+Its existing main-thread isolation remains. Screenshot review fixed compressed
+night-map grid/layer captions by allowing the readout its full vertical size.
+
+496 core,298 native (four unstaged opt-in local skips),three library UI cases and
+unsigned device Release pass. A 300003-row dateline log fits using six coordinates
+in about0.594s with292 main-thread pulses on the simulator. Full-source bytes,
+selected target and all fit extrema are checked. A fresh day/night map workflow
+passes after the layout fix; grid interval and layer name are fully visible in
+inspected screenshots. Both final test parents exit0 naturally. Earlier completed
+runs had owned diagnostic collection shortened only after every test passed.
+See [details, Android source and remaining memory limits](track-map-focus.md).
+Backtrack still materializes a full coordinate array; orphan maintenance,
+dense-map aggregates and physical memory/storage/battery checks remain work.
