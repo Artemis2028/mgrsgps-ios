@@ -34,8 +34,10 @@ work still finishes, but closing and reopening the screen cannot make old work
 dismiss or navigate the new presentation. Busy-state duplicate protection and
 visible failures/retries remain.
 
-Backtrack simplification still materializes a full coordinate array; startup
-still maps/checks referenced logs. Orphan maintenance, dense-map aggregate
+[Backtrack now retains one coordinate array](backtrack-source-and-memory.md)
+for the exact Android simplifier, removing full TrackPoint/reversed/keep-array
+copies and guarding source identity through publication. Startup still
+maps/checks referenced logs. Orphan maintenance, dense-map aggregate
 memory and physical device performance remain separate work. This change does
 not establish physical battery, memory-pressure or locked-screen behavior.
 

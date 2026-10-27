@@ -38,4 +38,37 @@ final class TrackBacktrackTests: XCTestCase {
         XCTAssertThrowsError(try TrackBacktrack.simplify([],tolerance: .nan))
         XCTAssertThrowsError(try TrackBacktrack.simplify([.init(lat: 91,lon: 0)]))
     }
+
+    func testLocalLogBacktrackUsesActualRowsAndMatchesAndroidReverseGeometry() throws {
+        let track = Backup.TrackMeta(id: UUID().uuidString.lowercased(),name: "Switchbacks",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: 2,folder: "Patrol")
+        let data = Data("0 179.99 0 -32768\n0 -179.99 0 -32768\n0.01 -179.99 0 -32768\n".utf8)
+        let route = try TrackBacktrack.route(track: track,data: data,now: 100)
+        XCTAssertEqual(route.points,[.init(lat: 0.01,lon: -179.99),.init(lat: 0,lon: -179.99),.init(lat: 0,lon: 179.99)])
+        XCTAssertEqual(route.folder,"Patrol"); XCTAssertEqual(route.createdAt,100)
+        let turnaround = try TrackBacktrack.route(track: track,data: Data("0 0 0\n0 0.02 0\n0 0.01 0\n".utf8))
+        XCTAssertEqual(turnaround.points,[.init(lat: 0,lon: 0.01),.init(lat: 0,lon: 0.02),.init(lat: 0,lon: 0)])
+    }
+    func testLocalBacktrackValidatesUnsampledRowsAndIgnoresMetadataCount() throws {
+        let track = Backup.TrackMeta(id: UUID().uuidString.lowercased(),name: "Patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: 99)
+        for invalid in ["0 0 0\n91 0 0\n0 1 0\n","0 0 0\n0 0 -1\n0 1 0\n","0 0 0\n0 0 0 nan\n0 1 0\n"] {
+            XCTAssertThrowsError(try TrackBacktrack.route(track: track,data: Data(invalid.utf8)))
+        }
+        XCTAssertThrowsError(try TrackBacktrack.route(track: track,data: Data("0 0 0\n".utf8)))
+        let data = Data((String(repeating: "0 0 0 -32768\n",count: 250_001)+"0 1 0 -32768\n").utf8)
+        let route = try TrackBacktrack.route(track: track,data: data)
+        XCTAssertEqual(route.points,[.init(lat: 0,lon: 1),.init(lat: 0,lon: 0)])
+    }
+    func testCancellationStopsLocalDecodeAndSimplification() async throws {
+        let track = Backup.TrackMeta(id: UUID().uuidString.lowercased(),name: "Patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: 2)
+        let work = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try TrackBacktrack.route(track: track,data: Data("0 0 0\n0 1 0\n".utf8))
+        }
+        do { _ = try await work.value; XCTFail("Cancelled local decoding") } catch { XCTAssertTrue(error is CancellationError) }
+        let simplify = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try TrackBacktrack.simplify([.init(lat: 0,lon: 0),.init(lat: 0,lon: 1)])
+        }
+        do { _ = try await simplify.value; XCTFail("Cancelled simplification") } catch { XCTAssertTrue(error is CancellationError) }
+    }
 }

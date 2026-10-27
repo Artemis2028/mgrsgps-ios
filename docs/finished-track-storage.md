@@ -114,14 +114,17 @@ remain complete. Generation/cancellation guards prevent old results restoring
 hidden or deleted data. Loading, retry and deferred Show All are visible; a newer
 Go To or manual pan cancels a pending fit. See
 [map preparation evidence](map-geometry-preparation.md). The subsequent row-scanned preview avoids
-materializing a full coordinate array for saved-track drawing. Focus/backtrack
-still need complete coordinates, and dense tactical overlays use a separate
-renderer, so arbitrary-size memory/performance is not established.
+materializing a full coordinate array for saved-track drawing. Focus now sends at most six exact fit coordinates; backtrack still needs one
+complete coordinate array for Android's priority algorithm. Dense tactical
+overlays use a separate renderer, so arbitrary-size memory/performance is not
+established.
 
 ## Saved-track focus update
 
 Opening a saved track now uses a streaming exact fit instead of decoding a full
 point/coordinate array for the camera. At most six extrema cross to the UI;
 source revisions and presentation/camera intent are checked before showing it.
-See [track focus and remaining limits](track-map-focus.md). Backtrack's full
-coordinate materialization and broader lazy-log/orphan maintenance remain.
+See [track focus and remaining limits](track-map-focus.md). [Backtrack](backtrack-source-and-memory.md) now avoids the full TrackPoint,
+reversed-coordinate and keep-array copies, with source/cancellation guards
+through publication; one coordinate array and broader lazy-log/orphan
+maintenance remain.

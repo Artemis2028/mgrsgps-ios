@@ -707,3 +707,18 @@ four to six points before foreground activation. Release and eight harness
 checks pass; screenshots inspected. These changes remain local while hosted101
 40429934209 runs on39da6e4. Full hosted green and physical checks remain open.
 See [dated repair evidence](ci-field-ui-activation.md).
+
+
+Backtrack source follow-up: immutable source revisions now guard worker
+calculation, folder reveal and atomic route publication. Replacement during
+calculation retries the latest log/name/folder; later replacement/deletion or
+cancellation cannot publish old geometry. Android's exact priority simplifier
+uses one forward coordinate array with reversed index access and a bounded
+selection set, removing full TrackPoint/reversed/keep-array copies. Linear
+coordinate memory and worst-case physical performance remain limits.
+All499 core and316 native cases pass (four opt-in skips), all three selected
+backtrack/day-night graphic UI workflows pass, and device Release passes.
+The300003-point check keeps the source and target, returns three vertices in
+about0.659seconds with332 main-thread pulses. Screenshots inspected and parent
+exits0. Hosted101 remains live on39da6e4; follow-ups are local until it finishes.
+See [source integrity and evidence](backtrack-source-and-memory.md).
