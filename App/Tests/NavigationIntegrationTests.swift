@@ -144,9 +144,9 @@ final class NavigationIntegrationTests: XCTestCase {
         XCTAssertEqual(nav.laneDecision?.state,.inside)
         nav.pause(); XCTAssertNil(nav.lane); XCTAssertNil(nav.laneDecision)
     }
-    func testLaneWarningPreferencePersistsAndBacksUp() throws {
+    func testLaneWarningPreferencePersistsAndBacksUp() async throws {
         let (directory,_,_,settings) = try setup()
-        settings.laneWarningM = 50
+        settings.laneWarningM = 50; await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).laneWarningM,50)
         let snapshot = settings.backupSettings
         XCTAssertEqual(snapshot.laneWarningM,50)
@@ -182,10 +182,11 @@ final class NavigationIntegrationTests: XCTestCase {
         up+=1;date+=1;foregroundNav.tick();XCTAssertEqual(feedback.pulses.count,lost+1)
         foregroundNav.stop()
     }
-    func testAllLaneCuePreferencesPersistAndRestoreWithoutChangingActivityConsent() throws {
+    func testAllLaneCuePreferencesPersistAndRestoreWithoutChangingActivityConsent() async throws {
         let (directory,_,_,settings)=try setup()
         settings.laneSideCues=false;settings.laneBackstopCue=false;settings.laneInsideTick=false
         settings.laneReminderMin=10;settings.laneGpsAlert=false;settings.liveActivitiesEnabled=true
+        await settings.waitForPersistence()
         let saved=settings.backupSettings,reopened=AppSettings(directory:directory)
         XCTAssertEqual(reopened.backupSettings,saved)
         settings.laneReminderMin=0;settings.laneSideCues=true
@@ -443,9 +444,9 @@ final class NavigationIntegrationTests: XCTestCase {
         driver.onLocations?([fix(0,0,1000,accuracy: 2)]); try await wait { !nav.saving }
         XCTAssertEqual(nav.progress?.index,1); nav.stop()
     }
-    func testSettingsPersistAndAndroidBackupApplyPreservesGuideFields() throws {
+    func testSettingsPersistAndAndroidBackupApplyPreservesGuideFields() async throws {
         let (dir,_,_,settings) = try setup()
-        settings.guideAllowance = 20; settings.guideHoldOffSec = 3; settings.guideMode = 1; settings.guideCorridorM = 200
+        settings.guideAllowance = 20; settings.guideHoldOffSec = 3; settings.guideMode = 1; settings.guideCorridorM = 200; await settings.waitForPersistence()
         let reloaded = AppSettings(directory: dir)
         XCTAssertEqual(reloaded.guideAllowance,20); XCTAssertEqual(reloaded.guideMode,1)
         var s = reloaded.backupSettings; s.guideHeartbeatSec = 60; s.guideAllowance = 15

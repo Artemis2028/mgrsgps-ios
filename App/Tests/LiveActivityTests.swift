@@ -25,14 +25,14 @@ import GridFixCore
         defer{try? FileManager.default.removeItem(at:directory)}
         let settings=AppSettings(directory:directory)
         XCTAssertFalse(settings.liveActivitiesEnabled)
-        settings.liveActivitiesEnabled=true
+        settings.liveActivitiesEnabled=true;await settings.waitForPersistence()
         XCTAssertTrue(AppSettings(directory:directory).liveActivitiesEnabled)
         let snapshot=settings.restoreSnapshot(), prepared=try snapshot.prepare(Backup.AppSettings())
         XCTAssertTrue(try settings.publishRestore(prepared));XCTAssertTrue(settings.liveActivitiesEnabled)
         XCTAssertTrue(AppSettings(directory:directory).liveActivitiesEnabled)
         try settings.applyBackup(.init());XCTAssertTrue(AppSettings(directory:directory).liveActivitiesEnabled)
         let stale=try settings.restoreSnapshot().prepare(.init());settings.liveActivitiesEnabled=false
-        XCTAssertFalse(try settings.publishRestore(stale));XCTAssertFalse(AppSettings(directory:directory).liveActivitiesEnabled)
+        XCTAssertFalse(try settings.publishRestore(stale));await settings.waitForPersistence();XCTAssertFalse(AppSettings(directory:directory).liveActivitiesEnabled)
     }
     func testOptOutAndSystemDenialEndExistingActivitiesWithoutStarting() async {
         let d=TestActivityDriver();d.values=[.init(id:"old",sessionID:"track",kind:"recording")]

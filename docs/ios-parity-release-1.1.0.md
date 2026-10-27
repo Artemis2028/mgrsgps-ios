@@ -18,7 +18,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library/target-chooser rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
-| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; remaining ordinary settings write costs |
+| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; ordinary settings persistence follow-up validation |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation; Android re-export drops the optional iOS-only quiet-boundary section |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Physical lasso/large-text and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
@@ -385,8 +385,9 @@ Live Activities. A changed source retries before publication; the temporary
 loading view stays red on black until appearance is known. Existing defaults,
 normalization and malformed-settings fallback are unchanged. Full validation of 264 native cases, day/night cold-library and actual early recording-link UI, pinned
 orientation cold relaunch and final Release pass. See [settings startup](settings-startup.md).
-Other runtime-session startup sources, ordinary preference writes, per-log/lazy
-reads and the remaining performance/physical gates are still work.
+Other runtime-session startup sources, ordinary preference writes were still work at this milestone; see the later
+[settings persistence follow-up](settings-persistence.md). Per-log/lazy reads and
+the remaining performance/physical gates remain work.
 
 ## Boundary library startup
 
@@ -825,11 +826,28 @@ Imported MilGPS shape/character now overrides the hidden fallback in the iOS
 target chooser/header, map annotation value and library row, and in watchOS
 map/scene descriptions. NATO affiliation follows its actual catalog key; task
 paths omit echelons they do not draw. Shared descriptions preserve explicit
-unknown keys and spoken punctuation. All509 core cases pass, including all157
-imported combinations, all496 unit keys/echelons and a real snapshot-codec round
+unknown keys and spoken punctuation. All 509 core cases pass, including all 157
+imported combinations, all 496 unit keys/echelons and a real snapshot-codec round
 trip. [Exact scope and remaining physical checks](marker-accessibility.md).
 Seven native symbol checks and all five target UI workflows pass, including exact
 day/night chooser/header/map/library description checks. Screenshots inspected;
 phone/watch/widget unsigned device Release and eight harness checks pass. The
 owned simulator is off. Full hosted103 still runs on
-the precedingbc52ed8, so this candidate and boundaryb270cc9 remain local.
+the preceding bc52ed8, so this candidate and boundary b270cc9 remain local.
+
+
+### Ordinary preference persistence and visible failures — 27 October 2026
+
+Settings now capture/coalesce immutable snapshots and encode/stage off Main.
+Only the latest revision can publish; failures keep prior bytes/session choices
+and expose retry on main screens and a pinned settings notice. Done drains the
+accepted attempt without trapping the user in Settings on failure. Staged backup
+restore preserves newer edits, checks source changes and supersedes older pending
+writes/errors; local Live Activities consent remains separate. Full native
+validation runs 331 cases with four opt-in skips and no failures. See
+[settings evidence/limits](settings-persistence.md). Nine distinct UI workflows
+and the focused final night-label rerun pass, as do final device Release and eight
+harness checks. All owned devices/feeds are off. Hosted103 stays on bc52ed8:
+map passes; field integration/UI, fix expiry/recovery and GPS course/speed pass,
+but boundary inserted-point movement fails. Library remains live. The failure
+requires a gesture follow-up; local persistence success does not close it.

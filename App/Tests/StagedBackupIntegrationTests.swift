@@ -48,6 +48,7 @@ final class StagedBackupIntegrationTests: XCTestCase {
         }.value
         settings.mgrsDigits = 6
         XCTAssertFalse(try settings.publishRestore(prepared))
+        await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).mgrsDigits,6)
         let fresh = settings.restoreSnapshot()
         let rebased = try await Task.detached { try fresh.prepare(desired) }.value

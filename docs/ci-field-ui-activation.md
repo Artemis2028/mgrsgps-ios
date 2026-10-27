@@ -830,3 +830,29 @@ does not close that toolchain/runtime gate. The consolidated follow-up needs
 a new full hosted run. Physical Files providers, iPad presentation, dense
 target-list ergonomics and imported-marker VoiceOver descriptions remain
 checks/work. No TAK server, identity or credential is changed.
+
+
+## Hosted103 partial outcome — boundary inserted-point movement
+
+Run `40450609879` on `bc52ed8` has completed map `122012172385` successfully.
+Field `122012173108` passes its integration/UI step, real fix expiry/recovery
+and real GPS course/speed, then fails boundary drawing at
+`BoundaryWorkflowTests.swift:48`. The inserted fifth point exists and is selected,
+but its displayed coordinate does not change after the next long-press/drag.
+Direct side-bend drawing and background-crossing/interrupted restart pass; route
+following and practice steps are skipped after the boundary failure. The library
+job is still live. Full hosted green is not established.
+
+Retrieved field artifact `12712361081` (498941558 bytes), checked ZIP SHA-256
+against the GitHub digest, and extracted to `/tmp/mgrsgps-ci103-field`. Failure
+video: `screenshots/boundary-tests/75253495-8D57-4699-AE15-2F5FC8FB31CB.mp4`.
+The full failure hierarchy is in the stored job log; the selected point remains
+at its original coordinate. Frames `/tmp/mgrsgps-ci103-boundary-before-drag.png`
+and `/tmp/mgrsgps-ci103-boundary-after-drag.png` show the unchanged five-point
+perimeter. This is a gesture/publication investigation, not another absent native
+Files footer or a settings-save failure. No drag assertion is removed or relaxed.
+
+Locally held boundary worker persistence and marker-description changes have
+separate passing evidence. They do not change the existing native vertex-drag
+implementation or prove this hosted failure fixed. The settings follow-up also
+remains local while the library job finishes; no active CI is cancelled.

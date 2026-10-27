@@ -89,6 +89,7 @@ struct RootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-root") }
             if practice.locked || practice.hasPendingWrite || practice.summary != nil {
                 Button { showingPractice = true } label: {
                     HStack { Image(systemName: "timer"); Text(practiceBannerText); Spacer(); Image(systemName: "chevron.right") }

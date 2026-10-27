@@ -37,7 +37,7 @@ struct SettingsView: View {
                         Button("Retry orientation") { orientationState.refresh() }.foregroundStyle(palette.accent)
                     }
                     nightBlock
-                    Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent)
+                    Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent).foregroundStyle(palette.ink)
                     Stepper("Paces per 100 m: \(settings.pacePer100m)", value: $settings.pacePer100m, in: 1...1000)
                         .font(.subheadline).foregroundStyle(palette.ink)
 
@@ -45,7 +45,7 @@ struct SettingsView: View {
                         .foregroundStyle(palette.accent)
                     Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
                     Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
-                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
+                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).foregroundStyle(palette.ink).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
                     Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
                     Text(liveActivities.message).font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("live-activity-status").accessibilityValue("\(liveActivities.activityCount) active")
                     section("Grid & units")
@@ -65,12 +65,13 @@ struct SettingsView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 28)
             }
+            .safeAreaInset(edge: .top,spacing: 0) { if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-sheet") } }
             .background(palette.background.ignoresSafeArea())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { Task { await settings.waitForPersistence(); dismiss() } }
                         .font(Blackout.label(15))
                         .foregroundStyle(palette.accent)
                 }

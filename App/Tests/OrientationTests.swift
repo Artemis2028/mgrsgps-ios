@@ -12,13 +12,13 @@ final class OrientationTests: XCTestCase {
         XCTAssertEqual(ScreenOrientation.auto.mask(pad: false),.allButUpsideDown)
         XCTAssertEqual(ScreenOrientation.auto.mask(pad: true),.all)
     }
-    func testOrientationPersistsAndBackupUsesAndroidIntegers() throws {
+    func testOrientationPersistsAndBackupUsesAndroidIntegers() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let settings = AppSettings(directory: directory)
         for mode in ScreenOrientation.allCases {
-            settings.orientation = mode.rawValue
+            settings.orientation = mode.rawValue; await settings.waitForPersistence()
             XCTAssertEqual(AppSettings(directory: directory).orientation,mode.rawValue)
             let backup = settings.backupSettings
             settings.orientation = (mode.rawValue + 1) % 4

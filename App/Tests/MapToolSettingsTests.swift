@@ -10,6 +10,7 @@ final class MapToolSettingsTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let settings = AppSettings(directory: directory)
         settings.hiddenMapTools = ["ruler","tools","record"]
+        await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).hiddenMapTools,settings.hiddenMapTools)
         var doc = Backup.Document(settings: settings.backupSettings)
         doc = try Backup.importZip(Backup.exportZip(doc))
@@ -17,11 +18,13 @@ final class MapToolSettingsTests: XCTestCase {
         let message = await BackupCoordinator.restore(doc,waypoints: WaypointStore(directory: directory),fieldData: FieldDataStore(directory: directory),settings: settings)
         XCTAssertTrue(message.hasPrefix("Restored"),message)
         XCTAssertEqual(settings.hiddenMapTools,["ruler","tools","record"])
+        await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).hiddenMapTools,settings.hiddenMapTools)
         settings.hiddenMapTools = []
+        await settings.waitForPersistence()
         XCTAssertTrue(AppSettings(directory: directory).hiddenMapTools.isEmpty)
     }
-    func testPreparedSettingsCannotOverwriteAConcurrentMapToolChange() throws {
+    func testPreparedSettingsCannotOverwriteAConcurrentMapToolChange() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -30,6 +33,7 @@ final class MapToolSettingsTests: XCTestCase {
         let prepared = try snapshot.prepare(imported)
         settings.hiddenMapTools = ["record"]
         XCTAssertFalse(try settings.publishRestore(prepared))
+        await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).hiddenMapTools,["record"])
     }
     func testWorkerStartupRetainsSettingsWithoutRewritingTheSource() async throws {
@@ -40,6 +44,7 @@ final class MapToolSettingsTests: XCTestCase {
         saved.nightMode = true; saved.orientation = 3; saved.mgrsDigits = 6
         saved.hiddenMapTools = ["ruler","record"]; saved.liveActivitiesEnabled = true
         saved.guideMode = 1; saved.guideCorridorM = 55; saved.laneInsideTick = false
+        await saved.waitForPersistence()
         let file = directory.appendingPathComponent("settings-v1.json"),bytes = try Data(contentsOf: file)
         let prepared = await Task.detached {
             XCTAssertFalse(Thread.isMainThread)
@@ -51,15 +56,15 @@ final class MapToolSettingsTests: XCTestCase {
         XCTAssertEqual(reopened.guideMode,1); XCTAssertEqual(reopened.guideCorridorM,55); XCTAssertFalse(reopened.laneInsideTick)
         XCTAssertEqual(try Data(contentsOf: file),bytes)
     }
-    func testPreparedStartupRefusesSettingsCreatedReplacedOrRemovedDuringLoad() throws {
+    func testPreparedStartupRefusesSettingsCreatedReplacedOrRemovedDuringLoad() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let missing = AppSettings.prepareStartup(directory: directory)
-        let saved = AppSettings(directory: directory); saved.nightMode = true
+        let saved = AppSettings(directory: directory); saved.nightMode = true; await saved.waitForPersistence()
         XCTAssertThrowsError(try AppSettings(startup: missing))
         let beforeReplacement = AppSettings.prepareStartup(directory: directory)
-        saved.orientation = 2
+        saved.orientation = 2; await saved.waitForPersistence()
         XCTAssertThrowsError(try AppSettings(startup: beforeReplacement))
         let beforeRemoval = AppSettings.prepareStartup(directory: directory)
         try FileManager.default.removeItem(at: directory.appendingPathComponent("settings-v1.json"))

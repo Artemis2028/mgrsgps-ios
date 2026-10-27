@@ -4,13 +4,13 @@ import GridFixCore
 
 @MainActor
 final class GridNamingIntegrationTests: XCTestCase {
-    func testGridNamePersistsAndCrossPlatformBackupRestoresIt() throws {
+    func testGridNamePersistsAndCrossPlatformBackupRestoresIt() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let settings = AppSettings(directory: directory)
         XCTAssertEqual(settings.gridName,"MGRS")
-        settings.gridSystem = 1
+        settings.gridSystem = 1; await settings.waitForPersistence()
         XCTAssertEqual(AppSettings(directory: directory).gridName,"USNG")
         let backup = settings.backupSettings
         XCTAssertEqual(backup.gridSystem,1)

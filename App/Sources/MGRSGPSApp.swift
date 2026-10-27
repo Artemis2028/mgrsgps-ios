@@ -87,6 +87,10 @@ final class FieldAppStores {
 
     init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil,boundaryStartup: BoundaryMonitor.PreparedStartup? = nil,takStartup: TAKLocalStore.PreparedStartup? = nil) {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSettingsWriteFailure"),
+           !ProcessInfo.processInfo.arguments.contains("-keepUITestData"),let directory,directory.lastPathComponent == "mgrsgps-ui-tests" {
+            try? FileManager.default.createDirectory(at: directory.appendingPathComponent("settings-v1.json"),withIntermediateDirectories: false)
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTestWaypointRecoveryNight") { settingsStore.nightMode = true }
         if OfflineDownloadValidation.enabled, ProcessInfo.processInfo.arguments.contains("-uiTestOfflineDownloadNight") { settingsStore.nightMode = true }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKEnrollmentNight") { settingsStore.nightMode = true }

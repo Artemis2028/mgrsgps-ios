@@ -87,12 +87,66 @@ final class AppSettings: ObservableObject {
     @Published var orientation = 0 { didSet { persist() } }
     @Published var disclaimerAccepted = false { didSet { persist() } }
 
+    @Published private(set) var saving = false
+    @Published private(set) var saveError: String?
     private let fileURL: URL
+    private var sourceStamp: SourceStamp?
+    private var pending: (snapshot: Snapshot,revision: UInt64)?
+    private var writer: Task<Void,Never>?
+    private let stage: @Sendable (Snapshot,URL) async throws -> PreparedAtomicFile
+
+    nonisolated static func stageSettings(_ snapshot: Snapshot,to file: URL) async throws -> PreparedAtomicFile {
+        try await Task.detached(priority: .userInitiated) {
+            try PreparedAtomicFile(data: JSONEncoder().encode(snapshot),destination: file)
+        }.value
+    }
+    enum SaveFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved settings changed outside this session. Reopen MGRS GPS to reload them before saving." }
+    }
+    func waitForPersistence() async { while let task = writer { await task.value } }
+    func retryPersistence() { if pending != nil { startWriter() } }
+    #if DEBUG
+    func restoreWriteAccessForUITest() {
+        guard ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSettingsWriteFailure"),
+              fileURL.deletingLastPathComponent().lastPathComponent == "mgrsgps-ui-tests",
+              (try? fileURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return }
+        do { try FileManager.default.removeItem(at: fileURL); retryPersistence() }
+        catch { saveError = "Test write access could not be restored: " + error.localizedDescription }
+    }
+    #endif
+    private func startWriter() {
+        guard writer == nil,pending != nil else { return }
+        saving = true
+        writer = Task { await Task.yield(); await writePending() }
+    }
+    private func writePending() async {
+        defer { writer = nil; saving = false }
+        while let write = pending {
+            do {
+                let stamp = sourceStamp
+                guard SourceStamp.read(fileURL) == stamp else { throw SaveFailure.changed }
+                let staged = try await stage(write.snapshot,fileURL)
+                defer { staged.discard() }
+                // A newer edit or confirmed restore supersedes this file. Only
+                // the latest complete snapshot may publish, never a stale tail.
+                guard pending?.revision == write.revision,revision == write.revision else { continue }
+                guard SourceStamp.read(fileURL) == stamp else { throw SaveFailure.changed }
+                try staged.publish(); sourceStamp = SourceStamp.read(fileURL)
+                pending = nil; saveError = nil
+            } catch {
+                guard pending?.revision == write.revision,revision == write.revision else { continue }
+                saveError = "Settings could not be saved. Changes apply only to this session. " + error.localizedDescription
+                return // Keep the latest intent for explicit retry or the next edit.
+            }
+        }
+    }
+
     private var ready = false
     private var revision: UInt64 = 0
     private let identity = UUID()
 
-    fileprivate struct Snapshot: Codable, Sendable {
+    struct Snapshot: Codable, Sendable {
         var nightMode: Bool
         var mgrsDigits: Int
         var gridSystem: Int?
@@ -151,17 +205,19 @@ final class AppSettings: ObservableObject {
         return .init(file: file,stamp: stamp,snapshot: snapshot)
     }
 
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil,
+         stage: @escaping @Sendable (Snapshot,URL) async throws -> PreparedAtomicFile = { try await AppSettings.stageSettings($0,to: $1) }) {
         let prepared = Self.prepareStartup(directory: directory)
-        fileURL = prepared.file
+        fileURL = prepared.file; sourceStamp = prepared.stamp; self.stage = stage
         load(prepared.snapshot)
         ready = true
         applyLaunchFace()
     }
 
-    init(startup: PreparedStartup) throws {
+    init(startup: PreparedStartup,
+         stage: @escaping @Sendable (Snapshot,URL) async throws -> PreparedAtomicFile = { try await AppSettings.stageSettings($0,to: $1) }) throws {
         try startup.validate()
-        fileURL = startup.file
+        fileURL = startup.file; sourceStamp = startup.stamp; self.stage = stage
         load(startup.snapshot)
         ready = true
         applyLaunchFace()
@@ -242,7 +298,9 @@ final class AppSettings: ObservableObject {
     }
 
     func applyBackup(_ s: Backup.AppSettings) throws {
+        guard SourceStamp.read(fileURL) == sourceStamp else { throw SaveFailure.changed }
         try Self.encodeBackup(s,liveActivitiesEnabled:liveActivitiesEnabled).write(to: fileURL,options: .atomic)
+        sourceStamp = SourceStamp.read(fileURL); pending = nil; saveError = nil
         installBackup(s)
     }
 
@@ -292,10 +350,11 @@ final class AppSettings: ObservableObject {
         fileprivate let identity: UUID
         fileprivate let liveActivitiesEnabled: Bool
         fileprivate let current: Backup.AppSettings
+        fileprivate let stamp: SourceStamp?
         func prepare(_ incoming: Backup.AppSettings,presentKeys:Set<String>? = nil) throws -> PreparedRestore {
             let settings=try Backup.mergingSettings(incoming,presentKeys:presentKeys,current:current)
             let file = try PreparedAtomicFile(data: AppSettings.encodeBackup(settings,liveActivitiesEnabled:liveActivitiesEnabled),destination: destination)
-            return PreparedRestore(settings: settings,revision: revision,identity: identity,file: file)
+            return PreparedRestore(settings: settings,revision: revision,identity: identity,file: file,stamp: stamp)
         }
     }
 
@@ -304,10 +363,11 @@ final class AppSettings: ObservableObject {
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
         fileprivate let file: PreparedAtomicFile
+        fileprivate let stamp: SourceStamp?
     }
 
     func restoreSnapshot() -> RestoreSnapshot {
-        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity,liveActivitiesEnabled:liveActivitiesEnabled,current:backupSettings)
+        RestoreSnapshot(destination: fileURL,revision: revision,identity: identity,liveActivitiesEnabled:liveActivitiesEnabled,current:backupSettings,stamp:sourceStamp)
     }
 
     func publishRestore(_ prepared: PreparedRestore) throws -> Bool {
@@ -315,7 +375,10 @@ final class AppSettings: ObservableObject {
             throw BackupError.notABackup("Prepared settings restore belongs to a different store")
         }
         guard prepared.revision == revision else { prepared.file.discard(); return false }
+        guard SourceStamp.read(fileURL) == sourceStamp else { prepared.file.discard(); throw SaveFailure.changed }
+        guard prepared.stamp == sourceStamp else { prepared.file.discard(); return false }
         try prepared.file.publish()
+        sourceStamp = SourceStamp.read(fileURL); pending = nil; saveError = nil
         installBackup(prepared.settings)
         return true
     }
@@ -344,8 +407,7 @@ final class AppSettings: ObservableObject {
         snap.laneReminderMin = laneReminderMin
         snap.laneGpsAlert = laneGpsAlert
         snap.liveActivitiesEnabled = liveActivitiesEnabled
-        guard let data = try? JSONEncoder().encode(snap) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        pending = (snap,revision); startWriter()
     }
 }
 

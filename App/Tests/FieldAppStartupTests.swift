@@ -113,6 +113,7 @@ final class FieldAppStartupTests: XCTestCase {
         let dir = try directory(),saved = AppSettings(directory: dir),gate = StartupReadGate(),attempts = StartupAttemptCounter()
         saved.nightMode = true; saved.orientation = 3; saved.liveActivitiesEnabled = true
         saved.hiddenMapTools = ["record"]; saved.mgrsDigits = 4
+        await saved.waitForPersistence()
         defer { gate.release() }
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepare: { try gate.prepare($0) },prepareSettings: { directory in
             XCTAssertFalse(Thread.isMainThread); _ = attempts.next()
@@ -131,7 +132,7 @@ final class FieldAppStartupTests: XCTestCase {
     }
     func testSettingsReplacedDuringPreparationRetryBeforeServicesPublish() async throws {
         let dir = try directory(),saved = AppSettings(directory: dir),attempts = StartupAttemptCounter()
-        saved.nightMode = false
+        saved.nightMode = false; await saved.waitForPersistence()
         let startup = FieldAppStartup(configuration: .init(directory: dir,seedFixtures: false,holdsForUITest: false),prepareSettings: { directory in
             let prepared = AppSettings.prepareStartup(directory: directory)
             if attempts.next() == 1 {
