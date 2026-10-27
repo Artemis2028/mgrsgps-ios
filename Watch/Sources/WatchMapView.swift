@@ -268,7 +268,12 @@ struct WatchMapView: View {
                     ForEach(snapshot.laneOverlays) { lane in
                         Text(laneInfo(lane))
                     }
-                    ForEach(snapshot.features, id: \.renderID) { feature in Text(GraphicTypes.label(feature.type) + ": " + feature.name) }
+                    ForEach(snapshot.features, id: \.renderID) { feature in VStack(alignment: .leading) {
+                        Text(GraphicTypes.label(feature.type) + ": " + feature.name)
+                        if feature.simplified, let labels = feature.routeLegLabels {
+                            Text("Original legs: " + labels.joined(separator: ", ")).font(.caption2)
+                        }
+                    } }
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
                 Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")

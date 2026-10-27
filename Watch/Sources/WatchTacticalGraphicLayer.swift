@@ -36,7 +36,7 @@ struct WatchTacticalGraphicLayer: View {
                     let graphic = Backup.Graphic(id:feature.id,name:showsNames || feature.type == "text" ? feature.name : "",
                                                  type:feature.type,points:feature.points.map { .init(lat:$0.lat,lon:$0.lon) },
                                                  affiliation:feature.affiliation,echelon:feature.echelon)
-                    TacticalGraphicCanvas.draw(graphic,points:points,in:cg,night:night,lightLines:true,numberRouteLegs:!feature.simplified)
+                    TacticalGraphicCanvas.draw(graphic,points:points,in:cg,night:night,lightLines:true,numberRouteLegs:feature.routeLegLabels != nil,routeLegLabels:feature.routeLegLabels)
                 }
                 // Native annotations remain for accessibility. Repaint the fresh own
                 // fix above tactical fills/text so they cannot hide the location dot.

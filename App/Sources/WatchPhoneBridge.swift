@@ -188,6 +188,13 @@ extension WatchPhoneBridge {
         guard args.contains("-uiTesting") else { return }
         if args.contains("-uiTestWatchMapClear") { store.setFolderVisible(Folders.defaultFolder, visible: false); return }
         guard args.contains("-uiTestWatchMap") else { return }
+        if args.contains("-uiTestWatchRouteRanges") {
+            for point in store.waypoints { store.setVisible(id:point.id,visible:false) }
+            let corners = [(24.453,54.3748),(24.456,54.375),(24.454,54.379),(24.452,54.378)]
+            let points = corners.flatMap { p in Array(repeating:Backup.GraphicPoint(lat:p.0,lon:p.1),count:125) }
+            try? field.saveGraphic(.init(id:"watch-route-ranges",name:"LEG RANGES",type:"route",points:points,affiliation:"friendly"))
+            return
+        }
         if args.contains("-uiTestWatchTactical") {
             for point in store.waypoints { store.setVisible(id:point.id,visible:false) }
             let values: [(String,[(Double,Double)])]

@@ -2,6 +2,34 @@ import XCTest
 @testable import GridFixCore
 
 final class WatchMapSnapshotTests: XCTestCase {
+    func testSimplifiedRouteKeepsExactOrdinalsAtRepeatedCoordinatesAndLegacyDoesNotRenumber() throws {
+        let route = Backup.Graphic(id:"r",name:"Repeated",type:"route",points:Array(repeating:.init(lat:24,lon:54),count:500))
+        let scene = WatchMapSnapshot.build(waypoints:[],folders:[],document:.init(graphics:[route]))
+        let feature = try XCTUnwrap(scene.features.first)
+        XCTAssertEqual(feature.routeVertexIndices,[0,499]); XCTAssertEqual(feature.routeLegLabels,["1–499"])
+        XCTAssertEqual(WatchMapSnapshot.decode(try XCTUnwrap(scene.encoded())),scene)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with:XCTUnwrap(scene.encoded())) as? [String:Any])
+        var features = try XCTUnwrap(legacy["features"] as? [[String:Any]])
+        features[0].removeValue(forKey:"routeVertexIndices"); legacy["features"] = features
+        let decoded = try XCTUnwrap(WatchMapSnapshot.decode(JSONSerialization.data(withJSONObject:legacy)))
+        XCTAssertNil(decoded.features.first?.routeLegLabels)
+        var bad = scene
+        for indices in [[0,498],[1,499],[0,499,500],[0,-1]] {
+            bad.features[0].routeVertexIndices = indices; XCTAssertNil(bad.encoded())
+        }
+        bad.features[0].type = "phase_line"; bad.features[0].routeVertexIndices = [0,499]
+        XCTAssertNil(bad.encoded())
+    }
+    func testRetainedRouteIndicesMatchEverySampledCoordinateAndCoverAllOriginalLegs() throws {
+        let points = (0..<500).map { GeoPoint(lat:$0 == 251 ? 24.5 : 24,lon:54+Double($0)*0.0001) }
+        let indices = try TrackBacktrack.retainedIndices(points,tolerance:0,maxPoints:160)
+        XCTAssertEqual(try TrackBacktrack.simplify(points,tolerance:0,maxPoints:160),indices.map { points[$0] })
+        XCTAssertEqual(indices.first,0); XCTAssertEqual(indices.last,499); XCTAssertTrue(indices.contains(251))
+        let route = Backup.Graphic(id:"r",name:"Bend",type:"route",points:points.map { .init(lat:$0.lat,lon:$0.lon) })
+        let feature = try XCTUnwrap(WatchMapSnapshot.build(waypoints:[],folders:[],document:.init(graphics:[route])).features.first)
+        XCTAssertEqual(feature.routeVertexIndices,indices)
+        XCTAssertEqual(feature.routeLegLabels?.count,feature.points.count-1)
+    }
     func testVisibilityMetadataAndCompleteEmptyReplacement() throws {
         var shown = Waypoint(id: "unit", name: "Recon", lat: 24, lon: 54, symbol: "nato_f_recon", affiliation: "friendly", echelon: "plt")
         shown.rotation = 45

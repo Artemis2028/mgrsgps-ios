@@ -42,6 +42,22 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
         public var points: [GeoPoint]
         public var originalPointCount: Int
         public var simplified: Bool
+        /// Optional additive v1 field. Each retained vertex's exact original ordinal.
+        public var routeVertexIndices: [Int]? = nil
+        public var routeLegLabels: [String]? {
+            guard kind == "graphic", type == "route" else { return nil }
+            guard let indices = routeVertexIndices else {
+                return simplified ? nil : (1..<points.count).map(String.init)
+            }
+            guard validRouteIndices else { return nil }
+            return zip(indices,indices.dropFirst()).map { a,b in a + 1 == b ? String(b) : "\(a+1)–\(b)" }
+        }
+        public var validRouteIndices: Bool {
+            guard let indices = routeVertexIndices else { return true }
+            return kind == "graphic" && type == "route" && points.count >= 2 && originalPointCount >= points.count && indices.count == points.count
+                && indices.first == 0 && indices.last == originalPointCount-1
+                && zip(indices,indices.dropFirst()).allSatisfy { $0 < $1 }
+        }
         public var renderID: String { kind + ":" + id }
         public var isArea: Bool { kind == "boundary" || GraphicTypes.isArea(type) }
     }
@@ -68,7 +84,7 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
             && ["graphic", "track", "boundary"].contains($0.kind) && $0.type.count <= 40
             && $0.affiliation.count <= 24 && $0.echelon.count <= 24 && !$0.points.isEmpty
             && $0.points.count <= Self.maxAreaPoints && $0.originalPointCount >= $0.points.count
-            && $0.points.allSatisfy(Self.validCoordinate)
+            && $0.validRouteIndices && $0.points.allSatisfy(Self.validCoordinate)
             && ($0.kind != "track" || ($0.type == "track" && $0.points.count >= 2))
             && ($0.kind != "boundary" || $0.type == "area")
             && ($0.kind != "graphic" || $0.points.count >= GraphicTypes.minPoints($0.type))
@@ -114,13 +130,15 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
                   result.features.count < maxFeatures, featureIDs.insert(kind + ":" + id).inserted,
                   (!area || ((3...maxAreaPoints).contains(original.count) && !WatchMapGeometry.crossesDateline(original, closed: true))),
                   (type != "sector" || WatchMapGeometry.sectorOutline(original) != nil) else { result.omittedItems += 1; return }
-            let sampled = area || original.count <= maxLinePoints ? original : ((try? TrackBacktrack.simplify(original, tolerance: 0, maxPoints: maxLinePoints)) ?? [])
+            let indices = area || original.count <= maxLinePoints ? Array(original.indices) : ((try? TrackBacktrack.retainedIndices(original, tolerance: 0, maxPoints: maxLinePoints)) ?? [])
+            let sampled = indices.map { original[$0] }
             guard !sampled.isEmpty else { result.omittedItems += 1; return }
             let simplified = sampled.count != original.count
             if simplified { result.simplifiedItems += 1 }
             result.features.append(.init(id: id, kind: kind, name: short(name), type: short(type, 40),
                                          affiliation: short(affiliation, 24), echelon: short(echelon, 24),
-                                         points: sampled, originalPointCount: original.count, simplified: simplified))
+                                         points: sampled, originalPointCount: original.count, simplified: simplified,
+                                         routeVertexIndices: kind == "graphic" && type == "route" ? indices : nil))
         }
         for graphic in document.graphics where graphic.visible && shown(graphic.folder) {
             add(id: graphic.id, kind: "graphic", name: graphic.name, type: graphic.type, affiliation: graphic.affiliation,

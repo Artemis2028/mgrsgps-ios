@@ -886,3 +886,21 @@ screenshots inspected; phone/watch/widget device Release and eight harness check
 pass. See [map settings evidence and limits](map-preferences-persistence.md).
 All local parents finish naturally; owned phone/feed off. This candidate stays
 local while hosted104 runs on42def16; no full hosted green or full parity claim.
+
+### Watch route previews retain phone leg references — 27 October 2026
+
+Both watch map packets now retain exact source ordinals from the existing
+budgeted simplifier, including repeated coordinates. Simplified segments display
+original leg ranges instead of missing or misleading sequential numbers. Named
+ranges are available in map info; legacy simplified scenes suppress numbers.
+Ordinary iPhone numbering and quiet-inside monitoring remain separate.
+
+All511 core and345 native cases pass (four opt-in native skips), plus the actual
+phone route draw/drag/edit/relaunch workflow. Phone/watch/widget device Release,
+eight harness checks,458 Android phone/42 Wear unit tests, Android Debug/Release
+builds and Wear Release lint pass. Paired40mm Apple context revision131 contains
+the exact retained ordinals; day/night map captures and standalone Wear cache/
+map-info checks inspected. Prior watch preferences restored; all owned devices
+and feeds off. [Evidence and limits](watch-route-leg-ranges.md). The iOS commits
+remain local while hosted104 is running on42def16; full hosted/physical/watch
+navigation and TAK verification gates remain open.

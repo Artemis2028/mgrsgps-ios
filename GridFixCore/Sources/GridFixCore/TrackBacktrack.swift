@@ -15,12 +15,16 @@ public enum TrackBacktrack {
     private struct Segment { let first: Int; let last: Int; let split: Int; let error: Double }
 
     public static func simplify(_ points: [GeoPoint],tolerance: Double = 20,maxPoints: Int = 64) throws -> [GeoPoint] {
+        try retainedIndices(points,tolerance: tolerance,maxPoints: maxPoints).map { points[$0] }
+    }
+    /// Exact source ordinals, including repeated coordinates, for labelled previews.
+    public static func retainedIndices(_ points: [GeoPoint],tolerance: Double = 20,maxPoints: Int = 64) throws -> [Int] {
         try validateOptions(tolerance,maxPoints)
         for (index,point) in points.enumerated() {
             if index % 4096 == 0 { try Task.checkCancellation() }
             guard TrackCodec.validCoordinates(point.lat,point.lon) else { throw Failure.invalidPoints }
         }
-        return try simplify(count: points.count,tolerance: tolerance,maxPoints: maxPoints,pointAt: { points[$0] })
+        return try retainedIndices(count: points.count,tolerance: tolerance,maxPoints: maxPoints,pointAt: { points[$0] })
     }
     private static func validateOptions(_ tolerance: Double,_ maxPoints: Int) throws {
         guard maxPoints >= 2, tolerance.isFinite, tolerance >= 0 else { throw Failure.invalidOptions }
@@ -30,8 +34,11 @@ public enum TrackBacktrack {
     /// allocating a reversed copy. Retain only the chosen indices (at most the
     /// requested budget), instead of a second full-length keep array.
     private static func simplify(count: Int,tolerance: Double,maxPoints: Int,pointAt: (Int) -> GeoPoint) throws -> [GeoPoint] {
+        try retainedIndices(count: count,tolerance: tolerance,maxPoints: maxPoints,pointAt: pointAt).map(pointAt)
+    }
+    private static func retainedIndices(count: Int,tolerance: Double,maxPoints: Int,pointAt: (Int) -> GeoPoint) throws -> [Int] {
         try validateOptions(tolerance,maxPoints)
-        guard count > 2 else { return (0..<count).map(pointAt) }
+        guard count > 2 else { return Array(0..<count) }
         let metresPerLatitude = 111_320.0
         let metresPerLongitude = metresPerLatitude*max(0.01,cos(pointAt(0).lat*Double.pi/180))
         func distance(_ p: GeoPoint,_ a: GeoPoint,_ b: GeoPoint) -> Double {
@@ -68,7 +75,7 @@ public enum TrackBacktrack {
             try enqueue(segment.first,segment.split); try enqueue(segment.split,segment.last)
         }
         try Task.checkCancellation()
-        return keep.sorted().map(pointAt)
+        return keep.sorted()
     }
 
     public static func route(track: Backup.TrackMeta,points: [TrackPoint],now: Int64 = Int64(Date().timeIntervalSince1970*1000)) throws -> Backup.Graphic {

@@ -5,7 +5,7 @@ import UIKit
 /// than density-scaled pixels. Retains all vertices, including imported routes.
 @MainActor
 enum TacticalGraphicCanvas {
-    static func draw(_ graphic: Backup.Graphic, points p: [CGPoint], in c: CGContext, night: Bool, lightLines: Bool, selected: Bool = false, draft: Bool = false, numberRouteLegs: Bool = true) {
+    static func draw(_ graphic: Backup.Graphic, points p: [CGPoint], in c: CGContext, night: Bool, lightLines: Bool, selected: Bool = false, draft: Bool = false, numberRouteLegs: Bool = true, routeLegLabels: [String]? = nil) {
         guard let first = p.first else { return }
         c.saveGState(); defer { c.restoreGState() }
         let type = graphic.type, n = p.count
@@ -127,7 +127,7 @@ enum TacticalGraphicCanvas {
             label(["screen_l":"S","guard_l":"G","cover_l":"C"][type]!,mid,above: false,centered: true,size: 11); label(name,first)
         case "route":
             stroke(path(p)); p.forEach { circle($0,3,filled: true) }
-            if numberRouteLegs { for i in 0..<(n-1) { label(String(i+1),CGPoint(x: (p[i].x+p[i+1].x)/2,y: (p[i].y+p[i+1].y)/2)) } }; label(name,first)
+            if numberRouteLegs && (routeLegLabels == nil || routeLegLabels?.count == n-1) { for i in 0..<(n-1) { label(routeLegLabels?[i] ?? String(i+1),CGPoint(x: (p[i].x+p[i+1].x)/2,y: (p[i].y+p[i+1].y)/2)) } }; label(name,first)
         default:
             let area = GraphicTypes.isArea(type); let shape = path(p,closed: area && n >= 3)
             if area && n >= 3 { fill(shape,alpha: 26/255) }; stroke(shape)

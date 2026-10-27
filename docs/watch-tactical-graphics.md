@@ -13,11 +13,10 @@ teeth, wire marks, parallel lanes, minefields/strongpoints, boundary echelons,
 S/G/C line badges, route vertices/leg numbers, typed areas, range rings, sectors,
 TRPs, checkpoints, decision points and text. At wider zoom the watch omits
 detailed names but retains meaningful tactical prefixes/badges, text items and
-route leg numbers. If the transfer has simplified a route, leg numbers are
-omitted: a displayed segment can span multiple original legs, so renumbering
-it would give false correspondence with the phone. Original leg-range labels
-for simplified routes remain a gap; the phone's unsimplified numbering is
-unchanged.
+route leg numbers. Simplified routes now carry exact original vertex ordinals and label each displayed
+segment with its original leg range, such as1–125. Legacy simplified scenes
+without this metadata remain unnumbered. The normal phone's numbering stays
+unchanged. See [original route ranges and validation](watch-route-leg-ranges.md).
 
 ## Native-map projection and layering
 

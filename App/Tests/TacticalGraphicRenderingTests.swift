@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 final class TacticalGraphicRenderingTests: XCTestCase {
-    private func render(_ type: String, night: Bool = false, name: String = "ALPHA", points: [CGPoint]? = nil, numberRouteLegs: Bool = true) -> UIImage {
+    private func render(_ type: String, night: Bool = false, name: String = "ALPHA", points: [CGPoint]? = nil, numberRouteLegs: Bool = true, routeLegLabels: [String]? = nil) -> UIImage {
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         return UIGraphicsImageRenderer(size: CGSize(width: 280,height: 190),format: format).image { r in
             UIColor(night ? .black : .white).setFill(); r.fill(CGRect(x: 0,y: 0,width: 280,height: 190))
@@ -17,7 +17,7 @@ final class TacticalGraphicRenderingTests: XCTestCase {
             let vertices = points ?? fallback
             let coordinates = vertices.enumerated().map { Backup.GraphicPoint(lat: 24+Double($0.offset)*0.001,lon: 54+Double($0.offset)*0.001) }
             let graphic = Backup.Graphic(id: type,name: name,type: type,points: coordinates,affiliation: "friendly",echelon: "bn")
-            TacticalGraphicCanvas.draw(graphic,points: vertices,in: r.cgContext,night: night,lightLines: false,numberRouteLegs:numberRouteLegs)
+            TacticalGraphicCanvas.draw(graphic,points: vertices,in: r.cgContext,night: night,lightLines: false,numberRouteLegs:numberRouteLegs,routeLegLabels:routeLegLabels)
         }
     }
     func testEveryAndroidGraphicTypeRendersAndContactSheets() {
@@ -68,6 +68,16 @@ final class TacticalGraphicRenderingTests: XCTestCase {
         XCTAssertGreaterThan(try ink(render("route",name:"",points:points)),0)
         XCTAssertEqual(try ink(render("route",name:"",points:points,numberRouteLegs:false)),0,
                        "A thinned watch segment can span several phone legs; never renumber it as a single original leg")
+    }
+    func testOriginalLegRangesUseSharedRendererWithoutRenumberingThePhone() {
+        let points = [CGPoint(x:45,y:125),CGPoint(x:220,y:125)]
+        for night in [false,true] {
+            let numbered = render("route",night:night,name:"",points:points)
+            let ranged = render("route",night:night,name:"",points:points,routeLegLabels:["1–499"])
+            let absent = render("route",night:night,name:"",points:points,numberRouteLegs:false)
+            XCTAssertNotEqual(numbered.pngData(),ranged.pngData()); XCTAssertNotEqual(absent.pngData(),ranged.pngData())
+            XCTAssertEqual(absent.pngData(),render("route",night:night,name:"",points:points,routeLegLabels:[]).pngData())
+        }
     }
     func testOffscreenObstacleDecorationDoesNotWalkMillionsOfInvisibleMarks() {
         let start = Date()

@@ -11,6 +11,7 @@ Wear OS and watchOS share this functional scope. Native controls may differ to f
 | References | Phone distance/angle units and true, magnetic or grid reference; unavailable magnetic reference is explicit |
 | Phone connection | Cached target/settings remain usable with their age and honest connection status |
 | Map | Read-only interactive map with pan/zoom/recenter, fresh watch position, cached visible waypoints and field geometry, sync age and explicit omission/simplification counts |
+| Route leg labels | Complete routes use ordinary numbers; simplified routes use original leg ranges, with a named range summary in map info. Legacy simplified caches remain unnumbered |
 | Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; no watch crossing detector or haptic lane guidance |
 | TAK layer | Separate read-only contacts, markers, lines and areas; complete replacements, bounded geometry, explicit omissions and expiry retained across relaunch |
 | Night mode | Local Day/Night/Follow phone choice, independent of the precision override |
@@ -107,3 +108,6 @@ relaunch/disconnection. Runtime review also fixes Wear's prior-tick uptime
 causing a transient false expiry on new delivery. Physical clock/wrist checks
 and the recorded Wear host-process abort during cleanup remain separate.
 See [behavior and exact evidence](watch-guide-expiry.md).
+
+Original leg-range labels are implemented and validated on both watches; see
+[exact packet, renderer and runtime evidence](watch-route-leg-ranges.md).
