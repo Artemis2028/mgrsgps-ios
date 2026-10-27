@@ -242,7 +242,7 @@ extension WatchPhoneBridge {
         document.tracks = [.init(id: id, name: "SYNTHETIC TRACK", startedAt: 0, endedAt: 0, distanceM: 100, pointCount: points.count)]
         document.trackFiles[id] = try? TrackCodec.encode(points)
         _ = try? field.restore(document)
-        _ = boundaries.save(.init(id: "watch-map-fence", name: "SYNTHETIC FENCE", vertices: [.init(lat: 24.4528, lon: 54.3764), .init(lat: 24.4555, lon: 54.3764), .init(lat: 24.4555, lon: 54.380), .init(lat: 24.4528, lon: 54.380)]))
+        Task { await boundaries.save(.init(id: "watch-map-fence", name: "SYNTHETIC FENCE", vertices: [.init(lat: 24.4528, lon: 54.3764), .init(lat: 24.4555, lon: 54.3764), .init(lat: 24.4555, lon: 54.380), .init(lat: 24.4528, lon: 54.380)])) }
     }
 }
 #endif

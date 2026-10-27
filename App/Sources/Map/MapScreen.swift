@@ -54,6 +54,7 @@ struct MapScreen: View {
     @State private var contourLabel = ""
     @State private var showingBoundaries = false
     @State private var boundaryDraft: BoundaryDraft?
+    @StateObject private var boundaryMutation = FieldMutation()
     @State private var showingGraphics = false
     @State private var graphicDraft: GraphicDraft?
     @State private var measuringArea = false
@@ -123,22 +124,22 @@ struct MapScreen: View {
                          onRulerAnchor: { rulerAnchor = $0; selectedID = nil },
                          onRulerTarget: { if rulerTarget != $0 { rulerTarget = $0 } },
                          boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],
-                         boundaryEditing: boundaryDraft != nil, boundarySelection: boundaryDraft?.selected,
+                         boundaryEditing: boundaryDraft != nil && !boundaryMutation.working, boundarySelection: boundaryDraft?.selected,
                          onBoundaryPoint: { point in
-                             guard boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             guard !boundaryMutation.working, boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
                              boundaryDraft!.vertices.append(point); boundaryDraft!.selected = boundaryDraft!.vertices.count-1
                          },
-                         onBoundarySelect: { boundaryDraft?.selected = $0 },
+                         onBoundarySelect: { if !boundaryMutation.working { boundaryDraft?.selected = $0 } },
                          onBoundaryInsert: { index, point in
-                             guard boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             guard !boundaryMutation.working, boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
                              let position = min(index+1,boundaryDraft!.vertices.count)
                              boundaryDraft!.vertices.insert(point,at: position); boundaryDraft!.selected = position
                          },
                          onBoundaryMove: { index, point in
-                             if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
+                             if !boundaryMutation.working, boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
                          },
                          onBoundaryRemove: { index in
-                             if boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
+                             if !boundaryMutation.working, boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
                          },
                          graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
                          onGraphicPoint: { if !graphicMutation.working && (laneDraft == nil || (graphicDraft?.vertices.count ?? 0) < 500) { graphicDraft?.append($0) } },
@@ -218,8 +219,13 @@ struct MapScreen: View {
                 }
                 if let draft = boundaryDraft {
                     BoundaryDrawingControls(draft: Binding(get: { boundaryDraft ?? draft },set: { boundaryDraft = $0 }),
-                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaries.error,
-                        save: { if let area = boundaryDraft?.area, boundaries.save(area) { boundaryDraft = nil } },cancel: { boundaryDraft = nil; boundaries.clearError() })
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaryMutation.error ?? boundaries.error,saving: boundaryMutation.working,
+                        save: {
+                            guard let captured = boundaryDraft else { return }
+                            boundaryMutation.run("Saving boundary…",action: {
+                                guard await boundaries.save(captured.area) else { throw BoundaryError.invalid(boundaries.error ?? "Monitoring state changed. Stop monitoring before editing this boundary.") }
+                            },completion: { visible in if visible, boundaryDraft == captured { boundaryDraft = nil } })
+                        },cancel: { boundaryDraft = nil; boundaries.clearError(); boundaryMutation.clearError() })
                 }
                 if let draft = laneDraft {
                     LaneDrawingControls(draft: draft,count: graphicDraft?.vertices.count ?? 0,selected: graphicDraft?.selected != nil,busy: graphicMutation.working,error: graphicMutation.error,
@@ -299,12 +305,12 @@ struct MapScreen: View {
         .environment(\.colorScheme, chromeNight ? .dark : .light)
         .toolbarColorScheme(.dark, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
-        .onAppear { targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
+        .onAppear { boundaryMutation.setPresented(true); targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
         .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
         .onChange(of: graphicMutation.working) { busy in if !busy { receiveLaneRequest() } }
-        .onDisappear { targetMutation.setPresented(false); lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
+        .onDisappear { boundaryMutation.setPresented(false); targetMutation.setPresented(false); lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
         .onChange(of: graphicDraft?.graphic.id) { value in if value != nil { endLasso() } }
-        .onChange(of: boundaryDraft?.id) { value in if value != nil { endLasso() } }
+        .onChange(of: boundaryDraft?.id) { value in if value != nil { boundaryMutation.clearError(); endLasso() } }
         .onChange(of: laneDraft?.lane.id) { value in if value != nil { endLasso() } }
         .alert("Delete selected map items?",isPresented: $lassoDelete) {
             Button("Delete selected",role: .destructive) { applyLasso(.delete) }

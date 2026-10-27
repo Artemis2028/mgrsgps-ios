@@ -92,4 +92,26 @@ final class BoundaryWorkflowTests: XCTestCase {
         capture("boundary-direct-line-drag"); save()
         XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
     }
+    func testNightBoundaryEditDeleteCancelAndDurableDelete() {
+        let night = app.buttons["Toggle map night mode"]
+        XCTAssertTrue(night.waitForExistence(timeout: 10)); night.tap()
+        draw(); save(); app.buttons["map-boundaries"].tap()
+        app.buttons["Edit"].tap()
+        let name = app.textFields["boundary-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); replaceTextInput(name,"Night perimeter CAFÉ")
+        XCTAssertEqual(name.value as? String,"Night perimeter CAFÉ")
+        capture("boundary-ordinary-edit-night"); save()
+        app.buttons["map-boundaries"].tap()
+        XCTAssertTrue(app.staticTexts["Night perimeter CAFÉ"].waitForExistence(timeout: 5))
+        app.buttons["Delete boundary Night perimeter CAFÉ"].tap(); app.alerts.buttons["Keep"].tap()
+        XCTAssertTrue(app.staticTexts["Night perimeter CAFÉ"].exists)
+        app.buttons["Delete boundary Night perimeter CAFÉ"].tap(); app.alerts.buttons["Delete"].tap()
+        XCTAssertTrue(app.staticTexts["No boundaries saved"].waitForExistence(timeout: 5))
+        capture("boundary-ordinary-delete-night")
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
+        app.buttons["map-boundaries"].tap()
+        XCTAssertTrue(app.staticTexts["No boundaries saved"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["stop-boundary"].exists)
+    }
+
 }

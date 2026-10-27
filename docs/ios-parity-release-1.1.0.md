@@ -18,7 +18,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |
 | Military symbols | Full Android curated catalog: 496 unit images, 20 tasks, 15 basic markers; search, affiliation/echelon/designation/type/rotation editing, imported MilGPS appearance editor, shared map/library/target-chooser rendering and night transform | Physical map readability at field distances; the catalog matches Android rather than the entire MIL-STD specification |
 | Tactical graphics | All 30 Android control measures, doctrine rendering, map drawing, draggable points and segment handles, metadata, show/visibility/delete, day/night labels; worker-prepared archive edits | Physical field readability and very large-library performance |
-| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; remaining ordinary settings/boundary write costs |
+| Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Physical long-route/readability checks; remaining ordinary settings write costs |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation; Android re-export drops the optional iOS-only quiet-boundary section |
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Physical lasso/large-text and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
@@ -397,7 +397,9 @@ read-only. Full native validation passes 268 cases (four opt-in local skips),
 and real simulator drawing/direct dragging/background crossing and interrupted
 worker cold relaunch pass. Final Release passes. See
 [boundary startup evidence](boundary-startup.md). Physical locked-screen alerts,
-ordinary boundary writes and the other remaining gates are still open.
+ordinary boundary writes were still open at this milestone; the later
+[worker persistence follow-up](boundary-persistence.md) covers those writes.
+Physical alert delivery and the other remaining gates remain open.
 
 ## Native export presentation and hosted follow-up
 
@@ -798,3 +800,20 @@ screenshots and an independent Android NGA grid reference are inspected.
 remains separate from hosted 23C54/Xcode 26.6; full hosted green, physical
 providers/iPad, dense targets and imported-marker accessibility refinements
 remain open. The whole parity goal remains active.
+
+
+### Quiet-boundary worker persistence — 27 October 2026
+
+Ordinary perimeter saves/deletes and monitor start/off checkpoints now validate,
+encode and stage off Main with one serialized publication gate. Stop still turns
+off GPS and alerts immediately; a late pending start cannot resurrect them.
+Confirmed edits/restore retain their accepted intent across view dismissal, while
+source checks preserve external replacements and stale delete confirmations keep
+newer edits. Draft dismissal is tied to the same visible drawing. Quiet-inside
+exit/reentry and separate route guidance policies are unchanged. See
+[boundary persistence evidence and limits](boundary-persistence.md). Scoped native
+validation passes 69 cases and all four actual simulator boundary workflows,
+including background exits and durable night edits/deletion. Screenshots inspected;
+phone/watch/widget unsigned device Release and eight harness checks pass.
+The owned simulator/feed are off.
+Full hosted103 on bc52ed8 remains a separate live gate.

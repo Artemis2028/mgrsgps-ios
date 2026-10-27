@@ -64,6 +64,7 @@ final class BoundaryMonitor: ObservableObject {
     @Published private(set) var areas: [BoundaryArea] = []
     @Published private(set) var activeID: String?
     @Published private(set) var preparing = false
+    @Published private(set) var writing = false
     @Published private(set) var status = "Monitoring off"
     @Published private(set) var alertStatus = ""
     @Published private(set) var error: String?
@@ -84,6 +85,30 @@ final class BoundaryMonitor: ObservableObject {
     private var operation: Task<Void,Never>?
     private var generation = UUID()
     private var latestTimestamp: TimeInterval?
+    private var writeWaiters: [CheckedContinuation<Void,Never>] = []
+    private var checkpoint: Task<Void,Never>?
+    private var stopRevision = UUID()
+    private let stage: @Sendable (Document,URL) async throws -> PreparedAtomicFile
+
+    nonisolated static func stageDocument(_ document: Document,to file: URL) async throws -> PreparedAtomicFile {
+        try await Task.detached(priority: .userInitiated) {
+            let data = try JSONEncoder().encode(document)
+            guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
+            return try PreparedAtomicFile(data: data,destination: file,lockCompatible: true)
+        }.value
+    }
+    // A confirmed write survives view dismissal/caller cancellation, as restore
+    // already does. The FIFO gate serializes preparation as well as publication.
+    private func acquireWrite() async {
+        if !writing { writing = true; return }
+        await withCheckedContinuation { writeWaiters.append($0) }
+    }
+    private func releaseWrite() {
+        if writeWaiters.isEmpty { writing = false }
+        else { writeWaiters.removeFirst().resume() }
+    }
+    func waitForPersistence() async { await checkpoint?.value }
+
     var activeArea: BoundaryArea? { areas.first { $0.id == activeID } }
     var displayedArea: BoundaryArea? { areas.first { $0.id == (activeID ?? displayedID) } }
     var running: Bool { activeID != nil }
@@ -127,9 +152,11 @@ final class BoundaryMonitor: ObservableObject {
     }
 
     init(directory: URL? = nil,startup: PreparedStartup? = nil, driver: RecordingLocationDriver? = nil, alerts: BoundaryAlerting? = nil,
-         now: @escaping () -> Date = Date.init, foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active }) {
+         now: @escaping () -> Date = Date.init, foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active },
+         stage: @escaping @Sendable (Document,URL) async throws -> PreparedAtomicFile = { try await BoundaryMonitor.stageDocument($0,to: $1) }) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
         file = dir.appendingPathComponent("boundaries-v1.json")
+        self.stage = stage
         self.driver = driver ?? CoreLocationRecordingDriver()
         self.alerts = alerts ?? BoundaryAlerts(); self.now = now; self.foreground = foreground
         let prepared = startup ?? Self.prepareStartup(directory: directory)
@@ -151,28 +178,52 @@ final class BoundaryMonitor: ObservableObject {
             else { self.status = "Location unavailable · boundary crossings cannot be checked"; self.lastFixAt = nil }
         }
     }
-    @discardableResult func save(_ area: BoundaryArea) -> Bool {
+    @discardableResult func save(_ area: BoundaryArea) async -> Bool {
+        await acquireWrite(); defer { releaseWrite() }
         guard !running, !preparing, !loadFailed else { return false }
         do {
-            _ = try BoundaryGeometry(vertices: area.vertices)
-            let name = area.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !area.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, area.id.count <= 256, !name.isEmpty, name.count <= 100 else { throw BoundaryError.invalid("Give the boundary a name of 1–100 characters.") }
-            var next = areas
-            let saved = BoundaryArea(id: area.id,name: name,vertices: area.vertices)
-            if let i = next.firstIndex(where: { $0.id == area.id }) { next[i] = saved } else { next.append(saved) }
-            guard next.count <= 100 else { throw BoundaryError.invalid("The boundary library is full. Delete a boundary first.") }
-            try persist(next,active: nil); areas = next; displayedID = area.id; error = nil
+            let original = areas, stamp = sourceStamp, file = file
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            let next = try await Task.detached(priority: .userInitiated) {
+                _ = try BoundaryGeometry(vertices: area.vertices)
+                let name = area.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !area.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, area.id.count <= 256, !name.isEmpty, name.count <= 100 else { throw BoundaryError.invalid("Give the boundary a name of 1–100 characters.") }
+                var next = original
+                let saved = BoundaryArea(id: area.id,name: name,vertices: area.vertices)
+                if let i = next.firstIndex(where: { $0.id == area.id }) { next[i] = saved } else { next.append(saved) }
+                guard next.count <= 100 else { throw BoundaryError.invalid("The boundary library is full. Delete a boundary first.") }
+                return next
+            }.value
+            let staged = try await stage(Document(areas: next),file)
+            defer { staged.discard() }
+            guard !running, !preparing, !loadFailed else { return false }
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            try staged.publish(); sourceStamp = SourceStamp.read(file)
+            areas = next; displayedID = area.id; error = nil
             return true
         } catch { self.error = error.localizedDescription; return false }
     }
-    func delete(_ area: BoundaryArea) {
-        guard !running, !preparing, !loadFailed else { return }
-        do { let next = areas.filter { $0.id != area.id }; try persist(next,active: nil); areas = next; if displayedID == area.id { displayedID = next.first?.id }; error = nil }
-        catch { self.error = error.localizedDescription }
+    @discardableResult func delete(_ area: BoundaryArea) async -> Bool {
+        await acquireWrite(); defer { releaseWrite() }
+        guard !running, !preparing, !loadFailed else { return false }
+        do {
+            // Do not delete an area edited after the confirmation was shown.
+            guard areas.contains(area) else { throw BoundaryError.invalid("This boundary changed. Review it before deleting it.") }
+            let next = areas.filter { $0.id != area.id }, stamp = sourceStamp
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            let staged = try await stage(Document(areas: next),file)
+            defer { staged.discard() }
+            guard !running, !preparing, !loadFailed else { return false }
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            try staged.publish(); sourceStamp = SourceStamp.read(file); areas = next
+            if displayedID == area.id { displayedID = next.first?.id }
+            error = nil; return true
+        } catch { self.error = error.localizedDescription; return false }
     }
     /// Additive confirmed restore. Geometry preparation and staging run off Main;
     /// publication retains current edits and leaves any existing monitor untouched.
     func restore(_ imported: [BoundaryArea]) async throws -> Int {
+        await acquireWrite(); defer { releaseWrite() }
         do {
             while true {
                 guard !loadFailed else { throw BoundaryError.invalid("Boundary library could not be read. Its file was kept.") }
@@ -220,21 +271,53 @@ final class BoundaryMonitor: ObservableObject {
             guard !Task.isCancelled, foreground(), hasPermission else {
                 preparing = false; error = "Start monitoring with the app open and Precise Location enabled."; return
             }
+            await acquireWrite(); defer { releaseWrite() }
+            guard generation == token else { return }
             do {
-                let detector = try BoundaryCrossingDetector(vertices: area.vertices)
-                try persist(areas,active: area.id)
+                guard areas.contains(area), foreground(), hasPermission else {
+                    preparing = false; error = "The boundary or location permission changed. Review it before starting again."; return
+                }
+                let detector = try await Task.detached(priority: .userInitiated) {
+                    try BoundaryCrossingDetector(vertices: area.vertices)
+                }.value
+                let stamp = sourceStamp
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                let staged = try await stage(Document(areas: areas,interruptedID: area.id),file)
+                defer { staged.discard() }
+                guard generation == token else { return }
+                guard foreground(), hasPermission else {
+                    preparing = false; error = "Start monitoring with the app open and Precise Location enabled."; return
+                }
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                try staged.publish(); sourceStamp = SourceStamp.read(file)
                 self.detector = detector; activeID = area.id; displayedID = area.id; preparing = false
                 crossingCount = 0; lastFixAt = nil; hasFreshFix = false; latestTimestamp = nil; lastCrossing = nil
                 alertStatus = alerts.status; status = "Waiting for an accurate fix inside the boundary"
                 alerts.begin(); driver.start()
-            } catch { preparing = false; self.error = error.localizedDescription }
+            } catch { if generation == token { preparing = false; self.error = error.localizedDescription } }
         }
     }
     func stop() {
         generation = UUID(); operation?.cancel(); pendingID = nil; preparing = false
         driver.stop(); alerts.stop(); activeID = nil; detector = nil; lastFixAt = nil; hasFreshFix = false
         status = "Monitoring off"
-        do { if !loadFailed { try persist(areas,active: nil) } } catch { self.error = "Monitoring stopped; status could not be saved: \(error.localizedDescription)" }
+        let revision = UUID(); stopRevision = revision
+        checkpoint = Task {
+            await acquireWrite(); defer { releaseWrite() }
+            // A later stop subsumes this checkpoint; a completed new start must
+            // keep its interruption marker. Preparing a new start is safe: its
+            // active marker will be written after this queued off checkpoint.
+            guard stopRevision == revision, !running, !loadFailed else { return }
+            do {
+                let stamp = sourceStamp
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                let staged = try await stage(Document(areas: areas),file)
+                defer { staged.discard() }
+                guard stopRevision == revision, !running, !loadFailed else { return }
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                try staged.publish(); sourceStamp = SourceStamp.read(file)
+            } catch { self.error = "Monitoring stopped; status could not be saved: \(error.localizedDescription)" }
+        }
     }
     func becameActive() {
         refresh()
@@ -284,12 +367,5 @@ final class BoundaryMonitor: ObservableObject {
         }
         alertStatus = alerts.status
         refresh()
-    }
-    private func persist(_ areas: [BoundaryArea], active: String?) throws {
-        guard SourceStamp.read(file) == sourceStamp else { throw StartupFailure.changed }
-        let data = try JSONEncoder().encode(Document(areas: areas,interruptedID: active))
-        guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
-        try data.write(to: file,options: [.atomic,.completeFileProtectionUntilFirstUserAuthentication])
-        sourceStamp = SourceStamp.read(file)
     }
 }

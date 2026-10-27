@@ -202,7 +202,7 @@ final class FieldAppStartupTests: XCTestCase {
             let stores = try XCTUnwrap(startup.stores); defer { stores.tak.disconnect() }
             XCTAssertFalse(stores.boundaries.running); XCTAssertFalse(stores.fieldData.ready)
             XCTAssertEqual(try Data(contentsOf: file),bytes)
-            if stores.boundaries.loadFailed { XCTAssertFalse(stores.boundaries.save(area)) }
+            if stores.boundaries.loadFailed { let saved = await stores.boundaries.save(area); XCTAssertFalse(saved) }
             else { XCTAssertEqual(stores.boundaries.areas,[area]); XCTAssertTrue(stores.boundaries.status.contains("interrupted")) }
         }
     }

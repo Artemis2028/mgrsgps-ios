@@ -468,7 +468,7 @@ final class NavigationIntegrationTests: XCTestCase {
         let feedback = GuideTestFeedback(), boundaryAlerts = QuietBoundaryAlerts()
         let boundary = BoundaryMonitor(directory: dir,driver: boundaryDriver,alerts: boundaryAlerts,now: { Date(timeIntervalSince1970: 1002) },foreground: { true })
         let area = BoundaryArea(name: "Safe area",vertices: [.init(lat: -0.001,lon: -0.001),.init(lat: -0.001,lon: 0.001),.init(lat: 0.001,lon: 0.001),.init(lat: 0.001,lon: -0.001)])
-        XCTAssertTrue(boundary.save(area)); boundary.start(area); try await wait { boundary.running }
+        let saved = await boundary.save(area); XCTAssertTrue(saved); boundary.start(area); try await wait { boundary.running }
         boundaryDriver.onLocations?([fix(0,0,1000),fix(0,0,1002)])
         let wp = store.add(WaypointDraft(name: "East",lat: 0,lon: 0.01)); store.select(wp.id)
         let nav = NavigationSession(directory: dir,store: store,field: field,settings: settings,driver: guideDriver,feedback: feedback,now: { Date(timeIntervalSince1970: 1002) },uptime: { 100 },foreground: { true },scheduleTicks: false)
@@ -477,7 +477,7 @@ final class NavigationIntegrationTests: XCTestCase {
         guideDriver.onLocations?([fix(0,0,1002)])
         XCTAssertTrue(feedback.pulses.contains(.left)); XCTAssertEqual(boundaryAlerts.crossings,0)
         XCTAssertTrue(boundary.status.contains("quiet")); nav.stop(); XCTAssertTrue(boundaryDriver.updating)
-        boundary.stop()
+        boundary.stop(); await boundary.waitForPersistence()
     }
     func testRouteWaypointWriteFailureKeepsTargetAndRetryStartsOnlyAfterDurableSave() async throws {
         let (dir,store,field,settings) = try setup(), driver = GuideTestDriver(), feedback = GuideTestFeedback()
