@@ -181,6 +181,34 @@ final class LibraryWorkflowTests: XCTestCase {
         XCTAssertTrue(app.textFields["library-folder-name"].waitForExistence(timeout: 5)); capture("library-night-folder-form")
         app.buttons["Cancel"].tap()
     }
+    func testGraphicChoicesKeepCancellationVisibilityAndRouteCardInDayAndNight() {
+        for night in [false,true] {
+            if night { app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap() }
+            folder("Recon")
+            let actions = app.buttons["Actions for graphic Recon route"]
+            reveal(actions); actions.tap()
+            XCTAssertTrue(app.navigationBars["Recon route"].waitForExistence(timeout: 5))
+            capture(night ? "graphic-choices-night" : "graphic-choices-day")
+            app.buttons["Cancel"].tap()
+            let hidden = app.images["library-graphic-hidden-Recon route"]
+            XCTAssertFalse(hidden.exists)
+            reveal(actions); actions.tap(); tapNativeMenuItem(app.buttons["Hide on map"])
+            XCTAssertTrue(hidden.waitForExistence(timeout: 8))
+            reveal(actions); actions.tap(); tapNativeMenuItem(app.buttons["Make visible on map"])
+            let visible = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: hidden)
+            XCTAssertEqual(XCTWaiter.wait(for: [visible],timeout: 8),.completed)
+            reveal(actions); actions.tap(); tapNativeMenuItem(app.buttons["Route card"])
+            XCTAssertTrue(app.buttons["follow-route"].waitForExistence(timeout: 8))
+            capture(night ? "graphic-route-card-night" : "graphic-route-card-day")
+            app.navigationBars.buttons["Done"].tap()
+            reveal(actions); actions.tap(); tapNativeMenuItem(app.buttons["Delete"])
+            XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5)); app.alerts.buttons["Cancel"].tap()
+            XCTAssertTrue(app.buttons["library-graphic-Recon route"].exists)
+        }
+        app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch(); folder("Recon")
+        XCTAssertTrue(app.buttons["library-graphic-Recon route"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.images["library-graphic-hidden-Recon route"].exists)
+    }
     func testBacktrackFromMixedLibraryShowsSavedRouteAndLeavesNavigationIdle() {
         folder("Recon")
         let actions = app.buttons["Actions for track Recon track"]; reveal(actions); actions.tap()

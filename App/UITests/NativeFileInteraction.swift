@@ -65,9 +65,16 @@ extension XCTestCase {
         // In icon view the cell centre is the filename's upper edge. Hosted
         // Files can leave that text tap unhandled. Open the visible thumbnail,
         // using the collection view's valid space if the app AX origin is invalid.
-        for _ in 0..<3 {
-            let point = CGPoint(x: item.frame.midX,y: item.frame.minY+item.frame.height*0.25)
-            files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: point.x-files.frame.minX,dy: point.y-files.frame.minY)).tap()
+        for attempt in 0..<3 {
+            if attempt == 0 {
+                let point = CGPoint(x: item.frame.midX,y: item.frame.minY+item.frame.height*0.25)
+                files.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: point.x-files.frame.minX,dy: point.y-files.frame.minY)).tap()
+            } else {
+                // The hosted collection can retain a valid frame yet ignore
+                // coordinate activation. Re-resolve this exact cell and use
+                // UIKit's native hit point while the same picker remains.
+                item.tap()
+            }
             // Files can ignore the first thumbnail tap while finishing its
             // provider transition. Acknowledge dismissal before proceeding;
             // never tap again once the app's import review replaces Files.

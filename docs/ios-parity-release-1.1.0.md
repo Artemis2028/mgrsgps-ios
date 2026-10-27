@@ -696,3 +696,14 @@ device Release pass locally. Synthetic/mock lifecycle evidence is separate from
 real enrolled peer exchange and live renewal, which remain open. Hosted100 on
 57348f7 is terminal: map passes; library has one backtrack workflow failure and
 field has four Files/recording failures. Full hosted green is still required.
+
+
+Hosted100 follow-up: graphic actions now use the native scrolling choices and
+apply after dismissal, repairing the ignored backtrack route-card popup.
+All ten selected UI workflows pass locally, including all five hosted100
+failures, day/night graphic visibility/cancellation, exact native Files round
+trips, PDF, recording discard/background/recovery. The Home journal grows from
+four to six points before foreground activation. Release and eight harness
+checks pass; screenshots inspected. These changes remain local while hosted101
+40429934209 runs on39da6e4. Full hosted green and physical checks remain open.
+See [dated repair evidence](ci-field-ui-activation.md).

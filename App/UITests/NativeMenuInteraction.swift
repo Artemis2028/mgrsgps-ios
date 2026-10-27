@@ -95,15 +95,16 @@ extension XCTestCase {
                     let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: tutorial)
                     XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 5),.completed,file: file,line: line)
                 }
-                let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
-                    // Hosted Files can return a stale leaf description while
-                    // the freshly resolved application tree reports this exact
-                    // native editor as focused. Keep the positive focus gate.
+                func hasFilenameFocus() -> Bool {
+                    // A hosted root snapshot itself can take over three seconds.
+                    // Require positive focus on this exact editor, including a
+                    // final fresh read after the waiter deadline, before retrying.
                     app.debugDescription.split(separator: "\n").contains {
                         $0.contains("identifier: 'DOCPicker.filenameTextField'") && $0.contains("Keyboard Focused")
                     }
-                },object: nil)
-                if XCTWaiter.wait(for: [focused],timeout: 3) == .completed { return }
+                }
+                let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in hasFilenameFocus() },object: nil)
+                if XCTWaiter.wait(for: [focused],timeout: 10) == .completed || hasFilenameFocus() { return }
                 // A remote ShareLink followed by Files can leave XCTest's
                 // application snapshot bound to the dismissed share service.
                 // Reassert the foreground owner before resolving its editor

@@ -12,7 +12,7 @@ final class FieldExportWorkflowTests: XCTestCase {
     }
     private func saveAndReview(_ stem: String,fromDetails: Bool = false) {
         let filename = app.textFields["DOCPicker.filenameTextField"]
-        XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
+        XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
         let name = stem + String(UUID().uuidString.prefix(8))
         replaceTextInput(filename,name); XCTAssertEqual(filename.value as? String,name)
         saveNativeFile(in: app)
@@ -41,7 +41,7 @@ final class FieldExportWorkflowTests: XCTestCase {
     func testNativeExportCancellationAllowsAnotherCompleteExport() {
         launch("-uiTestLibrary"); exportLibraryGPX()
         let filename = app.textFields["DOCPicker.filenameTextField"]
-        XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
+        XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
         // Dismiss the actual Files sheet by its top grabber, without saving.
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.075)).press(forDuration: 0.1,thenDragTo: window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.88)))

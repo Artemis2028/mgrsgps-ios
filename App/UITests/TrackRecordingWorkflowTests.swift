@@ -21,7 +21,9 @@ final class TrackRecordingWorkflowTests: XCTestCase {
         record.tap()
         let banner = app.buttons["recording-banner"]
         XCTAssertTrue(banner.waitForExistence(timeout: 5))
-        waitFor(NSPredicate(format: "label MATCHES %@", ".*Recording · [1-9][0-9]* points.*"), on: banner)
+        // simctl can spend up to 20 seconds in a location delivery under the
+        // hosted workload. Still require a real accepted point before recovery.
+        waitFor(NSPredicate(format: "label MATCHES %@", ".*Recording · [1-9][0-9]* points.*"), on: banner, timeout: 45)
         XCTAssertTrue(banner.isHittable, app.debugDescription + XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)
     }
     private func pointCount() -> Int {

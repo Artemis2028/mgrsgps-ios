@@ -613,3 +613,52 @@ were inspected. Final unsigned device Release passes in
 `/tmp/gridfix-waypoint-choice-release.log`. All eight Python harness checks pass
 in `/tmp/gridfix-choice-script-checks.log`. Fresh full hosted validation is next;
 no old failure assertion or test was excluded.
+
+
+## Hosted run 100: graphic choices and Files acknowledgements
+
+Hosted 40422227897 on 57348f7 is terminal: map passes; library has one
+backtrack route-card failure; field has four failures (large GPX reopening,
+export cancellation's missing filename accessory, PDF filename focus and
+recording recovery's initial nonzero-point gate). This is not a full green run.
+The full library artifact was retrieved through the connector. The field
+artifact exceeded its size limit and was retrieved through authenticated gh.
+
+The backtrack video and AX hierarchy show Route card still in the visible
+popup after attempted activation. Graphic rows now use the same native
+scrolling choice sheet as waypoint/track rows; route presentation and
+mutations wait for its dismissal and re-resolve the current graphic. Visibility
+stores the explicit show/hide intent from the choice, and deletion still needs
+confirmation. Cancel does nothing. A new day/night workflow covers cancellation,
+hide/show, route-card presentation, cancelled deletion and durable visibility.
+
+The PDF failure screenshot and final root hierarchy both positively show the
+exact native filename editor with Keyboard Focused. A three-second waiter can
+expire while the root snapshot itself is resolving. The helper retains that
+exact positive focus gate, allows ten seconds and checks a final fresh snapshot
+before retrying. Exact clearing/replacement assertions remain. Large GPX's
+video retains the exact file in Files after ignored thumbnail-coordinate taps;
+its helper now retries that same cell with UIKit's native hit point, only while
+the picker remains. Filename readiness allows thirty seconds. Recording still
+requires a real accepted nonzero Core Location point, allowing forty-five
+seconds for a hosted simctl operation that can take twenty seconds.
+
+Final local replay passes all ten selected UI cases in
+`/tmp/mgrsgps-ci100-actions-verified.xcresult`, including every hosted100
+failure and the additional day/night graphic-action, track export, night PDF,
+discard and real background recording workflows. Its parent exits 0 naturally.
+The host reads the actual recording journal on Home: four points become six
+in the same session before foreground activation. Day/night choices, night
+route card, exact 5,000-waypoint/1,000-route GPX review and readable recording
+screenshots were inspected. Unsigned device Release passes in
+`/tmp/mgrsgps-ci100-actions-release.log`, and all eight harness checks pass.
+No core model or native integration code changed in this UI repair; the previous
+496 core/309 native results remain separate evidence. Android release/1.1.0
+GraphicRow exposes map focus, a route card and deletion; those actions remain
+available, with explicit visibility and confirmed deletion retained on iOS.
+
+No hosted repair is claimed from local checks alone. Full hosted101
+(40429934209) on 39da6e4 is confirmed live with the preceding
+certificate/branding/track-focus work; these new repairs stay local while that
+run remains live. All owned simulators/emulators and feeds are off after local
+checks. Physical screen-lock delivery remains separate.

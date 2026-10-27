@@ -69,6 +69,8 @@ struct WaypointsView: View {
     @State private var folderRequest: LibraryFolderRequest?
     @State private var folderToDelete: String?
     @State private var movingTrack: Backup.TrackMeta?
+    @State private var graphicActions: Backup.Graphic?
+    @State private var pendingGraphicAction: (id: String,action: String)?
     @State private var routeDetail: Backup.Graphic?
     @State private var trackDetail: Backup.TrackMeta?
     @State private var trackFocusToken: UUID?
@@ -193,6 +195,11 @@ struct WaypointsView: View {
         .sheet(item: $waypointActions,onDismiss: runWaypointAction) { point in
             FieldChoiceSheet(title: point.name,choices: waypointChoices(point),night: settings.nightMode) { action in
                 pendingWaypointAction = (point.id,action); waypointActions = nil
+            }
+        }
+        .sheet(item: $graphicActions,onDismiss: runGraphicAction) { graphic in
+            FieldChoiceSheet(title: graphic.name,choices: graphicChoices(graphic),night: settings.nightMode) { action in
+                pendingGraphicAction = (graphic.id,action); graphicActions = nil
             }
         }
         .sheet(item: $trackActions,onDismiss: runTrackAction) { track in
@@ -541,12 +548,9 @@ struct WaypointsView: View {
         HStack {
             Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
             if !graphic.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-graphic-hidden-\(graphic.name)") }
-            Menu {
-                Button("Show on map") { showGraphic(graphic) }
-                if graphic.type == "route" { Button("Route card") { routeDetail = graphic } }
-                Button(graphic.visible ? "Hide on map" : "Make visible on map") { fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(graphic.id,!graphic.visible),to: fieldData) }) }
-                Button("Delete",role: .destructive) { selection = LibrarySelection(); selection.graphics = [graphic.id]; deleteSelection = true }
-            } label: { Image(systemName: "ellipsis").frame(width: 44,height: 44) }.accessibilityLabel("Actions for graphic \(graphic.name)")
+            Button { graphicActions = graphic } label: {
+                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Actions for graphic \(graphic.name)")
         }.padding(12).fieldContentSurface(night: settings.nightMode)
     }
     private func trackRow(_ track: Backup.TrackMeta) -> some View {
@@ -824,6 +828,29 @@ struct WaypointsView: View {
         case "navigate": navigate(to: point)
         case "show": maps.focusRequest = MapCameraRequest(action: .locate(point.lat,point.lon)); onShowMap()
         case "delete": selection = LibrarySelection(); selection.waypoints = [point.id]; deleteSelection = true
+        default: break
+        }
+    }
+
+    private func graphicChoices(_ graphic: Backup.Graphic) -> [FieldChoice] {
+        var choices: [FieldChoice] = [.init(id: "show",title: "Show on map")]
+        if graphic.type == "route" { choices.append(.init(id: "route",title: "Route card")) }
+        choices += [.init(id: graphic.visible ? "hide" : "unhide",title: graphic.visible ? "Hide on map" : "Make visible on map"),
+                    .init(id: "delete",title: "Delete",destructive: true)]
+        return choices
+    }
+    private func runGraphicAction() {
+        guard let pending = pendingGraphicAction else { return }
+        pendingGraphicAction = nil
+        // Resolve current data after the choices dismiss, before opening the
+        // route card or confirming a mutation. Never act on a removed row.
+        guard let graphic = fieldData.document.graphics.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "show": showGraphic(graphic)
+        case "route": if graphic.type == "route" { routeDetail = graphic }
+        case "hide", "unhide":
+            fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(graphic.id,pending.action == "unhide"),to: fieldData) })
+        case "delete": selection = LibrarySelection(); selection.graphics = [graphic.id]; deleteSelection = true
         default: break
         }
     }
