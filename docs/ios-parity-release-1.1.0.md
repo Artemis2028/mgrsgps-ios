@@ -732,3 +732,15 @@ Real paired delivery, expired relaunch and preserved local scene/overrides are
 recorded with [exact limits and cleanup caveat](watch-guide-expiry.md).
 Hosted run 101 is terminal on `39da6e4`: map passes; field and library each have one
 failure. Full hosted green remains open.
+
+
+Native Files viewport candidate `7b36a5d` now passes fifteen distinct local UI
+workflows across the fresh and final runs. The first fresh native phase fails
+two real-location checks because the private helper granted permission before
+first install; its overall bundle is not green. After matching CI's
+install-before-grant ordering, all 316 native cases execute with four opt-in
+skips/no failures and the final backup/PDF/background UI cases pass. Home's
+actual journal grows from 3 to 6 before foreground activation. Release and eight
+harness checks pass; screenshots inspected and final parent exits 0 naturally.
+Full hosted run 102 (40438839779) is confirmed live on `7b36a5d`. Full hosted and physical
+checks remain open. [Exact evidence and limits](ci-field-ui-activation.md).

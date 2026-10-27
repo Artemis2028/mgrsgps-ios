@@ -694,3 +694,33 @@ weakened or converted to a skip.
 So far the fresh ordinary/protected full backup workflows and complete large
 GPX round trip pass, with exact data and boundary assertions unchanged. Final
 remaining UI, native, Release and screenshot evidence will be recorded below.
+
+
+Final viewport candidate validation:
+
+- Fresh `/tmp/mgrsgps-ci101-native-viewport-verified.xcresult` passes all 14 UI
+  workflows: ordinary/protected backups and quiet-boundary restore, complete
+  large GPX, native cancellation, night single-track exports, KML/KMZ/ATAK,
+  protected GPX/KML/track, queued incoming confirmation and both PDF workflows.
+  Its native phase has the documented two first-install permission failures;
+  the bundle is an overall failure and is not reported as green.
+- With the app installed before privacy grant, final
+  `/tmp/mgrsgps-ci101-native-viewport-final.xcresult` executes 316 native cases,
+  four unstaged opt-in skips and no failures. Both real background-driver
+  checks now pass under While Using, with assertions unchanged. The same bundle
+  passes ordinary backup, native PDF save and real background recording UI.
+  There are 15 distinct passing UI workflows across these final candidate runs.
+- The host reads the actual journal while the app is on Home: three points
+  become six in the same session before foreground activation. Recording,
+  ordinary/protected restored-library, exact large-GPX review and saved-PDF
+  screenshots were inspected. Both parents finish naturally (initial 65 because
+  of the native setup failures; final 0).
+- Device Release passes `/tmp/mgrsgps-ci101-native-viewport-release.log` and all
+  eight harness checks pass. The 504 core and 39 Wear test results belong to the
+  preceding unchanged model/watch code and remain separate evidence.
+- Pushed `7b36a5d` includes the earlier graphic/backtrack/watch follow-ups and this
+  native presenter. Full hosted run 102 (40438839779) is confirmed live on that head
+  with all three jobs active; full hosted green remains open. Evidence-only
+  documentation follows locally until it finishes, without cancelling the run.
+  The one owned test phone and fake feeds are off after checks. No server,
+  credential, container or database changes.
