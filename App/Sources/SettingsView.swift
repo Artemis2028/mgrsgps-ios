@@ -18,6 +18,8 @@ struct SettingsView: View {
     @State private var asGridMagnetic = true
     @State private var east = true
     @State private var draft = ""
+    @State private var paceDraft = ""
+    @FocusState private var editingPace: Bool
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -39,8 +41,7 @@ struct SettingsView: View {
                     }
                     nightBlock
                     Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent).foregroundStyle(palette.ink)
-                    Stepper("Paces per 100 m: \(settings.pacePer100m)", value: $settings.pacePer100m, in: 1...1000)
-                        .font(.subheadline).foregroundStyle(palette.ink)
+                    paceBlock
 
                     Button("Haptic navigation settings") { showingGuide = true }
                         .foregroundStyle(palette.accent)
@@ -67,11 +68,18 @@ struct SettingsView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 28)
             }
+            .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top,spacing: 0) { if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-sheet") } }
             .background(palette.background.ignoresSafeArea())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement:.keyboard) {
+                    if editingPace {
+                        Spacer()
+                        Button("Done") { editingPace = false }.accessibilityIdentifier("pace-entry-keyboard-done")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { Task { await settings.waitForPersistence(); dismiss() } }
                         .font(Blackout.label(15))
@@ -86,6 +94,7 @@ struct SettingsView: View {
         .environment(\.fieldNight, settings.nightMode)
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }
+        .onChange(of:settings.pacePer100m) { paceDraft = String($0) }
         .sheet(isPresented: $showingTAK) { TAKSettingsView() }
         .sheet(isPresented: $showingGuide) { GuideSettingsView() }
         .sheet(isPresented: $showingReference) { FieldReferenceView() }
@@ -94,6 +103,33 @@ struct SettingsView: View {
 
     private func section(_ title: String) -> some View {
         SectionLabel(text: title)
+    }
+
+    private var paceBlock: some View {
+        VStack(alignment:.leading,spacing:8) {
+            Text("Pace count per 100 m").font(.headline).foregroundStyle(palette.ink)
+            Text("Your paces for 100 m on flat ground, used on route cards. Walk a known 100 m to find it.")
+                .font(.footnote).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
+            HStack {
+                TextField("Paces",text:$paceDraft)
+                    .focused($editingPace)
+                    .keyboardType(.numberPad).font(.system(.body,design:.monospaced))
+                    .accessibilityLabel("Pace count per 100 metres").accessibilityIdentifier("pace-count-input")
+                    .onChange(of:paceDraft) { value in
+                        let digits = PaceCountEntry.digits(value)
+                        if digits != value { paceDraft = digits }
+                        if let count = PaceCountEntry.accepted(digits),count != settings.pacePer100m { settings.pacePer100m = count }
+                    }
+                Text("paces").font(.body)
+            }.foregroundStyle(palette.ink).padding(12).frame(minHeight:44)
+                .background(Color(white:settings.nightMode ? 0 : 0.08))
+                .overlay(RoundedRectangle(cornerRadius:8).stroke(palette.hairline))
+            if PaceCountEntry.accepted(paceDraft) == nil {
+                Text("Enter 30–200 paces. Route cards still use \(settings.pacePer100m).")
+                    .font(.footnote).foregroundStyle(palette.warn).fixedSize(horizontal:false,vertical:true)
+                    .accessibilityIdentifier("pace-count-validation")
+            }
+        }
     }
 
     private var faceBlock: some View {
@@ -270,6 +306,7 @@ struct SettingsView: View {
     }
 
     private func loadDraft() {
+        paceDraft = String(settings.pacePer100m)
         if let o = settings.declinationOverride {
             manualOn = true
             asGridMagnetic = false
@@ -308,5 +345,17 @@ struct SettingsView: View {
             .font(Blackout.label(12, weight: .regular))
             .foregroundStyle(palette.inkDim)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Android PaceSetting accepts three decimal digits and applies only30...200.
+enum PaceCountEntry {
+    static func digits(_ text: String) -> String {
+        text.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) }.prefix(3)
+            .compactMap { Character(String($0)).wholeNumberValue }.map(String.init).joined()
+    }
+    static func accepted(_ digits: String) -> Int? {
+        guard let value = Int(digits),(30...200).contains(value) else { return nil }
+        return value
     }
 }

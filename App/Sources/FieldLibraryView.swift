@@ -245,7 +245,7 @@ struct RouteDetailView: View {
                             }.padding(.vertical, 6)
                         }
                         Text("TOTAL  \(ready.totalDistance) · \(ready.totalPaces) paces").font(.headline).accessibilityIdentifier("route-card-total")
-                        Text("Pace \(ready.configuration.pacePer100m)/100 m · \(ready.dtg)").font(.caption)
+                        Text("Pace \(ready.configuration.pacePer100m)/100 m · \(ready.dtg)").font(.caption).accessibilityIdentifier("route-card-pace")
                         Text("Azimuth from leg start; back-azimuth from leg end.").font(.footnote)
                         ForEach(Array(ready.notes.enumerated()),id: \.offset) { _,note in Text(note).font(.footnote).foregroundStyle(palette.warn) }
                     } else if let error = lanes.error, !lanes.ready { Text(error).foregroundStyle(palette.warn) }

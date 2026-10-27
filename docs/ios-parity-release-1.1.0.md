@@ -1564,3 +1564,21 @@ This follows local c259fd1/51a9287 and stays unpushed while10840508823942
 validates7fbeab5. No live run cancelled/duplicated, server round, wire or
 credential changes. Broader lazy-log startup, dense rendering, watch and
 physical/TAK gates remain open.
+
+### Numeric pace count entry, 27 October
+
+[Android-matched pace entry](pace-entry.md) replaces repeated single-step taps
+with a three-digit numeric field. New edits apply30...200 immediately; invalid
+drafts show the retained value. Imported legacy values remain intact. Day/night
+route-card totals, persistence and global largest-night validation pass across
+one native/three new UI cases; the existing settings write/retry workflow also
+passes. Screenshot inspection prompted a keyboard Done action and a stronger
+fully-visible validation assertion before the final green result. Final unsigned
+phone/watch/widget Release and ten harness checks pass. See the linked evidence.
+
+Hosted10840508823942 is now terminal on7fbeab5: map passes; field fails large
+GPX native-picker activation and Project segment activation; library fails the
+largest-night active-course control visibility check. Dedicated field background
+steps were skipped after its UI failure. Both field failures pass locally on the
+current product with unchanged test helpers (`/tmp/mgrsgps-ci108-local-before.xcresult`);
+that does not resolve the hosted failures. Artifact/tree investigation continues.
