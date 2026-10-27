@@ -128,3 +128,15 @@ See [track focus and remaining limits](track-map-focus.md). [Backtrack](backtrac
 reversed-coordinate and keep-array copies, with source/cancellation guards
 through publication; one coordinate array and broader lazy-log/orphan
 maintenance remain.
+
+## Recording handoff validation, 27 October
+
+The finished-recording handoff no longer recalculates the whole log's distance
+before handing it to the storage preparation that must validate it anyway.
+Journal finalization still calculates authoritative statistics; every new saved
+log still passes `summarizeLocal` before any index publication. A duplicate-ID
+retry compares complete stored bytes and cannot replace a different recording.
+This removes one redundant full traversal, not the startup read/hash/summary
+cost: Android's track metadata flow is separate from its point-file reads,
+whereas iOS still opens and validates all finished logs on a startup worker.
+That broader lazy-loading and crash-orphan work remains open.

@@ -1326,3 +1326,31 @@ parents finish naturally, and the owned simulator and practice feed are off.
 Physical long-course scoring, wider live-update/performance/battery profiling
 remain open. This follow-up is local while107 validates02d67f6; no CI run
 was cancelled or duplicated, TAK/server/credentials changed.
+
+
+### Recording finalization avoids duplicate full-log statistics, 27 October
+
+Android TrackRepository.tracks reads metadata independently; finishTrack reads
+points to calculate statistics. iOS still eagerly maps/hashes/summarizes saved
+logs on its startup worker, so lazy library reads remain open. The audit also
+found saveRecordedTrack unnecessarily summarizing the complete handoff before
+FieldDataDisk.prepare repeats that required validation. The duplicate traversal
+is removed. Journal finish statistics and full new-log validation before atomic
+index publication remain. Exact-byte idempotent retries reuse validated logs;
+different bytes under a saved recording ID are still refused.
+
+All521 core cases pass in `/tmp/mgrsgps-recording-single-validation-core.log`.
+The new test covers both direct and worker-prepared saves:250,001 valid points
+followed by an invalid coordinate cannot publish or alter old index/log bytes;
+a repaired retry saves exactly once and reopens complete. Existing long
+interrupted-recording, checksum, missing-log and migration cases also pass.
+
+Actual Core Location background-record/save/library/map UI passes in
+`/tmp/mgrsgps-recording-single-validation-ui.xcresult`. The host observes the
+same journal grow4→7 points while the app remains on Home, before reactivation.
+The saved detail shows9 points/80m, and the recording/map captures are inspected.
+Final unsigned phone/watch/widget Release
+(`/tmp/mgrsgps-recording-single-validation-release.log`) and eight harness
+checks pass. All parents end naturally; owned simulator/feed are off. No new
+physical locked-screen/battery or lazy-read performance claim is made. Changes
+stay local while107 runs on02d67f6; no CI/server/credential change.

@@ -271,11 +271,13 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             guard recording.tracks.count == 1, let track = recording.tracks.first,
                   let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
             guard Set(recording.trackFiles.keys) == [track.id] else { throw BackupError.notABackup("Invalid finished recording files") }
-            _ = try TrackCodec.summarizeLocal(bytes)
             if next.tracks.contains(where: { $0.id == track.id }) {
                 guard next.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
                 return nil
             }
+            // Every new log is fully validated by FieldDataDisk.prepare before
+            // publication. Do not calculate its distance a second time here.
+            // An idempotent retry above reuses already-validated stored bytes.
             next.tracks.append(track); next.trackFiles[track.id] = bytes
         }
         return next

@@ -137,4 +137,33 @@ final class FieldDiskTests: XCTestCase {
         let file = try PreparedAtomicFile(data: Data("replacement".utf8),destination: path,synchronize: true)
         XCTAssertThrowsError(try file.publish(replacing: false)); XCTAssertEqual(try Data(contentsOf: path),old)
     }
+    func testMalformedFinishedRecordingCannotPublishThroughDirectOrPreparedSaveAndCanRetry() throws {
+        for prepared in [false,true] {
+            let dir = try directory(), original = try track(), store = FieldDataStore(directory:dir)
+            _ = try store.restore(original)
+            let marker = dir.appendingPathComponent(FieldDataDisk.indexName)
+            let index = try Data(contentsOf:marker), existing = try reference(dir,original.tracks[0].id)
+            let existingBytes = try Data(contentsOf:existing)
+            let id = UUID().uuidString.lowercased()
+            let valid = Data(String(repeating:"24 54 0\n",count:250_001).utf8)
+            var recording = Backup.Document(); recording.hasSettings = false
+            recording.tracks = [.init(id:id,name:"Recovered",startedAt:0,endedAt:1,distanceM:0,pointCount:250_001)]
+            recording.trackFiles[id] = valid + Data("91 54 0\n".utf8)
+            if prepared { XCTAssertThrowsError(try store.restoreSnapshot().prepare(edit:.saveRecordedTrack(recording))) }
+            else { XCTAssertThrowsError(try store.saveRecordedTrack(recording)) }
+            XCTAssertEqual(try Data(contentsOf:marker),index)
+            XCTAssertEqual(try Data(contentsOf:existing),existingBytes)
+            XCTAssertEqual(store.document.tracks.map(\.id),original.tracks.map(\.id))
+            recording.trackFiles[id] = valid
+            if prepared { XCTAssertTrue(try store.publishEdit(store.restoreSnapshot().prepare(edit:.saveRecordedTrack(recording)))) }
+            else { try store.saveRecordedTrack(recording) }
+            // A durable save retried after journal-cleanup interruption is a no-op.
+            try store.saveRecordedTrack(recording)
+            let reopened = FieldDataStore(directory:dir)
+            XCTAssertNil(reopened.loadError)
+            XCTAssertEqual(reopened.document.tracks.filter { $0.id == id }.count,1)
+            XCTAssertEqual(reopened.document.trackFiles[id],valid)
+            XCTAssertEqual(reopened.document.tracks.first { $0.id == id }?.pointCount,250_001)
+        }
+    }
 }
