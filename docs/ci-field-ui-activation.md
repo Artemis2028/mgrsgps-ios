@@ -870,3 +870,42 @@ shows attached preview lines during movement. This is local evidence on23C52/
 Xcode27.1; the original hosted23C54 failure is not relabeled as a pass.
 [Exact artifacts and behavior](boundary-vertex-drag.md). The next full push/run
 will include the previously held boundary, marker and settings follow-ups too.
+
+## Hosted104 terminal result — 27 October 2026
+
+Run40460836747 on42def16 is fully terminal. Library122044784323 passes;
+field122044784305 fails three FieldExportWorkflowTests; map122044784009 fails
+NavigationLaneWorkflowTests.testNativeBackupRestoresHiddenRouteLaneAndFeedsRouteCardPDF.
+Three failures wait for DOCPicker.filenameTextField even though the real Files
+export controller is present with a Save button. The fourth saves its GPX but
+cannot activate the resulting icon cell in the import picker. Full field video/
+hierarchy inspected; the system's filename accessory is genuinely absent in
+those export captures, not merely given a different accessibility identifier.
+
+Field artifact12716646388 is450810527bytes; its downloaded ZIP SHA-256 matches
+87abe8bdeb3b41dcb20f03ca6b7c8fb7f5a407a8cb092f8e591be71b03116f41.
+Local evidence is `/tmp/mgrsgps-ci104-field`, with extracted track export and
+reopen frames `/tmp/mgrsgps-ci104-track-picker.png` and
+`/tmp/mgrsgps-ci104-reopen-picker.png`. Original failures stay failed.
+
+Real fix/course, boundary crossing/drawing, automatic route following and
+practice-course dedicated steps are skipped after the UI failures; library also
+skips them by shard policy. This run does not establish hosted verification of
+the new boundary drag repair. Held0ca082c/cf9e4b5 are not on this run's head.
+
+A local candidate adds app-owned filename entry before the public Files provider
+picker, rather than depending on its optional system filename accessory. It
+keeps explicit rename/save/reopen/count assertions. Native picker cancellation
+remains a real UI step. The import helper selects Files' native list view so it
+can activate a real row instead of relying on hosted icon coordinates. Full new
+hosted confirmation remains open while this candidate is validated locally.
+
+The filename/provider candidate is now validated locally. All346 native cases
+pass with four opt-in skips. All19 existing export/recovery UI workflows pass
+across the broad bundle and final-source repeats, with exact names, complete
+record counts, password failure/retry and native cancellation kept. The two
+intermediate PDF/ShareLink test-alignment failures stay recorded as failures.
+Day/night filename images inspected. Final device Release and eight harness
+checks pass; local parents terminal and owned devices/feeds off. See
+[filename flow evidence](export-filename-provider-flow.md). A new hosted run is
+still needed;104 remains failed and its dedicated background gates skipped.

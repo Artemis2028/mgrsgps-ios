@@ -4,6 +4,20 @@ import GridFixCore
 
 @MainActor
 final class FieldExportTests: XCTestCase {
+    func testExportFilenameKeepsUnicodeAndExtensionWithoutPathsOrTruncation() throws {
+        XCTAssertEqual(ExportFilename.stem("  CAFÉ patrol.GPX  ",extension:"gpx"),"CAFÉ patrol")
+        for value in ["", ".", "..", ".gpx", "A/B", "A\\B", "A\nB",String(repeating:"界",count:67)] {
+            XCTAssertNil(ExportFilename.stem(value,extension:"gpx"),value)
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        defer { try? FileManager.default.removeItem(at:root) }
+        let name = try XCTUnwrap(ExportFilename.stem("CAFÉ patrol.gpx",extension:"gpx"))
+        let file = try PreparedNativeExport.prepare(data:Data("whole export".utf8),filename:name,extension:"gpx",root:root)
+        defer { file.discard() }
+        XCTAssertEqual(file.url.lastPathComponent,"CAFÉ patrol.gpx")
+        XCTAssertEqual(try Data(contentsOf:file.url),Data("whole export".utf8))
+    }
     func testNativeExportStagingKeepsIndependentCompleteFilesUntilTheirOwnCleanup() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root,withIntermediateDirectories: true)

@@ -22,7 +22,7 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         app.buttons["backup-password-keyboard-done"].tap()
         capture(night ? "protected-file-export-password-night" : "protected-file-export-password-day")
         app.buttons["backup-password-submit"].tap()
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 20),app.debugDescription)
         let name = "protected-"+format.lowercased()+"-"+String(UUID().uuidString.prefix(8))
         replaceTextInput(filename,name); saveNativeFile(in: app)
@@ -79,7 +79,7 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         let pw = app.secureTextFields["backup-password"], confirm = app.secureTextFields["backup-password-confirmation"]
         XCTAssertTrue(pw.waitForExistence(timeout: 8)); pw.tap(); pw.typeText("correct horse"); confirm.tap(); confirm.typeText("correct horse")
         app.buttons["backup-password-keyboard-done"].tap(); app.buttons["backup-password-submit"].tap()
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 20))
         let name = "protected-track-"+String(UUID().uuidString.prefix(8))
         replaceTextInput(filename,name); saveNativeFile(in: app)

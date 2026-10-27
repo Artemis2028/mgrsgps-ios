@@ -11,10 +11,12 @@ final class FieldExportWorkflowTests: XCTestCase {
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export GPX"])
     }
     private func saveAndReview(_ stem: String,fromDetails: Bool = false) {
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
         let name = stem + String(UUID().uuidString.prefix(8))
         replaceTextInput(filename,name); XCTAssertEqual(filename.value as? String,name)
+        if app.buttons["export-filename-keyboard-done"].exists { app.buttons["export-filename-keyboard-done"].tap() }
+        capture(fromDetails ? "export-filename-night" : "export-filename")
         saveNativeFile(in: app)
         if fromDetails {
             let done = app.navigationBars["Recon track"].buttons["Done"]
@@ -40,12 +42,20 @@ final class FieldExportWorkflowTests: XCTestCase {
     }
     func testNativeExportCancellationAllowsAnotherCompleteExport() {
         launch("-uiTestLibrary"); exportLibraryGPX()
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
+        replaceTextInput(filename,"/")
+        XCTAssertFalse(app.buttons["export-choose-location"].isEnabled)
+        app.buttons["export-filename-cancel"].tap()
+        XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout:10))
+        exportLibraryGPX()
+        XCTAssertTrue(filename.waitForExistence(timeout:30),app.debugDescription)
+        chooseNativeExportLocation(in: app)
+        let picker = app.otherElements["Browse View (Picker)"]
         // Dismiss the actual Files sheet by its top grabber, without saving.
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.075)).press(forDuration: 0.1,thenDragTo: window.coordinate(withNormalizedOffset: .init(dx: 0.5,dy: 0.88)))
-        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: filename)
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: picker)
         XCTAssertEqual(XCTWaiter.wait(for: [dismissed],timeout: 10),.completed)
         XCTAssertTrue(app.buttons["Waypoint actions"].waitForExistence(timeout: 10))
         exportLibraryGPX(); saveAndReview("cancel-retry-export-")

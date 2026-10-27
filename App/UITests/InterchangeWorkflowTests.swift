@@ -46,7 +46,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Export CSV"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Export GeoJSON"].waitForExistence(timeout: 5))
         tapNativeMenuItem(app.buttons["Export GeoJSON"])
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 10),app.debugDescription)
         capture("geojson-export-files")
         let name = "gridfix-ui-" + UUID().uuidString.prefix(8)

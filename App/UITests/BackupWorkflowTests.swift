@@ -13,7 +13,7 @@ final class BackupWorkflowTests: XCTestCase {
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
         tapNativeMenuItem(app.buttons["Export"])
         tapNativeMenuItem(app.buttons["Export backup"])
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 15),app.debugDescription)
         let name = "gridfix-backup-ui-"+UUID().uuidString.prefix(8)
         replaceTextInput(filename,String(name)); saveNativeFile(in: app)
@@ -68,7 +68,7 @@ final class BackupWorkflowTests: XCTestCase {
         app.buttons["backup-password-keyboard-done"].tap()
         XCTAssertTrue(submit.isEnabled,app.debugDescription)
         capture("protected-backup-password-night",app); submit.tap()
-        let filename = app.textFields["DOCPicker.filenameTextField"]
+        let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 20),app.debugDescription)
         capture("protected-backup-native-save",app)
         let name = "gridfix-protected-ui-"+UUID().uuidString.prefix(8)

@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 /// One native Files presenter for every field export. Separate fileExporter
 /// modifiers on the same view can suppress one another on older SwiftUI.
 struct FieldExportDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.data,.zip,.gridFixProtectedBackup,.gridFixGPX,.commaSeparatedText,.gridFixGeoJSON,.gridFixKML,.gridFixKMZ] }
+    static var readableContentTypes: [UTType] { [.pdf,.data,.zip,.gridFixProtectedBackup,.gridFixGPX,.commaSeparatedText,.gridFixGeoJSON,.gridFixKML,.gridFixKMZ] }
     var data: Data
     var contentType: UTType
     var filename: String
@@ -66,6 +66,9 @@ struct FieldFileExportPresentation: View {
     let onCompletion: (Result<URL,Error>) -> Void
     @State private var file: PreparedNativeExport?
     @State private var completed = false
+    @State private var naming = true
+    @State private var requestedName: String?
+    @State private var approvedName: String?
     var body: some View {
         Group {
             if let file {
@@ -75,13 +78,20 @@ struct FieldFileExportPresentation: View {
                 Color.clear
             }
         }
-            // Give the native presenter the real viewport before Files builds
-            // its export controls, including the filename accessory.
+            // Give Files the real viewport for location/provider selection.
             .frame(maxWidth: .infinity,maxHeight: .infinity)
             .allowsHitTesting(false)
-            .task {
-                guard file == nil,!completed else { return }
-                let bytes = document.data,name = document.filename,ext = document.contentType.preferredFilenameExtension ?? "data"
+            .sheet(isPresented: $naming,onDismiss: {
+                if let requestedName { approvedName = requestedName }
+                else { finish(nil) }
+            }) {
+                ExportFilenameView(filename: document.filename,extension: document.contentType.preferredFilenameExtension ?? "data",cancel: { naming = false }) { name in
+                    requestedName = name; naming = false
+                }
+            }
+            .task(id: approvedName) {
+                guard let name = approvedName,file == nil,!completed else { return }
+                let bytes = document.data,ext = document.contentType.preferredFilenameExtension ?? "data"
                 let worker = Task.detached(priority: .userInitiated) { try PreparedNativeExport.prepare(data: bytes,filename: name,extension: ext) }
                 do {
                     let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
@@ -99,14 +109,72 @@ struct FieldFileExportPresentation: View {
     }
 }
 
+
+/// The app owns the filename; Files owns location/provider selection. Some
+/// system picker versions omit their optional filename accessory entirely.
+enum ExportFilename {
+    static func stem(_ input: String,extension ext: String) -> String? {
+        var value = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        let suffix = "." + ext
+        if value.lowercased().hasSuffix(suffix.lowercased()) { value.removeLast(suffix.count) }
+        guard !value.isEmpty,value != ".",value != "..",value.utf8.count <= 200,
+              !value.contains("/"),!value.contains("\\"),
+              !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return value
+    }
+}
+
+private struct ExportFilenameView: View {
+    let filename: String
+    let `extension`: String
+    let cancel: () -> Void
+    let choose: (String) -> Void
+    @Environment(\.fieldNight) private var night
+    @State private var name: String
+    @FocusState private var focused: Bool
+    init(filename: String,extension ext: String,cancel: @escaping () -> Void,choose: @escaping (String) -> Void) {
+        self.filename = filename; self.extension = ext; self.cancel = cancel; self.choose = choose
+        _name = State(initialValue: filename)
+    }
+    private var stem: String? { ExportFilename.stem(name,extension: self.extension) }
+    var body: some View {
+        let palette = FieldPalette(night: night)
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Filename",text: $name).foregroundStyle(palette.ink)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .focused($focused).submitLabel(.done).onSubmit { focused = false }
+                        .accessibilityIdentifier("export-filename")
+                    Text("." + self.extension).font(.footnote).foregroundStyle(palette.inkDim)
+                } header: { Text("Filename") } footer: {
+                    Text(stem == nil ? "Use a shorter filename without slashes or line breaks." : "Choose where to save this file in Files. Its extension stays ." + self.extension + ".")
+                        .foregroundStyle(stem == nil ? palette.warn : palette.inkDim)
+                }
+            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                .foregroundStyle(palette.ink).tint(palette.accent)
+                .navigationTitle("Export file").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) { Text("Export file").font(.headline).foregroundStyle(palette.ink) }
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel",action:cancel).accessibilityIdentifier("export-filename-cancel") }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Choose location") { if let stem { choose(stem) } }.disabled(stem == nil)
+                            .accessibilityIdentifier("export-choose-location")
+                    }
+                    ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = false }.accessibilityIdentifier("export-filename-keyboard-done") }
+                }
+        }.fieldSheetAppearance()
+    }
+}
+
 private struct NativeFileExportPicker: UIViewControllerRepresentable {
     let file: PreparedNativeExport
     let completion: (Result<URL,Error>?) -> Void
     func makeUIViewController(context: Context) -> ExportHost { ExportHost(file: file,completion: completion) }
     func updateUIViewController(_ host: ExportHost,context: Context) {}
     static func dismantleUIViewController(_ host: ExportHost,coordinator: ()) { host.stop() }
-    /// UIDocumentPicker must own its modal presentation. Embedding it as a
-    /// child of a SwiftUI sheet can omit its export filename accessory.
+    /// UIDocumentPicker owns its modal presentation and receives an already
+    /// complete named file after the app's filename sheet has dismissed.
     final class ExportHost: UIViewController,UIDocumentPickerDelegate,UIAdaptivePresentationControllerDelegate {
         let file: PreparedNativeExport
         let completion: (Result<URL,Error>?) -> Void
@@ -142,8 +210,7 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
                     guard let self,!self.completed,!self.dismantled else { return }
                     if let owner = self.readyPresenter() {
                         let picker = UIDocumentPickerViewController(forExporting: [self.file.url],asCopy: true)
-                        // UIKit owns the complete export viewport, including its
-                        // filename bar, rather than a nested adaptive sheet.
+                        // UIKit owns the Files location/provider viewport.
                         picker.modalPresentationStyle = .fullScreen
                         self.picker = picker; picker.delegate = self
                         owner.present(picker,animated: true)

@@ -20,6 +20,21 @@ extension XCTestCase {
         }
         var files = app.collectionViews["File View"].firstMatch
         XCTAssertTrue(files.waitForExistence(timeout: 8),app.debugDescription,file: file,line: line)
+        // Use Files' native list layout for activation. Hosted icon cells can
+        // expose valid thumbnail frames while ignoring coordinate/cell taps.
+        if (files.value as? String)?.localizedCaseInsensitiveContains("Icon") == true {
+            let more = navigation.buttons["More"]
+            XCTAssertTrue(more.waitForExistence(timeout:8),app.debugDescription,file:file,line:line)
+            more.tap()
+            let list = app.buttons["List"]
+            XCTAssertTrue(list.waitForExistence(timeout:8),app.debugDescription,file:file,line:line)
+            list.tap()
+            let settled = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in
+                (files.value as? String)?.localizedCaseInsensitiveContains("List") == true
+            },object:nil)
+            XCTAssertEqual(XCTWaiter.wait(for:[settled],timeout:8),.completed,app.debugDescription,file:file,line:line)
+            item = files.cells.containing(match).firstMatch
+        }
         if !item.exists {
             // Repeated native export tests retain older documents. Ask the
             // local provider for this exact fresh filename instead of assuming
@@ -84,8 +99,19 @@ extension XCTestCase {
         XCTAssertFalse(files.exists,"The selected file did not leave the native picker",file: file,line: line)
     }
 
-    func saveNativeFile(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+    func chooseNativeExportLocation(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+        let name = app.textFields["export-filename"]
+        XCTAssertTrue(name.waitForExistence(timeout: 30),app.debugDescription,file:file,line:line)
+        let choose = app.buttons["export-choose-location"]
+        XCTAssertTrue(choose.isEnabled,app.debugDescription,file:file,line:line); choose.tap()
         let picker = app.otherElements["Browse View (Picker)"]
+        XCTAssertTrue(picker.waitForExistence(timeout:30),app.debugDescription,file:file,line:line)
+    }
+
+    func saveNativeFile(in app: XCUIApplication,file: StaticString = #filePath,line: UInt = #line) {
+        if app.textFields["export-filename"].exists { chooseNativeExportLocation(in:app,file:file,line:line) }
+        let picker = app.otherElements["Browse View (Picker)"]
+        XCTAssertTrue(picker.waitForExistence(timeout:30),app.debugDescription,file:file,line:line)
         let filename = app.textFields["DOCPicker.filenameTextField"]
         for _ in 0..<3 {
             let identified = app.buttons["DOCPicker.actionButton"]

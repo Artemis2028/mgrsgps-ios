@@ -34,10 +34,13 @@ struct RoutePDFPreview: View {
                 }
             }
         }.tint(FieldPalette(night: night).accent).fieldSheetAppearance()
-        // Own the system exporter on the presentation root, outside the PDF
-        // content/navigation toolbar and its separate ShareLink presentation.
-        .fileExporter(isPresented: $exporting,document: StripMapDocumentFile(data: request.data),contentType: .pdf,defaultFilename: StripMapPDF.filename(request.name)) { result in
-            if case .failure(let error) = result { exportError = "Export failed: "+error.localizedDescription }
+        .background {
+            if exporting {
+                FieldFileExportPresentation(document:.init(data:request.data,contentType:.pdf,filename:StripMapPDF.filename(request.name)),onDismiss:{ exporting = false }) { result in
+                    if case .failure(let error) = result { exportError = "Export failed: "+error.localizedDescription }
+                    exporting = false
+                }
+            }
         }
     }
 }
