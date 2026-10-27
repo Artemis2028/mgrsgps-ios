@@ -122,11 +122,13 @@ final class LibraryWorkflowTests: XCTestCase {
         let point = waypoints.add(.init(name: "P",lat: 1,lon: 1))
         var selection = LibrarySelection(); selection.waypoints = [point.id]; selection.graphics = ["g1"]
         let path = dir.appendingPathComponent("field-data-v2.json")
+        let retainedIndex = try Data(contentsOf:path)
         try FileManager.default.removeItem(at: path); try FileManager.default.createDirectory(at: path,withIntermediateDirectories: false)
         let partial = LibraryBatches.apply(selection,action: .swapVisibility,waypoints: waypoints,field: field)
         XCTAssertEqual(partial.completed,1); XCTAssertNotNil(partial.failure); XCTAssertTrue(partial.remaining.waypoints.isEmpty)
         XCTAssertEqual(partial.remaining.graphics,["g1"]); XCTAssertFalse(waypoints.waypoints[0].visible); XCTAssertTrue(field.document.graphics[0].visible)
         try FileManager.default.removeItem(at: path)
+        try retainedIndex.write(to:path,options:.atomic)
         let retried = LibraryBatches.apply(partial.remaining,action: .swapVisibility,waypoints: waypoints,field: field)
         XCTAssertNil(retried.failure); XCTAssertEqual(retried.completed,1)
         XCTAssertFalse(waypoints.waypoints[0].visible); XCTAssertFalse(field.document.graphics[0].visible)

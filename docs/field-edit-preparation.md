@@ -48,11 +48,26 @@ A local model run applies two concurrent edits to a 1,000-route archive with
 with 376 main-actor pulses and a 0.005 s largest observed gap. Timings are recorded,
 not hardware-dependent pass thresholds; map rendering is a separate cost.
 
-Waypoint JSON edits, generated waypoint updates, mixed cross-store batches
-(including row deletion through mixed selection) and folder changes,
-recording finalization and course-result persistence still have
-synchronous paths to address. Their semantics remain intact. Dense map geometry/
-rendering/accessibility, physical storage pressure, battery and file protection
-also need validation. These are implementation/validation gaps, not iOS permission
-restrictions. The core synchronous APIs remain for compatibility and fixtures;
-they share the same edit transform with staged publication.
+Later milestones moved ordinary waypoint, mixed batch/folder, recording and
+course-result UI operations to worker-prepared actions; the release inventory
+records their scoped evidence. The core synchronous APIs remain for compatibility
+and fixtures and share the same edit transform. Eager finished-log startup
+validation and crash-orphan maintenance remain separate implementation work.
+Dense map rendering/accessibility, physical storage pressure, battery and file
+protection still need validation; they are not iOS permission restrictions.
+
+
+## Saved-source publication, 27 October
+
+Worker snapshots retain the saved index/legacy source they actually read. A
+short shared publication gate checks that source before the final atomic index
+rename, including across live store instances. Stale edits/restores cannot
+replace newer files, and rejected staging removes only its own fresh log names.
+The error keeps the current files and asks the user to reopen before editing.
+
+A worker-held metadata digest permits an exact-byte repaired index/archive to
+replace its inode and retry. A different source, or deletion of the old index,
+is refused. The metadata digest is calculated on the read/preparation worker;
+final publication does not hash or decode full logs. This in-process gate does
+not claim coordination with arbitrary noncooperating external writers. Saved
+format, additive IDs, record order and published logs stay unchanged.

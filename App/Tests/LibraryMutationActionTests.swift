@@ -25,6 +25,7 @@ import XCTest
         let point = store.add(.init(name: "Point",lat: 24,lon: 54))
         try field.saveGraphic(.init(id: "g",name: "Line",type: "route",points: [.init(lat: 24,lon: 54),.init(lat: 25,lon: 55)]))
         let file = root.appendingPathComponent("field-data-v2.json")
+        let retainedIndex = try Data(contentsOf:file)
         try FileManager.default.removeItem(at: file); try FileManager.default.createDirectory(at: file,withIntermediateDirectories: false)
         var selection = LibrarySelection(); selection.waypoints = [point.id]; selection.graphics = ["g"]
         let partial = await LibraryMutationAction.batch(selection,action: .swapVisibility,waypoints: store,field: field)
@@ -32,6 +33,7 @@ import XCTest
         XCTAssertTrue(partial.remaining.waypoints.isEmpty); XCTAssertEqual(partial.remaining.graphics,["g"])
         XCTAssertFalse(store.waypoints[0].visible); XCTAssertTrue(field.document.graphics[0].visible)
         try FileManager.default.removeItem(at: file)
+        try retainedIndex.write(to:file,options:.atomic)
         let retry = await LibraryMutationAction.batch(partial.remaining,action: .swapVisibility,waypoints: store,field: field)
         XCTAssertNil(retry.failure); XCTAssertEqual(retry.remaining.count,0)
         XCTAssertFalse(store.waypoints[0].visible); XCTAssertFalse(field.document.graphics[0].visible)

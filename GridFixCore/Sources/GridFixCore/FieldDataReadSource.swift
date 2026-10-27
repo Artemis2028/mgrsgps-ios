@@ -41,4 +41,25 @@ struct FieldDataReadSource: Equatable, Sendable {
     func validate() throws {
         guard (try? Self.read(indexURL)) == self else { throw FieldDataStore.LoadFailure.changed }
     }
+    private var contentURL: URL? {
+        if index != nil { return indexURL }
+        if legacy != nil { return indexURL.deletingLastPathComponent().appendingPathComponent("field-data-v1.zip") }
+        return nil
+    }
+    /// Worker-only receipt for byte-identical repairs that replace the inode.
+    func contentDigest() throws -> String? {
+        try Task.checkCancellation()
+        guard let contentURL else { return nil }
+        let result = FieldDataDisk.digest(try Data(contentsOf:contentURL,options:.mappedIfSafe))
+        try Task.checkCancellation(); try validate()
+        return result
+    }
+    func refreshedIfIdentical(digest: String?) throws -> Self {
+        // Keep ordinary I/O faults on the publication path so a repaired
+        // destination can retry; no unreadable source is accepted at commit.
+        guard let current = try? Self.read(indexURL),current != self else { return self }
+        guard (index != nil) == (current.index != nil),let digest,
+              try current.contentDigest() == digest else { throw FieldDataStore.WriteFailure.changed }
+        return current
+    }
 }

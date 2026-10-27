@@ -11,6 +11,8 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var ready: Bool
     private let fileURL: URL
     private var logs: [String: FieldDataDisk.Log] = [:]
+    private var source: FieldDataReadSource?
+    private var sourceDigest: String?
     private let lock = NSRecursiveLock()
     private var revision: UInt64 = 0
     private let identity = UUID()
@@ -20,6 +22,10 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     public enum LoadFailure: LocalizedError {
         case changed
         public var errorDescription: String? { "Saved routes and tracks changed while opening. The original files were kept. Try again." }
+    }
+    public enum WriteFailure: LocalizedError {
+        case changed
+        public var errorDescription: String? { "Saved routes and tracks changed elsewhere. Reopen the app before editing them. The current files were kept." }
     }
 
     public init(directory: URL? = nil,loadImmediately: Bool = true) {
@@ -32,7 +38,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
                 do {
                     let result = try LoadSnapshot(destination:fileURL,identity:identity).prepare()
                     try result.source?.validate()
-                    document = result.document; logs = result.logs; loadError = result.error
+                    document = result.document; logs = result.logs; loadError = result.error; source = result.source; sourceDigest = result.sourceDigest
                     break
                 } catch LoadFailure.changed {
                     if attempt == 2 { loadError = LoadFailure.changed.localizedDescription }
@@ -65,8 +71,9 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             } catch is CancellationError { throw CancellationError() }
             catch { failure = error.localizedDescription }
             try Task.checkCancellation()
+            let sourceDigest = failure == nil ? try source.contentDigest() : nil
             try source.validate()
-            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity,source:source)
+            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity,source:source,sourceDigest:sourceDigest)
         }
     }
     public struct PreparedLoad: Sendable {
@@ -75,6 +82,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let error: String?
         fileprivate let identity: UUID
         fileprivate let source: FieldDataReadSource?
+        fileprivate var sourceDigest: String? = nil
     }
     public func loadSnapshot() -> LoadSnapshot {
         LoadSnapshot(destination: fileURL,identity: identity)
@@ -84,7 +92,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard prepared.identity == identity else { throw BackupError.notABackup("Prepared library belongs to a different store") }
         guard !ready else { return false }
         try prepared.source?.validate()
-        document = prepared.document; logs = prepared.logs; loadError = prepared.error
+        document = prepared.document; logs = prepared.logs; loadError = prepared.error; source = prepared.source; sourceDigest = prepared.sourceDigest
         ready = true
         return true
     }
@@ -325,12 +333,14 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let identity: UUID
         fileprivate let destination: URL
         fileprivate let logs: [String: FieldDataDisk.Log]
+        fileprivate let source: FieldDataReadSource
+        fileprivate let sourceDigest: String?
 
         /// Prepare an ordinary edit without borrowing the live repository lock.
         public func prepare(edit: Edit) throws -> PreparedEdit {
             try Task.checkCancellation()
             let next = try FieldDataStore.applying(edit,to: document)
-            let file = try next.map { try FieldDataDisk.prepare($0,previous: document,logs: logs,index: destination) }
+            let file = try next.map { try FieldDataDisk.prepare($0,previous: document,logs: logs,index: destination,source:source,sourceDigest:sourceDigest) }
             return PreparedEdit(document: next,revision: revision,identity: identity,file: file)
         }
 
@@ -340,7 +350,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             let (next,result) = FieldDataStore.merged(document,incoming)
             let changed = result.graphics != 0 || result.tracks != 0 || next.courseHistory != document.courseHistory
             let file: PreparedFieldData?
-            if changed { file = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: destination) }
+            if changed { file = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: destination,source:source,sourceDigest:sourceDigest) }
             else { file = nil }
             return PreparedRestore(document: next,result: result,revision: revision,identity: identity,file: file)
         }
@@ -359,7 +369,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard prepared.identity == identity else { throw BackupError.notABackup("Prepared field edit belongs to a different store") }
         guard prepared.revision == revision else { prepared.file?.discard(); return false }
         if let file = prepared.file, let next = prepared.document {
-            try file.publish(); logs = file.logs; document = next
+            source = try file.publish(); sourceDigest = file.digest; logs = file.logs; document = next
         }
         return true
     }
@@ -376,7 +386,8 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         try requireReady()
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
-        return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL,logs: logs)
+        guard let source else { throw WriteFailure.changed }
+        return RestoreSnapshot(document: document,revision: revision,identity: identity,destination: fileURL,logs: logs,source:source,sourceDigest:sourceDigest)
     }
 
     /// Nil means a concurrent mutation won; discard this preparation and merge
@@ -388,7 +399,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         }
         guard prepared.revision == revision else { prepared.file?.discard(); return nil }
         if let file = prepared.file {
-            try file.publish()
+            source = try file.publish(); sourceDigest = file.digest
             logs = file.logs; document = prepared.document
         }
         return prepared.result
@@ -408,7 +419,8 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     private func commit(_ next: Backup.Document) throws {
         try requireReady()
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
-        let prepared = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: fileURL)
-        try prepared.publish(); logs = prepared.logs; document = next
+        guard let source else { throw WriteFailure.changed }
+        let prepared = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: fileURL,source:source,sourceDigest:sourceDigest)
+        self.source = try prepared.publish(); sourceDigest = prepared.digest; logs = prepared.logs; document = next
     }
 }

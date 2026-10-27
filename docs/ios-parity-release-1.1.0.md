@@ -1471,3 +1471,53 @@ core result. Parents naturally exit; the owned simulator and fake feed are off.
 This follow-up stays local while full10840508823942 runs on7fbeab5; no active
 run cancelled/duplicated or TAK/server/credential change. Physical and wider
 watch/performance gates remain open.
+
+
+### Saved-library writes retain their actual source, 27 October
+
+A regression reproduced a lost update: an older store's prepared graphic edit
+could replace a newer store's saved index. Android TrackRepository rename/
+folder writes transform the current DataStore value within edit. iOS now keeps
+the index/legacy source read by its store and checks it at the final atomic
+publication under a short shared in-process gate. A stale edit/restore cannot
+overwrite newer files. Failed staging removes only its own unique log files;
+newer referenced logs survive. The visible error asks for reopening after a
+source conflict. No saved format, additive-ID or record-order policy changed.
+
+Exact-byte repaired sources may have new inodes. Worker-held metadata digests
+allow those repairs to prepare again while a different source/deleted index
+is refused. Hashing stays on read/preparation workers; final publication stats
+and renames only. This does not claim a filesystem transaction against arbitrary
+noncooperating external writers. See [publication contract](field-edit-preparation.md).
+
+All526 core cases pass in
+`/tmp/mgrsgps-field-write-source-final-core-verified.log`, including five new
+cases covering stale prepared edits, direct/prepared restores and newer-track
+log preservation/cleanup, legacy replacement, simultaneous live-store commits
+and deleted-index refusal. Existing exact-byte repair and partial-batch
+one-time visibility assertions remain and pass.
+
+The initial `/tmp/mgrsgps-field-write-source-before.log` retains four failing
+assertions demonstrating the overwrite. The first full core attempt retains
+five failures; the first repair attempt retains three. Existing fault fixtures
+that deleted the original index and removed a temporary directory without
+restoring its bytes now restore the retained exact index before retry. This
+preserves the intended I/O-failure test while testing the new source contract;
+record/waypoint/selection assertions are unchanged. Initial native
+`/tmp/mgrsgps-field-write-source-native.xcresult` retains these fixture failures
+and subsequent unchecked array-index crashes; that parent ended naturally.
+
+Final `/tmp/mgrsgps-field-write-source-final-native.xcresult` passes all347
+native integration cases (four opt-in skips) and three UI workflows: night
+route edit/visibility/delete/relaunch, typed graphic/track visibility/delete,
+and actual background recording/save/library/map. The host sees the same
+journal grow3→6 points while the app stays on Home; the saved detail shows
+eight points/70m. Night route and recording images are inspected. Final unsigned
+phone/watch/widget Release (`/tmp/mgrsgps-field-write-source-release.log`) and
+ten harness checks pass. All parents reaped; owned simulator/feed off.
+
+The older field-edit document's generic synchronous-UI backlog is corrected
+to later worker-action milestones; compatibility core APIs remain synchronous.
+Eager saved-log startup validation, orphan maintenance and physical profiling
+remain separate work. This and the live-split fix stay local while108 runs on
+7fbeab5; no active CI cancelled/duplicated or TAK/server/credential changes.

@@ -44,8 +44,9 @@ enum FieldDataDisk {
         }
         return (document,envelope.logs)
     }
-    static func prepare(_ document: Backup.Document,previous: Backup.Document,logs: [String: Log],index: URL) throws -> PreparedFieldData {
+    static func prepare(_ document: Backup.Document,previous: Backup.Document,logs: [String: Log],index: URL,source: FieldDataReadSource,sourceDigest: String?) throws -> PreparedFieldData {
         try Task.checkCancellation()
+        let expectedSource = try source.refreshedIfIdentical(digest:sourceDigest)
         try Backup.validate(document,includingTrackFiles: false)
         guard Set(document.trackFiles.keys).isSubset(of: Set(document.tracks.map(\.id))) else { throw BackupError.notABackup("Track file is missing from manifest") }
         let directory = index.deletingLastPathComponent().appendingPathComponent(logsName,isDirectory: true)
@@ -79,7 +80,7 @@ enum FieldDataDisk {
             let retained = Set(next.values.map(\.name))
             let obsolete = logs.values.filter { !retained.contains($0.name) }.map { directory.appendingPathComponent($0.name) }
             try Task.checkCancellation()
-            return .init(index: marker,installed: installed,logs: next,obsolete: obsolete)
+            return .init(index: marker,installed: installed,logs: next,obsolete: obsolete,expectedSource:expectedSource,digest:digest(data))
         } catch { PreparedFieldData.removeLater(installed); throw error }
     }
 }
@@ -87,30 +88,42 @@ enum FieldDataDisk {
 /// A preparation owns only fresh, unreferenced filenames. The immutable logs
 /// are ready before the main executor performs its one index rename.
 final class PreparedFieldData: @unchecked Sendable {
+    // Source check and rename are one short in-process publication gate, even
+    // when separate store instances prepared against the same saved index.
+    private static let publicationLock = NSLock()
     let index: PreparedAtomicFile
     let installed: [URL]
     let logs: [String: FieldDataDisk.Log]
     let obsolete: [URL]
+    let expectedSource: FieldDataReadSource
+    let digest: String
     private let lock = NSLock()
     private var consumed = false
-    init(index: PreparedAtomicFile,installed: [URL],logs: [String: FieldDataDisk.Log],obsolete: [URL]) {
+    init(index: PreparedAtomicFile,installed: [URL],logs: [String: FieldDataDisk.Log],obsolete: [URL],expectedSource: FieldDataReadSource,digest: String) {
         self.index = index; self.installed = installed; self.logs = logs; self.obsolete = obsolete
+        self.expectedSource = expectedSource; self.digest = digest
     }
     func discard() {
         lock.lock(); guard !consumed else { lock.unlock(); return }
         consumed = true; lock.unlock()
         index.discard(); Self.removeLater(installed)
     }
-    func publish() throws {
+    func publish() throws -> FieldDataReadSource {
+        Self.publicationLock.lock(); defer { Self.publicationLock.unlock() }
         lock.lock()
         guard !consumed else { lock.unlock(); throw BackupError.notABackup("Field preparation was already consumed. Prepare again.") }
         do {
+            guard try FieldDataReadSource.read(index.destination) == expectedSource else { throw FieldDataStore.WriteFailure.changed }
             try index.publish(); consumed = true; lock.unlock()
-            Self.removeLater(obsolete)
         } catch {
-            consumed = true; lock.unlock(); Self.removeLater(installed)
+            consumed = true; lock.unlock(); index.discard(); Self.removeLater(installed)
             throw error
         }
+        Self.removeLater(obsolete)
+        // Publication succeeded: never remove its installed logs if a later
+        // source stat fails. Reopening can recover the complete committed index.
+        guard let updated = try? FieldDataReadSource.read(index.destination),updated.index != nil else { throw FieldDataStore.WriteFailure.changed }
+        return updated
     }
     static func removeLater(_ paths: [URL]) {
         guard !paths.isEmpty else { return }
