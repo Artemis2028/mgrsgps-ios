@@ -36,8 +36,17 @@ enum TacticalGraphicCanvas {
             let x = centered ? point.x-width/2 : point.x+6
             let baseline = above ? point.y-7 : point.y+size/3
             let origin = CGPoint(x: x, y: baseline-font.ascender)
+            if night {
+                // Viewshed shading and imagery can share a graphic's dim red.
+                // Keep affiliation on the geometry/ENY suffix, with the same
+                // bright-red-on-black label treatment as waypoint names.
+                c.setFillColor(UIColor.black.cgColor)
+                c.addPath(UIBezierPath(roundedRect:CGRect(origin:origin,size:.init(width:width,height:font.lineHeight)).insetBy(dx:-3,dy:-2),cornerRadius:2).cgPath)
+                c.fillPath()
+            }
             text.draw(at: origin, withAttributes: [.font:font, .foregroundColor:halo, .strokeColor:halo.withAlphaComponent(200/255), .strokeWidth: 26])
-            text.draw(at: origin, withAttributes: [.font:font, .foregroundColor:color.withAlphaComponent(245/255)])
+            let labelColor = night ? UIColor(red:1,green:59/255,blue:48/255,alpha:1) : color.withAlphaComponent(245/255)
+            text.draw(at: origin, withAttributes: [.font:font, .foregroundColor:labelColor])
         }
         func arrow(_ tip: CGPoint, from start: CGPoint, length: CGFloat = 10) {
             let a = atan2(tip.y-start.y, tip.x-start.x), spread = CGFloat.pi*150/180
