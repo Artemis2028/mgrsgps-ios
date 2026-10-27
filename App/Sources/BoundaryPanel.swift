@@ -75,6 +75,7 @@ struct BoundaryPanel: View {
 }
 
 struct BoundaryDrawingControls: View {
+    @FocusState private var nameFocused: Bool
     @Environment(\.dynamicTypeSize) private var dynamicType
     private var row: AnyLayout { dynamicType.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:8)) : AnyLayout(HStackLayout()) }
     @Binding var draft: BoundaryDraft
@@ -87,7 +88,7 @@ struct BoundaryDrawingControls: View {
     var body: some View {
         VStack(alignment: .leading,spacing: 8) {
             row {
-                TextField("Boundary name",text: $draft.name).disabled(saving).textFieldStyle(.roundedBorder).submitLabel(.done).onSubmit { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),to: nil,from: nil,for: nil) }.accessibilityIdentifier("boundary-name")
+                TextField("Boundary name",text: $draft.name).focused($nameFocused).disabled(saving).textFieldStyle(.roundedBorder).submitLabel(.done).onSubmit { nameFocused = false }.accessibilityIdentifier("boundary-name")
                 Button("Cancel",action: cancel).accessibilityIdentifier("cancel-boundary")
                 Button(saving ? "Saving…" : "Save",action: save).disabled(saving || draft.vertices.count < 3).accessibilityIdentifier("save-boundary")
             }
@@ -112,5 +113,11 @@ struct BoundaryDrawingControls: View {
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).accessibilityIdentifier("boundary-draw-error") }
         }.padding(12).fieldChrome()
+            .toolbar {
+                ToolbarItemGroup(placement:.keyboard) {
+                    Spacer()
+                    Button("Done") { nameFocused = false }.accessibilityIdentifier("boundary-name-keyboard-done")
+                }
+            }
     }
 }

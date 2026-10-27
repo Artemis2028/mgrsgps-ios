@@ -189,7 +189,7 @@ struct MapScreen: View {
                 Spacer(minLength: 0)
                 if accessibleMap {
                     if hasMapPanels {
-                        ScrollView { mapPanels }
+                        ScrollView { mapPanels }.scrollDismissesKeyboard(.interactively)
                             .frame(maxHeight:max(80,geometry.size.height*0.42))
                             .accessibilityIdentifier("map-accessible-panels")
                     }

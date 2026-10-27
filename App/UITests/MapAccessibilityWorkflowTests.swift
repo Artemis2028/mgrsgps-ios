@@ -10,7 +10,9 @@ final class MapAccessibilityWorkflowTests: XCTestCase {
                                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
     }
     private func capture(_ name: String) {
-        let image = XCTAttachment(screenshot: app.screenshot()); image.name = name; image.lifetime = .keepAlways; add(image)
+        // Capture the display: application-region screenshots can crop a
+        // landscape window using portrait bounds on older simulator runtimes.
+        let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); image.name = name; image.lifetime = .keepAlways; add(image)
     }
     private func visible(_ element: XCUIElement) {
         XCTAssertTrue(element.waitForExistence(timeout:10), app.debugDescription)
@@ -55,6 +57,16 @@ final class MapAccessibilityWorkflowTests: XCTestCase {
         visible(decimal)
         app.navigationBars["Map centre"].buttons["Done"].tap()
         visible(app.buttons["map-accessible-actions"])
+    }
+    private func revealPanelControl(_ control: XCUIElement,in panel: XCUIElement) {
+        for _ in 0..<20 {
+            if control.exists && control.isHittable && control.frame.minY >= panel.frame.minY + 4 && control.frame.maxY <= panel.frame.maxY - 4 { return }
+            let middle = panel.frame.midY
+            let movement = control.exists ? min(60,max(-60,middle-control.frame.midY)) : -60
+            let start = app.coordinate(withNormalizedOffset:.zero).withOffset(.init(dx:panel.frame.minX+6,dy:middle))
+            start.press(forDuration:0.1,thenDragTo:start.withOffset(.init(dx:0,dy:movement)),withVelocity:.slow,thenHoldForDuration:0.3)
+        }
+        XCTFail("Tool control must be fully readable inside its scrolling panel: " + app.debugDescription)
     }
     func testLargestTextMapDetailsActionsAndLayersInDayAndNight() {
         app.launch()
@@ -103,11 +115,7 @@ final class MapAccessibilityWorkflowTests: XCTestCase {
         XCTAssertTrue(panel.waitForExistence(timeout:5))
         let done = app.buttons["ruler-done"]
         XCTAssertTrue(done.waitForExistence(timeout:5))
-        for _ in 0..<12 {
-            if done.isHittable && done.frame.midY < panel.frame.maxY && done.frame.midY > panel.frame.minY { break }
-            panel.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.8)).press(forDuration:0.1,
-                thenDragTo:panel.coordinate(withNormalizedOffset:.init(dx:0.5,dy:0.2)),withVelocity:.slow,thenHoldForDuration:0.3)
-        }
+        revealPanelControl(done,in:panel)
         XCTAssertTrue(done.isHittable,app.debugDescription)
         capture("map-global-largest-ruler-landscape")
         done.tap()
@@ -127,12 +135,13 @@ final class MapAccessibilityWorkflowTests: XCTestCase {
         visible(draw)
         draw.tap()
         XCTAssertTrue(panel.waitForExistence(timeout:5))
+        let name = app.textFields["boundary-name"]
+        name.tap(); name.typeText(" visible")
+        let keyboardDone = app.buttons["boundary-name-keyboard-done"]
+        XCTAssertTrue(keyboardDone.waitForExistence(timeout:5),app.debugDescription)
+        keyboardDone.tap()
         let cancel = app.buttons["cancel-boundary"]
-        for _ in 0..<12 {
-            if cancel.exists && cancel.isHittable { break }
-            panel.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.8))
-                .press(forDuration:0.1,thenDragTo:panel.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.4)),withVelocity:.slow,thenHoldForDuration:0.3)
-        }
+        revealPanelControl(cancel,in:panel)
         XCTAssertTrue(cancel.isHittable,app.debugDescription)
         capture("map-global-largest-boundary-landscape")
         cancel.tap()

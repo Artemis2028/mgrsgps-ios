@@ -21,7 +21,7 @@ are now implemented. It does not replace the separate quiet-inside perimeter.
 | Routes | Waypoint-based and map-based route editors, waypoint snapping, draggable bends, numbered legs, route cards, worker-staged stable generated waypoint ownership with source/cancellation guards and visible errors, GPX, automatic following, durable staged interactive target selection, failure-aware checkpoint transitions and mixed library batches | Full hosted confirmation and physical long-route/readability checks |
 | Navigation | Target metrics, relative steering readout, Android guide settings/policy, arrival cues, ordered checkpoint advance, pause/resume, worker-staged runtime session/target saves with source/intent/cancellation guards, background route GPS/milestone notifications; post-release checkpoint/route lanes with separate drawn/linked limits, library/map editing, early warnings and crossing-notification requests | Physical direction-pattern/locked-screen crossing validation; continuous Android-style locked-screen steering haptics cannot be promised on iOS |
 | Boundaries | Editable perimeter and draggable bends, quiet inside, confirmed exit/reentry handling, background location and notification requests | Physical locked-screen alert validation; Android re-export drops the optional iOS-only quiet-boundary section |
-| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; worker-coalesced camera/preferences with failure/retry and consistent offline network policy; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Global AccessibilityXXXL HUD/control layout remains a real software gap; physical lasso and offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
+| Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; worker-coalesced camera/preferences with failure/retry and consistent offline network policy; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Accessibility-size map details/actions and scrolling tool panels implemented; broader full-app text-size and physical lasso/offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Other runtime-session startup reads, older library actions and dense-map rendering/accessibility performance work; physical large-library storage checks; physical field validation and storage/interchange limits below |
 | Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Independent finished logs remove combined/per-log backup-derived caps; orphan maintenance and dense/very-large-library performance remain work; physical course/guide validation; large-course eligibility/list rendering and other runtime-session startup IO |
@@ -949,3 +949,40 @@ scope:22 distinct UI workflows, not the sum of repeated runs. [Reference evidenc
 and exact large-text scope](offline-field-reference.md). Local parents terminal,
 owned devices/feeds off; no TAK infrastructure or wire change. Full new hosted
 confirmation and the other implementation/physical gates remain required.
+
+
+### Map accessibility layout candidate — 27 October 2026
+
+Local c057d9a replaces the overflowing fixed map HUD/icon deck at accessibility
+sizes with a full centre-grid summary, scrolling details and native Map actions.
+Landscape active-tool panels scroll below actions; boundary/graphic/lane/ruler
+rows stack, lane roles use a menu and recording-banner icons keep explicit sizes.
+Normal layouts, hidden-tool/active-escape policies and quiet-inside behavior remain.
+Android release MapScreen tool/landscape policy was compared.
+
+Final-source346 native cases pass (four opt-in skips), device phone/watch/widget
+Release and eight harness checks pass. Eight distinct UI workflows pass across
+bundles: three ordinary map-tool cases, route draw/edit/save/relaunch and four
+global AccessibilityXXXL cases for day/night details/layers, landscape reference
+access, ruler/boundary exit and recording finish/discard. Intermediate scrolling
+failures remain recorded. Display-level landscape screenshots and both landscape repeats pass; the
+app-region capture had cropped using portrait bounds. A stronger complete-button
+check exposed focused name entry shrinking the boundary panel. Native keyboard
+Done and interactive scroll dismissal are added; the final typed-name/dismiss/
+fully-visible-Cancel test and final device Release pass. Screenshots inspected.
+[Exact scope and artifacts](map-accessibility-layout.md). Full-app Dynamic Type
+and physical spoken VoiceOver remain open; this does not claim full parity.
+
+The candidate stays local while full hosted10540472724924 on d9e7aba remains
+confirmed live. No CI run was cancelled or duplicated. Real enrolled TAK,
+independent watch guidance, physical and distribution gates remain unchanged.
+
+
+Hosted105 partial outcome: map122083457114 and field122083457138 are terminal
+failures on d9e7aba; library122083456715 is still confirmed live. Map fails
+landscape area readiness, night layers reopening and protected-KML password-sheet
+activation. Field fails large-GPX native picker reopening and field-fix Resection
+activation. Logs retrieved; artifact metadata12722295252/12722860249 recorded,
+archives not yet retrieved/verified. These five failures are open triage, not
+platform limitations or cancelled jobs. No dedicated background-gate success is
+claimed. The accessibility changes remain local while library runs.

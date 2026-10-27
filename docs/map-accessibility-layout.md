@@ -20,10 +20,12 @@ layouts, drawing geometry, monitoring and navigation policy are preserved.
 
 Hidden-tool preferences still apply, including active-tool escape controls.
 Recording uses the same start policy and recording panel. Recording-banner icons
-have explicit sizes while its status text continues scaling. The implementation
+have explicit sizes while its status text continues scaling. Boundary-name entry
+has a native keyboard Done action, and the panel supports interactive keyboard
+dismissal while scrolling. The implementation
 does not cap text scaling globally or substitute a DEBUG-only text setting.
 
-## Validation in progress
+## Local validation
 
 `MapAccessibilityWorkflowTests` launches with the actual global
 `UICTContentSizeCategoryAccessibilityXXXL` setting. It exercises day/night details
@@ -35,11 +37,29 @@ The portrait day/night case and all three ordinary map-tool workflows pass.
 The first two development bundles fail because scrolling stops on partially
 visible rows or scrolls past them; final assertions still require complete
 viewport bounds. The third bundle's landscape test also fails to find the
-overshot field-tool row. The final-source run is
-`/tmp/mgrsgps-accessible-map-complete.xcresult`; its outcome must be checked before
-claiming this milestone validated.
+overshot field-tool row. The final-source bundle `/tmp/mgrsgps-accessible-map-complete.xcresult` passes
+346 native cases (four opt-in skips), route draw/edit/save/relaunch, global
+largest-type day/night details/layers, landscape field-tool/reference navigation
+and live-recording finish/discard. Its boundary case fails waiting for a
+virtualized Draw boundary row before scrolling. The corrected test scrolls that
+real list and `/tmp/mgrsgps-accessible-map-boundary-final.xcresult` passes.
+Across these and the preceding ordinary map-tool bundle, eight distinct UI
+workflows pass; repeated runs are not added together.
 
-The earlier device Release build and eight harness checks pass. Final-source
-Release is `/tmp/mgrsgps-accessible-map-release-final.log`.
+Final-source phone/watch/widget unsigned device Release and eight harness checks
+pass (`/tmp/mgrsgps-accessible-map-keyboard-release.log`,
+`/tmp/mgrsgps-accessible-map-harness.log`). Portrait day/night and recording
+screenshots are inspected. App-region landscape captures on this simulator have
+incorrect portrait cropping/rotation metadata. Display-level recapture in
+`/tmp/mgrsgps-accessible-map-landscape-display.xcresult` passes both landscape
+cases; full-display map screenshots are inspected. The original artifacts remain
+untouched. A stronger full-panel-button assertion exposes a focused name field
+shrinking the panel below a complete button height. The native keyboard Done
+action and interactive scroll dismissal fix that exit path.
+`/tmp/mgrsgps-accessible-map-keyboard-final.xcresult` types a boundary name,
+dismisses the actual keyboard, scrolls until Cancel is wholly inside the panel,
+and cancels successfully. Its full-display screenshot is inspected. The stricter
+intermediate failure is `/tmp/mgrsgps-accessible-map-full-panel.xcresult`.
+All local parents finish naturally; the owned simulator and fake feed are off.
 Full-app Dynamic Type, spoken VoiceOver, physical drawing/GPS/locked-screen cues,
 independent watch guidance and real enrolled TAK exchange remain separate gates.

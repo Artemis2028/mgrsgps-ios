@@ -909,3 +909,24 @@ Day/night filename images inspected. Final device Release and eight harness
 checks pass; local parents terminal and owned devices/feeds off. See
 [filename flow evidence](export-filename-provider-flow.md). A new hosted run is
 still needed;104 remains failed and its dedicated background gates skipped.
+
+
+## Hosted105 partial result — 27 October 2026
+
+Run40472724924 on d9e7aba: map122083457114 and field122083457138 fail;
+library122083456715 remains live at last inspection. Full map/field logs are
+retrieved. Map's41 UI cases have three failures: MeasurementWorkflowTests line84
+(landscape area Results stays disabled), OfflineDownloadLifetimeWorkflowTests
+line27 (night Map layers did not open), ProtectedFileWorkflowTests line19
+(protected-KML password sheet absent). Field fails FieldExportWorkflowTests
+line27 (large GPX remains in native picker) and FieldFixWorkflowTests line14
+(Resection control activation). The new filename form is not sufficient proof
+of reliable native reopen on this SDK.
+
+Map artifact12722295252 is528993708 bytes with advertised SHA256
+2e6a8b013cebca5e771239d910d7f95747ed66bb277aaca8855e8a5ef68199ed.
+Field artifact12722860249 is432818284 bytes, advertised SHA256
+f85b789cadbf066aade167d19e1aee8db257e909bad17266d18e74abc02671be.
+These archives have not yet been downloaded or verified. Exact video/hierarchy
+triage and repair remain next; do not infer causes or weaken assertions from
+these log locations. The live library job is left undisturbed.
