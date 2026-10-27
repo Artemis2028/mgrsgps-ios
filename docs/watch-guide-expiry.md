@@ -48,7 +48,7 @@ new cache. After phone termination it shows expiry on relaunch. A WatchConnectiv
 request can wake the phone and produce a genuinely new off decision; that is a
 replacement, not replay or proof that the old cache renewed. After restoring
 the prior phone test workspace and shutting down its simulator, a duplicate
-context on watch relaunch keeps revision154's exact existing deadline while
+context on watch relaunch keeps revision 154's exact existing deadline while
 guidance remains expired. Watch grid/night overrides remain unchanged.
 Screenshots: `/tmp/mgrsgps-guide-clock-apple-active.png`,
 `/tmp/mgrsgps-guide-clock-apple-expired-relaunch.png`, and
@@ -64,7 +64,7 @@ The first candidate screenshot is retained as failure evidence, not a pass.
 
 Force-stopping the phone was insufficient for an isolated cache test: a watch
 request triggered a new inactive source packet. The final check shuts down the
-phone emulator entirely. Active revision231 and its exact deadline survive watch
+phone emulator entirely. Active revision 231 and its exact deadline survive watch
 app relaunch unchanged; expiry replaces steering while watch GPS remains fresh.
 The original complete local map, selected target/settings and local digit/night
 overrides compare equal apart from normal publisher revision/timestamp fields.
@@ -74,7 +74,7 @@ matching `/tmp/mgrsgps-guide-clock-wear-*.xml` and JSON files.
 
 The original Android target/local-map/digit/night state remains preserved and
 the phone native toggle is verified off at cleanup. The Wear emulator host
-process aborts with exit134 after the final expiry capture, before final inactive
+process aborts with exit 134 after the final expiry capture, before final inactive
 replacement receipt can be checked; no claim is made for that cleanup delivery.
 This is a host-emulator failure, not proof of an app crash. Both Android devices
 and all Apple devices and owned fake feeds are off afterward. Physical

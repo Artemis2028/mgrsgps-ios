@@ -100,7 +100,7 @@ radio/background/wrist checks remain. See [contract, budgets and evidence](watch
 Both watches now retain source/receipt/monotonic deadlines in their local cache.
 Replay, app relaunch and wall-clock rollback cannot extend the original budget.
 Legacy caches require a new phone packet; wire format and independent watch GPS
-are unchanged. Swift504 core and Wear39 unit cases, Apple Release/paired Debug,
+are unchanged. 504 Swift core and 39 Wear unit cases, Apple Release/paired Debug,
 Wear Debug/Release/lint and Android phone Debug pass. Actual WatchConnectivity
 and paired Data Layer deliver fresh decisions, then cached expiry survives
 relaunch/disconnection. Runtime review also fixes Wear's prior-tick uptime

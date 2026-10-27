@@ -69,11 +69,16 @@ struct FieldFileExportPresentation: View {
     var body: some View {
         Group {
             if let file {
-                NativeFileExportPicker(file: file,completion: finish).frame(width: 0,height: 0)
+                NativeFileExportPicker(file: file,completion: finish)
+                    .frame(maxWidth: .infinity,maxHeight: .infinity)
             } else {
-                Color.clear.frame(width: 0,height: 0)
+                Color.clear
             }
         }
+            // Give the native presenter the real viewport before Files builds
+            // its export controls, including the filename accessory.
+            .frame(maxWidth: .infinity,maxHeight: .infinity)
+            .allowsHitTesting(false)
             .task {
                 guard file == nil,!completed else { return }
                 let bytes = document.data,name = document.filename,ext = document.contentType.preferredFilenameExtension ?? "data"
@@ -108,6 +113,7 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
         private var completed = false
         private var dismantled = false
         private var picker: UIDocumentPickerViewController?
+        private var appeared = false
         init(file: PreparedNativeExport,completion: @escaping (Result<URL,Error>?) -> Void) {
             self.file = file; self.completion = completion
             super.init(nibName: nil,bundle: nil)
@@ -115,7 +121,20 @@ private struct NativeFileExportPicker: UIViewControllerRepresentable {
         required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
-            guard picker == nil,!completed else { return }
+            appeared = true
+            presentIfReady()
+        }
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            presentIfReady()
+        }
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            appeared = false
+        }
+        private func presentIfReady() {
+            guard appeared,picker == nil,!completed,!dismantled,view.window != nil,
+                  view.bounds.width > 0,view.bounds.height > 0 else { return }
             let picker = UIDocumentPickerViewController(forExporting: [file.url],asCopy: true)
             self.picker = picker; picker.delegate = self
             present(picker,animated: true)

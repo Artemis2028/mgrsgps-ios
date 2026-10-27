@@ -3,7 +3,7 @@
 Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
-The release branch was rechecked through GitHub on 26 October and still points to this commit.
+The release branch was rechecked through GitHub on 27 October and still points to this commit.
 The user also requested the subsequent development work: see the
 [25 October Android audit](android-overnight-2026-10-25.md) for navigation
 lanes, protected backups, map-button preferences, fixes and the experimental
@@ -705,7 +705,7 @@ failures, day/night graphic visibility/cancellation, exact native Files round
 trips, PDF, recording discard/background/recovery. The Home journal grows from
 four to six points before foreground activation. Release and eight harness
 checks pass; screenshots inspected. These changes remain local while hosted101
-40429934209 runs on39da6e4. Full hosted green and physical checks remain open.
+40429934209 runs on `39da6e4`. Full hosted green and physical checks remain open.
 See [dated repair evidence](ci-field-ui-activation.md).
 
 
@@ -716,19 +716,19 @@ cancellation cannot publish old geometry. Android's exact priority simplifier
 uses one forward coordinate array with reversed index access and a bounded
 selection set, removing full TrackPoint/reversed/keep-array copies. Linear
 coordinate memory and worst-case physical performance remain limits.
-All499 core and316 native cases pass (four opt-in skips), all three selected
+All 499 core and 316 native cases pass (four opt-in skips), all three selected
 backtrack/day-night graphic UI workflows pass, and device Release passes.
-The300003-point check keeps the source and target, returns three vertices in
-about0.659seconds with332 main-thread pulses. Screenshots inspected and parent
-exits0. Hosted101 remains live on39da6e4; follow-ups are local until it finishes.
+The 300,003-point check keeps the source and target, returns three vertices in
+about 0.659 seconds with 332 main-thread pulses. Screenshots inspected and parent
+exits 0. Hosted run 101 remains live on `39da6e4`; follow-ups are local until it finishes.
 See [source integrity and evidence](backtrack-source-and-memory.md).
 
 
 Both watch receivers now keep a monotonic phone-guidance lifetime across cache
 replay and app relaunch. Clock rollback cannot renew the original budget;
-new source packets remain supported. Swift504 core and Wear39 unit cases pass,
+new source packets remain supported. 504 Swift core and 39 Wear unit cases pass,
 as do Apple Release/paired Debug, Wear Debug/Release/lint and Android phone Debug.
 Real paired delivery, expired relaunch and preserved local scene/overrides are
 recorded with [exact limits and cleanup caveat](watch-guide-expiry.md).
-Hosted101 is terminal on39da6e4: map passes; field and library each have one
+Hosted run 101 is terminal on `39da6e4`: map passes; field and library each have one
 failure. Full hosted green remains open.

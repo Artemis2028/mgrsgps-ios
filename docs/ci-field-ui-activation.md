@@ -662,3 +662,35 @@ No hosted repair is claimed from local checks alone. Full hosted101
 certificate/branding/track-focus work; these new repairs stay local while that
 run remains live. All owned simulators/emulators and feeds are off after local
 checks. Physical screen-lock delivery remains separate.
+
+
+## Hosted101: laid-out native export host
+
+Hosted run 40429934209 on `39da6e4` is terminal: map passes; field has one route-PDF
+filename-focus failure and library one ordinary backup filename absence. The
+PDF failure's final root tree again positively identifies the exact editor as
+Keyboard Focused. The previously held positive-focus/fresh-snapshot follow-up
+passes locally and is still required in the next hosted run.
+
+The full library artifact and video were retrieved. At the ordinary backup
+failure, Files shows On My iPhone is Empty with a Save button and no filename
+accessory, matching the absent editor in AX. The exporter was attached through
+a zero-size UIViewControllerRepresentable. It now inherits its parent's viewport
+in a non-interactive background; UIKit presents only after the host has appeared,
+joined a window and has positive laid-out width/height. Files still owns its
+modal presentation. Complete immutable staging, source lifetime, native rename,
+save/cancel and generation-scoped cleanup stay unchanged. This is a candidate
+layout correction, not a claim that the precise hosted OS cause is proven.
+
+A fresh local simulator replay is in progress. Its first native suite exposes a
+local harness setup issue: privacy was granted before the app's first install,
+so two background-location cases fail with notDetermined and two further
+location cases skip. That bundle is not a passing native result. The private
+local runner now mirrors the repository CI workflow's install-before-grant
+ordering. The active UI run is preserved; the required While Using assertions
+will be rerun after it ends with the installed app. No permission assertion is
+weakened or converted to a skip.
+
+So far the fresh ordinary/protected full backup workflows and complete large
+GPX round trip pass, with exact data and boundary assertions unchanged. Final
+remaining UI, native, Release and screenshot evidence will be recorded below.
