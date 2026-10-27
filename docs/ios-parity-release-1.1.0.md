@@ -22,6 +22,22 @@ intent during dismissal. Native activation/keyboard acknowledgments retain
 complete count, password, coordinate and persistence assertions. Full hosted
 revalidation is still required; see [exact evidence](ci-field-ui-activation.md).
 
+Local saved-library follow-up, 27 October: worker reads now retain source
+metadata and validate it again before publication. Index replacement, a new v2
+index during legacy reading, and a library appearing after an empty read cause
+at most three shared worker attempts, then a visible failure. Failed reads keep
+the saved files and refuse edits/exports/false empty point reads. Both library
+screens offer an explicit retry; healthy stores are never reset. Empty-library
+prompts are suppressed while reading or after a read error. This candidate
+passes 518 core tests (including seven new source-change/retry regressions),
+the unsigned phone/watch/widget Release build and eight harness checks. The
+new retry buttons still need simulator UI validation. This does not make
+finished logs lazy, detect every in-place external write, or protect later
+writes from all external changes. Android release/1.1.0 TrackRepository keeps
+metadata and point logs separate; large-library startup costs remain open.
+The product display name is **MGRS GPS** on phone and both watch platforms;
+verified in the iOS/watchOS project settings and Android/Wear resources.
+
 | Area | Implemented on iOS | Still missing or incomplete |
 | --- | --- | --- |
 | Coordinates/position | Validated MGRS/decimal entry and UTM readouts, units, north reference, WMM, precision/accuracy gates, spherical waypoint projection with saved/current/entered bases, readable phonetic callout, native position/waypoint QR, persisted USNG naming and labelled entry, native Auto/Portrait/Landscape/Flipped controls, compact landscape Position layout, Android age/accuracy/trust labels, screen-relative fresh compass, Android GPS-course source/fallback rules, speed readouts and selected-target visual steering | Physical receiving-camera QR, compass and worn-device checks |

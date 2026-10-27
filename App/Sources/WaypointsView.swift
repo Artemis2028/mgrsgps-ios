@@ -503,9 +503,13 @@ struct WaypointsView: View {
                         } else { trackRow(track) }
                     }
                 }
-                if listedSelection.count == 0 { Text("Nothing in \(folderFilter ?? "the library") yet.").font(.footnote).foregroundStyle(palette.inkDim) }
+                if listedSelection.count == 0 && fieldData.ready && fieldData.loadError == nil { Text("Nothing in \(folderFilter ?? "the library") yet.").font(.footnote).foregroundStyle(palette.inkDim) }
                 if let status { Text(status).font(.footnote).foregroundStyle(palette.accent).padding(.vertical,8).accessibilityIdentifier("library-status") }
-                if let failure = fieldData.loadError { Text(failure).font(.footnote).foregroundStyle(palette.warn) }
+                if let failure = fieldData.loadError {
+                    Text(failure).font(.footnote).foregroundStyle(palette.warn)
+                    Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                        .frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
+                }
             }.padding(.horizontal,20).padding(.bottom,20)
         }.accessibilityIdentifier("library-list")
     }

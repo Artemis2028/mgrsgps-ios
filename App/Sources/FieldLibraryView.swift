@@ -15,7 +15,13 @@ struct FieldLibraryView: View {
     var body: some View {
         NavigationStack {
             List {
-                if let failure = fieldData.loadError { Text(failure).foregroundStyle(palette.warn) }
+                if let failure = fieldData.loadError {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(failure).foregroundStyle(palette.warn)
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                            .accessibilityIdentifier("field-library-retry")
+                    }
+                }
                 Button("Practice course") { showingPractice = true }.accessibilityIdentifier("library-practice")
                 Section("Routes") {
                     ForEach(fieldData.document.graphics.filter { $0.type == "route" }) { route in
@@ -42,7 +48,7 @@ struct FieldLibraryView: View {
                             }
                         }.accessibilityIdentifier("track-\(track.name)")
                     }
-                    if fieldData.document.tracks.isEmpty { Text("Import GPX tracks or restore a backup to see saved tracks here.").font(.subheadline).foregroundStyle(palette.inkDim) }
+                    if fieldData.ready && fieldData.loadError == nil && fieldData.document.tracks.isEmpty { Text("Import GPX tracks or restore a backup to see saved tracks here.").font(.subheadline).foregroundStyle(palette.inkDim) }
                 }
                 if !fieldData.document.courseHistory.isEmpty {
                     Section("Practice history") {

@@ -17,16 +17,27 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     @MainActor private var loadTask: Task<PreparedLoad,Error>?
     @MainActor private var loadGeneration = UUID()
 
+    public enum LoadFailure: LocalizedError {
+        case changed
+        public var errorDescription: String? { "Saved routes and tracks changed while opening. The original files were kept. Try again." }
+    }
+
     public init(directory: URL? = nil,loadImmediately: Bool = true) {
         let dir = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         fileURL = dir.appendingPathComponent(FieldDataDisk.indexName)
         ready = loadImmediately
         document.hasSettings = false
         if loadImmediately {
-            do {
-                let result = try LoadSnapshot(destination: fileURL,identity: identity).prepare()
-                document = result.document; logs = result.logs; loadError = result.error
-            } catch { loadError = error.localizedDescription }
+            for attempt in 0..<3 {
+                do {
+                    let result = try LoadSnapshot(destination:fileURL,identity:identity).prepare()
+                    try result.source?.validate()
+                    document = result.document; logs = result.logs; loadError = result.error
+                    break
+                } catch LoadFailure.changed {
+                    if attempt == 2 { loadError = LoadFailure.changed.localizedDescription }
+                } catch { loadError = error.localizedDescription; break }
+            }
         }
     }
 
@@ -39,19 +50,23 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             try Task.checkCancellation()
             var document = Backup.Document(); document.hasSettings = false
             var logs: [String: FieldDataDisk.Log] = [:], failure: String?
+            let source: FieldDataReadSource
+            do { source = try FieldDataReadSource.read(destination) }
+            catch { return PreparedLoad(document:document,logs:[:],error:error.localizedDescription,identity:identity,source:nil) }
             do {
-                if FileManager.default.fileExists(atPath: destination.path) {
+                if source.index != nil {
                     (document,logs) = try FieldDataDisk.read(destination)
                 } else {
                     let legacy = destination.deletingLastPathComponent().appendingPathComponent("field-data-v1.zip")
-                    if FileManager.default.fileExists(atPath: legacy.path) {
+                    if source.legacy != nil {
                         document = try Backup.importZip(Data(contentsOf: legacy,options: .mappedIfSafe))
                     }
                 }
             } catch is CancellationError { throw CancellationError() }
             catch { failure = error.localizedDescription }
             try Task.checkCancellation()
-            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity)
+            try source.validate()
+            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity,source:source)
         }
     }
     public struct PreparedLoad: Sendable {
@@ -59,6 +74,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let logs: [String: FieldDataDisk.Log]
         fileprivate let error: String?
         fileprivate let identity: UUID
+        fileprivate let source: FieldDataReadSource?
     }
     public func loadSnapshot() -> LoadSnapshot {
         LoadSnapshot(destination: fileURL,identity: identity)
@@ -67,6 +83,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard prepared.identity == identity else { throw BackupError.notABackup("Prepared library belongs to a different store") }
         guard !ready else { return false }
+        try prepared.source?.validate()
         document = prepared.document; logs = prepared.logs; loadError = prepared.error
         ready = true
         return true
@@ -75,32 +92,57 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     /// cannot discard another client's load or publish on the worker executor.
     @MainActor public func load(prepare: @escaping @Sendable (LoadSnapshot) throws -> PreparedLoad = { try $0.prepare() }) async {
         guard !ready else { return }
-        let task: Task<PreparedLoad,Error>
-        let token: UUID
-        if let existing = loadTask { task = existing; token = loadGeneration }
-        else {
-            let snapshot = loadSnapshot()
-            loadGeneration = UUID(); token = loadGeneration
-            task = Task.detached(priority: .userInitiated) { try prepare(snapshot) }
-            loadTask = task
+        for _ in 0..<3 {
+            let task: Task<PreparedLoad,Error>
+            let token: UUID
+            if let existing = loadTask { task = existing; token = loadGeneration }
+            else {
+                let snapshot = loadSnapshot()
+                loadGeneration = UUID(); token = loadGeneration
+                task = Task.detached(priority: .userInitiated) { try prepare(snapshot) }
+                loadTask = task
+            }
+            do {
+                let prepared = try await task.value
+                guard loadGeneration == token, !Task.isCancelled else { return }
+                _ = try publishLoad(prepared)
+                loadTask = nil
+                return
+            } catch LoadFailure.changed {
+                guard loadGeneration == token,!Task.isCancelled else { return }
+                loadTask = nil
+            } catch is CancellationError {
+                // Cancellation is not damage. The next live client can retry.
+                if loadGeneration == token { loadTask = nil }
+                return
+            } catch {
+                guard loadGeneration == token, !Task.isCancelled else { return }
+                var empty = Backup.Document(); empty.hasSettings = false
+                _ = try? publishLoad(PreparedLoad(document: empty,logs: [:],error: error.localizedDescription,identity: identity,source:nil))
+                loadTask = nil
+                return
+            }
         }
-        do {
-            let prepared = try await task.value
-            guard loadGeneration == token, !Task.isCancelled else { return }
-            _ = try publishLoad(prepared)
-            loadTask = nil
-        } catch is CancellationError {
-            // Cancellation is not damage. The next live client can retry.
-            if loadGeneration == token { loadTask = nil }
-        } catch {
-            guard loadGeneration == token, !Task.isCancelled else { return }
-            var empty = Backup.Document(); empty.hasSettings = false
-            _ = try? publishLoad(PreparedLoad(document: empty,logs: [:],error: error.localizedDescription,identity: identity))
-            loadTask = nil
-        }
+        guard !Task.isCancelled,!ready else { return }
+        var empty = Backup.Document(); empty.hasSettings = false
+        _ = try? publishLoad(PreparedLoad(document:empty,logs:[:],error:LoadFailure.changed.localizedDescription,identity:identity,source:nil))
+    }
+
+    /// Retry is explicit after a failed read. Healthy stores and an existing
+    /// read are never reset; ordinary load clients still share one worker.
+    @MainActor public func retryLoad(prepare: @escaping @Sendable (LoadSnapshot) throws -> PreparedLoad = { try $0.prepare() }) async {
+        guard beginLoadRetry() else { return }
+        await load(prepare:prepare)
+    }
+    private func beginLoadRetry() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard ready,loadError != nil else { return false }
+        ready = false; loadError = nil
+        return true
     }
     private func requireReady() throws {
         guard ready else { throw BackupError.notABackup("The field library is still loading. Try again when loading finishes.") }
+        if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
     }
 
     public func points(for trackID: String) throws -> [TrackPoint] {

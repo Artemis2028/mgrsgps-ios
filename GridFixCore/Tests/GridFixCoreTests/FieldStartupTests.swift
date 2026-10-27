@@ -114,6 +114,135 @@ final class FieldStartupTests: XCTestCase {
         let other = FieldDataStore(directory: dir,loadImmediately: false)
         XCTAssertThrowsError(try other.publishLoad(prepared)); XCTAssertFalse(other.ready)
     }
+    func testPreparedReadRejectsReplacedIndexWithoutPublishingOrOverwritingIt() async throws {
+        let dir = try directory(), doc = try saved()
+        let writer = FieldDataStore(directory:dir); try writer.restore(doc)
+        let store = FieldDataStore(directory:dir,loadImmediately:false), snapshot = store.loadSnapshot()
+        let prepared = try await Task.detached { try snapshot.prepare() }.value
+        var route = doc.graphics[0]; route.name = "New source CAFÉ"
+        try writer.saveGraphic(route)
+        let index = dir.appendingPathComponent(FieldDataDisk.indexName), latest = try Data(contentsOf:index)
+        XCTAssertThrowsError(try store.publishLoad(prepared)) { XCTAssertTrue($0 is FieldDataStore.LoadFailure) }
+        XCTAssertFalse(store.ready); XCTAssertTrue(store.document.graphics.isEmpty)
+        XCTAssertEqual(try Data(contentsOf:index),latest)
+        await store.load()
+        XCTAssertEqual(store.document.graphics.first?.name,route.name)
+        XCTAssertEqual(store.document.trackFiles,doc.trackFiles)
+        XCTAssertEqual(try Data(contentsOf:index),latest)
+    }
+    func testChangedPreparedReadRetriesOnceForConcurrentClientsAndPublishesFreshDataOnMain() async throws {
+        let dir = try directory(), doc = try saved()
+        let writer = FieldDataStore(directory:dir); try writer.restore(doc)
+        let store = FieldDataStore(directory:dir,loadImmediately:false), gate = PreparedFieldReadGate()
+        defer { gate.release() }
+        var names: [String] = [], onMain = true
+        let observation = store.$document.dropFirst().sink { value in
+            onMain = onMain && Thread.isMainThread; names += value.graphics.map(\.name)
+        }
+        defer { observation.cancel() }
+        let first = Task { await store.load { try gate.prepare($0) } }
+        try await wait { gate.entered }
+        let second = Task { await store.load { try gate.prepare($0) } }
+        var route = doc.graphics[0]; route.name = "Fresh route"
+        try writer.saveGraphic(route); gate.release()
+        await first.value; await second.value
+        XCTAssertTrue(store.ready); XCTAssertNil(store.loadError); XCTAssertTrue(onMain)
+        XCTAssertEqual(names,[route.name]); XCTAssertEqual(gate.count,2)
+    }
+    func testLegacyReadRejectsNewV2IndexAndEmptyReadRejectsNewSavedLibrary() async throws {
+        for legacy in [false,true] {
+            let dir = try directory(), doc = try saved()
+            let archive = try Backup.exportZip(doc), legacyURL = dir.appendingPathComponent("field-data-v1.zip")
+            if legacy { try archive.write(to:legacyURL) }
+            let store = FieldDataStore(directory:dir,loadImmediately:false), snapshot = store.loadSnapshot()
+            let prepared = try await Task.detached { try snapshot.prepare() }.value
+            let writer = FieldDataStore(directory:dir)
+            if !legacy { try writer.restore(doc) }
+            var route = doc.graphics[0]; route.name = "V2 wins"
+            try writer.saveGraphic(route)
+            XCTAssertThrowsError(try store.publishLoad(prepared)); XCTAssertFalse(store.ready)
+            await store.load()
+            XCTAssertNil(store.loadError); XCTAssertEqual(store.document.graphics.first?.name,route.name)
+            if legacy { XCTAssertEqual(try Data(contentsOf:legacyURL),archive) }
+        }
+    }
+    func testV2ReadDoesNotTreatUnusedLegacyArchiveAsItsSource() async throws {
+        let dir = try directory(), doc = try saved()
+        try FieldDataStore(directory:dir).restore(doc)
+        let store = FieldDataStore(directory:dir,loadImmediately:false), snapshot = store.loadSnapshot()
+        let prepared = try await Task.detached { try snapshot.prepare() }.value
+        let archive = dir.appendingPathComponent("field-data-v1.zip"), bytes = Data("unrelated retained legacy".utf8)
+        try bytes.write(to:archive)
+        XCTAssertTrue(try store.publishLoad(prepared))
+        XCTAssertEqual(store.document.graphics,doc.graphics); XCTAssertEqual(try Data(contentsOf:archive),bytes)
+    }
+    func testExplicitRetryKeepsUnreadableSourceThenRecoversCompleteLibraryWithoutRestart() async throws {
+        let dir = try directory(), doc = try saved()
+        try FieldDataStore(directory:dir).restore(doc)
+        let index = dir.appendingPathComponent(FieldDataDisk.indexName), valid = try Data(contentsOf:index)
+        let bad = Data("SYNTHETIC unreadable CAFÉ field index".utf8); try bad.write(to:index,options:.atomic)
+        let store = FieldDataStore(directory:dir,loadImmediately:false)
+        await store.load(); XCTAssertNotNil(store.loadError)
+        XCTAssertThrowsError(try store.points(for:doc.tracks[0].id))
+        await store.retryLoad(); XCTAssertNotNil(store.loadError)
+        XCTAssertEqual(try Data(contentsOf:index),bad)
+        try valid.write(to:index,options:.atomic)
+        await store.retryLoad { snapshot in XCTAssertFalse(Thread.isMainThread); return try snapshot.prepare() }
+        XCTAssertTrue(store.ready); XCTAssertNil(store.loadError)
+        XCTAssertEqual(store.document.graphics,doc.graphics); XCTAssertEqual(store.document.trackFiles,doc.trackFiles)
+        XCTAssertEqual(store.document.courseHistory,doc.courseHistory)
+        XCTAssertEqual(try Data(contentsOf:index),valid)
+        await store.retryLoad { _ in XCTFail("A healthy store must not be reset by Retry"); throw CancellationError() }
+        XCTAssertEqual(store.document.graphics,doc.graphics)
+    }
+    func testRepeatedSourceChangesStopAfterBoundedRetriesAndAllowExplicitRetry() async throws {
+        let dir = try directory(), doc = try saved()
+        try FieldDataStore(directory:dir).restore(doc)
+        let index = dir.appendingPathComponent(FieldDataDisk.indexName), bytes = try Data(contentsOf:index)
+        let store = FieldDataStore(directory:dir,loadImmediately:false), reads = FieldReadCounter()
+        await store.load { snapshot in
+            reads.increment(); let prepared = try snapshot.prepare()
+            try bytes.write(to:index,options:.atomic)
+            return prepared
+        }
+        XCTAssertEqual(reads.count,3); XCTAssertTrue(store.ready); XCTAssertNotNil(store.loadError)
+        XCTAssertTrue(store.document.graphics.isEmpty); XCTAssertEqual(try Data(contentsOf:index),bytes)
+        XCTAssertThrowsError(try store.saveGraphic(doc.graphics[0]))
+        await store.retryLoad()
+        XCTAssertNil(store.loadError); XCTAssertEqual(store.document.graphics,doc.graphics)
+    }
+    func testNonRegularIndexIsKeptAndDoesNotBecomeWritableEmptyLibrary() async throws {
+        let dir = try directory(), doc = try saved(), index = dir.appendingPathComponent(FieldDataDisk.indexName)
+        try FileManager.default.createDirectory(at:index,withIntermediateDirectories:false)
+        let marker = index.appendingPathComponent("keep.txt"), bytes = Data("Keep original".utf8)
+        try bytes.write(to:marker)
+        let store = FieldDataStore(directory:dir,loadImmediately:false)
+        await store.load(); XCTAssertNotNil(store.loadError)
+        XCTAssertThrowsError(try store.saveGraphic(doc.graphics[0]))
+        await store.retryLoad(); XCTAssertNotNil(store.loadError)
+        XCTAssertEqual(try Data(contentsOf:marker),bytes)
+    }
+}
+
+private final class PreparedFieldReadGate: @unchecked Sendable {
+    private let lock = NSLock(), semaphore = DispatchSemaphore(value:0)
+    private var reads = 0
+    var entered: Bool { count > 0 }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return reads }
+    func release() { semaphore.signal() }
+    func prepare(_ snapshot: FieldDataStore.LoadSnapshot) throws -> FieldDataStore.PreparedLoad {
+        XCTAssertFalse(Thread.isMainThread)
+        let prepared = try snapshot.prepare()
+        lock.lock(); reads += 1; let held = reads == 1; lock.unlock()
+        if held, semaphore.wait(timeout:.now()+10) != .success { throw CancellationError() }
+        return prepared
+    }
+}
+private final class FieldReadCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.lock(); defer { lock.unlock() }; return value }
+    func increment() { lock.lock(); value += 1; lock.unlock() }
 }
 
 private final class FieldReadGate: @unchecked Sendable {
