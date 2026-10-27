@@ -125,6 +125,12 @@ final class FieldAppStores {
         let seedFieldFixtures = seedFixtures
         let fieldStore = FieldDataStore(directory: directory,loadImmediately: seedFieldFixtures)
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestPracticeLog"),!ProcessInfo.processInfo.arguments.contains("-keepUITestData") {
+            var fixture = Backup.Document(); fixture.hasSettings = false
+            fixture.courseHistory = [.init(name:"Long course",points:10_000,started:1000,total:10_000_000,splits:Array(repeating:1000,count:10_000))]
+            _ = try? fieldStore.restore(fixture)
+            if ProcessInfo.processInfo.arguments.contains("-uiTestPracticeLogNight") { settingsStore.nightMode = true }
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestTAKSharing") {
             if !waypointStore.waypoints.contains(where: { $0.name == "IOS OP CAFÉ" }) {
                 _ = waypointStore.add(.init(name: "IOS OP CAFÉ", lat: 35.1388, lon: -78.9914, folder: "TAK INTEROP", affiliation: "hostile"))

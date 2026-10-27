@@ -109,3 +109,11 @@ saved waypoint order rather than the library's favourite/distance sort. The
 large-library UI regression starts a50-point folder from5,000 saved points and
 verifies its first checkpoint and unchanged library counts after ending it;
 see the release1.1.0 inventory for scoped evidence and remaining gates.
+
+
+Completed results keep totals in the summary and expose every saved split in
+a native scrolling list. First/Last buttons jump within the complete log; they
+do not cap or sample it. Accessibility-size checkpoint/time rows stack. Native
+10,000-split day and largest-text night workflows verify both ends and relaunch,
+and the real-location two-checkpoint completion/history regression passes.
+Physical long-course scoring and active-progress performance remain separate.

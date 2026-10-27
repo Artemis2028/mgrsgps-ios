@@ -116,7 +116,7 @@ local to avoid cancelling that run.
 | Maps/offline | Android raster catalog/key gating, USGS area download/resume, raster MBTiles, grid/shading, elevation caching/downloads and contours; ruler/area measurement and save-as-area; map lasso with freehand/corner selection, highlights, explicit Hide and confirmed Delete; persistent map-button visibility with active escape controls and coordinate Go to; day/night leave-map completion and offline relaunch regression; worker-coalesced camera/preferences with failure/retry and consistent offline network policy; atomic area Rename, cache-bypassing Update with persistent refresh retry, stored tile counts/size/update date and overlap priority | Broader full-app text-size and physical lasso/offline/storage-pressure validation; polar UTM measurements are labeled as extrapolated |
 | Terrain visibility | Elevation/slope readouts, Android LOS/curvature and uncertainty policy, route profiles/charts, 1/2/4 km day/night viewsheds, offline DEM sampling and cancellation | Physical terrain comparison, outdoor legibility and battery validation; vegetation/structures are outside the terrain model |
 | Waypoint library | Coordinates, cross-section search, persisted favourites, distance/name/newest sorting, mixed waypoint/graphic/track selection, visibility swaps, confirmed batch deletion, folder creation/rename/merge/remove, map focus and local persistence; cached background search/order with generation-safe mixed selection; durable worker-prepared map/library editor and ordinary favourite/visibility/folder/mixed-batch saves, visible failure/retry, first-target selection and unreadable-file protection; compact-height phone library controls, staged folder action choices; explicit retry, preserve/share and confirmed archive-before-fresh recovery with retained history | Dense-map rendering and wider accessibility/performance profiling; physical large-library storage checks; physical field validation and storage/interchange limits below |
-| Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery | Saved-log eager validation/read cost and crash-orphan maintenance; dense/very-large-library profiling and long-course progress/splits rendering; physical course/guide validation |
+| Tracks/practice | Background recording/recovery with worker-staged durable finalization, independent immutable point logs and atomic index, legacy migration, saved tracks/overlays, moving folders, temporary viewing, confirmed deletion, reverse backtrack routes with endpoint-preserving simplification, GPX, random/folder practice courses, checkpoint navigation lock, strict arrival scoring, persisted pause/recovery and split/results history with worker-staged course progress, random checkpoints, target locks and result finalization, stable retry and duplicate-free recovery; compact result summary and complete native scrolling split log with first/last viewport controls | Saved-log eager validation/read cost and crash-orphan maintenance; dense/very-large-library profiling and long-course active-progress validation; physical course/guide validation |
 | Interchange/sharing | GPX/CSV/GeoJSON/KML/KMZ/ATAK import preview and native Files export, password-protected single-file export/import and track GPX, Android-compatible retry IDs and ordered additive persistence, document associations, route-card text/A4 PDF preview/Files sharing, Android streaming ZIP backup contract and optional compatible password protection, guide preferences in backup, bounded ZIP64 metadata/descriptor support, coordinated mapped reads, cancellable background backup preparation, revision-checked staged backup/interchange writes and confirmed-import progress; cancellable worker-prepared library/single-track exports | Very-large-library read/export/rendering profiling and full hosted confirmation; physical large-library performance checks; physical provider/Open In and ATAK client validation, storage-pressure validation and physical PDF sharing/printing; active sessions/offline maps remain separate from v1 backup; optional quiet-boundary geometry extension and Android compatibility fixtures pass |
 | Field tools | Resection/intersection worksheets, per-point north-reference conversion, safe ray solver and angle-of-cut warnings; waypoint projection; local/Zulu sun/moon planning with date controls; TN/GN/MN declination diagram; map-menu course/LOS entry points; offline seven-topic Field Reference from Settings and Map tools | Physical field/compass/model comparisons; astronomy retains Android's approximate model and 24-hour local-day moon-scan policy |
 | Live TAK (user follow-on) | Native CoT/TCP/mutual TLS, PKCS #12/DER/PEM CA import, explicit CA/name/pin verification and trust reset, Keychain credentials, default-off position/folder sharing, presence/pings/reconnect, per-server offline withdrawal journal, separate remote layer/list/map focus; real iOS ↔ Android positions, shared point/drawing, deletes and reconnect confirmed through local OpenTAKServer; shared 14-event Android fixtures and hosting-kit CA bag compatibility; native device-key certificate sign-in with explicit bootstrap trust, ATAK link entry and transactional credential replacement, client certificate UTC dates/fingerprint/30-day notices and manual renewal preserving active sessions/sharing; separate bounded read-only remote scene on both watches | Live renewal verification and crash-time orphan-key recovery, unsupported certificate-container forms, official TAK Server/ATAK/iTAK and sustained reliability checks, Wear paired named-lane crossings and physical background checks; see [evidence and gaps](tak-server-interoperability.md) and [certificate sign-in](tak-certificate-enrollment.md) |
@@ -1227,3 +1227,39 @@ claim of whole-app physical performance or all storage paths being audited.
 The previous waypoint-card candidate and this course-cache follow-up stay
 local while full107 runs on02d67f6. No active CI was cancelled or duplicated;
 no TAK, server, watch-wire or credentials changed.
+
+
+### Native complete practice split logs, 27 October
+
+The course startup/Continue audit matches Android: Continue dismisses the
+progress panel, while scoring and optional haptic guidance remain separate.
+No startup/resume semantics changed. The audit found that completed result
+splits were all instantiated inside one eager summary VStack. Totals and point
+counts now remain compact in the summary, with an explicit View all splits
+link to a native List. Every saved split remains present. First/Last controls
+change only the viewport, and accessibility-size rows stack checkpoint/time.
+The summary is an explicit accessibility container so its identifier does not
+replace the split link's own identity. This also retains the existing summary
+container used by the real-location completion workflow.
+
+A DEBUG-only synthetic history fixture uses the existing supported 10,000-split
+limit. Both native log workflows pass: ordinary day and actual global
+AccessibilityXXXL night, reaching CP 1 and CP 10,000, returning to the first,
+and reopening the complete log after a worker-loaded relaunch. The existing
+real Core Location two-checkpoint scoring/summary/history workflow also passes
+on the same product source and proper practice-location feed. These are three
+distinct UI workflows, not a claim of scoring 10,000 physical checkpoints.
+Initial `/tmp/mgrsgps-practice-log-native.xcresult` retains two accessibility-ID
+failures (the new link inherited the summary identifier); its scoring test
+passed. The explicit container correction passes all three in
+`/tmp/mgrsgps-practice-log-container-final.xcresult`.
+
+Final first/last day/night and live-scored summary screenshots are inspected.
+Unsigned phone/watch/widget Release
+(`/tmp/mgrsgps-practice-log-container-release.log`) and eight harness checks
+pass. No shared-core/disk behavior changed, so no fresh core-suite claim is
+made. All local parents ended naturally; owned simulator and practice feed
+are off. Physical long-course scoring/battery checks and active-progress
+profiling remain open. This follows held af90cfc/8aef669 and stays local while
+hosted107 runs on02d67f6. No CI cancelled, duplicate started, TAK/server or
+credential changes occurred.

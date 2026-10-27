@@ -143,7 +143,47 @@ struct PracticeCourseView: View {
         VStack(alignment: .leading,spacing: 8) {
             Text(PracticeCourse.time(result.total)).font(.largeTitle.monospacedDigit())
             Text("\(result.points) points · \(result.name)")
-            ForEach(Array(result.splits.enumerated()),id: \.offset) { i,split in Text("CP \(i+1) · \(PracticeCourse.time(split))") }
-        }.accessibilityIdentifier("practice-result")
+            NavigationLink {
+                PracticeSplitsView(result:result)
+            } label: {
+                Text("View all \(result.splits.count) splits")
+            }.accessibilityIdentifier("practice-open-splits")
+        }.accessibilityElement(children:.contain).accessibilityIdentifier("practice-result")
+    }
+}
+
+/// A native List keeps long result logs out of the eager summary Form row.
+/// Every saved split is available; jumps change the viewport, never the data.
+private struct PracticeSplitsView: View {
+    let result: Backup.CourseResult
+    @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var palette: FieldPalette { FieldPalette(night:settings.nightMode) }
+    var body: some View {
+        ScrollViewReader { scroll in
+            List {
+                ForEach(result.splits.indices,id: \.self) { index in
+                    let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:6)) : AnyLayout(HStackLayout())
+                    layout {
+                        Text("CP \(index + 1)").font(.headline)
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                        Text(PracticeCourse.time(result.splits[index])).monospacedDigit()
+                    }.accessibilityElement(children:.combine)
+                        .accessibilityIdentifier("practice-split-\(index + 1)").id(index)
+                        .listRowBackground(settings.nightMode ? Color.black : Color(white:0.12))
+                }
+            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                .safeAreaInset(edge:.top,spacing:0) {
+                    HStack {
+                        Button("First") { scroll.scrollTo(0,anchor:.top) }
+                            .frame(minHeight:44).accessibilityLabel("Go to first split").accessibilityIdentifier("practice-splits-first")
+                        Spacer()
+                        Button("Last") { if let last = result.splits.indices.last { scroll.scrollTo(last,anchor:.bottom) } }
+                            .frame(minHeight:44).accessibilityLabel("Go to last split").accessibilityIdentifier("practice-splits-last")
+                    }.padding(.horizontal,20).disabled(result.splits.isEmpty)
+                        .fieldContentSurface(night:settings.nightMode)
+                }
+        }.foregroundStyle(palette.ink).tint(palette.accent)
+            .navigationTitle("Checkpoint splits").navigationBarTitleDisplayMode(.inline)
     }
 }
