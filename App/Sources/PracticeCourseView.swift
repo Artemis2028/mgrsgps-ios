@@ -14,15 +14,16 @@ struct PracticeCourseView: View {
     @State private var folder = ""
     @State private var ending: String?
     @State private var showReset = false
+    @State private var eligibleFolderNames: [String] = []
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
     private var rowBackground: Color { settings.nightMode ? .black : Color(white: 0.12) }
-    private var eligibleFolderNames: [String] {
-        // Count once across the library rather than allocating a filtered
-        // waypoint array for every folder on each location-driven redraw.
-        // Hidden points still count, and the saved folder order is retained.
+    private func refreshEligibleFolders(points: [Waypoint],folders: [FolderInfo]) {
+        // Android remembers this by waypoints/folders. Rebuild only for those
+        // publications, never for GPS or the active course's elapsed timer.
+        // Hidden points still count; keep the saved folder and checkpoint order.
         var counts: [String:Int] = [:]
-        for point in waypoints.waypoints { counts[point.folder,default: 0] += 1 }
-        return waypoints.folders.compactMap { counts[$0.name,default: 0] >= 2 ? $0.name : nil }
+        for point in points { counts[point.folder,default: 0] += 1 }
+        eligibleFolderNames = folders.compactMap { counts[$0.name,default: 0] >= 2 ? $0.name : nil }
     }
     var body: some View {
         let eligible = mode == 1 ? eligibleFolderNames : []
@@ -112,6 +113,8 @@ struct PracticeCourseView: View {
                 Button("Keep saved session") { showReset = false }
             }
         }.tint(palette.accent).environment(\.fieldNight,settings.nightMode).fieldSheetAppearance()
+            .onReceive(waypoints.$waypoints) { refreshEligibleFolders(points:$0,folders:waypoints.folders) }
+            .onReceive(waypoints.$folders) { refreshEligibleFolders(points:waypoints.waypoints,folders:$0) }
     }
     @ViewBuilder private func progress(_ active: PracticeCourse) -> some View {
         Section(active.paused ? "Course paused" : "Course · \(active.name)") {

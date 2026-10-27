@@ -1,6 +1,36 @@
 import XCTest
 
 final class LargeLibraryWorkflowTests: XCTestCase {
+    func testLargeFolderCourseKeepsSavedCheckpointOrderAndLibraryCount() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting","-uiTestLargeLibrary","-uiTestBoundaryMap","-startTab","navigate"]
+        app.launch()
+        let open = app.buttons["open-practice"]
+        XCTAssertTrue(open.waitForExistence(timeout:20)); tapNativeMenuItem(open)
+        selectNativeSegment(app.segmentedControls.buttons["From folder"])
+        tapNativeMenuItem(app.buttons["practice-folder"])
+        let folder = app.buttons["Folder 099"]
+        for _ in 0..<24 {
+            if folder.exists,folder.isHittable,folder.frame.maxY < app.windows.firstMatch.frame.maxY - 35 { break }
+            app.collectionViews.allElementsBoundByIndex.last?.swipeUp()
+        }
+        XCTAssertTrue(folder.waitForExistence(timeout:5)); folder.tap()
+        let start = app.buttons["practice-start"]
+        XCTAssertEqual(XCTWaiter.wait(for:[XCTNSPredicateExpectation(predicate:NSPredicate(format:"enabled == true"),object:start)],timeout:10),.completed)
+        tapNativeMenuItem(start)
+        let progress = app.staticTexts["practice-progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout:15)); XCTAssertEqual(progress.label,"CP 1 of 50")
+        XCTAssertTrue(app.staticTexts["Point 0099"].exists,"The favourite Point 4999 must not reorder course checkpoints")
+        let image = XCTAttachment(screenshot:XCUIScreen.main.screenshot()); image.name = "large-folder-course-order"; image.lifetime = .keepAlways; add(image)
+        let end = app.buttons["practice-end"]
+        for _ in 0..<8 { if end.isHittable { break }; app.collectionViews.firstMatch.swipeUp() }
+        tapNativeMenuItem(end); tapNativeMenuItem(app.buttons["End course"])
+        XCTAssertTrue(start.waitForExistence(timeout:15)); tapNativeMenuItem(app.buttons["Close"])
+        app.buttons["Waypoints"].tap()
+        let count = app.staticTexts["library-listed-count"]
+        XCTAssertEqual(XCTWaiter.wait(for:[XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS %@","5,000 waypoints · 1,000 graphics · 0 tracks"),object:count)],timeout:15),.completed)
+    }
     private func reveal(_ element: XCUIElement,in app: XCUIApplication) {
         for _ in 0..<24 {
             let window = app.windows.firstMatch.frame, top = app.windows.firstMatch.frame.minY + 65, bottom = app.windows.firstMatch.frame.maxY - 105

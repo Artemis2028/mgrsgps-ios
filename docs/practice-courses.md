@@ -100,3 +100,12 @@ pass on iOS 26.2 in `/tmp/gridfix-practice-eligibility-ui.xcresult`; the night
 progress/coordinate screenshot was inspected. Final phone/watch/widget Release
 passes in `/tmp/gridfix-practice-eligibility-release.log`. This does not establish
 very-large course-history performance or physical/background scoring validation.
+
+
+Folder eligibility follows Android's cached folder/waypoint inputs. GPS and
+elapsed-time redraws no longer rescan the whole library. Hidden points count,
+a folder needs at least two points, and course checkpoint order remains the
+saved waypoint order rather than the library's favourite/distance sort. The
+large-library UI regression starts a50-point folder from5,000 saved points and
+verifies its first checkpoint and unchanged library counts after ending it;
+see the release1.1.0 inventory for scoped evidence and remaining gates.
