@@ -1609,3 +1609,15 @@ final30-type contact sheet and actual viewshed captures are inspected. Unsigned
 phone/watch/widget Release and ten harness checks pass; no new paired-watch or
 physical-device claim. All local parents exited naturally; owned simulator/feed
 off. No TAK server or credential changes.
+
+### Candidate pushed; full hosted109 live, 27 October
+
+Pushed all held live-completion/source-write/orphan/pace follow-ups and108
+activation/scroll repairs plus night label contrast as
+`a002f17c2abd1833d5b5e614d6f3e02bf9ae808c`. Same draft PR updated.
+Hosted10940527505812 is confirmed live: map122270958719,
+field122270958991, library122270959199. All108 jobs were terminal before
+this push; no live CI cancelled or duplicate started. No current-source
+hosted success is claimed yet. All local parents ended naturally and owned
+simulators/fake feeds are off. Main parity continues; TAK remains off and
+real enrolled exchange/renewal stays an open coordinated-test gate.
