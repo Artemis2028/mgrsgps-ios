@@ -12,13 +12,13 @@ Wear OS and watchOS share this functional scope. Native controls may differ to f
 | Phone connection | Cached target/settings remain usable with their age and honest connection status |
 | Map | Read-only interactive map with pan/zoom/recenter, fresh watch position, cached visible waypoints and field geometry, sync age and explicit omission/simplification counts |
 | Route leg labels | Complete routes use ordinary numbers; simplified routes use original leg ranges, with a named range summary in map info. Legacy simplified caches remain unnumbered |
-| Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; no watch crossing detector or haptic lane guidance |
+| Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; opted-in foreground wrist crossing alerts using own precise fresh GPS, named limits and explicit rearm after suspension |
 | TAK layer | Separate read-only contacts, markers, lines and areas; complete replacements, bounded geometry, explicit omissions and expiry retained across relaunch |
 | Night mode | Local Day/Night/Follow phone choice, independent of the precision override |
 
-Digit count describes coordinate formatting, not GPS accuracy. Both platforms display reported GPS accuracy separately. Neither companion currently promises a heading compass, haptic navigation, background tracking or navigation while the screen is locked. Those require their own platform-specific implementation and physical-device validation.
+Digit count describes coordinate formatting, not GPS accuracy. Both platforms display reported GPS accuracy separately. Foreground wrist lane alert owners are implemented on both platforms; watchOS runtime checks pass and Wear runtime remains open (see watch-wrist-lanes.md). Independent heading/route guidance, background tracking and navigation while the screen is locked remain implementation work and need physical-device validation.
 
-Small-screen simulator checks cover a 40 mm Apple Watch and a 192 dp round Wear OS device. Apple phone/watch application-context delivery has been exercised with a paired simulator. Wear OS rendering and freshness checks use an emulator; paired physical Data Layer delivery remains to be verified. Simulator evidence does not replace field, battery, permission or radio testing.
+Small-screen simulator checks cover a 40 mm Apple Watch and a 192 dp round Wear OS device. Apple phone/watch application-context delivery has been exercised with a paired simulator. Wear OS rendering, freshness and populated scene/phone-guidance Data Layer delivery have been checked with the paired emulators; physical Data Layer delivery remains to be verified. Simulator evidence does not replace field, battery, permission or radio testing.
 
 Current map implementation differences:
 

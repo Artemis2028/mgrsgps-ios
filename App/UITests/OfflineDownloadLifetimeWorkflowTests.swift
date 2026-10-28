@@ -45,7 +45,7 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
         tab("Position", app: app, night: night)
         let release = app.buttons["offline-lifetime-release"]
         XCTAssertTrue(release.waitForExistence(timeout: 8))
-        XCTAssertFalse(mapTool(app, "map-layers").isHittable)
+        XCTAssertFalse(app.buttons["map-layers"].isHittable)
         let status = app.staticTexts["offline-lifetime-status"]
         XCTAssertEqual(status.label, "Download active")
         capture(night ? "offline-download-away-active-night" : "offline-download-away-active-day")

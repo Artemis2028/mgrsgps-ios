@@ -47,7 +47,7 @@ final class NavigationTargetWorkflowTests: XCTestCase {
     func testMilitaryTargetAppearsInChooserAndNavigationInNightMode() {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestWatch","-uiTestWatchMap","-startTab","position"]
-        app.launch(); app.buttons["Settings"].tap()
+        app.launch(); tapNativeMenuItem(app.buttons["Settings"],revealing:app.navigationBars["Settings"])
         let night = app.switches["Night mode"]
         XCTAssertTrue(night.waitForExistence(timeout:5)); setNativeSwitch(night,to:true)
         app.buttons["Done"].tap(); app.buttons["Navigate"].tap()

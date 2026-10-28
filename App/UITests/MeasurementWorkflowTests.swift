@@ -31,7 +31,7 @@ final class MeasurementWorkflowTests: XCTestCase {
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: distance)
         XCTAssertEqual(XCTWaiter.wait(for: [moved],timeout: 5),.completed)
         XCTAssertTrue(app.staticTexts["ruler-bearings"].label.contains("BACK")); capture("map-ruler-day")
-        mapTool(app, "Toggle map night mode").tap(); capture("map-ruler-night")
+        mapTool(app, "Toggle map night mode").tap(); closeMapOptions(app); capture("map-ruler-night")
         app.buttons["ruler-reset"].tap()
         XCTAssertEqual(distance.label,"0 m")
         app.buttons["ruler-done"].tap(); XCTAssertFalse(distance.exists)

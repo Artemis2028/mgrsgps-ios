@@ -4,10 +4,12 @@ final class MapLayerWorkflowTests: XCTestCase {
     private var app: XCUIApplication!
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-uiTestOfflineMap", "-startTab", "map"]
         app.launch()
     }
+    override func tearDownWithError() throws { XCUIDevice.shared.orientation = .portrait }
     func testCompactMapGridDisclosureAndAnimatedOptionsInPortraitAndLandscape() {
         let grid = app.buttons["map-centre-summary"]
         XCTAssertTrue(grid.waitForExistence(timeout: 10))
@@ -25,8 +27,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         options.tap()
         XCTAssertTrue(app.scrollViews["map-options-rail"].waitForExistence(timeout: 5))
         capture("map-options-expanded-portrait")
-        options.tap()
-        XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
+        closeMapOptions(app)
         capture("map-options-collapsed-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
@@ -37,8 +38,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
         mapTool(app, "Toggle map night mode").tap()
         capture("map-options-night-landscape")
-        options.tap()
-        XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
+        closeMapOptions(app)
         XCTAssertTrue(grid.exists)
     }
     private func capture(_ name: String) {
@@ -96,7 +96,7 @@ final class MapLayerWorkflowTests: XCTestCase {
     }
     private func openLayers() {
         let button = mapTool(app, "map-layers")
-        XCTAssertTrue(button.waitForExistence(timeout: 10)); button.tap()
+        XCTAssertTrue(button.waitForExistence(timeout: 10)); tapNativeMenuItem(button,revealing:app.navigationBars["Map layers"])
         XCTAssertTrue(app.navigationBars["Map layers"].waitForExistence(timeout: 5))
     }
     private func toggle(_ name: String) {
