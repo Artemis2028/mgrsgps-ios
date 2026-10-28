@@ -1730,3 +1730,29 @@ profile.enrollmentPort; note acknowledged, no wire change needed. No server GO,
 infrastructure/credential changes, merge or release. Main saved-log startup
 read costs, wider accessibility, independent watch features and physical/genuine
 enrolled-TAK gates remain open; an unchanged handoff is not a main-task blocker.
+
+### Reuse verified saved-track statistics,28 October
+
+Local finished-log references now retain optional versioned summary receipts
+bound to exact point-file SHA-256 and count/distance. Every startup file checksum
+still runs; matching receipts skip row decoding and geodesic recomputation.
+Missing/malformed/damaged/future receipts fall back to strict parsing. Successful
+legacy reads gain receipts in memory, saved only on the next confirmed edit;
+startup remains read-only. Changed/missing bytes still fail opening/refuse writes
+and preserve original files. External backups/TAK/watch formats stay unchanged.
+
+All538 core cases,37 scoped native startup/maintenance/backtrack/staged-restore/
+backup cases and three native UI workflows pass. The UI covers selected-track
+detail/menu Files export at night and day/night damaged-library retry/relaunch
+with recovered route/two-point-track access. Night preview/library captures
+inspected; current unsigned phone/watch/widget Release and ten harness checks
+pass. All parents exit naturally; owned simulator/feed off. One synthetic warm
+20,000-point read observes0.00052s cached versus0.06782s uncached; parser-call
+assertions, not machine-dependent timing thresholds, prove the skipped pass.
+[Receipt semantics and validation](track-summary-receipts.md).
+
+This is a CPU/startup validation milestone, not on-demand point-file loading:
+eager mapping/hash reads, dense rendering and physical profiling remain open.
+The candidate stays local while hosted11040729291858 on98c5c17 has three live
+jobs. Same draft PR updated with held-source status; no active CI cancellation,
+server GO, infrastructure/credential change, merge or release.

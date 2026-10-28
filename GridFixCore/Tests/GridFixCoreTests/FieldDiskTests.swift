@@ -15,8 +15,8 @@ final class FieldDiskTests: XCTestCase {
     }
     private func reference(_ dir: URL,_ id: String) throws -> URL {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent(FieldDataDisk.indexName))) as? [String: Any])
-        let logs = try XCTUnwrap(json["logs"] as? [String: [String: String]])
-        return dir.appendingPathComponent(FieldDataDisk.logsName).appendingPathComponent(try XCTUnwrap(logs[id]?["name"]))
+        let logs = try XCTUnwrap(json["logs"] as? [String: [String: Any]])
+        return dir.appendingPathComponent(FieldDataDisk.logsName).appendingPathComponent(try XCTUnwrap(logs[id]?["name"] as? String))
     }
     private func wait(_ condition: () -> Bool) async throws {
         let end = Date().addingTimeInterval(5)

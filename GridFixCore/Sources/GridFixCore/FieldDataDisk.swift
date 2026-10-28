@@ -7,7 +7,45 @@ enum FieldDataDisk {
     static let indexName = "field-data-v2.json"
     static let logsName = "field-track-logs-v2"
     private static let indexLimit = 64 * 1024 * 1024
-    struct Log: Codable, Sendable { let name: String; let sha256: String }
+    struct Log: Codable, Sendable {
+        let name: String
+        let sha256: String
+        var summary: Summary? = nil
+        private enum CodingKeys: String, CodingKey { case name,sha256,summary }
+        init(name: String,sha256: String,summary: Summary? = nil) {
+            self.name = name; self.sha256 = sha256; self.summary = summary
+        }
+        init(from decoder: Decoder) throws {
+            let fields = try decoder.container(keyedBy:CodingKeys.self)
+            name = try fields.decode(String.self,forKey:.name)
+            sha256 = try fields.decode(String.self,forKey:.sha256)
+            // A damaged/unknown optional cache is expendable. The filename,
+            // byte checksum and original point validation remain mandatory.
+            summary = try? fields.decode(Summary.self,forKey:.summary)
+        }
+    }
+    struct Summary: Codable, Sendable {
+        // Invalidate receipts whenever local point parsing or summary math changes.
+        private static let validationVersion = 1
+        let version: Int
+        let count: Int
+        let distanceM: Double
+        let receipt: String
+        init(_ value: TrackCodec.LocalSummary,sha256: String) {
+            version = Self.validationVersion; count = value.count; distanceM = value.distanceM
+            receipt = Self.receipt(sha256:sha256,count:count,distanceM:distanceM)
+        }
+        func matches(sha256: String) -> Bool {
+            version == Self.validationVersion && count >= 0 && distanceM.isFinite && distanceM >= 0 &&
+            (count > 1 || distanceM == 0) &&
+            receipt == Self.receipt(sha256:sha256,count:count,distanceM:distanceM)
+        }
+        private static func receipt(sha256: String,count: Int,distanceM: Double) -> String {
+            // Bind the cached statistics to exact validated point bytes and a
+            // parser version. This is a corruption check, not authentication.
+            digest(Data("GridFixTrackSummary:\(validationVersion)\n\(sha256)\n\(count)\n\(distanceM.bitPattern)\n".utf8))
+        }
+    }
     private struct Index: Codable {
         var format = "GridFixFieldStore"
         var version = 2
@@ -18,12 +56,13 @@ enum FieldDataDisk {
     private static func validName(_ name: String) -> Bool {
         name.hasSuffix(".txt") && TrackCodec.validID(String(name.dropLast(4)))
     }
-    static func read(_ index: URL) throws -> (Backup.Document,[String: Log]) {
+    static func read(_ index: URL,summarize: (Data) throws -> TrackCodec.LocalSummary = TrackCodec.summarizeLocal) throws -> (Backup.Document,[String: Log]) {
         let size = try index.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
         guard size <= indexLimit else { throw BackupError.notABackup("Saved field index exceeds its metadata limit") }
         let envelope = try JSONDecoder().decode(Index.self,from: Data(contentsOf: index,options: .mappedIfSafe))
         guard envelope.format == "GridFixFieldStore", envelope.version == 2 else { throw BackupError.notABackup("Unsupported saved field index") }
         var document = try Backup.decodeManifest(envelope.manifest)
+        var logs = envelope.logs
         try Backup.validate(document,includingTrackFiles: false)
         guard Set(envelope.logs.keys) == Set(document.tracks.map(\.id)) else { throw BackupError.notABackup("Saved track index is incomplete") }
         let directory = index.deletingLastPathComponent().appendingPathComponent(logsName,isDirectory: true)
@@ -36,13 +75,19 @@ enum FieldDataDisk {
             guard attributes.isRegularFile == true, attributes.isSymbolicLink != true else { throw BackupError.notABackup("Invalid saved track file") }
             let bytes = try Data(contentsOf: path,options: .mappedIfSafe)
             guard digest(bytes) == ref.sha256 else { throw BackupError.notABackup("Saved track checksum failed; original data was kept") }
-            let summary = try TrackCodec.summarizeLocal(bytes)
+            let summary: Summary
+            if let cached = ref.summary,cached.matches(sha256:ref.sha256) { summary = cached }
+            else {
+                summary = Summary(try summarize(bytes),sha256:ref.sha256)
+                logs[id]?.summary = summary
+            }
             document.trackFiles[id] = bytes
-            // Retain the old ZIP reader's authoritative recomputation policy.
+            // Verified point statistics override stale manifest metadata, as
+            // before; unchanged validated bytes need no second parse/distance pass.
             document.tracks[i].pointCount = summary.count
             document.tracks[i].distanceM = summary.distanceM
         }
-        return (document,envelope.logs)
+        return (document,logs)
     }
     static func prepare(_ document: Backup.Document,previous: Backup.Document,logs: [String: Log],index: URL,source: FieldDataReadSource,sourceDigest: String?) throws -> PreparedFieldData {
         try Task.checkCancellation()
@@ -63,14 +108,14 @@ enum FieldDataDisk {
                     // edits must not parse/hash/rewrite the whole finished library.
                     next[track.id] = ref
                 } else {
-                    _ = try TrackCodec.summarizeLocal(bytes)
+                    let summary = try TrackCodec.summarizeLocal(bytes)
                     let hash = digest(bytes)
                     // Never reuse an obsolete filename: post-commit deletion cannot
                     // remove a later restore, even when IDs/point bytes are identical.
                     let name = UUID().uuidString.lowercased()+".txt"
                     let file = try PreparedAtomicFile(data: bytes,destination: directory.appendingPathComponent(name),lockCompatible: true,synchronize: true)
                     try Task.checkCancellation(); try PreparedFieldData.install(file)
-                    installed.append(file.destination); next[track.id] = .init(name: name,sha256: hash)
+                    installed.append(file.destination); next[track.id] = .init(name: name,sha256: hash,summary:Summary(summary,sha256:hash))
                 }
             }
             let envelope = Index(manifest: try Backup.encodeManifest(document),logs: next)
