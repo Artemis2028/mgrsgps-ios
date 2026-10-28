@@ -31,8 +31,10 @@ removed. Day selected-tab contrast is repaired. Scoped validation is recorded
 there; full current-source hosted confirmation remains open. Hosted110 is now
 terminal: map47/library59 pass; field exceeds its two-hour job allowance with
 Files/export failures and skipped dedicated background suites.
-Claude's28 October note also identifies unreleased1.2 settings-restore behavior
-for missing keys as a separate follow-up beyond the pinned1.1.0 baseline.
+The29 October source audit confirms the newer Android missing-key settings
+restore behavior was already implemented in0d84a55. All production restore entry
+points retain key presence; existing core/native tests pass. It is not an open
+gap. See [settings-presence audit](settings-presence-audit.md).
 Latest held storage milestone: [on-demand saved-track reads](track-on-demand.md)
 now cover normal startup, retry and recorder entry points for validated references.
 551 core cases pass; the full356-case native suite has four opt-in skips/no

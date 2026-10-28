@@ -35,9 +35,10 @@ then a valid current-position true/magnetic CLHeading pair, then bundled WMM.
 G–M is declination minus grid convergence. Missing iOS references remain absent;
 removing explanatory text does not substitute zero. No magnetic math changed.
 
-Claude also flagged a separate unreleased1.2 settings-restore change: missing
-keys preserve current settings instead of release1.1.0 defaults. That is an open
-follow-up, not part of this UI milestone or an iOS platform restriction.
+Claude also flagged unreleased1.2 missing-key restore behavior. A subsequent
+source audit confirms iOS already implemented it in0d84a55, with passing core
+and native restore tests; see settings-presence-audit.md. No duplicate port is
+needed. This correction does not change the map UI milestone.
 
 ## Validation
 
