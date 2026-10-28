@@ -169,9 +169,14 @@ final class WaypointWorkflowTests: XCTestCase {
         XCTAssertEqual(app.staticTexts["map-field-overlays"].label, "1 routes · 1 tracks")
         capture("routes-tracks-map")
         app.terminate()
-        app.launchArguments += ["-keepUITestData"]
+        app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]
         app.launch()
         XCTAssertTrue(app.buttons["edit-waypoint-Patrol WP 2"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Map"].tap(); app.buttons["Show all visible data"].tap()
+        let reopened = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","1 routes · 1 tracks"),object:app.staticTexts["map-field-overlays"])
+        XCTAssertEqual(XCTWaiter.wait(for:[reopened],timeout:10),.completed)
+        capture("routes-tracks-map-deferred")
+        app.tabBars.buttons["Waypoints"].tap()
         app.buttons["open-field-library"].tap()
         app.buttons["track-Recorded walk"].tap()
         let visibility = app.switches["Visible on map"]
@@ -185,6 +190,7 @@ final class WaypointWorkflowTests: XCTestCase {
         let updated = NSPredicate(format: "label == %@", "1 routes · 0 tracks")
         expectation(for: updated, evaluatedWith: app.staticTexts["map-field-overlays"])
         waitForExpectations(timeout: 5)
+        capture("routes-tracks-map-deferred-hidden")
     }
 
     func testRouteCreationAndRepeatedWaypointGeneration() {

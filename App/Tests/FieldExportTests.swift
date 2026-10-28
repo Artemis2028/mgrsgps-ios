@@ -4,6 +4,65 @@ import GridFixCore
 
 @MainActor
 final class FieldExportTests: XCTestCase {
+    private func deferredFixture() async throws -> (URL,FieldDataStore,Backup.TrackMeta,Data) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        addTeardownBlock { try? FileManager.default.removeItem(at:root) }
+        let (track,bytes) = try TrackCodec.imported(name:"Deferred CAFÉ patrol",points:[.init(lat:24,lon:54),.init(lat:24.001,lon:54,time:1000),.init(lat:24.001,lon:54.002,time:2000)],now:1,folder:"Base")
+        var doc = Backup.Document(tracks:[track],trackFiles:[track.id:bytes]); doc.hasSettings = false
+        _ = try FieldDataStore(directory:root).restore(doc)
+        let field = FieldDataStore(directory:root,loadImmediately:false), snapshot = field.loadSnapshot()
+        let prepared = try await Task.detached { try snapshot.prepare(deferTrackContents:true) }.value
+        XCTAssertTrue(try field.publishLoad(prepared)); XCTAssertNil(field.loadError)
+        XCTAssertTrue(field.document.trackFiles.isEmpty); XCTAssertEqual(field.document.localTrackFiles.count,1)
+        return (root,field,track,bytes)
+    }
+    func testDeferredTrackExportFocusAndBacktrackUseWorkerBytesWithoutEagerLibraryData() async throws {
+        let (root,field,track,bytes) = try await deferredFixture()
+        let source = try field.trackReadSnapshot(track.id)
+        let export = try await FieldExportPreparation.prepare(.savedTrack(source),builder:{ request in
+            XCTAssertFalse(Thread.isMainThread)
+            return try FieldExportPreparation.build(request)
+        })
+        let preview = try TextInterchange.preview(export.data,format:.gpx,now:1)
+        XCTAssertEqual(preview.document.tracks.first?.pointCount,3)
+        XCTAssertTrue(preview.document.waypoints.isEmpty); XCTAssertTrue(preview.document.graphics.isEmpty)
+        let points = WaypointStore(directory:root)
+        let focus = try await TrackMapFocusAction.prepare(trackID:track.id,field:field,waypoints:points)
+        XCTAssertTrue(focus.isCurrent(in:field))
+        XCTAssertEqual(FieldMapGeometry.bounds(focus.points)?.east,54.002)
+        let route = try await TrackBacktrackAction.create(track:track,field:field,waypoints:points)
+        XCTAssertEqual(route.points.first,.init(lat:24.001,lon:54.002)); XCTAssertEqual(route.points.last,.init(lat:24,lon:54))
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        let unchanged = try await Task.detached { try source.readBytes() }.value
+        XCTAssertEqual(unchanged,bytes); XCTAssertNil(points.selectedId)
+    }
+    func testDeferredMissingTrackFailsTrackAndFullExportsWhileWaypointCSVStaysIndependent() async throws {
+        let (root,field,track,_) = try await deferredFixture(), source = try field.trackReadSnapshot(track.id)
+        let logs = root.appendingPathComponent("field-track-logs-v2")
+        for file in try FileManager.default.contentsOfDirectory(at:logs,includingPropertiesForKeys:nil) { try FileManager.default.removeItem(at:file) }
+        let requests: [FieldExportRequest] = [.savedTrack(source),.library(.gpx,[],field.document),.library(.kml,[],field.document),.library(.geojson,[],field.document),.library(.kmz,[],field.document)]
+        for request in requests {
+            do { _ = try await FieldExportPreparation.prepare(request); XCTFail("Missing saved points must not export an empty track") }
+            catch { XCTAssertTrue(error.localizedDescription.contains("missing")) }
+        }
+        let csv = try await FieldExportPreparation.prepare(.library(.csv,[.init(name:"Independent point",lat:24,lon:54)],field.document))
+        XCTAssertTrue(String(decoding:csv.data,as:UTF8.self).contains("Independent point"))
+        XCTAssertEqual(field.document.tracks.count,1)
+    }
+    func testRestoringDeferredDocumentCopiesTrackIntoIndependentDestination() async throws {
+        let (root,field,track,bytes) = try await deferredFixture()
+        let target = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at:target,withIntermediateDirectories:true)
+        addTeardownBlock { try? FileManager.default.removeItem(at:target) }
+        let saved = FieldDataStore(directory:target)
+        let result = await BackupCoordinator.restore(field.document,waypoints:WaypointStore(directory:target),fieldData:saved,settings:AppSettings(directory:target))
+        XCTAssertTrue(result.hasPrefix("Restored"),result)
+        try FileManager.default.removeItem(at:root)
+        let reopened = FieldDataStore(directory:target)
+        XCTAssertNil(reopened.loadError); XCTAssertEqual(reopened.document.trackFiles[track.id],bytes)
+        XCTAssertEqual(try reopened.points(for:track.id).count,3)
+    }
     func testExportFilenameKeepsUnicodeAndExtensionWithoutPathsOrTruncation() throws {
         XCTAssertEqual(ExportFilename.stem("  CAFÉ patrol.GPX  ",extension:"gpx"),"CAFÉ patrol")
         for value in ["", ".", "..", ".gpx", "A/B", "A\\B", "A\nB",String(repeating:"界",count:67)] {

@@ -26,7 +26,7 @@ public enum FieldMapGeometry {
         }
         for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
             try Task.checkCancellation()
-            let bytes = document.trackFiles[track.id] ?? Data()
+            let bytes = try document.trackData(track.id)
             let count = try TrackCodec.countLocalRows(bytes)
             let step = max(1,count/1500)
             var sampled: [GeoPoint] = [],index = 0
@@ -122,7 +122,7 @@ public enum FieldMapGeometry {
             add(geometry, id: graphic.id, name: graphic.name, kind: kind, points: points)
         }
         for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
-            let points = try TrackCodec.decodeLocal(document.trackFiles[track.id] ?? Data()).map { GeoPoint(lat: $0.lat, lon: $0.lon) }
+            let points = try TrackCodec.decodeLocal(document.trackData(track.id)).map { GeoPoint(lat: $0.lat, lon: $0.lon) }
             guard points.count >= 2 else { continue }
             trackCount += 1
             add(line(points), id: track.id, name: track.name, kind: "track", points: points)

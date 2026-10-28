@@ -13,7 +13,7 @@ enum TrackBacktrackAction {
         while true {
             try Task.checkCancellation()
             let source = try field.trackReadSnapshot(track.id)
-            let worker = Task.detached(priority: .userInitiated) { try await build(source.track,source.bytes) }
+            let worker = Task.detached(priority: .userInitiated) { try await build(source.track,source.readBytes()) }
             var route = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
             try Task.checkCancellation()
             // A changed source during calculation must be rebuilt from the

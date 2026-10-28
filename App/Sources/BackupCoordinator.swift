@@ -27,6 +27,7 @@ enum BackupCoordinator {
             if !document.tracks.isEmpty {
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
+                tracks.localTrackFiles = document.localTrackFiles
                 let count = try await LibraryRestoreCommit.field(tracks,into: fieldData).tracks
                 if count > 0 { applied.append("\(count) tracks") }
             }

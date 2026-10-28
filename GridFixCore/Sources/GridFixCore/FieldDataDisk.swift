@@ -56,7 +56,9 @@ enum FieldDataDisk {
     private static func validName(_ name: String) -> Bool {
         name.hasSuffix(".txt") && TrackCodec.validID(String(name.dropLast(4)))
     }
-    static func read(_ index: URL,summarize: (Data) throws -> TrackCodec.LocalSummary = TrackCodec.summarizeLocal) throws -> (Backup.Document,[String: Log]) {
+    static func read(_ index: URL,deferTrackContents: Bool = false,
+                     readContents: (SavedTrackSource) throws -> Data = { try $0.read() },
+                     summarize: (Data) throws -> TrackCodec.LocalSummary = TrackCodec.summarizeLocal) throws -> (Backup.Document,[String: Log]) {
         let size = try index.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
         guard size <= indexLimit else { throw BackupError.notABackup("Saved field index exceeds its metadata limit") }
         let envelope = try JSONDecoder().decode(Index.self,from: Data(contentsOf: index,options: .mappedIfSafe))
@@ -71,10 +73,14 @@ enum FieldDataDisk {
             let id = document.tracks[i].id
             guard let ref = envelope.logs[id], validName(ref.name) else { throw BackupError.notABackup("Invalid saved track filename") }
             let path = directory.appendingPathComponent(ref.name)
-            let attributes = try path.resourceValues(forKeys: [.fileSizeKey,.isRegularFileKey,.isSymbolicLinkKey])
-            guard attributes.isRegularFile == true, attributes.isSymbolicLink != true else { throw BackupError.notABackup("Invalid saved track file") }
-            let bytes = try Data(contentsOf: path,options: .mappedIfSafe)
-            guard digest(bytes) == ref.sha256 else { throw BackupError.notABackup("Saved track checksum failed; original data was kept") }
+            let source = try SavedTrackSource(fileURL:path,sha256:ref.sha256)
+            if deferTrackContents,let cached = ref.summary,cached.matches(sha256:ref.sha256) {
+                document.localTrackFiles[id] = source
+                document.tracks[i].pointCount = cached.count
+                document.tracks[i].distanceM = cached.distanceM
+                continue
+            }
+            let bytes = try readContents(source)
             let summary: Summary
             if let cached = ref.summary,cached.matches(sha256:ref.sha256) { summary = cached }
             else {
@@ -93,14 +99,22 @@ enum FieldDataDisk {
         try Task.checkCancellation()
         let expectedSource = try source.refreshedIfIdentical(digest:sourceDigest)
         try Backup.validate(document,includingTrackFiles: false)
-        guard Set(document.trackFiles.keys).isSubset(of: Set(document.tracks.map(\.id))) else { throw BackupError.notABackup("Track file is missing from manifest") }
+        guard Set(document.trackFiles.keys).union(document.localTrackFiles.keys).isSubset(of: Set(document.tracks.map(\.id))) else { throw BackupError.notABackup("Track file is missing from manifest") }
         let directory = index.deletingLastPathComponent().appendingPathComponent(logsName,isDirectory: true)
         if !document.tracks.isEmpty { try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true) }
         var next: [String: Log] = [:], installed: [URL] = []
         do {
             for track in document.tracks {
                 try Task.checkCancellation()
-                guard let bytes = document.trackFiles[track.id] ?? (track.pointCount == 0 ? Data() : nil) else { throw BackupError.notABackup("Missing saved track points") }
+                if let source = document.localTrackFiles[track.id],document.trackFiles[track.id] == nil,
+                   source == previous.localTrackFiles[track.id],let ref = logs[track.id] {
+                    // Worker-only stat checks. Publication keeps its one index
+                    // source check/rename; it never scans thousands of logs on
+                    // Main. Subsequent point reads verify their own sources.
+                    try source.validate(); next[track.id] = ref
+                    continue
+                }
+                let bytes = try document.trackData(track.id)
                 if let ref = logs[track.id], previous.trackFiles[track.id] == bytes {
                     let attributes = try directory.appendingPathComponent(ref.name).resourceValues(forKeys: [.isRegularFileKey,.isSymbolicLinkKey,.fileSizeKey])
                     guard attributes.isRegularFile == true, attributes.isSymbolicLink != true, attributes.fileSize == bytes.count else { throw BackupError.notABackup("Saved track changed or is missing; original index was kept") }

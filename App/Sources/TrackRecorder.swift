@@ -256,7 +256,7 @@ final class TrackRecorder: ObservableObject {
     }
     private func finish(name: String? = nil, recovered: Bool = false) async {
         do {
-            await fieldData.load()
+            await fieldData.load(prepare:{ try $0.prepare(deferTrackContents:true) })
             try Task.checkCancellation()
             let time = millis
             let discardEmpty = recovered || failure != nil

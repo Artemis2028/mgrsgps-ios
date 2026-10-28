@@ -28,6 +28,7 @@ enum InterchangeCoordinator {
                 phase = "tracks"
                 var tracks = Backup.Document(); tracks.hasSettings = false
                 tracks.tracks = document.tracks; tracks.trackFiles = document.trackFiles
+                tracks.localTrackFiles = document.localTrackFiles
                 let count = try await LibraryRestoreCommit.field(tracks,into: field).tracks
                 if count > 0 { saved.append("\(count) tracks") }
             }

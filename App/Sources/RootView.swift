@@ -168,7 +168,7 @@ struct RootView: View {
             // timed delay before the test can inspect the loading surface.
             if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad"), !startupLoadReleased { return }
             #endif
-            await fieldStore.load()
+            await fieldStore.load(prepare:{ try $0.prepare(deferTrackContents:true) })
             await fieldStore.maintainTrackStorage()
         }
         .background(Blackout.background.ignoresSafeArea())

@@ -72,6 +72,13 @@ final class FieldExportWorkflowTests: XCTestCase {
     func testTrackDetailAndLibraryMenuExportOnlyTheChosenTrackInNightMode() {
         launch("-uiTestLibrary")
         app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        // Reopen the persisted library through the production worker path so
+        // both exports exercise a saved source, not only fixture-owned bytes.
+        app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
+        let ready = XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in
+            self.app.buttons["Waypoint actions"].isEnabled && !self.app.staticTexts["field-library-loading"].exists
+        },object:nil)
+        XCTAssertEqual(XCTWaiter.wait(for:[ready],timeout:15),.completed,app.debugDescription)
         let search = app.textFields["library-search"]; XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap(); search.typeText("Recon track\n")
         let actions = app.buttons["Actions for track Recon track"]

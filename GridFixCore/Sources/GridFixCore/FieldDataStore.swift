@@ -52,7 +52,9 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let identity: UUID
         /// Only reads saved files. A partial/corrupt library never becomes a
         /// writable empty library, and no legacy recovery bytes are rewritten.
-        public func prepare() throws -> PreparedLoad {
+        /// Deferred mode checks index/file metadata now; requested point bytes
+        /// are checked by the consumer worker through their immutable source.
+        public func prepare(deferTrackContents: Bool = false) throws -> PreparedLoad {
             try Task.checkCancellation()
             var document = Backup.Document(); document.hasSettings = false
             var logs: [String: FieldDataDisk.Log] = [:], failure: String?
@@ -61,7 +63,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             catch { return PreparedLoad(document:document,logs:[:],error:error.localizedDescription,identity:identity,source:nil) }
             do {
                 if source.index != nil {
-                    (document,logs) = try FieldDataDisk.read(destination)
+                    (document,logs) = try FieldDataDisk.read(destination,deferTrackContents:deferTrackContents)
                 } else {
                     let legacy = destination.deletingLastPathComponent().appendingPathComponent("field-data-v1.zip")
                     if source.legacy != nil {
@@ -156,17 +158,25 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     public struct TrackMaintenanceSnapshot: Sendable {
         fileprivate let source: FieldDataReadSource
         fileprivate let retained: Set<String>
+        fileprivate let deferred: [SavedTrackSource]
         /// Run on a worker. Retain indexed/recent/in-flight logs and all unknown
         /// files; remove at most64 old, unreferenced canonical log names.
         public func prune(now: Date = Date()) throws -> Int {
-            try FieldDataDisk.pruneOrphans(source:source,retained:retained,now:now)
+            // Metadata-only startup grants no deletion authority. Never force
+            // unread logs to be scanned just to clean an unreferenced file.
+            for file in deferred {
+                try Task.checkCancellation()
+                guard file.hasVerifiedBytes else { return 0 }
+                try file.validate()
+            }
+            return try FieldDataDisk.pruneOrphans(source:source,retained:retained,now:now)
         }
     }
     public func trackMaintenanceSnapshot() throws -> TrackMaintenanceSnapshot? {
         lock.lock(); defer { lock.unlock() }
         try requireReady()
         guard let source,source.index != nil else { return nil }
-        return .init(source:source,retained:Set(logs.values.map(\.name)))
+        return .init(source:source,retained:Set(logs.values.map(\.name)),deferred:Array(document.localTrackFiles.values))
     }
     @MainActor public func maintainTrackStorage() async {
         guard !Task.isCancelled,let snapshot = try? trackMaintenanceSnapshot() else { return }
@@ -175,27 +185,31 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     }
 
     public func points(for trackID: String) throws -> [TrackPoint] {
-        lock.lock()
-        do { try requireReady() } catch { lock.unlock(); throw error }
-        let bytes = document.trackFiles[trackID] ?? Data()
-        lock.unlock()
-        return try TrackCodec.decodeLocal(bytes)
+        let snapshot = try trackReadSnapshot(trackID)
+        return try TrackCodec.decodeLocal(snapshot.readBytes())
     }
 
     public struct TrackReadSnapshot: Sendable {
         public let track: Backup.TrackMeta
-        public let bytes: Data
+        fileprivate let bytes: Data?
+        fileprivate let file: SavedTrackSource?
         fileprivate let revision: UInt64
         fileprivate let identity: UUID
+        public func readBytes() throws -> Data {
+            if let bytes { return bytes }
+            if let file { return try file.read() }
+            guard track.pointCount == 0 else { throw BackupError.notABackup("Saved track points are missing; original files were kept") }
+            return Data()
+        }
     }
-    /// Capture immutable bytes and their library revision under the store lock.
-    /// No point decoding or whole-log equality comparison runs on the caller.
+    /// Capture the immutable source and library revision without file I/O.
+    /// Its worker reads and verifies bytes only when the track is requested.
     public func trackReadSnapshot(_ id: String) throws -> TrackReadSnapshot {
         lock.lock(); defer { lock.unlock() }
         try requireReady()
         if let loadError { throw BackupError.notABackup("Stored field data could not be read and was kept: \(loadError)") }
         guard let track = document.tracks.first(where: { $0.id == id }) else { throw BackupError.notABackup("This track is no longer saved.") }
-        return .init(track: track,bytes: document.trackFiles[id] ?? Data(),revision: revision,identity: identity)
+        return .init(track: track,bytes: document.trackFiles[id],file:document.localTrackFiles[id],revision: revision,identity: identity)
     }
     public func isCurrent(_ snapshot: TrackReadSnapshot) -> Bool {
         lock.lock(); defer { lock.unlock() }
@@ -266,7 +280,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             guard let i = next.tracks.firstIndex(where: { $0.id == id }) else { return nil }
             next.tracks[i].visible = visible
         case .deleteTrack(let id):
-            next.tracks.removeAll { $0.id == id }; next.trackFiles.removeValue(forKey: id)
+            next.tracks.removeAll { $0.id == id }; next.trackFiles.removeValue(forKey: id); next.localTrackFiles.removeValue(forKey:id)
         case let .libraryBatch(graphicIDs,trackIDs,action):
             guard !graphicIDs.isEmpty || !trackIDs.isEmpty else { return nil }
             switch action {
@@ -278,7 +292,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
                 for i in next.tracks.indices where trackIDs.contains(next.tracks[i].id) { next.tracks[i].visible.toggle() }
             case .delete:
                 next.graphics.removeAll { graphicIDs.contains($0.id) }; next.tracks.removeAll { trackIDs.contains($0.id) }
-                for id in trackIDs { next.trackFiles.removeValue(forKey: id) }
+                for id in trackIDs { next.trackFiles.removeValue(forKey: id); next.localTrackFiles.removeValue(forKey:id) }
             }
         case let .changeLibraryFolder(from,to,deleteContents):
             guard from.caseInsensitiveCompare(Folders.defaultFolder) != .orderedSame else { return nil }
@@ -286,7 +300,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
                 let removed = Set(next.tracks.filter { $0.folder.caseInsensitiveCompare(from) == .orderedSame }.map(\.id))
                 next.graphics.removeAll { $0.folder.caseInsensitiveCompare(from) == .orderedSame }
                 next.tracks.removeAll { removed.contains($0.id) }
-                for id in removed { next.trackFiles.removeValue(forKey: id) }
+                for id in removed { next.trackFiles.removeValue(forKey: id); next.localTrackFiles.removeValue(forKey:id) }
             } else {
                 let target = Folders.canonical(to)
                 for i in next.graphics.indices where next.graphics[i].folder.caseInsensitiveCompare(from) == .orderedSame { next.graphics[i].folder = target }
@@ -301,7 +315,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
                   let bytes = recording.trackFiles[track.id] else { throw BackupError.notABackup("Invalid finished recording") }
             guard Set(recording.trackFiles.keys) == [track.id] else { throw BackupError.notABackup("Invalid finished recording files") }
             if next.tracks.contains(where: { $0.id == track.id }) {
-                guard next.trackFiles[track.id] == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
+                guard try next.trackData(track.id) == bytes else { throw BackupError.notABackup("A different track already has this recording ID; journal kept") }
                 return nil
             }
             // Every new log is fully validated by FieldDataDisk.prepare before
@@ -325,19 +339,19 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         try Backup.validate(incoming)
         lock.lock(); defer { lock.unlock() }
         try requireReady()
-        let (next,result) = Self.merged(document,incoming)
+        let (next,result) = try Self.merged(document,incoming)
         if result.graphics == 0 && result.tracks == 0 && next.courseHistory == document.courseHistory { return result }
         try commit(next)
         return result
     }
 
-    private static func merged(_ current: Backup.Document,_ incoming: Backup.Document) -> (Backup.Document,Backup.RestoreResult) {
+    private static func merged(_ current: Backup.Document,_ incoming: Backup.Document) throws -> (Backup.Document,Backup.RestoreResult) {
         var next = current
         let graphicIDs = Set(next.graphics.map(\.id)), trackIDs = Set(next.tracks.map(\.id))
         let graphics = incoming.graphics.filter { !graphicIDs.contains($0.id) }
         let tracks = incoming.tracks.filter { !trackIDs.contains($0.id) }
         next.graphics += graphics; next.tracks += tracks
-        for track in tracks { next.trackFiles[track.id] = incoming.trackFiles[track.id] ?? Data() }
+        for track in tracks { next.trackFiles[track.id] = try incoming.trackData(track.id) }
         struct HistoryKey: Hashable { let started: Int64; let name: String }
         var keys = Set<HistoryKey>()
         let oldKeys = Set(next.courseHistory.map { HistoryKey(started: $0.started, name: $0.name) })
@@ -368,7 +382,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         /// May run on a worker. Does not read or mutate the live store.
         public func prepare(_ incoming: Backup.Document) throws -> PreparedRestore {
             try Backup.validate(incoming)
-            let (next,result) = FieldDataStore.merged(document,incoming)
+            let (next,result) = try FieldDataStore.merged(document,incoming)
             let changed = result.graphics != 0 || result.tracks != 0 || next.courseHistory != document.courseHistory
             let file: PreparedFieldData?
             if changed { file = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: destination,source:source,sourceDigest:sourceDigest) }

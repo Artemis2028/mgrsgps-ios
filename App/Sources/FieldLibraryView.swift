@@ -19,7 +19,7 @@ struct FieldLibraryView: View {
                 if let failure = fieldData.loadError {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(failure).foregroundStyle(palette.warn).accessibilityIdentifier("field-library-read-error")
-                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad(prepare:{ try $0.prepare(deferTrackContents:true) }) } }
                             .accessibilityIdentifier("field-library-retry")
                         #if DEBUG
                         FieldLibraryReadValidationRepair(identifier: "field-library-test-repair")
@@ -426,7 +426,10 @@ struct TrackDetailView: View {
     }
     private func prepareExport(password: String? = nil) {
         guard let current = track,export == nil else { return }; status = nil
-        exportTransfer.start(.track(current,fieldData.document.trackFiles[trackID] ?? Data()),password: password) { result in
+        let source: FieldDataStore.TrackReadSnapshot
+        do { source = try fieldData.trackReadSnapshot(current.id) }
+        catch { status = error.localizedDescription; return }
+        exportTransfer.start(.savedTrack(source),password: password) { result in
             switch result {
             case .success(let prepared): export = FieldExportDocumentFile(prepared)
             case .failure(let error): status = "Export failed: " + error.localizedDescription

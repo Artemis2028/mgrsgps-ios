@@ -26,7 +26,7 @@ enum TrackMapFocusAction {
         while true {
             try Task.checkCancellation()
             let source = try field.trackReadSnapshot(trackID)
-            let worker = Task.detached(priority: .userInitiated) { try await scan(source.bytes) }
+            let worker = Task.detached(priority: .userInitiated) { try await scan(source.readBytes()) }
             let points = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
             try Task.checkCancellation()
             guard field.isCurrent(source) else { continue }

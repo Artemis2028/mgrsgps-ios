@@ -158,7 +158,10 @@ struct MapScreen: View {
                          onGraphicPick: { guard !graphicMutation.working && laneDraft == nil else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
                          onContour: { contourLabel = $0 },
                          onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
-                         onOverlayStatus: { overlayLoading = $0; overlayError = $1 },overlayRetry: overlayRetry,
+                         onOverlayStatus: { loading,error in
+                             overlayLoading = loading; overlayError = error
+                             if !loading,error == nil { Task { await fieldData.maintainTrackStorage() } }
+                         },overlayRetry: overlayRetry,
                          cameraRequest: cameraRequest,
                          onSelect: { if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { selectedID = $0 } },
                          onChange: { label, position, bounds, level in

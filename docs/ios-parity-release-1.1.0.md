@@ -4,6 +4,13 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Latest held storage milestone: [on-demand saved-track reads](track-on-demand.md)
+now cover normal startup, retry and recorder entry points for validated references.
+551 core cases pass; the full356-case native suite has four opt-in skips/no
+failures, with final affected-native and cold-map checks after cleanup hardening.
+Seven distinct UI workflows pass across the scoped bundles. Receiptless/v1
+fallback, physical profiling and the observed day Map-tab contrast issue remain
+open. These commits remain local while hosted110 validates98c5c17 below.
 Latest resume checkpoint,28 October: the preserved20-case native Files regression
 passes on iOS26.5. Both backup/saved-log workflows and both final active-course
 cases pass across the scoped resume bundles, including largest-night end/restart
@@ -1756,3 +1763,45 @@ eager mapping/hash reads, dense rendering and physical profiling remain open.
 The candidate stays local while hosted11040729291858 on98c5c17 has three live
 jobs. Same draft PR updated with held-source status; no active CI cancellation,
 server GO, infrastructure/credential change, merge or release.
+
+
+### Metadata-first saved-track library,28 October
+
+Normal app startup, both retry controls and recovered-recorder finalization now
+request deferred validated sources rather than reading every point log first.
+Requested map/detail/backtrack/backup/export workers verify identity and checksum
+and own the bytes; missing data raises an error instead of exporting or drawing
+an empty track. Local sources are not serialized in backup/TAK/watch payloads.
+Metadata edits retain references with worker stamp checks and a short index
+publication; watch preparation counts failed/oversized sources as omissions.
+
+Cleanup authority is separate: metadata-only opening never authorizes deleting
+unreferenced files. All deferred sources must have verified checksums and remain
+unchanged before bounded maintenance proceeds. Unread/partially read/failed
+sources retain recovery files. A completed map read can request maintenance
+afterward without forcing hidden tracks to be read.
+
+551 core cases pass, including13 deferred-load/cleanup regressions. The full356-
+case native suite has four opt-in skips/no failures; final28 affected native
+cases pass after the cleanup safeguard. Seven distinct UI workflows pass across
+source-compatible/final bundles: cold selected-track native Files export, four
+recovery/retry/accessibility journeys, cold route/track map persistence/visibility,
+and live background recording. The actual simulator journal grows while the
+app remains backgrounded, then saves/shows on the map. Cold track-present/hidden
+map captures, night GPX, readable recording and largest-night library screens
+inspected. Current unsigned phone/watch/widget Release and ten harness checks
+pass. All local parents end naturally and owned simulator/feed is off.
+[Architecture, exact bundles, failed intermediate fixtures/build and limitations](track-on-demand.md).
+
+Older receiptless/v1 data still takes strict eager fallback until a confirmed
+save persists receipts. Automatic non-destructive cache migration, streaming
+very long requested logs, dense rendering and physical profiling remain work.
+Current map screenshots also expose poor day selected-tab contrast; MapScreen's
+forced dark tab chrome is a concrete next UI investigation. No physical locked-
+screen, full accessibility or watch-radio claim is made.
+
+Hosted110 on98c5c17 now passes map122960900820:47 UI cases, including the moved
+waypoint class. Library122960900401 and field122960900902 remain live. The new
+storage commits stay local and are outside that hosted source. Same draft PR
+and Claude handoff updated; no cancelling push, duplicate run, server GO/round,
+infrastructure/credential change, merge or release.

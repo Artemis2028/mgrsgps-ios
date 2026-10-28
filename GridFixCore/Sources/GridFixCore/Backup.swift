@@ -122,8 +122,13 @@ public enum Backup {
         public var navLanes: [NavLane]
         /// iOS quiet-inside perimeters; geometry only, never monitoring state.
         public var quietBoundaries: [BoundaryArea]
-        /// Track id → raw points file bytes (lat lon time alt lines).
+        /// Track id → owned points file bytes (lat lon time alt lines).
+        /// Deferred local tracks use localTrackFiles instead; consumers call
+        /// trackData so a missing source cannot become a fabricated empty log.
         public var trackFiles: [String: Data]
+        /// Local-only immutable references. Workers materialize requested logs;
+        /// manifests, ZIPs and watch/TAK payloads never encode these paths.
+        public var localTrackFiles: [String: SavedTrackSource] = [:]
         public var hasSettings: Bool = true
         /// Nil means a complete/programmatic settings value. Parsed older files
         /// retain their actual keys so restore can preserve newer local settings.
@@ -169,6 +174,8 @@ public enum Backup {
     // MARK: - Export
 
     public static func exportZip(_ doc: Document) throws -> Data {
+        try validate(doc,includingTrackFiles:false)
+        let doc = try doc.materializedForBackup()
         try validate(doc)
         let manifest = try encodeManifest(doc)
         var entries = [ZipArchive.Entry(name: manifestName, data: manifest)]
@@ -363,14 +370,13 @@ public enum Backup {
         for track in doc.tracks {
             try require(TrackCodec.validID(track.id) && track.pointCount >= 0 && track.distanceM.isFinite && track.distanceM >= 0, "Invalid track metadata")
             if includingTrackFiles {
-                try require(doc.trackFiles[track.id] != nil || track.pointCount == 0, "Missing points for track \(track.name)")
-                let points = try TrackCodec.decode(doc.trackFiles[track.id] ?? Data())
+                let points = try TrackCodec.decode(doc.trackData(track.id,maximumBytes:ZipArchive.entryLimit))
                 totalPoints += points.count
                 try require(totalPoints <= 250_000, "Too many backup track points")
             }
         }
         if includingTrackFiles {
-            try require(Set(doc.trackFiles.keys).isSubset(of: Set(doc.tracks.map(\.id))), "Track file is missing from manifest")
+            try require(Set(doc.trackFiles.keys).union(doc.localTrackFiles.keys).isSubset(of: Set(doc.tracks.map(\.id))), "Track file is missing from manifest")
         }
     }
 

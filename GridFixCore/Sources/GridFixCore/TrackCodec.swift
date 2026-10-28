@@ -13,6 +13,7 @@ public struct TrackPoint: Equatable, Sendable, Codable {
 }
 
 public enum TrackCodec {
+    public static let interchangeByteLimit = ZipArchive.entryLimit
     public struct LocalSummary: Equatable, Sendable {
         public let count: Int
         public let distanceM: Double
@@ -90,7 +91,7 @@ public enum TrackCodec {
     }
 
     public static func decode(_ data: Data) throws -> [TrackPoint] {
-        guard data.count <= ZipArchive.entryLimit, let text = String(data: data, encoding: .utf8) else {
+        guard data.count <= interchangeByteLimit, let text = String(data: data, encoding: .utf8) else {
             throw BackupError.notABackup("Invalid track point file")
         }
         let lines = text.split(whereSeparator: \.isNewline).filter { !$0.allSatisfy(\.isWhitespace) }

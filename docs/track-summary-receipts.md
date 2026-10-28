@@ -64,6 +64,11 @@ pushed98c5c17 source, so it cannot validate this local receipt change.
 
 ## Remaining startup work
 
+The subsequent [on-demand loader](track-on-demand.md) now defers point-byte reads
+for validated references at normal app startup/retry/recorder entry points.
+The paragraph below describes this earlier receipt-only milestone. Legacy
+receiptless/v1 fallback and physical/dense/streaming profiling remain open.
+
 This does not yet provide on-demand point-file reads: startup still maps and
 hashes every saved point file. A metadata-only listing and lazy per-track source
 receipts need corresponding changes to map snapshots, track/detail reads,

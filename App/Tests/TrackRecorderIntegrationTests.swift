@@ -33,6 +33,24 @@ private final class RecordingTestClock {
 
 @MainActor
 final class TrackRecorderIntegrationTests: XCTestCase {
+    func testColdRecoveryLoadsOlderTrackSourcesWithoutReadingAllTheirPoints() async throws {
+        let dir = try directory(), old = FieldDataStore(directory:dir)
+        let (track,bytes) = try TrackCodec.imported(name:"Older deferred patrol",points:[.init(lat:24,lon:54)],now:1000)
+        var doc = Backup.Document(tracks:[track],trackFiles:[track.id:bytes]); doc.hasSettings = false
+        _ = try old.restore(doc)
+        let journal = try TrackRecordingJournal(directory:dir)
+        try journal.start(now:1_700_000_000_000,uptime:1000)
+        _ = try journal.append(.init(point:.init(lat:24.01,lon:54,time:1_700_000_001_000),accuracyMeters:5,uptime:1001))
+        let field = FieldDataStore(directory:dir,loadImmediately:false), driver = RecordingTestDriver()
+        let rec = try await recorder(dir,field,driver,RecordingTestClock())
+        XCTAssertEqual(rec.phase,.idle); XCTAssertFalse(driver.updating)
+        XCTAssertEqual(field.document.tracks.count,2)
+        XCTAssertNil(field.document.trackFiles[track.id]); XCTAssertNotNil(field.document.localTrackFiles[track.id])
+        let source = try field.trackReadSnapshot(track.id)
+        let preserved = try await Task.detached { try source.readBytes() }.value
+        XCTAssertEqual(preserved,bytes)
+        XCTAssertFalse(try TrackRecordingJournal(directory:dir).hasPendingSession)
+    }
     func testRecoveryWaitsForExistingLibraryWithoutAcknowledgingJournalOrReplacingOldTracks() async throws {
         let dir = try directory(), old = FieldDataStore(directory: dir), driver = RecordingTestDriver(), clock = RecordingTestClock()
         let (track,bytes) = try TrackCodec.imported(name: "Older patrol",points: [.init(lat: 24,lon: 54)],now: 1000)

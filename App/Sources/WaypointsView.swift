@@ -274,7 +274,7 @@ struct WaypointsView: View {
                 if let failure = fieldData.loadError {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(failure).font(.footnote).foregroundStyle(palette.warn).fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("field-data-read-error")
-                        Button("Retry reading saved data") { Task { await fieldData.retryLoad() } }
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad(prepare:{ try $0.prepare(deferTrackContents:true) }) } }
                             .fixedSize(horizontal:false,vertical:true).frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
                         #if DEBUG
                         FieldLibraryReadValidationRepair(identifier: "field-data-test-repair")
@@ -919,11 +919,13 @@ struct WaypointsView: View {
         case "visibility": fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(track.id,!track.visible),to: fieldData) })
         case "export-protected":
             guard !exportUnavailable else { return }
-            backupPasswordRequest = .init(url: nil,exportRequest: .track(track,fieldData.document.trackFiles[track.id] ?? Data()))
+            do { backupPasswordRequest = .init(url: nil,exportRequest: .savedTrack(try fieldData.trackReadSnapshot(track.id))) }
+            catch { status = error.localizedDescription }
         case "export":
             guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
             searchFocused = false; status = nil
-            prepareExport(.track(track,fieldData.document.trackFiles[track.id] ?? Data()))
+            do { prepareExport(.savedTrack(try fieldData.trackReadSnapshot(track.id))) }
+            catch { status = error.localizedDescription }
         case "delete": selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true
         default: break
         }

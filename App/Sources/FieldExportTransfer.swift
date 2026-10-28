@@ -6,6 +6,7 @@ import GridFixCore
 enum FieldExportRequest: Sendable {
     case library(TextInterchangeFormat,[Waypoint],Backup.Document)
     case track(Backup.TrackMeta,Data)
+    case savedTrack(FieldDataStore.TrackReadSnapshot)
     var format: TextInterchangeFormat {
         if case let .library(format,_,_) = self { return format }
         return .gpx
@@ -39,6 +40,8 @@ enum FieldExportPreparation {
         try Task.checkCancellation()
         let data: Data, filename: String
         switch request {
+        case .savedTrack(let source):
+            return try build(.track(source.track,source.readBytes()))
         case let .track(track,bytes):
             let points = try TrackCodec.decodeLocal(bytes)
             try Task.checkCancellation()
@@ -52,7 +55,7 @@ enum FieldExportPreparation {
             else {
                 let tracks = try document.tracks.map { track -> GPX.Track in
                     try Task.checkCancellation()
-                    return GPX.Track(name: track.name,points: try TrackCodec.decode(document.trackFiles[track.id] ?? Data()))
+                    return GPX.Track(name: track.name,points: try TrackCodec.decode(document.trackData(track.id,maximumBytes:TrackCodec.interchangeByteLimit)))
                 }
                 try Task.checkCancellation()
                 switch format {

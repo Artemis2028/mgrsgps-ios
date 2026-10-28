@@ -145,7 +145,8 @@ public struct WatchMapSnapshot: Codable, Equatable, Sendable {
                 echelon: graphic.echelon, points: graphic.points.map { .init(lat: $0.lat, lon: $0.lon) })
         }
         for track in document.tracks where track.visible && shown(track.folder) {
-            guard let bytes = document.trackFiles[track.id], bytes.count <= 2 * 1024 * 1024,
+            guard result.features.count < maxFeatures,
+                  let bytes = try? document.trackData(track.id,maximumBytes:2 * 1024 * 1024),
                   let points = try? TrackCodec.decode(bytes), points.count >= 2 else { result.omittedItems += 1; continue }
             add(id: track.id, kind: "track", name: track.name, type: "track", affiliation: "none", echelon: "",
                 points: points.map { .init(lat: $0.lat, lon: $0.lon) })
