@@ -84,7 +84,7 @@ final class WaypointWorkflowTests: XCTestCase {
 
     func testMapCentreCanCreateWaypoint() {
         app.tabBars.buttons["Map"].tap()
-        app.buttons["Add waypoint at map centre"].tap()
+        mapTool(app, "Add waypoint at map centre").tap()
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap(); name.typeText("Map centre")
@@ -97,7 +97,7 @@ final class WaypointWorkflowTests: XCTestCase {
     func testNightModeKeepsSettingsAndWaypointEntryUsable() {
         app.tabBars.buttons["Position"].tap()
         app.buttons["Settings"].tap()
-        let night = app.switches["Red-on-black, to keep night vision"]
+        let night = app.switches["Night mode"]
         XCTAssertTrue(night.waitForExistence(timeout: 5))
         setNativeSwitch(night,to: true)
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","1"),object: night)
@@ -165,15 +165,15 @@ final class WaypointWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Patrol WP 2"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Map"].tap()
         app.buttons["Show all visible data"].tap()
-        XCTAssertTrue(app.staticTexts["map-field-overlays"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["map-field-overlays"].label, "1 routes · 1 tracks")
+        XCTAssertTrue(mapReadout(app, "map-field-overlays").waitForExistence(timeout: 10))
+        XCTAssertEqual(mapReadout(app, "map-field-overlays").label, "1 routes · 1 tracks")
         capture("routes-tracks-map")
         app.terminate()
         app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]
         app.launch()
         XCTAssertTrue(app.buttons["edit-waypoint-Patrol WP 2"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Map"].tap(); app.buttons["Show all visible data"].tap()
-        let reopened = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","1 routes · 1 tracks"),object:app.staticTexts["map-field-overlays"])
+        let reopened = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","1 routes · 1 tracks"),object:mapReadout(app, "map-field-overlays"))
         XCTAssertEqual(XCTWaiter.wait(for:[reopened],timeout:10),.completed)
         capture("routes-tracks-map-deferred")
         app.tabBars.buttons["Waypoints"].tap()
@@ -188,7 +188,7 @@ final class WaypointWorkflowTests: XCTestCase {
         app.buttons["Done"].tap()
         app.tabBars.buttons["Map"].tap()
         let updated = NSPredicate(format: "label == %@", "1 routes · 0 tracks")
-        expectation(for: updated, evaluatedWith: app.staticTexts["map-field-overlays"])
+        expectation(for: updated, evaluatedWith: mapReadout(app, "map-field-overlays"))
         waitForExpectations(timeout: 5)
         capture("routes-tracks-map-deferred-hidden")
     }

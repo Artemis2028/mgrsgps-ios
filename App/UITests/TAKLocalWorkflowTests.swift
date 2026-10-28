@@ -11,7 +11,7 @@ final class TAKLocalWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-keepUITestData","-uiTestTAKSharing","-startTab","map"]
         app.launch()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 20)); app.buttons["map-tak"].tap()
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 20)); mapStatusButton(app, "map-tak").tap()
         let callsign = app.textFields["tak-callsign"]
         guard callsign.waitForExistence(timeout: 3),
               (callsign.value as? String)?.hasPrefix("IOS-ENR-") == true,
@@ -36,9 +36,9 @@ final class TAKLocalWorkflowTests: XCTestCase {
         for name in ["MGRS-ADA5","ANDROID OP CAFÉ","ANDROID TEST LINE"] {
             let focus = app.buttons["Show " + name + " on map"]
             reach(focus,app: app); focus.tap()
-            XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 8))
+            XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 8))
             capture("tak-enrolled-map-" + name)
-            app.buttons["map-tak"].tap()
+            mapStatusButton(app, "map-tak").tap()
         }
         print("TAK_ENROLLED_INBOUND_DRAWN_READY_FOR_DELETE")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in !marker.exists && !line.exists },object: nil)
@@ -86,7 +86,7 @@ final class TAKLocalWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-uiTestTAKLocal", "-startTab", "map"]
         app.launch()
-        let open = app.buttons["map-tak"]
+        let open = mapStatusButton(app, "map-tak")
         XCTAssertTrue(open.waitForExistence(timeout: 20)); open.tap()
         let load = app.buttons["tak-local-validation"]
         XCTAssertTrue(load.waitForExistence(timeout: 10))
@@ -114,7 +114,7 @@ final class TAKLocalWorkflowTests: XCTestCase {
         reach(uid, app: app); print("TAK local validation uid: \(uid.label)")
         let show = app.buttons["Show MGRS-ADA5 on map"]
         reach(show, app: app, up: false); show.tap()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 8))
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 8))
         capture("tak-android-contact-native-map")
         // Leave the real native session running briefly for the Android peer's
         // independently observed capture. No simulated server or fake UI result.
@@ -125,7 +125,7 @@ final class TAKLocalWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-uiTestTAKLocal", "-uiTestTAKSharing", "-startTab", "map"]
         app.launch()
-        let open = app.buttons["map-tak"]
+        let open = mapStatusButton(app, "map-tak")
         XCTAssertTrue(open.waitForExistence(timeout: 20)); open.tap()
         let load = app.buttons["tak-local-validation"]
         XCTAssertTrue(load.waitForExistence(timeout: 10))
@@ -169,7 +169,7 @@ final class TAKLocalWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting", "-uiTestTAKLocal", "-startTab", "map"]
         app.launch()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 20)); app.buttons["map-tak"].tap()
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 20)); mapStatusButton(app, "map-tak").tap()
         let load = app.buttons["tak-local-validation"]
         XCTAssertTrue(load.waitForExistence(timeout: 10))
         guard app.staticTexts["tak-local-fixture-ready"].waitForExistence(timeout: 3) else { throw XCTSkip("Requires explicitly staged local-only credentials") }
@@ -188,12 +188,12 @@ final class TAKLocalWorkflowTests: XCTestCase {
         reach(marker, app: app); capture("tak-android-items-received")
         let focusMarker = app.buttons["Show ANDROID OP CAFÉ on map"]
         reach(focusMarker, app: app); focusMarker.tap()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 5)); capture("tak-android-marker-map")
-        app.buttons["map-tak"].tap()
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 5)); capture("tak-android-marker-map")
+        mapStatusButton(app, "map-tak").tap()
         let focusLine = app.buttons["Show ANDROID TEST LINE on map"]
         reach(focusLine, app: app); focusLine.tap()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 5)); capture("tak-android-line-map")
-        app.buttons["map-tak"].tap(); print("TAK_INBOUND_DRAWN_READY_FOR_DELETE")
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 5)); capture("tak-android-line-map")
+        mapStatusButton(app, "map-tak").tap(); print("TAK_INBOUND_DRAWN_READY_FOR_DELETE")
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !marker.exists && !line.exists }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 120), .completed, app.debugDescription)
         XCTAssertTrue(app.staticTexts["MGRS-ADA5"].exists, "Deleting shared items must preserve the teammate contact")
@@ -216,15 +216,15 @@ final class TAKLocalWorkflowTests: XCTestCase {
         app.launchArguments = ["-uiTesting", "-uiTestTAKPreview", "-startTab", "map"]
         app.launch()
         let preview = app.staticTexts["Rendering preview · no server connection"]
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 15))
-        tapNativeMenuItem(app.buttons["map-tak"],revealing: preview)
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 15))
+        tapNativeMenuItem(mapStatusButton(app, "map-tak"),revealing: preview)
         XCTAssertTrue(preview.waitForExistence(timeout: 10))
         XCTAssertEqual(app.switches["tak-share-position"].value as? String, "0")
         let line = app.buttons["Show ANDROID TEST LINE on map"]
         reach(line, app: app); line.tap()
-        XCTAssertTrue(app.buttons["map-tak"].waitForExistence(timeout: 5)); capture("tak-preview-line-focus-day")
-        app.buttons["Toggle map night mode"].tap(); capture("tak-preview-line-focus-night")
-        tapNativeMenuItem(app.buttons["map-tak"],revealing: preview)
+        XCTAssertTrue(mapStatusButton(app, "map-tak").waitForExistence(timeout: 5)); capture("tak-preview-line-focus-day")
+        mapTool(app, "Toggle map night mode").tap(); capture("tak-preview-line-focus-night")
+        tapNativeMenuItem(mapStatusButton(app, "map-tak"),revealing: preview)
         XCTAssertTrue(app.staticTexts["ANDROID OP CAFÉ"].waitForExistence(timeout: 5))
         reach(app.staticTexts["ANDROID OP CAFÉ"], app: app)
         capture("tak-preview-list-night")

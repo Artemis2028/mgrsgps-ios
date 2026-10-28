@@ -18,7 +18,7 @@ final class PaceCountWorkflowTests: XCTestCase {
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","position"]
         if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch(); tapNativeMenuItem(app.buttons["Settings"])
-        if night { setNativeSwitch(app.switches["Red-on-black, to keep night vision"],to:true) }
+        if night { setNativeSwitch(app.switches["Night mode"],to:true) }
         let field = app.textFields["pace-count-input"]
         reveal(field,in:app); tapNativeMenuItem(field); replaceTextInput(field,"100")
         XCTAssertEqual(field.value as? String,"100")

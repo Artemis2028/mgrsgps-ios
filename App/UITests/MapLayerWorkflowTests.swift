@@ -8,6 +8,39 @@ final class MapLayerWorkflowTests: XCTestCase {
         app.launchArguments = ["-uiTesting", "-uiTestOfflineMap", "-startTab", "map"]
         app.launch()
     }
+    func testCompactMapGridDisclosureAndAnimatedOptionsInPortraitAndLandscape() {
+        let grid = app.buttons["map-centre-summary"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["map-layer-name"].exists)
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.scrollViews["map-options-rail"])
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
+        let summary = app.buttons["map-centre-summary"]
+        summary.tap()
+        XCTAssertTrue(app.staticTexts["map-layer-name"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["map-centre-latlon"].exists)
+        XCTAssertTrue(app.staticTexts["map-centre-utm"].label.hasPrefix("UTM "))
+        summary.tap()
+        XCTAssertFalse(app.staticTexts["map-layer-name"].exists)
+        let options = app.buttons["map-options"]
+        options.tap()
+        XCTAssertTrue(app.scrollViews["map-options-rail"].waitForExistence(timeout: 5))
+        capture("map-options-expanded-portrait")
+        options.tap()
+        XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
+        capture("map-options-collapsed-portrait")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        XCTAssertTrue(options.waitForExistence(timeout: 5))
+        mapTool(app, "map-layers").tap()
+        XCTAssertTrue(app.navigationBars["Map layers"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons["Done"].tap()
+        XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
+        mapTool(app, "Toggle map night mode").tap()
+        capture("map-options-night-landscape")
+        options.tap()
+        XCTAssertFalse(app.scrollViews["map-options-rail"].exists)
+        XCTAssertTrue(grid.exists)
+    }
     private func capture(_ name: String) {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
@@ -15,18 +48,18 @@ final class MapLayerWorkflowTests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-uiTestHoldMapGeometry","-startTab","map"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["map-field-loading"].waitForExistence(timeout: 10))
+        XCTAssertTrue(mapReadout(app, "map-field-loading").waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Show all visible data"].isEnabled)
     }
     private func finishSavedGeometry() {
         app.buttons["finish-map-geometry"].tap()
-        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","1 routes · 1 tracks"),object: app.staticTexts["map-field-overlays"])
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","1 routes · 1 tracks"),object: mapReadout(app, "map-field-overlays"))
         XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 10),.completed,app.debugDescription)
-        XCTAssertFalse(app.staticTexts["map-field-loading"].exists)
+        XCTAssertFalse(mapReadout(app, "map-field-loading").exists)
     }
     func testShowAllWaitsForSavedGeometryInsteadOfFittingAnEmptySnapshot() {
         holdSavedGeometry()
-        let centre = app.staticTexts["map-centre-grid"],before = centre.label
+        let centre = app.buttons["map-centre-summary"],before = centre.label
         app.buttons["Show all visible data"].tap()
         capture("map-data-loading-with-fit-pending")
         finishSavedGeometry()
@@ -36,11 +69,11 @@ final class MapLayerWorkflowTests: XCTestCase {
     }
     func testNewGoToSupersedesFitRequestedWhileSavedGeometryWasLoading() {
         holdSavedGeometry(); app.buttons["Show all visible data"].tap()
-        app.buttons["map-goto"].tap()
+        mapTool(app, "map-goto").tap()
         let field = app.textFields["map-goto-grid"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); replaceTextInput(field,"40R BN 4000 1000")
         app.buttons["map-goto-keyboard-done"].tap(); app.buttons["map-goto-show"].tap()
-        let centre = app.staticTexts["map-centre-grid"]
+        let centre = app.buttons["map-centre-summary"]
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@","4000"),object: centre)
         XCTAssertEqual(XCTWaiter.wait(for: [moved],timeout: 10),.completed)
         let chosen = centre.label
@@ -51,7 +84,7 @@ final class MapLayerWorkflowTests: XCTestCase {
     }
     func testManualPanCancelsFitRequestedWhileSavedGeometryWasLoading() {
         holdSavedGeometry(); app.buttons["Show all visible data"].tap()
-        let centre = app.staticTexts["map-centre-grid"],before = centre.label
+        let centre = app.buttons["map-centre-summary"],before = centre.label
         app.coordinate(withNormalizedOffset: .init(dx: 0.65,dy: 0.55)).press(forDuration: 0.1,thenDragTo: app.coordinate(withNormalizedOffset: .init(dx: 0.3,dy: 0.55)),withVelocity: .slow,thenHoldForDuration: 0.3)
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: centre)
         XCTAssertEqual(XCTWaiter.wait(for: [moved],timeout: 10),.completed)
@@ -62,7 +95,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         capture("map-pan-retained-after-load")
     }
     private func openLayers() {
-        let button = app.buttons["map-layers"]
+        let button = mapTool(app, "map-layers")
         XCTAssertTrue(button.waitForExistence(timeout: 10)); button.tap()
         XCTAssertTrue(app.navigationBars["Map layers"].waitForExistence(timeout: 5))
     }
@@ -80,7 +113,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         setNativeSwitch(control,to: (control.value as? String) != "1")
     }
     func testOfflineImportedMapGridAndSelectionSurviveRelaunch() {
-        let name = app.staticTexts["map-layer-name"]
+        let name = mapReadout(app, "map-layer-name")
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         XCTAssertTrue(name.label.contains("OFFLINE ONLY")); XCTAssertTrue(name.label.contains("Offline training map"))
         capture("offline-mbtiles-map")
@@ -90,19 +123,29 @@ final class MapLayerWorkflowTests: XCTestCase {
         app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["MAP CENTRE · GRID OFF"].waitForExistence(timeout: 5))
         app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
-        XCTAssertTrue(app.staticTexts["map-layer-name"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["map-layer-name"].label.contains("Offline training map"))
+        XCTAssertTrue(mapReadout(app, "map-layer-name").waitForExistence(timeout: 10))
+        XCTAssertTrue(mapReadout(app, "map-layer-name").label.contains("Offline training map"))
         XCTAssertTrue(app.staticTexts["MAP CENTRE · GRID OFF"].exists)
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         capture("offline-map-night")
+        // Restore the native day bar after using the separate night controls.
+        mapTool(app, "Toggle map night mode").tap()
+        let map = app.tabBars.buttons["Map"]
+        XCTAssertTrue(map.waitForExistence(timeout:5)); XCTAssertTrue(map.isSelected)
+        capture("offline-map-day-restored")
+        app.tabBars.buttons["Position"].tap()
+        XCTAssertTrue(app.staticTexts["position-title"].waitForExistence(timeout:5))
+        app.tabBars.buttons["Map"].tap()
+        XCTAssertTrue(app.staticTexts["MAP CENTRE · GRID OFF"].waitForExistence(timeout:5))
+        capture("offline-map-native-tab-return")
     }
     func testLayerSwitchKeepsWaypointOverlayAndNavigation() {
-        app.buttons["Add waypoint at map centre"].tap()
+        mapTool(app, "Add waypoint at map centre").tap()
         let name = app.textFields["waypoint-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Offline objective")
         app.buttons["waypoint-save"].tap()
         openLayers(); app.buttons["layer-usgs"].tap(); app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["map-layer-name"].label.contains("USGS Topo"))
+        XCTAssertTrue(mapReadout(app, "map-layer-name").label.contains("USGS Topo"))
         let marker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "map-waypoint-")).firstMatch
         XCTAssertTrue(marker.waitForExistence(timeout: 10))
         marker.tap()

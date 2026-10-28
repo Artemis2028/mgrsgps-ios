@@ -10,7 +10,7 @@ final class SettingsPersistenceWorkflowTests: XCTestCase {
             let app = XCUIApplication()
             app.launchArguments = ["-uiTesting","-uiTestSettingsWriteFailure","-startTab","position"]
             app.launch(); app.buttons["Settings"].tap()
-            let toggle = app.switches[night ? "Red-on-black, to keep night vision" : "Keep screen on"]
+            let toggle = app.switches[night ? "Night mode" : "Keep screen on"]
             XCTAssertTrue(toggle.waitForExistence(timeout:5)); setNativeSwitch(toggle,to:night)
             let failure = app.staticTexts["settings-save-sheet"]
             XCTAssertTrue(failure.waitForExistence(timeout:5)); XCTAssertTrue(failure.label.contains("could not be saved"))
@@ -27,7 +27,7 @@ final class SettingsPersistenceWorkflowTests: XCTestCase {
             app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
             XCTAssertFalse(app.staticTexts["settings-save-root"].exists)
             app.buttons["Settings"].tap()
-            let restored = app.switches[night ? "Red-on-black, to keep night vision" : "Keep screen on"]
+            let restored = app.switches[night ? "Night mode" : "Keep screen on"]
             XCTAssertTrue(restored.waitForExistence(timeout:5)); XCTAssertEqual(restored.value as? String,night ? "1" : "0")
             capture(night ? "settings-write-retry-restored-night" : "settings-write-retry-restored-day")
             app.terminate()

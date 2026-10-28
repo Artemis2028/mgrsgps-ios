@@ -5,7 +5,7 @@ final class FieldEditWorkflowTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","map"]; app.launch()
-        XCTAssertTrue(app.buttons["Toggle map night mode"].waitForExistence(timeout: 10)); app.buttons["Toggle map night mode"].tap()
+        XCTAssertTrue(mapTool(app, "Toggle map night mode").waitForExistence(timeout: 10)); mapTool(app, "Toggle map night mode").tap()
     }
     private func value(_ toggle: XCUIElement,_ value: String) {
         XCTAssertTrue(toggle.waitForExistence(timeout: 10))
@@ -46,7 +46,7 @@ final class FieldEditWorkflowTests: XCTestCase {
     }
 
     func testGraphicPanelVisibilityDeleteAndTrackDeletionPersistInNightMode() {
-        app.buttons["map-graphics"].tap()
+        mapTool(app, "map-graphics").tap()
         let visibility = app.switches["graphic-visible-Recon route"]
         reveal(visibility); value(visibility,"1"); visibility.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap(); value(visibility,"0")
         capture("field-graphic-hidden-night")

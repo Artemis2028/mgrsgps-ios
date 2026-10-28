@@ -33,9 +33,7 @@ struct SettingsView: View {
                     Picker("Orientation", selection: $settings.orientation) {
                         ForEach(ScreenOrientation.allCases) { Text($0.title).tag($0.rawValue) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("screen-orientation")
-                    Text((ScreenOrientation(rawValue: settings.orientation) ?? .auto).explanation)
-                        .font(.footnote).foregroundStyle(palette.inkDim)
-                    Text("Current window: \(orientationState.actual)").font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("orientation-window")
+                    .accessibilityValue(orientationState.actual)
                     if let error = orientationState.error {
                         Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("orientation-error")
                         Button("Retry orientation") { orientationState.refresh() }.foregroundStyle(palette.accent)
@@ -57,8 +55,6 @@ struct SettingsView: View {
                     Picker("Grid name", selection: $settings.gridSystem) {
                         Text("MGRS").tag(0); Text("USNG").tag(1)
                     }.pickerStyle(.segmented).accessibilityIdentifier("grid-system")
-                    Text("MGRS and USNG use the same grid. This changes its name, not your coordinates.")
-                        .font(.footnote).foregroundStyle(palette.inkDim)
                     digitsBlock
                     latLonBlock
                     unitsBlock
@@ -111,8 +107,6 @@ struct SettingsView: View {
     private var paceBlock: some View {
         VStack(alignment:.leading,spacing:8) {
             Text("Pace count per 100 m").font(.headline).foregroundStyle(palette.ink)
-            Text("Your paces for 100 m on flat ground, used on route cards. Walk a known 100 m to find it.")
-                .font(.footnote).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
             HStack {
                 TextField("Paces",text:$paceDraft)
                     .focused($editingPace)
@@ -144,25 +138,13 @@ struct SettingsView: View {
             ) { index in
                 if let face = PositionFace(rawValue: index) { settings.face = face }
             }
-            caption(faceCaption)
-        }
-    }
-
-    private var faceCaption: String {
-        switch settings.face {
-        case .glance:
-            return "Glance: the grid as two big numbers."
-        case .lensatic:
-            return "Lensatic: issued-compass dial, grid on the glass, heading under the index."
-        case .dial:
-            return "Dial: a clean compass card with the grid and a heading mark."
         }
     }
 
     private var nightBlock: some View {
-        block("Night mode") {
+        VStack(alignment: .leading) {
             Toggle(isOn: $settings.nightMode) {
-                Text("Red-on-black, to keep night vision")
+                Text("Night mode")
                     .font(Blackout.label(14, weight: .regular))
                     .foregroundStyle(palette.ink)
             }
@@ -227,7 +209,6 @@ struct SettingsView: View {
             ) { index in
                 if let n = NorthReference(rawValue: index) { settings.northRef = n }
             }
-            caption("Headings and azimuths use this reference. Magnetic needs a declination; a missing one stays a dash, not 0.")
         }
     }
 

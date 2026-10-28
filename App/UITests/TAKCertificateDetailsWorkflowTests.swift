@@ -8,7 +8,7 @@ final class TAKCertificateDetailsWorkflowTests: XCTestCase {
         if night { app.launchArguments.append("-uiTestTAKEnrollmentNight") }
         if expired { app.launchArguments.append("-uiTestTAKCertificateExpired") }
         app.launch()
-        let server = app.buttons["map-tak"]
+        let server = mapStatusButton(app, "map-tak")
         XCTAssertTrue(server.waitForExistence(timeout: 12)); server.tap()
         let details = app.buttons["tak-certificate-details"]
         reveal(details,in: app); details.tap()

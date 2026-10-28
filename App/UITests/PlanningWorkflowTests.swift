@@ -7,7 +7,7 @@ final class PlanningWorkflowTests: XCTestCase {
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestTerrainNoData","-uiTestBoundaryMap","-startTab","map"]; app.launch()
     }
     private func open(_ id: String,_ title: String) {
-        let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let menu = mapTool(app, "map-measure"); XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
         tapNativeMenuItem(app.buttons[id]); XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8),app.debugDescription)
     }
     private func reveal(_ element: XCUIElement) { for _ in 0..<6 { if element.isHittable { return }; app.swipeUp() } }
@@ -44,7 +44,7 @@ final class PlanningWorkflowTests: XCTestCase {
         app.navigationBars["Terrain visibility"].buttons["Done"].tap()
     }
     func testNightPlanningTimesAndDiagramStayReadable() {
-        app.buttons["Toggle map night mode"].tap(); open("field-sunmoon","Sun & moon")
+        mapTool(app, "Toggle map night mode").tap(); open("field-sunmoon","Sun & moon")
         let dusk = app.staticTexts["sunmoon-eent-zulu"]; reveal(dusk); XCTAssertTrue(dusk.waitForExistence(timeout: 5)); capture("sun-moon-night")
         app.navigationBars["Sun & moon"].buttons["Close"].tap(); open("field-declination","Declination")
         XCTAssertTrue(app.staticTexts["declination-source"].waitForExistence(timeout: 5)); capture("declination-diagram-night")

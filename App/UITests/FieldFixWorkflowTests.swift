@@ -10,7 +10,7 @@ final class FieldFixWorkflowTests: XCTestCase {
         for _ in 0..<6 { if element.isHittable { return }; app.swipeUp() }
     }
     private func open(_ mode: String) {
-        let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); tapNativeMenuItem(menu,revealing:app.navigationBars["Map tools"])
+        let menu = mapTool(app, "map-measure"); XCTAssertTrue(menu.waitForExistence(timeout: 10)); tapNativeMenuItem(menu,revealing:app.navigationBars["Map tools"])
         tapNativeMenuItem(app.buttons["field-"+mode.lowercased()])
         capture("field-"+mode.lowercased()+"-opened")
         XCTAssertTrue(app.navigationBars[mode].waitForExistence(timeout: 8),app.debugDescription)
@@ -34,13 +34,13 @@ final class FieldFixWorkflowTests: XCTestCase {
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
     func testIntersectionShowResectionSaveAndRelaunchWithoutStartingNavigation() {
-        let before = app.staticTexts["map-centre-grid"].label
+        let before = app.buttons["map-centre-summary"].label
         open("Intersection"); angle(1,"45"); angle(2,"315")
         let grid = app.staticTexts["field-fix-grid"]; reveal(grid); XCTAssertTrue(grid.waitForExistence(timeout: 8)); XCTAssertTrue(grid.label.hasPrefix("40R BN"))
         let expected = grid.label
         XCTAssertTrue(app.staticTexts["field-fix-ranges"].label.contains("1.08 km")); capture("field-intersection-result")
         let show = app.buttons["field-fix-show"]; reveal(show); show.tap()
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: app.staticTexts["map-centre-grid"])
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: app.buttons["map-centre-summary"])
         XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 8),.completed)
         XCTAssertFalse(app.buttons["navigation-session-banner"].exists); XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
         open("Resection"); angle(1,"225"); angle(2,"135")
@@ -48,13 +48,13 @@ final class FieldFixWorkflowTests: XCTestCase {
         let name = app.textFields["field-fix-name"]; reveal(name); name.tap()
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: (name.value as? String ?? "").count)+"Resection check")
         app.buttons["Done"].tap(); let save = app.buttons["field-fix-save"]; reveal(save); save.tap()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 8))
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout: 8))
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         app.tabBars.buttons["Waypoints"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-Resection check"].waitForExistence(timeout: 8)); capture("field-fix-saved-waypoint")
     }
     func testInvalidAzimuthAndPoorCutStayExplicitInNightMode() {
-        app.buttons["Toggle map night mode"].tap(); open("Resection")
+        mapTool(app, "Toggle map night mode").tap(); open("Resection")
         angle(1,"-1"); angle(2,"135")
         let message = app.staticTexts["field-fix-message"]; reveal(message)
         XCTAssertTrue(message.label.contains("0 to 360")); XCTAssertFalse(app.buttons["field-fix-save"].isEnabled)
@@ -69,7 +69,7 @@ final class FieldFixWorkflowTests: XCTestCase {
         XCTAssertFalse(app.buttons["navigation-session-banner"].exists)
     }
     func testPointSearchAndCancelPreservesReference() {
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         open("Resection")
         let point = app.buttons["field-fix-point-1"]
         let original = point.label

@@ -43,7 +43,7 @@ final class ProjectionWorkflowTests: XCTestCase {
         capture("projected-waypoint-reloaded")
     }
     func testInvalidProjectionDisablesSaveAndCoordinateModeKeepsOriginalInNightMode() {
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         // The padded summary must open the editor even when touched off-glyph.
         app.buttons["edit-waypoint-West observer"].coordinate(withNormalizedOffset: .init(dx: 0.95,dy: 0.9)).tap()
         let preview = app.staticTexts["waypoint-coordinate-preview"]; reveal(preview); let original = preview.label

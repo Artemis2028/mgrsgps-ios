@@ -7,7 +7,7 @@ final class GraphicWorkflowTests: XCTestCase {
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","map"]; app.launch()
     }
     private func choose(_ type: String) {
-        let open = app.buttons["map-graphics"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        let open = mapTool(app, "map-graphics"); XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
         app.buttons["choose-graphic-type"].tap()
         let button = app.buttons["draw-graphic-\(type)"]
         for _ in 0..<8 { if button.isHittable { break }; app.swipeUp() }
@@ -48,7 +48,7 @@ final class GraphicWorkflowTests: XCTestCase {
         capture("route-navigation-waypoint-offer"); app.buttons["Not now"].tap()
         app.coordinate(withNormalizedOffset: .init(dx: 0.40,dy: 0.43)).tap()
         XCTAssertTrue(app.buttons["save-graphic"].waitForExistence(timeout: 5), "Tapping a saved route opens its map editor")
-        app.buttons["Cancel"].tap(); app.buttons["map-graphics"].tap()
+        app.buttons["Cancel"].tap(); mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.staticTexts["Route · 4 points · Base"].waitForExistence(timeout: 5))
         app.buttons["edit-graphic-Route"].tap()
         XCTAssertTrue(app.staticTexts["graphic-point-count"].label.contains("4 points"))
@@ -58,13 +58,13 @@ final class GraphicWorkflowTests: XCTestCase {
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: old.count)+"Patrol route")
         app.buttons["Done"].tap(); saveGraphic()
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
-        app.buttons["map-graphics"].tap()
+        mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.buttons["edit-graphic-Patrol route"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["stop-boundary"].exists)
         capture("map-graphic-library")
     }
     func testRouteCanSnapToExistingWaypointMarker() {
-        app.buttons["Add waypoint at map centre"].tap()
+        mapTool(app, "Add waypoint at map centre").tap()
         let name = app.textFields["waypoint-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Start point")
         app.buttons["waypoint-save"].tap()
         choose("route")
@@ -87,7 +87,7 @@ final class GraphicWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [changed],timeout: 5),.completed)
         capture("route-direct-line-drag")
         saveGraphic(); app.buttons["Not now"].tap()
-        app.buttons["map-graphics"].tap()
+        mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.staticTexts["Route · 3 points · Base"].waitForExistence(timeout: 5))
     }
     func testFixedRingAndSectorPlacementAndNightControls() {
@@ -98,11 +98,11 @@ final class GraphicWorkflowTests: XCTestCase {
         choose("sector"); point(0.30,0.50,1); point(0.50,0.35,2)
         app.coordinate(withNormalizedOffset: .init(dx: 0.65,dy: 0.55)).tap()
         XCTAssertTrue(app.textFields["graphic-name"].waitForExistence(timeout: 5)); app.buttons["Done"].tap(); saveGraphic()
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         XCTAssertTrue(app.buttons["Draw graphics and routes"].isHittable)
-        XCTAssertTrue(app.buttons["Add waypoint at map centre"].isHittable)
+        XCTAssertTrue(mapTool(app, "Add waypoint at map centre").isHittable)
         capture("range-ring-sector-night")
-        app.buttons["map-graphics"].tap()
+        mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.staticTexts["Range ring · 2 points · Base"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Sector of fire · 3 points · Base"].exists)
     }
@@ -111,7 +111,7 @@ final class GraphicWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Draw an open tactical boundary line. This graphic does not monitor crossings."].exists)
         saveGraphic()
         XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
-        app.buttons["map-graphics"].tap(); XCTAssertTrue(app.staticTexts["Boundary · 2 points · Base"].waitForExistence(timeout: 5))
+        mapTool(app, "map-graphics").tap(); XCTAssertTrue(app.staticTexts["Boundary · 2 points · Base"].waitForExistence(timeout: 5))
         capture("tactical-boundary-line")
     }
 }

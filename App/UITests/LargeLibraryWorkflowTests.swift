@@ -114,7 +114,7 @@ final class LargeLibraryWorkflowTests: XCTestCase {
         let range = point.label.range(of: #"40R [A-Z]{2} [0-9]{5} [0-9]{5}"#,options: .regularExpression)
         XCTAssertNotNil(range,point.debugDescription)
         query(range.map { String(point.label[$0]) } ?? "missing grid"); counts("1 waypoints · 0 graphics · 0 tracks")
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         XCTAssertTrue(point.waitForExistence(timeout: 10))
         capture("large-library-grid-search-night")
     }

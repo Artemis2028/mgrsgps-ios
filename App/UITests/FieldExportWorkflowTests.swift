@@ -71,7 +71,7 @@ final class FieldExportWorkflowTests: XCTestCase {
     }
     func testTrackDetailAndLibraryMenuExportOnlyTheChosenTrackInNightMode() {
         launch("-uiTestLibrary")
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         // Reopen the persisted library through the production worker path so
         // both exports exercise a saved source, not only fixture-owned bytes.
         app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()

@@ -7,7 +7,7 @@ final class LibraryWorkflowTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["open-field-library"].waitForExistence(timeout: 10))
         for night in [false,true] {
-            if night { app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap() }
+            if night { app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap() }
             app.terminate()
             app.launchArguments = ["-uiTesting","-keepUITestData","-uiTestDeferredFieldLoad","-uiTestSlowWaypointStartup","-startTab","waypoints"]
             app.launch()
@@ -44,7 +44,7 @@ final class LibraryWorkflowTests: XCTestCase {
     func testDeferredColdLibraryLoadRetainsTracksRoutesAndReadableDayNightLoading() {
         for night in [false,true] {
             if night {
-                app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+                app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
             }
             app.terminate()
             app.launchArguments = ["-uiTesting","-uiTestLibrary","-keepUITestData","-uiTestDeferredFieldLoad","-uiTestSlowFieldLoad","-startTab","waypoints"]
@@ -131,11 +131,11 @@ final class LibraryWorkflowTests: XCTestCase {
         let actions = app.buttons["Actions for track Recon track"]; reveal(actions); actions.tap(); app.buttons["Hide on map"].tap()
         app.buttons["folder-visibility-Recon"].tap()
         reveal(actions); actions.tap(); app.buttons["Show on map"].tap()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
-        let overlays = app.staticTexts["map-field-overlays"]
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout: 10))
+        let overlays = mapReadout(app, "map-field-overlays")
         XCTAssertTrue(overlays.waitForExistence(timeout: 10)); XCTAssertTrue(overlays.label.contains("1 tracks"))
         capture("library-track-fit-day")
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         capture("library-track-fit-night")
         app.buttons["Waypoints"].tap()
         reveal(actions); actions.tap(); XCTAssertTrue(app.buttons["Make visible on map"].exists)
@@ -169,7 +169,7 @@ final class LibraryWorkflowTests: XCTestCase {
         capture("library-empty-folder")
     }
     func testNightModeKeepsMixedSelectionAndFolderFormsReadable() {
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         folder("Recon"); selectAll(); selected(3); capture("library-night-selection")
         app.buttons["library-selection-done"].tap()
         app.buttons["Folder options"].tap()
@@ -183,7 +183,7 @@ final class LibraryWorkflowTests: XCTestCase {
     }
     func testGraphicChoicesKeepCancellationVisibilityAndRouteCardInDayAndNight() {
         for night in [false,true] {
-            if night { app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap() }
+            if night { app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap() }
             folder("Recon")
             let actions = app.buttons["Actions for graphic Recon route"]
             reveal(actions); actions.tap()
@@ -213,7 +213,7 @@ final class LibraryWorkflowTests: XCTestCase {
         folder("Recon")
         let actions = app.buttons["Actions for track Recon track"]; reveal(actions); actions.tap()
         app.buttons["backtrack-track-Recon track"].tap()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["navigation-session-banner"].exists); XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
         capture("track-backtrack-map")
         app.tabBars.buttons["Waypoints"].tap()
@@ -230,7 +230,7 @@ final class LibraryWorkflowTests: XCTestCase {
     func testBacktrackFromTrackDetailsReturnsToMapWithoutStartingGuide() {
         app.buttons["open-field-library"].tap(); app.buttons["track-Recon track"].tap()
         let create = app.buttons["track-create-backtrack"]; XCTAssertTrue(create.waitForExistence(timeout: 5)); create.tap()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 10))
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["navigation-session-banner"].exists)
     }
 }

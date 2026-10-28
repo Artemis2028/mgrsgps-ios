@@ -27,7 +27,7 @@ final class MovementWorkflowTests: XCTestCase {
         let nautical = app.buttons["Nautical"]
         for _ in 0..<6 { if nautical.isHittable { break }; app.swipeUp() }
         nautical.tap()
-        let night = app.switches["Red-on-black, to keep night vision"]
+        let night = app.switches["Night mode"]
         for _ in 0..<6 { if night.isHittable { break }; app.swipeDown() }
         night.tap(); app.buttons["Done"].tap()
         XCTAssertTrue(speed.label.contains("3.1 kn")); capture("gps-course-speed-night-nautical",app)

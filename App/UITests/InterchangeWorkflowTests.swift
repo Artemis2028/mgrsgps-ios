@@ -38,8 +38,8 @@ final class InterchangeWorkflowTests: XCTestCase {
         paste("GeoJSON",json); confirm()
         XCTAssertTrue(app.buttons["edit-waypoint-JSON marker"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Map"].tap(); app.buttons["Show all visible data"].tap()
-        XCTAssertTrue(app.staticTexts["map-field-overlays"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["map-field-overlays"].label,"1 routes · 0 tracks")
+        XCTAssertTrue(mapReadout(app, "map-field-overlays").waitForExistence(timeout: 10))
+        XCTAssertEqual(mapReadout(app, "map-field-overlays").label,"1 routes · 0 tracks")
         capture("geojson-map-import")
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["Waypoint actions"].tap()
         tapNativeMenuItem(app.buttons["Export"])
@@ -61,7 +61,7 @@ final class InterchangeWorkflowTests: XCTestCase {
         capture("geojson-file-import-preview"); app.buttons["Cancel"].tap()
     }
     func testMalformedInputAndNightPreviewRemainReadable() {
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         paste("GeoJSON","{broken")
         XCTAssertTrue(app.staticTexts["interchange-message"].waitForExistence(timeout: 10)); XCTAssertFalse(app.buttons["confirm-gpx-import"].exists)
         app.buttons["Cancel"].tap()

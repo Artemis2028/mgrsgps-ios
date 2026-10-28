@@ -92,8 +92,6 @@ struct BoundaryDrawingControls: View {
                 Button("Cancel",action: cancel).accessibilityIdentifier("cancel-boundary")
                 Button(saving ? "Saving…" : "Save",action: save).disabled(saving || draft.vertices.count < 3).accessibilityIdentifier("save-boundary")
             }
-            Text("Tap to draw. Hold and drag a point or line to reshape it.")
-                .font(.caption)
             row {
                 Button("Add point") {
                     guard draft.vertices.count < 256 else { return }

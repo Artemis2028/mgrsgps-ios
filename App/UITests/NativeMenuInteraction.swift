@@ -208,3 +208,48 @@ extension XCTestCase {
         app.coordinate(withNormalizedOffset: .zero).withOffset(.init(dx: frame.minX+frame.width*horizontal-origin.x,dy: frame.midY-origin.y)).tap()
     }
 }
+
+/// Follow the same disclosure and scrolling gestures used on the map itself.
+func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+    let toggle = app.buttons["map-options"]
+    if toggle.waitForExistence(timeout: 5), toggle.value as? String != "Expanded" { toggle.tap() }
+    let button = app.buttons[identifier]
+    let rail = app.scrollViews["map-options-rail"]
+    if rail.exists && button.exists {
+        for _ in 0..<16 {
+            if button.isHittable { break }
+            let downward = button.frame.midY < rail.frame.midY
+            // Keep gestures inside the viewport: native swipeDown can start at
+            // the landscape system edge and open Control Center instead.
+            let start = rail.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: downward ? 0.4 : 0.75))
+            let end = rail.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: downward ? 0.75 : 0.4))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+    }
+    return button
+}
+
+func mapReadout(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+    let value = app.staticTexts[identifier]
+    if !value.exists {
+        let summary = app.buttons["map-centre-summary"]
+        if summary.waitForExistence(timeout: 5) { summary.tap() }
+    }
+    return value
+}
+
+func mapStatusButton(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+    let button = app.buttons[identifier]
+    if !button.exists {
+        let summary = app.buttons["map-centre-summary"]
+        if summary.waitForExistence(timeout: 5) { summary.tap() }
+    }
+    return button
+}
+
+func closeMapOptions(_ app: XCUIApplication) {
+    let toggle = app.buttons["map-options"]
+    if toggle.exists && toggle.value as? String == "Expanded" { toggle.tap() }
+    let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.scrollViews["map-options-rail"])
+    XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 5), .completed)
+}

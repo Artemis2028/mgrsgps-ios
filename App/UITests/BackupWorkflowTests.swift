@@ -6,7 +6,7 @@ final class BackupWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","waypoints"]
         app.launch()
-        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap()
+        app.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap()
         drawQuietBoundary(app)
         app.buttons["Waypoints"].tap()
         let actions = app.buttons["Waypoint actions"]
@@ -51,7 +51,7 @@ final class BackupWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","waypoints"]
         app.launch()
-        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap()
+        app.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap()
         drawQuietBoundary(app)
         app.buttons["Waypoints"].tap()
         let actions = app.buttons["Waypoint actions"]
@@ -111,7 +111,7 @@ final class BackupWorkflowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["library-listed-count"].label.contains("1 waypoints · 1 graphics · 1 tracks"))
     }
     private func drawQuietBoundary(_ app: XCUIApplication) {
-        let open = app.buttons["map-boundaries"]
+        let open = mapTool(app, "map-boundaries")
         XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
         app.buttons["draw-boundary"].tap()
         XCTAssertTrue(app.buttons["save-boundary"].waitForExistence(timeout: 5))
@@ -144,7 +144,7 @@ final class BackupWorkflowTests: XCTestCase {
     private func openBoundaryList(_ app: XCUIApplication) {
         // Hosted109 retained Waypoints selected after its native Map tap.
         // Acknowledge the destination before opening the boundary controls.
-        let open = app.buttons["map-boundaries"]
+        let open = mapTool(app, "map-boundaries")
         tapNativeMenuItem(app.buttons["Map"],revealing:open)
         XCTAssertTrue(open.waitForExistence(timeout:10),app.debugDescription)
         tapNativeMenuItem(open)

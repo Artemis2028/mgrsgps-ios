@@ -21,7 +21,7 @@ final class InstrumentAccessibilityWorkflowTests: XCTestCase {
         let settings = app.buttons["Settings"]
         if night {
             tapNativeMenuItem(settings)
-            setNativeSwitch(app.switches["Red-on-black, to keep night vision"],to:true)
+            setNativeSwitch(app.switches["Night mode"],to:true)
             tapNativeMenuItem(app.navigationBars.buttons["Done"])
         }
         let qr = app.buttons["position-share-qr"]

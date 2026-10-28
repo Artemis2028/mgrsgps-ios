@@ -14,8 +14,6 @@ struct MapToolSettingsView: View {
                             if shown { settings.hiddenMapTools.remove(key) } else { settings.hiddenMapTools.insert(key) }
                         })).accessibilityIdentifier("map-tool-shown-"+key)
                     }
-                } footer: {
-                    Text("Hide buttons you don't use. Active recording, drawing and measuring controls stay available until you finish. Draw includes graphics, routes, navigation lanes and boundaries; Tools includes terrain visibility.")
                 }.listRowBackground(settings.nightMode ? Color.black : Color(white: 0.12))
                 Section {
                     Button("Show all map buttons") { settings.hiddenMapTools = [] }.accessibilityIdentifier("map-tools-reset")

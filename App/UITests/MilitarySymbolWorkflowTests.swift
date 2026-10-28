@@ -38,13 +38,13 @@ final class MilitarySymbolWorkflowTests: XCTestCase {
         let marker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@","map-waypoint-")).firstMatch
         XCTAssertTrue(marker.waitForExistence(timeout: 5))
         let mapShot = XCTAttachment(screenshot: app.screenshot()); mapShot.name = "military-unit-map"; mapShot.lifetime = .keepAlways; add(mapShot)
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         XCTAssertFalse(app.tabBars.buttons["Waypoints"].exists, "The map night toggle must use the opaque red field tab bar")
         XCTAssertTrue(app.buttons["Waypoints"].exists)
-        XCTAssertTrue(app.buttons["Add waypoint at map centre"].isHittable)
+        XCTAssertTrue(mapTool(app, "Add waypoint at map centre").isHittable)
         XCTAssertTrue(app.buttons["Show all visible data"].isHittable)
         XCTAssertTrue(app.buttons["Map layers"].isHittable)
-        XCTAssertLessThan(app.buttons["Add waypoint at map centre"].frame.maxY, app.buttons["Map"].firstMatch.frame.minY, "Map actions must stay above the field tab bar")
+        XCTAssertLessThan(mapTool(app, "Add waypoint at map centre").frame.maxY, app.buttons["Map"].firstMatch.frame.minY, "Map actions must stay above the field tab bar")
         let nightShot = XCTAttachment(screenshot: app.screenshot()); nightShot.name = "military-unit-map-night"; nightShot.lifetime = .keepAlways; add(nightShot)
     }
 }

@@ -46,7 +46,7 @@ final class RoutePDFWorkflowTests: XCTestCase {
         openRoute(); XCTAssertTrue(app.buttons["prepare-strip-map-pdf"].waitForExistence(timeout: 8))
     }
     func testNightRouteCardKeepsControlsReadableAndSharesText() {
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         openRoute()
         XCTAssertTrue(app.buttons["share-route-card"].waitForExistence(timeout: 10))
         capture("route-card-night")

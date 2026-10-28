@@ -38,7 +38,7 @@ final class PositionQRWorkflowTests: XCTestCase {
         openWaypointQR(); capture("waypoint-qr-day")
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["map-navigate-waypoint"].waitForExistence(timeout: 5))
-        app.buttons["Close waypoint"].tap(); app.buttons["Toggle map night mode"].tap()
+        app.buttons["Close waypoint"].tap(); mapTool(app, "Toggle map night mode").tap()
         openWaypointQR(); capture("waypoint-qr-night")
         app.navigationBars.buttons["Done"].tap()
         XCTAssertTrue(app.buttons["map-navigate-waypoint"].waitForExistence(timeout: 5))

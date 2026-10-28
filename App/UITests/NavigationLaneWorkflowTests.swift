@@ -7,7 +7,7 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestLanes","-uiTestBoundaryMap","-startTab","map"]; app.launch()
     }
     private func openLibrary() {
-        let button = app.buttons["map-lanes"]; XCTAssertTrue(button.waitForExistence(timeout: 10)); button.tap()
+        let button = mapTool(app, "map-lanes"); XCTAssertTrue(button.waitForExistence(timeout: 10)); button.tap()
         XCTAssertTrue(app.buttons["create-nav-lane"].waitForExistence(timeout: 8))
     }
     private func role(_ title: String) { app.segmentedControls["lane-line-role"].buttons[title].tap() }
@@ -37,7 +37,7 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         openLibrary(); app.buttons["create-nav-lane"].tap()
         link("lane-left"); role("Right"); link("lane-right"); role("Backstop"); link("lane-backstop")
         reviewAndSave("Route corridor",wholeRoute: true)
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         openLibrary(); app.switches["Visible on map"].coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["Hidden on map · guidance still enabled"].waitForExistence(timeout: 5))
         app.navigationBars["Navigation lanes"].buttons["Done"].tap(); app.buttons["Waypoints"].tap()
@@ -76,7 +76,7 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         openLibrary(); app.buttons["create-nav-lane"].tap()
         link("lane-left"); role("Right"); link("lane-right"); role("Backstop"); link("lane-backstop")
         reviewAndSave("Creek corridor")
-        app.buttons["Toggle map night mode"].tap(); capture("nav-lane-linked-night-map")
+        mapTool(app, "Toggle map night mode").tap(); capture("nav-lane-linked-night-map")
         openLibrary(); XCTAssertTrue(app.buttons["Edit lane"].waitForExistence(timeout: 5))
         let visibility = app.switches["Visible on map"]
         visibility.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap()
@@ -99,7 +99,7 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5)); tapNativeMenuItem(confirmation.buttons["Delete lane"])
         XCTAssertFalse(app.staticTexts["Final corridor"].waitForExistence(timeout: 2))
         app.navigationBars["Navigation lanes"].buttons["Done"].tap()
-        app.buttons["Map"].tap(); app.buttons["map-graphics"].tap()
+        app.buttons["Map"].tap(); mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.buttons["edit-graphic-Creek bank"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["edit-graphic-Right road"].exists)
     }
@@ -133,7 +133,7 @@ final class NavigationLaneWorkflowTests: XCTestCase {
         let error=app.staticTexts["The point is on the backstop; the backstop goes past the point"]
         XCTAssertTrue(error.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["save-nav-lane"].isEnabled)
         capture("lane-objective-backstop-error-day")
-        app.buttons["Back to map"].tap();app.buttons["Toggle map night mode"].tap();app.buttons["review-nav-lane"].tap()
+        app.buttons["Back to map"].tap();mapTool(app, "Toggle map night mode").tap();app.buttons["review-nav-lane"].tap()
         XCTAssertTrue(error.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["save-nav-lane"].isEnabled)
         capture("lane-objective-backstop-error-night")
         let valid=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@ AND label BEGINSWITH %@","lane-target-","Lane OBJ")).firstMatch

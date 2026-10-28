@@ -29,13 +29,13 @@ final class OrientationWorkflowTests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 8)); picker.buttons["Landscape"].tap()
         let sideways = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.width > app.frame.height },object: app)
         XCTAssertEqual(XCTWaiter.wait(for: [sideways],timeout: 10),.completed)
-        let actual = app.staticTexts["orientation-window"]; reveal(actual,in: app)
-        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","Current window: Landscape"),object: actual)
+        let actual = picker; reveal(actual,in: app)
+        let landscape = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","Landscape"),object: actual)
         XCTAssertEqual(XCTWaiter.wait(for: [landscape],timeout: 8),.completed)
         capture("orientation-landscape",app)
         XCUIDevice.shared.orientation = .landscapeLeft
         reveal(picker,in: app); picker.buttons["Flipped"].tap()
-        let flipped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","Current window: Flipped"),object: actual)
+        let flipped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@","Flipped"),object: actual)
         XCTAssertEqual(XCTWaiter.wait(for: [flipped],timeout: 10),.completed); capture("orientation-flipped",app)
         XCUIDevice.shared.orientation = .portrait
         app.terminate(); app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]; app.launch()
@@ -43,7 +43,7 @@ final class OrientationWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [pinned],timeout: 10),.completed)
         XCUIDevice.shared.orientation = .landscapeRight
         app.buttons["Settings"].tap(); reveal(actual,in: app)
-        XCTAssertEqual(actual.label,"Current window: Flipped")
+        XCTAssertEqual(actual.value as? String,"Flipped")
         reveal(picker,in: app); tapNativeMenuItem(picker.buttons["Portrait"])
         XCTAssertTrue(picker.buttons["Portrait"].isSelected)
         let upright = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in app.frame.height > app.frame.width },object: app)
@@ -66,8 +66,8 @@ final class OrientationWorkflowTests: XCTestCase {
         // actual scene geometry, relaunch persistence and Auto rotation.
         choose(1,in: app)
         app.tabBars.buttons["Map"].tap()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout: 8)); capture("orientation-map-shortcut",app)
-        app.buttons["map-measure"].tap()
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout: 8)); capture("orientation-map-shortcut",app)
+        mapTool(app, "map-measure").tap()
         let rotation = app.buttons["field-orientation"]; reveal(rotation,in: app); tapNativeMenuItem(rotation)
         choose(1,in: app)
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["Waypoint actions"].tap()

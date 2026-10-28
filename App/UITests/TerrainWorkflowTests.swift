@@ -5,7 +5,7 @@ final class TerrainWorkflowTests: XCTestCase {
     private func launch(missing: Bool = false) {
         continueAfterFailure = false
         app = XCUIApplication(); app.launchArguments = ["-uiTesting",missing ? "-uiTestTerrainNoData" : "-uiTestTerrain","-startTab","map"]; app.launch()
-        let open = app.buttons["map-terrain"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
+        let open = mapTool(app, "map-terrain"); XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
         XCTAssertTrue(app.navigationBars["Terrain visibility"].waitForExistence(timeout: 5))
     }
     private func pick(_ prefix: String,_ name: String) {
@@ -46,13 +46,13 @@ final class TerrainWorkflowTests: XCTestCase {
         XCTAssertTrue(missing.label.hasPrefix("0 missing"))
         capture("terrain-route-profile")
         // Reopen the sheet to return to its initial scroll position and clear results.
-        app.navigationBars.buttons["Done"].tap(); app.buttons["map-terrain"].tap()
+        app.navigationBars.buttons["Done"].tap(); mapTool(app, "map-terrain").tap()
         pick("observer","West observer")
         let shade = app.buttons["terrain-shade"]; reveal(shade); shade.tap()
         let legend = app.buttons["viewshed-legend"]
         XCTAssertTrue(legend.waitForExistence(timeout: 45),app.debugDescription)
         capture("terrain-viewshed-day")
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         XCTAssertTrue(legend.waitForExistence(timeout: 5)); capture("terrain-viewshed-night")
         legend.tap(); XCTAssertFalse(app.buttons["viewshed-legend"].exists)
     }

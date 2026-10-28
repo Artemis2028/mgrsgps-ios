@@ -18,7 +18,7 @@ final class NavigationTargetWorkflowTests: XCTestCase {
             app.launch()
             if night {
                 app.buttons["Settings"].tap()
-                let toggle = app.switches["Red-on-black, to keep night vision"]
+                let toggle = app.switches["Night mode"]
                 XCTAssertTrue(toggle.waitForExistence(timeout:5)); setNativeSwitch(toggle,to:true)
                 app.buttons["Done"].tap(); app.buttons["Navigate"].tap()
             }
@@ -48,7 +48,7 @@ final class NavigationTargetWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestWatch","-uiTestWatchMap","-startTab","position"]
         app.launch(); app.buttons["Settings"].tap()
-        let night = app.switches["Red-on-black, to keep night vision"]
+        let night = app.switches["Night mode"]
         XCTAssertTrue(night.waitForExistence(timeout:5)); setNativeSwitch(night,to:true)
         app.buttons["Done"].tap(); app.buttons["Navigate"].tap()
         app.buttons["Choose navigation target"].tap()
@@ -98,7 +98,7 @@ final class NavigationTargetWorkflowTests: XCTestCase {
             app.launch()
             if night {
                 app.buttons["Settings"].tap()
-                let toggle = app.switches["Red-on-black, to keep night vision"]
+                let toggle = app.switches["Night mode"]
                 XCTAssertTrue(toggle.waitForExistence(timeout:5)); setNativeSwitch(toggle,to:true)
                 app.buttons["Done"].tap()
             }

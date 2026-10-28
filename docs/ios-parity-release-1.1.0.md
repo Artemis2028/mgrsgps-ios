@@ -4,13 +4,22 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Latest UI follow-up: [compact map chrome](map-chrome-2026-10-28.md) replaces the
+upper-right cluster with a bottom-right animated rail and a grid disclosure card.
+Map details include selected-format lat/lon and UTM; redundant settings copy is
+removed. Day selected-tab contrast is repaired. Scoped validation is recorded
+there; full current-source hosted confirmation remains open. Hosted110 is now
+terminal: map47/library59 pass; field exceeds its two-hour job allowance with
+Files/export failures and skipped dedicated background suites.
+Claude's28 October note also identifies unreleased1.2 settings-restore behavior
+for missing keys as a separate follow-up beyond the pinned1.1.0 baseline.
 Latest held storage milestone: [on-demand saved-track reads](track-on-demand.md)
 now cover normal startup, retry and recorder entry points for validated references.
 551 core cases pass; the full356-case native suite has four opt-in skips/no
 failures, with final affected-native and cold-map checks after cleanup hardening.
 Seven distinct UI workflows pass across the scoped bundles. Receiptless/v1
-fallback, physical profiling and the observed day Map-tab contrast issue remain
-open. These commits remain local while hosted110 validates98c5c17 below.
+fallback and physical profiling remain open. These commits remain local;
+hosted110 validated the earlier98c5c17 source with the partial outcome above.
 Latest resume checkpoint,28 October: the preserved20-case native Files regression
 passes on iOS26.5. Both backup/saved-log workflows and both final active-course
 cases pass across the scoped resume bundles, including largest-night end/restart

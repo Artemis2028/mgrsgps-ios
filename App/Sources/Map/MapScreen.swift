@@ -16,6 +16,9 @@ struct MapScreen: View {
     @EnvironmentObject private var lanes: NavigationLaneStore
     @EnvironmentObject private var terrain: TerrainSession
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showingMapOptions = false
+    @State private var showingMapReadout = false
     @Environment(\.dynamicTypeSize) private var dynamicType
     var onNavigate: () -> Void = {}
     var onOpenCourse: () -> Void = {}
@@ -176,17 +179,26 @@ struct MapScreen: View {
                     accessibleMapHeader
                 } else {
                 HStack(alignment: .top, spacing: 12) {
-                    mapHUDReadout()
-                    .fixedSize(horizontal: false,vertical: true)
-                    .padding(compactMap ? 8 : 14).fieldChrome()
-                    Spacer(minLength: 0)
-                    if compactMap {
-                        ScrollView(.horizontal,showsIndicators: false) { HStack(spacing: 8) { mapToolButtons } }.frame(maxWidth: 420)
-                            .foregroundStyle(palette.ink).environment(\.colorScheme,.dark)
-                    } else {
-                        LazyVGrid(columns: [.init(.fixed(68)),.init(.fixed(68))],spacing: 8) { mapToolButtons }.frame(width: 144)
-                            .foregroundStyle(palette.ink).environment(\.colorScheme,.dark)
+                    VStack(alignment: .leading, spacing: 0) {
+                    Button { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { showingMapReadout.toggle() } } label: {
+                        HStack(spacing: 10) {
+                            Text(centreGridReadout)
+                                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("map-centre-grid")
+                            Image(systemName: showingMapReadout ? "chevron.up" : "chevron.down").font(.caption2.weight(.semibold))
+                        }
+                        .padding(14).frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).foregroundStyle(mapInk)
+                        .accessibilityLabel(centreGrid?.full ?? centreGridReadout)
+                        .accessibilityValue(showingMapReadout ? "Details expanded" : "Details collapsed")
+                        .accessibilityHint("Shows elevation, grid spacing, map layers and TAK status")
+                        .accessibilityIdentifier("map-centre-summary")
+                    if showingMapReadout {
+                        mapHUDReadout(full: true, includeGrid: false).padding([.horizontal, .bottom], 14)
                     }
+                    }.frame(maxWidth: showingMapReadout ? 280 : nil, alignment: .leading).fixedSize(horizontal: !showingMapReadout, vertical: true).fieldChrome()
+                    Spacer(minLength: 0)
                 }
                 }
                 Spacer(minLength: 0)
@@ -201,7 +213,8 @@ struct MapScreen: View {
                     .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
                     .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.8), in: Capsule())
                     .accessibilityIdentifier("map-attribution")
-                if !accessibleMap && laneDraft == nil && (!compactMap || (boundaryDraft == nil && graphicDraft == nil)) { HStack(spacing: 12) {
+                if !accessibleMap { HStack(spacing: 12) {
+                    if laneDraft == nil && (!compactMap || (boundaryDraft == nil && graphicDraft == nil)) {
                     if showsTool("locate") { Button {
                         guard let fix = location.usableFix else { return }
                         cameraRequest = MapCameraRequest(action: .locate(fix.lat, fix.lon))
@@ -217,15 +230,42 @@ struct MapScreen: View {
                     .fieldGlassButton(mapControl: true).disabled(!fieldData.ready || (visible.isEmpty && !hasFieldPoints && !overlayLoading && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible })))
                     .accessibilityLabel("Show all visible data")
                     if showsTool("record") { RecordingButton(mapControl: true) }
+                    }
                     Spacer(minLength: 0)
                     Button {
-                        editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) {
+                            showingMapOptions.toggle()
+                        }
                     } label: {
-                        Label("Add", systemImage: "plus").frame(minHeight: 40)
-                    }
-                    .fieldGlassButton(mapControl: true).tint(palette.accent)
-                    .accessibilityLabel("Add waypoint at map centre")
+                        Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .medium))
+                            .rotationEffect(.degrees(showingMapOptions ? 45 : 0))
+                            .frame(width: 56, height: 56).contentShape(Circle()).fieldChrome(radius: 28)
+                    }.buttonStyle(.plain).foregroundStyle(mapInk)
+                        .accessibilityLabel(showingMapOptions ? "Close map options" : "Map options")
+                        .accessibilityValue(showingMapOptions ? "Expanded" : "Collapsed")
+                        .accessibilityIdentifier("map-options")
                 }.foregroundStyle(palette.ink).environment(\.colorScheme,.dark) }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showingMapOptions && !accessibleMap {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 4) {
+                            Button {
+                                showingMapOptions = false
+                                editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
+                            } label: { Image(systemName: "mappin").frame(width: 44, height: 44) }
+                                .fieldGlassButton(mapControl: true)
+                                .accessibilityLabel("Add waypoint at map centre")
+                            mapToolButtons
+                        }.padding(4)
+                    }
+                    .frame(width: 76, height: mapRailHeight(available: geometry.size.height))
+                    .foregroundStyle(palette.ink).environment(\.colorScheme, .dark)
+                    .offset(x: 8, y: -68)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityIdentifier("map-options-rail")
+                }
             }
             .disabled(graphicMutation.working || lassoMutation.working)
             .padding(.horizontal, 16).padding(.top, 8)
@@ -236,7 +276,7 @@ struct MapScreen: View {
         }
         .foregroundStyle(mapInk)
         .environment(\.colorScheme, chromeNight ? .dark : .light)
-        .toolbarColorScheme(.dark, for: .tabBar)
+        .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
         .environment(\.fieldNight, chromeNight)
         .onAppear { boundaryMutation.setPresented(true); targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
         .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
@@ -388,13 +428,19 @@ struct MapScreen: View {
     }
 
 
-    private func mapHUDReadout(full: Bool = false) -> some View {
+    private func mapHUDReadout(full: Bool = false, includeGrid: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(centreGridReadout)
+            if includeGrid { Text(centreGridReadout)
                 .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                 .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
                 .accessibilityLabel(centreGrid?.full ?? centreGridReadout)
-                .accessibilityIdentifier("map-centre-grid")
+                .accessibilityIdentifier("map-centre-grid") }
+            Text(Format.latLon(lat: centre.latitude, lon: centre.longitude, format: settings.latLonFormat))
+                .font(.system(.caption, design: .monospaced)).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("map-centre-latlon")
+            Text("UTM " + Format.utm(UTM.coordinate(lat: centre.latitude, lon: centre.longitude)))
+                .font(.system(.caption, design: .monospaced)).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("map-centre-utm")
             Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
                 .font(.caption2.weight(.semibold)).tracking(1)
                 .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
@@ -603,41 +649,53 @@ struct MapScreen: View {
         }
     }
 
+    private func mapRailHeight(available: CGFloat) -> CGFloat {
+        let editing = boundaryDraft != nil || graphicDraft != nil || laneDraft != nil
+        let count = 3 + (showsTool("draw") ? 3 : 0) + (showsTool("layers") ? 1 : 0)
+            + (!editing && showsTool("tools") ? 2 : 0)
+            + (!editing && showsTool("ruler") ? 1 : 0)
+            + (!editing && showsTool("goto") ? 1 : 0)
+        let room = max(100, available - 100 - (chromeNight ? FieldTabBar.controlHeight : 0))
+        let rows = min(count, max(1, Int((room - 4) / 48)))
+        return CGFloat(rows * 48 + 4)
+    }
+
     @ViewBuilder private var mapToolButtons: some View {
 
         if showsTool("draw") {
-            Button { showingLanes = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").frame(width: 44,height: 44) }
+            Button { showingMapOptions = false; showingLanes = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").frame(width: 44,height: 44) }
                 .fieldGlassButton(mapControl: true).accessibilityLabel("Navigation lanes").accessibilityIdentifier("map-lanes")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
-            Button { showingGraphics = true } label: {
+            Button { showingMapOptions = false; showingGraphics = true } label: {
                 Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
             }.fieldGlassButton(mapControl: true).accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
-            Button { showingBoundaries = true } label: {
+            Button { showingMapOptions = false; showingBoundaries = true } label: {
                 Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
             }.fieldGlassButton(mapControl: true).accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
                 .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
         }
-        if showsTool("layers") { Button { showingLayers = true } label: {
+        if showsTool("layers") { Button { showingMapOptions = false; showingLayers = true } label: {
             Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
         }.fieldGlassButton(mapControl: true).accessibilityLabel("Map layers").accessibilityIdentifier("map-layers") }
         if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
-            if showsTool("tools") { Button { showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
+            if showsTool("tools") { Button { showingMapOptions = false; showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
                 .fieldGlassButton(mapControl: true).accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
-            Button { showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
+            Button { showingMapOptions = false; showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
                 .fieldGlassButton(mapControl: true).accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain") }
         }
         if showsTool("ruler") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
             Button {
+                showingMapOptions = false
                 if rulerAnchor != nil { rulerAnchor = nil } else { rulerAnchor = .init(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil }
             } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
                 .fieldGlassButton(mapControl: true).accessibilityLabel(rulerAnchor == nil ? "Ruler" : "Close ruler").accessibilityIdentifier("map-ruler")
         }
         if showsTool("goto") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
-            Button { showingGoTo = true } label: { Image(systemName: "magnifyingglass").frame(width: 44,height: 44) }
+            Button { showingMapOptions = false; showingGoTo = true } label: { Image(systemName: "magnifyingglass").frame(width: 44,height: 44) }
                 .fieldGlassButton(mapControl: true).accessibilityLabel("Go to coordinates").accessibilityIdentifier("map-goto")
         }
-        Button { showingMapToolSettings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44,height: 44) }
+        Button { showingMapOptions = false; showingMapToolSettings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44,height: 44) }
             .fieldGlassButton(mapControl: true).accessibilityLabel("Map buttons").accessibilityIdentifier("map-button-settings")
         Button { settings.nightMode.toggle() } label: {
             Image(systemName: chromeNight ? "moon.fill" : "moon")

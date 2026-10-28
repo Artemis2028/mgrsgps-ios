@@ -8,7 +8,7 @@ final class MeasurementWorkflowTests: XCTestCase {
     }
     override func tearDownWithError() throws { XCUIDevice.shared.orientation = .portrait }
     private func choose(_ id: String) {
-        let menu = app.buttons["map-measure"]; XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let menu = mapTool(app, "map-measure"); XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
         tapNativeMenuItem(app.buttons[id])
         let ready = id == "measure-area" ? app.buttons["measurement-done"] : app.staticTexts["ruler-distance"]
         XCTAssertTrue(ready.waitForExistence(timeout: 8),app.debugDescription)
@@ -31,12 +31,12 @@ final class MeasurementWorkflowTests: XCTestCase {
         let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@",before),object: distance)
         XCTAssertEqual(XCTWaiter.wait(for: [moved],timeout: 5),.completed)
         XCTAssertTrue(app.staticTexts["ruler-bearings"].label.contains("BACK")); capture("map-ruler-day")
-        app.buttons["Toggle map night mode"].tap(); capture("map-ruler-night")
+        mapTool(app, "Toggle map night mode").tap(); capture("map-ruler-night")
         app.buttons["ruler-reset"].tap()
         XCTAssertEqual(distance.label,"0 m")
         app.buttons["ruler-done"].tap(); XCTAssertFalse(distance.exists)
         XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
-        app.buttons["map-graphics"].tap(); XCTAssertTrue(app.staticTexts["No graphics saved"].waitForExistence(timeout: 5))
+        mapTool(app, "map-graphics").tap(); XCTAssertTrue(app.staticTexts["No graphics saved"].waitForExistence(timeout: 5))
     }
     func testMeasureEditUndoAndSaveAsAreaGraphic() {
         choose("measure-area"); tap(0.25,0.39); points(1); tap(0.65,0.39); points(2)
@@ -61,14 +61,14 @@ final class MeasurementWorkflowTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [saved],timeout: 10),.completed,app.debugDescription)
         XCTAssertFalse(app.buttons["boundary-monitor-banner"].exists)
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
-        app.buttons["map-graphics"].tap()
+        mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.buttons["edit-graphic-Training area"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Area (sketch) · 4 points · Base"].exists)
     }
     func testDoneDiscardsTemporaryAreaWithoutSavingGraphic() {
         choose("measure-area"); tap(0.25,0.40); points(1); tap(0.65,0.40); points(2); tap(0.50,0.54); points(3)
         app.buttons["measurement-done"].tap()
-        app.buttons["map-graphics"].tap(); XCTAssertTrue(app.staticTexts["No graphics saved"].waitForExistence(timeout: 5))
+        mapTool(app, "map-graphics").tap(); XCTAssertTrue(app.staticTexts["No graphics saved"].waitForExistence(timeout: 5))
     }
     func testLandscapeKeepsRulerAndAreaActionsReachable() {
         XCUIDevice.shared.orientation = .landscapeLeft

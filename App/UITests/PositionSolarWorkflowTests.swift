@@ -19,7 +19,7 @@ final class PositionSolarWorkflowTests:XCTestCase {
         let details=app.scrollViews["position-details"],last=app.staticTexts["position-sun-eent"]
         for _ in 0..<8 {if last.isHittable && last.frame.maxY<app.frame.maxY-100 {break};details.swipeUp()}
         verify(app);XCTAssertTrue(last.isHittable);capture("position-solar-glance-day")
-        app.tabBars.buttons["Map"].tap();app.buttons["Toggle map night mode"].tap();app.buttons["Position"].tap()
+        app.tabBars.buttons["Map"].tap();mapTool(app, "Toggle map night mode").tap();app.buttons["Position"].tap()
         verify(app);capture("position-solar-glance-night")
     }
 }

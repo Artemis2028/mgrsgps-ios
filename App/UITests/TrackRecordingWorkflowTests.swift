@@ -83,7 +83,7 @@ final class TrackRecordingWorkflowTests: XCTestCase {
         capture("recorded-track-details")
         app.navigationBars.buttons.element(boundBy: 0).tap(); app.buttons["Done"].tap()
         app.tabBars.buttons["Map"].tap()
-        XCTAssertEqual(app.staticTexts["map-field-overlays"].label, "0 routes · 1 tracks")
+        XCTAssertEqual(mapReadout(app, "map-field-overlays").label, "0 routes · 1 tracks")
         app.buttons["Show all visible data"].tap()
         capture("recorded-track-map")
     }

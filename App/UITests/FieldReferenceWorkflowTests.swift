@@ -47,7 +47,7 @@ final class FieldReferenceWorkflowTests: XCTestCase {
     func testReferenceAlphabetUsesOneReadableColumnAtAccessibilityTextSize() {
         app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","map","-uiTestReferenceLargeText"]
         app.launch()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout:10)); app.buttons["map-measure"].tap()
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout:10)); mapTool(app, "map-measure").tap()
         XCTAssertTrue(app.navigationBars["Map tools"].waitForExistence(timeout:5))
         let entry = app.buttons["field-reference"]
         for _ in 0..<12 { if entry.exists && entry.isHittable { break }; app.swipeUp() }
@@ -65,12 +65,12 @@ final class FieldReferenceWorkflowTests: XCTestCase {
     }
     func testOfflineReferenceFromMapToolsAtNight() {
         app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-startTab","map"]; app.launch()
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout:10))
-        app.buttons["Toggle map night mode"].tap(); app.buttons["map-measure"].tap()
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout:10))
+        mapTool(app, "Toggle map night mode").tap(); mapTool(app, "map-measure").tap()
         let entry = app.buttons["field-reference"]
         for _ in 0..<4 { if entry.exists && entry.isHittable { break }; app.swipeUp() }
         XCTAssertTrue(entry.isHittable,app.debugDescription); entry.tap()
         check(true)
-        XCTAssertTrue(app.buttons["map-measure"].waitForExistence(timeout:5))
+        XCTAssertTrue(mapTool(app, "map-measure").waitForExistence(timeout:5))
     }
 }

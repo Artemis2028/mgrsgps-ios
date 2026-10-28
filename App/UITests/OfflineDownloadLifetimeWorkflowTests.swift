@@ -22,7 +22,7 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
         XCTAssertTrue(button.waitForExistence(timeout: 8)); tapNativeMenuItem(button)
     }
     private func openLayers(_ app: XCUIApplication) {
-        let button = app.buttons["map-layers"]
+        let button = mapTool(app, "map-layers")
         XCTAssertTrue(button.waitForExistence(timeout: 15)); tapNativeMenuItem(button,revealing:app.navigationBars["Map layers"])
         XCTAssertTrue(app.navigationBars["Map layers"].waitForExistence(timeout: 5))
     }
@@ -45,7 +45,7 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
         tab("Position", app: app, night: night)
         let release = app.buttons["offline-lifetime-release"]
         XCTAssertTrue(release.waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["map-layers"].isHittable)
+        XCTAssertFalse(mapTool(app, "map-layers").isHittable)
         let status = app.staticTexts["offline-lifetime-status"]
         XCTAssertEqual(status.label, "Download active")
         capture(night ? "offline-download-away-active-night" : "offline-download-away-active-day")
@@ -90,7 +90,7 @@ final class OfflineDownloadLifetimeWorkflowTests: XCTestCase {
         XCTAssertEqual(offline.value as? String, "1")
         tapNativeMenuItem(app.navigationBars.buttons["Done"])
         app.terminate(); app.launchArguments.append("-keepUITestData"); app.launch()
-        let layer = app.staticTexts["map-layer-name"]
+        let layer = mapReadout(app, "map-layer-name")
         XCTAssertTrue(layer.waitForExistence(timeout: 15)); XCTAssertTrue(layer.label.contains("OFFLINE ONLY"))
         openLayers(app); reveal(saved, app: app); XCTAssertTrue(saved.exists)
         XCTAssertTrue(saved.label.hasPrefix("Ready"))

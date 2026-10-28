@@ -26,7 +26,7 @@ final class PositionFixWorkflowTests: XCTestCase {
         XCTAssertFalse(qr.isEnabled)
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "position-real-stale-fix"; shot.lifetime = .keepAlways; add(shot)
         app.buttons["Settings"].tap()
-        let night = app.switches["Red-on-black, to keep night vision"]
+        let night = app.switches["Night mode"]
         XCTAssertTrue(night.waitForExistence(timeout: 5)); night.tap()
         app.buttons["Done"].tap()
         XCTAssertEqual(quality.label,"STALE")

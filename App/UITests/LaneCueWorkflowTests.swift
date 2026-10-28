@@ -28,7 +28,7 @@ final class LaneCueWorkflowTests:XCTestCase {
         XCTAssertTrue(app.staticTexts["Every 10 min"].exists,app.debugDescription)
         capture("lane-cue-settings-day")
         app.navigationBars.buttons["Done"].tap();app.tabBars.buttons["Map"].tap()
-        app.buttons["Toggle map night mode"].tap()
+        mapTool(app, "Toggle map night mode").tap()
         app.terminate();app.launchArguments += ["-keepUITestData"];app.launch()
         guideSettings(app)
         for key in ["lane-side-cues","lane-backstop-cue","lane-inside-tick","lane-gps-alert"] {

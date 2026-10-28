@@ -28,7 +28,7 @@ final class ImportReviewWorkflowTests:XCTestCase {
     }
     func testSkipMatchesKeepsNewRecordAndNightPromptReadable() {
         continueAfterFailure=false;let app=launch()
-        app.tabBars.buttons["Map"].tap();app.buttons["Toggle map night mode"].tap();app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap();mapTool(app, "Toggle map night mode").tap();app.buttons["Waypoints"].tap()
         preview(app);capture("duplicate-review-night")
         app.alerts["Already here"].buttons["Skip 1"].tap()
         XCTAssertTrue(app.buttons["edit-waypoint-New marker"].waitForExistence(timeout:10))

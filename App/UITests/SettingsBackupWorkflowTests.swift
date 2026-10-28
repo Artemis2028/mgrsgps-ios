@@ -19,7 +19,7 @@ final class SettingsBackupWorkflowTests: XCTestCase {
     }
     private func open(_ app: XCUIApplication,night: Bool = false) {
         tapNativeMenuItem(app.buttons["Position"]); tapNativeMenuItem(app.buttons["Settings"])
-        if night { setNativeSwitch(app.switches["Red-on-black, to keep night vision"],to:true) }
+        if night { setNativeSwitch(app.switches["Night mode"],to:true) }
         let entry = app.buttons["settings-backup"]; reveal(entry,in:app); tapNativeMenuItem(entry)
         XCTAssertTrue(app.navigationBars["Backup & restore"].waitForExistence(timeout:10))
     }

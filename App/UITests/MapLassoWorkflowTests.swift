@@ -6,7 +6,7 @@ final class MapLassoWorkflowTests: XCTestCase {
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
     private func begin(_ app: XCUIApplication) {
-        let tools = app.buttons["map-measure"]
+        let tools = mapTool(app, "map-measure")
         XCTAssertTrue(tools.waitForExistence(timeout: 12)); tools.tap()
         let lasso = app.buttons["map-lasso"]
         XCTAssertTrue(lasso.waitForExistence(timeout: 5)); lasso.tap()
@@ -48,7 +48,7 @@ final class MapLassoWorkflowTests: XCTestCase {
         capture(night ? "lasso-deleted-night" : "lasso-hidden-day")
         app.buttons["lasso-close"].tap()
         // Starting a new draw mode ends lasso and restores map interaction.
-        begin(app); app.buttons["map-graphics"].tap()
+        begin(app); mapTool(app, "map-graphics").tap()
         // Opening the chooser is safe; choosing a graphic performs the mode switch.
         let choose = app.buttons["choose-graphic-type"]
         XCTAssertTrue(choose.waitForExistence(timeout: 4)); choose.tap()

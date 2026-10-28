@@ -9,7 +9,7 @@ final class ProtectedFileWorkflowTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTesting","-uiTestLibrary","-uiTestBoundaryMap","-startTab","waypoints"]
         app.launch()
-        if night { app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap() }
+        if night { app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap() }
         let actions = app.buttons["Waypoint actions"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10)); actions.tap()
         tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export protected file…"])
@@ -134,7 +134,7 @@ final class ProtectedFileWorkflowTests: XCTestCase {
     }
     private func verifyIncomingQuietArea(_ app: XCUIApplication) {
         app.buttons["Map"].tap()
-        let open = app.buttons["map-boundaries"]
+        let open = mapTool(app, "map-boundaries")
         XCTAssertTrue(open.waitForExistence(timeout: 8)); open.tap()
         let saved = app.buttons["monitor-boundary-Incoming quiet area"]
         if !saved.isHittable { app.swipeUp() }

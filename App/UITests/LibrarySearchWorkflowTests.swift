@@ -72,7 +72,7 @@ final class LibrarySearchWorkflowTests: XCTestCase {
         openChoices(); app.buttons["Show on map"].tap()
         let marker = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label == %@","map-waypoint-","Alpha")).firstMatch
         XCTAssertTrue(marker.waitForExistence(timeout: 10))
-        app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         openChoices(); capture("waypoint-choices-night")
         app.buttons.matching(NSPredicate(format: "identifier == %@","navigate")).element.tap()
         XCTAssertTrue(app.buttons["Choose navigation target"].waitForExistence(timeout: 10))
@@ -93,7 +93,7 @@ final class LibrarySearchWorkflowTests: XCTestCase {
 
     func testNightSearchSortAndClearKeepFieldCardsReadable() {
         launch()
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         XCTAssertTrue(app.textFields["library-search"].waitForExistence(timeout: 5))
         capture("library-search-placeholder-night")
         query("Alpha"); XCTAssertTrue(app.buttons["edit-waypoint-Alpha"].waitForExistence(timeout: 5))
@@ -108,7 +108,7 @@ final class LibrarySearchWorkflowTests: XCTestCase {
         },object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [ordered],timeout: 10),.completed)
         capture("library-search-cleared-and-sorted-night")
-        app.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         XCTAssertTrue(app.textFields["library-search"].waitForExistence(timeout: 5))
         capture("library-search-placeholder-day")
     }

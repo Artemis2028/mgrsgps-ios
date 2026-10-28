@@ -33,7 +33,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
     func testKMLImportMapPersistenceAndATAKFilesPackagePreview() {
         paste(mixed); confirmMixed()
         app.tabBars.buttons["Map"].tap(); app.buttons["Show all visible data"].tap()
-        XCTAssertTrue(app.staticTexts["map-field-overlays"].waitForExistence(timeout: 8)); XCTAssertEqual(app.staticTexts["map-field-overlays"].label,"1 routes · 0 tracks")
+        XCTAssertTrue(mapReadout(app, "map-field-overlays").waitForExistence(timeout: 8)); XCTAssertEqual(mapReadout(app, "map-field-overlays").label,"1 routes · 0 tracks")
         capture("kml-route-area-map"); app.tabBars.buttons["Waypoints"].tap()
         exportAndReopen("ATAK package","gridfix-datapackage")
         XCTAssertEqual(app.staticTexts["interchange-counts"].label,"1 waypoints · 1 graphics/routes · 0 tracks")
@@ -50,7 +50,7 @@ final class KMLPackageWorkflowTests: XCTestCase {
         capture("kmz-file-preview"); app.buttons["Cancel"].tap()
     }
     func testKMLHoleRejectsAllRecordsAndNightPreviewIsReadable() {
-        app.tabBars.buttons["Map"].tap(); app.buttons["Toggle map night mode"].tap(); app.buttons["Waypoints"].tap()
+        app.tabBars.buttons["Map"].tap(); mapTool(app, "Toggle map night mode").tap(); app.buttons["Waypoints"].tap()
         let hole = "<kml><Placemark><name>Must stay unsaved</name><Point><coordinates>54,24</coordinates></Point></Placemark><Placemark><Polygon><innerBoundaryIs><LinearRing><coordinates>54,24 55,24 55,25</coordinates></LinearRing></innerBoundaryIs></Polygon></Placemark></kml>"
         paste(hole)
         let message = app.staticTexts["interchange-message"]; XCTAssertTrue(message.waitForExistence(timeout: 8)); XCTAssertTrue(message.label.contains("holes"))

@@ -7,9 +7,9 @@ final class MapPreferencesWorkflowTests: XCTestCase {
             let app = XCUIApplication()
             app.launchArguments = ["-uiTesting","-uiTestBoundaryMap","-uiTestMapPreferenceFailure","-startTab","map"]
             app.launch()
-            XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout: 10))
-            if night { app.buttons["Toggle map night mode"].tap() }
-            app.buttons["map-layers"].tap()
+            XCTAssertTrue(mapTool(app, "map-layers").waitForExistence(timeout: 10))
+            if night { mapTool(app, "Toggle map night mode").tap() }
+            mapTool(app, "map-layers").tap()
             let grid = app.switches["MGRS grid"]
             XCTAssertTrue(grid.waitForExistence(timeout:5)); setNativeSwitch(grid,to:false)
             let retry = app.buttons["map-preferences-retry"]
@@ -25,7 +25,7 @@ final class MapPreferencesWorkflowTests: XCTestCase {
             let saved = XCTNSPredicateExpectation(predicate:NSPredicate(format:"exists == false"),object:rootRetry)
             XCTAssertEqual(XCTWaiter.wait(for:[saved],timeout:10),.completed)
             app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
-            XCTAssertTrue(app.buttons["map-layers"].waitForExistence(timeout:10)); app.buttons["map-layers"].tap()
+            XCTAssertTrue(mapTool(app, "map-layers").waitForExistence(timeout:10)); mapTool(app, "map-layers").tap()
             XCTAssertTrue(grid.waitForExistence(timeout:5)); XCTAssertEqual(grid.value as? String,"0")
             XCTAssertEqual(app.switches["Offline only"].value as? String,"1")
             app.terminate()

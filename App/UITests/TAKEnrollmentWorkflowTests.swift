@@ -12,7 +12,7 @@ final class TAKEnrollmentWorkflowTests: XCTestCase {
         if night { app.launchArguments.append("-uiTestTAKEnrollmentNight") }
         if local { app.launchArguments.append("-uiTestTAKEnrollmentLocal") }
         app.launch()
-        let tak = app.buttons["map-tak"]
+        let tak = mapStatusButton(app, "map-tak")
         XCTAssertTrue(tak.waitForExistence(timeout: 20)); tapNativeMenuItem(tak)
         let signIn = app.buttons["tak-enrollment"]
         XCTAssertTrue(signIn.waitForExistence(timeout: 8)); tapNativeMenuItem(signIn)
