@@ -42,7 +42,7 @@ final class MapLayerWorkflowTests: XCTestCase {
         XCTAssertTrue(grid.exists)
     }
     private func capture(_ name: String) {
-        let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
     }
     private func holdSavedGeometry() {
         app.terminate()

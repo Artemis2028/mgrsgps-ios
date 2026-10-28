@@ -148,17 +148,18 @@ private struct ExportFilenameView: View {
                         .accessibilityIdentifier("export-filename")
                     Text("." + self.extension).font(.footnote).foregroundStyle(palette.inkDim)
                 } header: { Text("Filename") } footer: {
-                    Text(stem == nil ? "Use a shorter filename without slashes or line breaks." : "Choose where to save this file in Files. Its extension stays ." + self.extension + ".")
-                        .foregroundStyle(stem == nil ? palette.warn : palette.inkDim)
+                    if stem == nil {
+                        Text("Use a shorter filename without slashes or line breaks.").foregroundStyle(palette.warn)
+                    }
                 }
             }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
                 .foregroundStyle(palette.ink).tint(palette.accent)
                 .navigationTitle("Export file").navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) { Text("Export file").font(.headline).foregroundStyle(palette.ink) }
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel",action:cancel).accessibilityIdentifier("export-filename-cancel") }
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { focused = false; cancel() }.accessibilityIdentifier("export-filename-cancel") }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Choose location") { if let stem { choose(stem) } }.disabled(stem == nil)
+                        Button("Choose location") { if let stem { focused = false; choose(stem) } }.disabled(stem == nil)
                             .accessibilityIdentifier("export-choose-location")
                     }
                     ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { focused = false }.accessibilityIdentifier("export-filename-keyboard-done") }

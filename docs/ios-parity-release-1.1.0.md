@@ -4,6 +4,10 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Latest hosted repair candidate: [field export focus dismissal](hosted110-field-repair.md)
+clears keyboard focus before closing the naming sheet. Both previously failed
+export workflows and full-display map day/night/landscape checks pass locally;
+phone/watch/widget device Release passes. Hosted confirmation is still required.
 Latest UI follow-up: [compact map chrome](map-chrome-2026-10-28.md) replaces the
 upper-right cluster with a bottom-right animated rail and a grid disclosure card.
 Map details include selected-format lat/lon and UTM; redundant settings copy is
