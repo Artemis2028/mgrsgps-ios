@@ -37,25 +37,25 @@ gutters. No server connection or credential change was needed to validate it.
 
 ## Validation
 
--557 core cases pass in /tmp/mgrsgps-automatic-names-core-final.log, including
+- 557 core cases pass in /tmp/mgrsgps-automatic-names-core-final.log, including
   six naming cases for numbering, all affiliations/echelons, concurrent stale
   preparation, durable publication, route rename preservation and graphics.
--357 native cases pass with four opt-in skips/no failures in
+- 357 native cases pass with four opt-in skips/no failures in
   /tmp/mgrsgps-auto-names-native-final.xcresult, including mixed custom/numbered
   route reference reservation. An earlier356-case full native bundle also passes.
--Seven drawing/military UI cases pass in /tmp/mgrsgps-auto-names-final.xcresult:
+- Seven drawing/military UI cases pass in /tmp/mgrsgps-auto-names-final.xcresult:
   both custom and blank military names, echelon persistence, map/day/night render,
   route bends, snapping, fixed ring/sector placement and tactical boundaries.
--Three final UI cases pass in /tmp/mgrsgps-auto-route-tak-final.xcresult:
+- Three final UI cases pass in /tmp/mgrsgps-auto-route-tak-final.xcresult:
   blank and custom route creation/repeated point generation; blank WP1/WP2;
   compact map labels; and unconfigured TAK in day/night.
--Source-compatible GPX route/track map persistence and two route staging/failure
+- Source-compatible GPX route/track map persistence and two route staging/failure
   workflows pass in /tmp/mgrsgps-auto-names-ui.xcresult. Its one failed snap case
   expected the old generic Route name; the final full drawing suite verifies RT1.
--Initial core failures likewise expected Android's old “Renamed WP…” convention.
+- Initial core failures likewise expected Android's old “Renamed WP…” convention.
   Updated assertions preserve ownership/selection checks and the new naming rule.
--Current unsigned phone/watch/widget Release passes in
+- Current unsigned phone/watch/widget Release passes in
   /tmp/mgrsgps-auto-names-release-last.log; ten Python harness cases pass.
--Representative small WP2 and full military name map labels plus day/night
+- Representative small WP2 and full military name map labels plus day/night
   gutter-free TAK screenshots were inspected. Owned simulator/feed are shut
   down after reaping the final parents. Full hosted confirmation remains open.
