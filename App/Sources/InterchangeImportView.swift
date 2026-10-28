@@ -43,8 +43,13 @@ struct InterchangeImportView: View {
             ScrollView {
                 VStack(alignment: .leading,spacing: 16) {
                     if let url = request.url {
-                        Label(url.lastPathComponent,systemImage: "doc").font(.headline)
-                        Text("Review this file before adding records to your library.")
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "doc").accessibilityHidden(true)
+                            Text(url.lastPathComponent)
+                                .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                                .accessibilityIdentifier("interchange-filename")
+                        }.font(.headline).frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         Text("Paste \(label) to preview its \(request.format?.pasteSummary ?? "field data").").font(.subheadline)
                         TextEditor(text: $text).font(.system(.caption,design: .monospaced))

@@ -10,7 +10,8 @@ final class FieldExportWorkflowTests: XCTestCase {
     private func exportLibraryGPX() {
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export GPX"])
     }
-    private func saveAndReview(_ stem: String,fromDetails: Bool = false,startingInIcons: Bool = false) {
+    @discardableResult
+    private func saveAndReview(_ stem: String,fromDetails: Bool = false,startingInIcons: Bool = false) -> String {
         let filename = app.textFields["export-filename"]
         XCTAssertTrue(filename.waitForExistence(timeout: 30),app.debugDescription)
         let name = stem + String(UUID().uuidString.prefix(8))
@@ -26,12 +27,27 @@ final class FieldExportWorkflowTests: XCTestCase {
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["import-field-file"])
         openSavedNativeFile(name,in: app,startingInIcons:startingInIcons)
         XCTAssertTrue(app.staticTexts["interchange-counts"].waitForExistence(timeout: 15),app.debugDescription)
+        return name
     }
     private func counts(_ expected: String) {
         XCTAssertEqual(app.staticTexts["interchange-counts"].label.replacingOccurrences(of: ",",with: ""),expected)
     }
     private func capture(_ name: String) {
         let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+    func testLongImportedFilenameWrapsWithoutLosingItsExtension() {
+        launch("-uiTestLibrary"); exportLibraryGPX()
+        let name = saveAndReview(String(repeating: "VeryLongPatrolFilename", count: 4))
+        let filename = app.staticTexts["interchange-filename"]
+        XCTAssertTrue(filename.waitForExistence(timeout: 5))
+        XCTAssertEqual(filename.label, name + ".gpx")
+        XCTAssertGreaterThan(filename.frame.height, 40, "The full filename should wrap")
+        let viewport = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(filename.frame.minX, viewport.minX)
+        XCTAssertLessThanOrEqual(filename.frame.maxX, viewport.maxX)
+        counts("3 waypoints · 1 graphics/routes · 1 tracks")
+        capture("import-full-long-filename")
+        app.buttons["Cancel"].tap()
     }
     func testLargeLibraryGPXExportsThroughFilesAndReopensAllRecords() {
         launch("-uiTestLargeLibrary")

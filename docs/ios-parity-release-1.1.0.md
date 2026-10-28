@@ -4,6 +4,10 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Long import names now wrap in a selectable full-filename header, including the
+extension. The real Files export/import UI workflow passes with a92-character
+unbroken filename; its screenshot and current phone/watch/widget Release were
+verified. The system Files search field still scrolls horizontally.
 Latest hosted repair candidate: [field export focus dismissal](hosted110-field-repair.md)
 clears keyboard focus before closing the naming sheet. Both previously failed
 export workflows and full-display map day/night/landscape checks pass locally;
