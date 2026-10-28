@@ -2,6 +2,7 @@ import CoreLocation
 import GridFixCore
 import SwiftUI
 import WatchConnectivity
+import WatchKit
 
 @MainActor
 final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, WCSessionDelegate {
@@ -15,6 +16,10 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     @Published private(set) var hasSync = false
     @Published private(set) var status = "GPS idle"
     @Published private(set) var reducedAccuracy = false
+    @Published private(set) var wristLane = WatchLaneSession()
+    @Published private(set) var wristLaneError: String?
+    private var wristPlayback: Task<Void,Never>?
+    private var wristGeneration = UUID()
     private var guideScene = WatchGuideScene()
     private let guideCacheKey = "watch.guide.cache.v1"
     private let manager = CLLocationManager()
@@ -51,6 +56,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                 manager.requestWhenInUseAuthorization()
             } else { startAuthorized() }
         } else {
+            if wristLane.active { stopWristLane("Paused · start wrist alerts again") }
             manager.stopUpdatingLocation()
             status = "GPS paused"
         }
@@ -63,6 +69,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     private func startAuthorized() {
         reducedAccuracy = manager.accuracyAuthorization == .reducedAccuracy
         guard authorized else {
+            stopWristLane("Location permission required")
             manager.stopUpdatingLocation()
             fix = nil; fixTimestampUptime = nil
             status = manager.authorizationStatus == .notDetermined ? "Allow location for grid" : "Location disabled"
@@ -82,11 +89,17 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     }
     private func receive(_ latest: CLLocation) {
         let initialAge = Date().timeIntervalSince(latest.timestamp)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-watchLocationDiagnostics") {
+            print("Watch GPS callback: age=\(initialAge), accuracy=\(latest.horizontalAccuracy), foreground=\(foreground), authorized=\(authorized), precise=\(manager.accuracyAuthorization == .fullAccuracy)")
+        }
+        #endif
         guard foreground, authorized,
               WatchFixPolicy.accepts(lat: latest.coordinate.latitude, lon: latest.coordinate.longitude,
                                      accuracy: latest.horizontalAccuracy, age: initialAge) else { return }
         fixTimestampUptime = ProcessInfo.processInfo.systemUptime - initialAge
         fix = latest; status = "Watch location"
+        tickWristLane()
     }
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in self.status = "GPS unavailable" }
@@ -98,6 +111,54 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                                        foreground: foreground, lat: fix.coordinate.latitude, lon: fix.coordinate.longitude,
                                        accuracy: fix.horizontalAccuracy, timestampUptime: fixTimestampUptime,
                                        nowUptime: ProcessInfo.processInfo.systemUptime)
+    }
+
+    func startWristLane(_ lane: WatchLaneOverlay) {
+        stopWristLane()
+        guard foreground else { wristLaneError = "Open the watch app to start"; return }
+        guard authorized, manager.accuracyAuthorization == .fullAccuracy else {
+            wristLaneError = "Precise watch location is required"; return
+        }
+        guard mapSnapshot?.laneOverlays.contains(lane) == true else { wristLaneError = "Choose a current cached lane"; return }
+        do { try wristLane.start(lane); wristLaneError = nil; tickWristLane() }
+        catch { wristLaneError = error.localizedDescription }
+    }
+    func stopWristLane(_ message: String = "Wrist alerts off") {
+        cancelWristPlayback(); wristLane.stop(message)
+    }
+    private func cancelWristPlayback() {
+        wristGeneration = UUID(); wristPlayback?.cancel(); wristPlayback = nil
+    }
+    func tickWristLane() {
+        guard wristLane.active else { return }
+        guard foreground, usable(at: Date()), let fix, let fixTimestampUptime else {
+            cancelWristPlayback(); wristLane.invalidateFix(); return
+        }
+        let previous = wristLane.decision?.state
+        let pulse = wristLane.update(position: .init(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude),
+                                     accuracy: fix.horizontalAccuracy, fixTime: fixTimestampUptime,
+                                     now: ProcessInfo.processInfo.systemUptime, usable: true)
+        if let pulse {
+            cancelWristPlayback()
+            let generation = wristGeneration, waveform = pulse.waveform
+            wristPlayback = Task { [weak self] in
+                for index in waveform.indices where index % 2 == 0 && index+1 < waveform.count {
+                    if waveform[index] > 0 {
+                        do { try await Task.sleep(nanoseconds: UInt64(waveform[index])*1_000_000) } catch { return }
+                    }
+                    guard let self, !Task.isCancelled, self.foreground, self.wristLane.active,
+                          self.wristGeneration == generation, self.usable(at: Date()) else { return }
+                    // watchOS supplies native effects, not phone-style arbitrary
+                    // continuous waveforms. Physical distinction remains a gate.
+                    WKInterfaceDevice.current().play(waveform[index+1] > 100 ? .notification : .click)
+                    do { try await Task.sleep(nanoseconds: UInt64(waveform[index+1])*1_000_000) } catch { return }
+                }
+            }
+        } else if previous != wristLane.decision?.state { cancelWristPlayback() }
+    }
+    private func validateWristScene() {
+        wristLane.validateScene(mapSnapshot?.laneOverlays ?? [])
+        if !wristLane.active { cancelWristPlayback() }
     }
 
     private func applyTAK(_ context: [String:Any],complete: Bool = false) {
@@ -146,6 +207,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             if let map = WatchMapSnapshot.decode(mapData) {
                 if map.shouldApply(over: mapSnapshot) {
                     mapSnapshot = map; mapSyncStatus = "Cached phone overlay"
+                    validateWristScene()
                     UserDefaults.standard.set(mapData, forKey: WatchMapSnapshot.contextKey)
                 } else { mapSyncStatus = "Older map update ignored · cached overlay" }
             } else { mapSyncStatus = "Rejected map update · cached overlay" }
@@ -153,6 +215,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             mapSyncStatus = "Phone map unavailable · cached overlay"
         } else {
             mapSnapshot = nil; mapSyncStatus = "Phone map sync unsupported"
+            validateWristScene()
             UserDefaults.standard.removeObject(forKey: WatchMapSnapshot.contextKey)
         }
     }

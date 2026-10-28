@@ -26,6 +26,7 @@ struct WatchGlanceView: View {
     @State private var selection = 0
     @State private var showDetails = false
     @State private var showMap = false
+    @State private var showWristLanes = false
     @ScaledMetric(relativeTo: .caption) private var headerHeight: CGFloat = 13
     @AppStorage("watch.mgrs.digits") private var precisionOverride = 0
     private var digits: Int { [4, 6, 8, 10].contains(precisionOverride) ? precisionOverride : model.snapshot.mgrsDigits }
@@ -48,6 +49,14 @@ struct WatchGlanceView: View {
             .foregroundStyle(ink)
             .tint(accent)
         }
+        .task {
+            // Updating the observed model from TimelineView's date change can
+            // recreate its .now schedule and trigger a render/update loop.
+            while !Task.isCancelled {
+                model.tickWristLane()
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
         .onChange(of: selection) { _, value in if value == 2 { showMap = true } }
         .fullScreenCover(isPresented: $showMap) {
             WatchMapView(model: model, night: night, showPosition: { showMap = false; selection = 0 }, closeMap: { showMap = false })
@@ -65,6 +74,20 @@ struct WatchGlanceView: View {
                     }.padding(.horizontal, 8)
                 }.foregroundStyle(ink).tint(accent).background(Color.black)
             }
+        }
+        .sheet(isPresented: $showWristLanes) {
+            NavigationStack {
+                List {
+                    Text("Foreground wrist alerts").font(.caption)
+                    if let updated = model.mapSnapshot?.updatedAt {
+                        Text("Cached map · " + age(Date().timeIntervalSince(updated))).font(.caption2)
+                    }
+                    ForEach(model.mapSnapshot?.laneOverlays ?? []) { lane in
+                        Button("Start " + lane.name) { model.startWristLane(lane); showWristLanes = false }
+                    }
+                    if model.mapSnapshot?.laneOverlays.isEmpty != false { Text("No cached navigation lanes") }
+                }.navigationTitle("Wrist lane")
+            }.tint(accent)
         }
         .onAppear {
             #if DEBUG
@@ -110,7 +133,13 @@ struct WatchGlanceView: View {
                               color: model.usable(at: date) ? good : accent)
                     }
                 }
-                navigationContent(date: date)
+                if model.wristLane.active {
+                    wristLaneControls
+                    navigationContent(date: date)
+                } else {
+                    navigationContent(date: date)
+                    wristLaneControls
+                }
                 phoneGuidance(date: date).id("phoneGuidance")
                 Divider().overlay(accent.opacity(0.3))
                 fixStatus(date: date)
@@ -274,6 +303,21 @@ struct WatchGlanceView: View {
             Text("No waypoint selected").font(.headline)
             label("SELECT ONE ON IPHONE")
         }
+    }
+
+    private var wristLaneControls: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Divider().overlay(accent.opacity(0.3))
+            Text("WRIST LANE ALERTS").font(.caption).foregroundStyle(accent)
+            if let lane = model.wristLane.lane { Text(lane.name).font(.caption) }
+            Text(model.wristLane.status).font(.caption).fixedSize(horizontal: false, vertical: true)
+            if let error = model.wristLaneError { Text(error).font(.caption).foregroundStyle(accent) }
+            if model.wristLane.active {
+                Button("Stop wrist alerts") { model.stopWristLane() }
+            } else {
+                Button("Choose lane") { showWristLanes = true }
+            }
+        }.accessibilityIdentifier("watch-wrist-lane")
     }
 
     private func phoneGuidance(date: Date) -> some View {
