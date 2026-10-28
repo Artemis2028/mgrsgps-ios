@@ -124,7 +124,7 @@ final class BackupWorkflowTests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 5))
     }
     private func deleteQuietBoundary(_ app: XCUIApplication) {
-        app.buttons["Map"].tap(); app.buttons["map-boundaries"].tap()
+        openBoundaryList(app)
         let delete = app.buttons["Delete boundary Boundary"]
         if !delete.isHittable { app.swipeUp() }
         XCTAssertTrue(delete.waitForExistence(timeout: 5)); delete.tap()
@@ -134,12 +134,20 @@ final class BackupWorkflowTests: XCTestCase {
         app.buttons["Done"].tap(); app.buttons["Waypoints"].tap()
     }
     private func verifyQuietBoundary(_ app: XCUIApplication) {
-        app.buttons["Map"].tap(); app.buttons["map-boundaries"].tap()
+        openBoundaryList(app)
         let geometry = app.staticTexts["4 points · closed perimeter"]
         if !geometry.isHittable { app.swipeUp() }
         XCTAssertTrue(geometry.waitForExistence(timeout: 5)); XCTAssertFalse(app.buttons["stop-boundary"].exists)
         capture("backup-quiet-boundary-restored-inactive",app)
         app.buttons["Done"].tap(); app.buttons["Waypoints"].tap()
+    }
+    private func openBoundaryList(_ app: XCUIApplication) {
+        // Hosted109 retained Waypoints selected after its native Map tap.
+        // Acknowledge the destination before opening the boundary controls.
+        let open = app.buttons["map-boundaries"]
+        tapNativeMenuItem(app.buttons["Map"],revealing:open)
+        XCTAssertTrue(open.waitForExistence(timeout:10),app.debugDescription)
+        tapNativeMenuItem(open)
     }
     private func capture(_ name: String,_ app: XCUIApplication) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

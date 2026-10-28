@@ -5,7 +5,10 @@ final class PracticeLogWorkflowTests: XCTestCase {
     private func reveal(_ element: XCUIElement,in app: XCUIApplication,searchUp: Bool = false) {
         for _ in 0..<24 {
             let surface = app.collectionViews.allElementsBoundByIndex.last ?? app.scrollViews.firstMatch
-            let header = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY + 8 : app.windows.firstMatch.frame.minY + 60
+            // Native Form section headers can begin exactly at the navigation
+            // bar's bottom. An invented inset makes a fully visible top header
+            // impossible to reveal any further once the Form reaches its top.
+            let header = app.navigationBars.firstMatch.exists ? app.navigationBars.firstMatch.frame.maxY : app.windows.firstMatch.frame.minY + 60
             let top = max(header,surface.frame.minY)
             let bottom = min(app.windows.firstMatch.frame.maxY - 35,surface.frame.maxY)
             if element.exists,element.isHittable,element.frame.minY >= top,element.frame.maxY <= bottom { return }

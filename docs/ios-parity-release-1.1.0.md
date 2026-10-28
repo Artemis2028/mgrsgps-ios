@@ -3,7 +3,16 @@
 Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
-The release branch was rechecked through GitHub on 27 October and still points to this commit.
+The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Latest resume checkpoint,28 October: the preserved20-case native Files regression
+passes on iOS26.5. Both backup/saved-log workflows and both final active-course
+cases pass across the scoped resume bundles, including largest-night end/restart
+reachability. All local parents are terminal and the owned simulator is off.
+Hosted109 is fully terminal with map success, one field UI failure and three
+library UI failures plus finalization timeout/artifact failure. The same draft
+PR is being updated with all held source and the [109 repairs](hosted109-repairs.md);
+current-source full hosted confirmation remains open. Earlier live/paused
+checkpoints below are historical. The one-minute Claude checker is active again.
 The user also requested the subsequent development work: see the
 [25 October Android audit](android-overnight-2026-10-25.md) for navigation
 lanes, protected backups, map-button preferences, fixes and the experimental
