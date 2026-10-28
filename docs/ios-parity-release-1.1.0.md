@@ -1805,3 +1805,25 @@ waypoint class. Library122960900401 and field122960900902 remain live. The new
 storage commits stay local and are outside that hosted source. Same draft PR
 and Claude handoff updated; no cancelling push, duplicate run, server GO/round,
 infrastructure/credential change, merge or release.
+
+
+### Hosted110 partial green evidence,28 October
+
+On pushed98c5c17, map122960900820 passes47 UI cases and library122960900401
+passes59 UI cases. Sanitized complete job logs are preserved locally. Map
+artifact12840097437 (568,089,658 bytes) has verified SHA-256
+`b286a89ce05bee6f423e7e306e0555b3a954fb3210d25cf2be697054aad8942d`;
+night viewshed and route/track captures inspected. Library12841300349
+(585,114,018 bytes) is downloading under exec session75239, which then verifies
+`df9bff377acf5b66e5d13611ad7186ae13a5e70db59372a5cb5acfd6cfc5ca8c`
+before extraction. Its status is `/tmp/mgrsgps-ci110-library-artifact-status.json`;
+inspect the actual process/handle and captures on continuation, not the status
+file alone. Artifact review is still open until that finishes. Field122960900902
+remains live in main integration/UI; full-run and dedicated field gates remain
+unproven. No live run was cancelled.
+
+Localf2e46e3 is committed with on-demand sources and cleanup authority, behind
+66354c0 and evidence3f4a7f6. Draft PR and dated Claude handoff distinguish this
+local source from the pushed/hosted source. One-minute coordination remains
+active, server off without GO, and all owned local simulators/feeds are off.
+Next main UI work is the observed pale day Map-tab selected-icon/text contrast.
