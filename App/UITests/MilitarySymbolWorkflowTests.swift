@@ -1,12 +1,16 @@
 import XCTest
 
 final class MilitarySymbolWorkflowTests: XCTestCase {
-    func testSelectExtendedUnitEditEchelonPersistAndRenderOnMap() {
+    func testSelectExtendedUnitEditEchelonPersistAndRenderOnMap() { exercise(name: "Airborne element") }
+    func testBlankUnitNameUsesAffiliationFunctionAndEchelon() { exercise(name: nil) }
+    private func exercise(name: String?) {
+        let displayName = name ?? "FRN-INF-ABN-PLT-1"
         continueAfterFailure = false
         let app = XCUIApplication(); app.launchArguments = ["-uiTesting","-startTab","waypoints"]; app.launch()
         app.buttons["add-waypoint"].tap()
-        let name = app.textFields["waypoint-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Airborne element\n")
+        let nameField = app.textFields["waypoint-name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        if let name { nameField.tap(); nameField.typeText(name + "\n") }
         let grid = app.textFields["waypoint-mgrs"]
         grid.tap(); grid.typeText("40R BN 3412 0700\n")
         // Dismiss the keyboard before navigating down the form.
@@ -26,7 +30,7 @@ final class MilitarySymbolWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["waypoint-save"].isHittable)
         app.buttons["waypoint-save"].tap()
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
-        app.buttons["edit-waypoint-Airborne element"].tap()
+        app.buttons["edit-waypoint-" + displayName].tap()
         XCTAssertTrue(app.staticTexts["Friendly Airborne infantry"].waitForExistence(timeout: 5))
         let savedEchelon = app.buttons["unit-echelon"]
         for _ in 0..<5 { if savedEchelon.exists { break }; app.swipeUp() }

@@ -6,13 +6,12 @@ public struct GraphicDraft: Equatable, Sendable {
     public private(set) var original: Backup.Graphic?
     public var selected: Int?
     public init(type: String) {
-        graphic = .init(id: UUID().uuidString.lowercased(), name: GraphicTypes.label(type), type: type, points: [], createdAt: Int64(Date().timeIntervalSince1970 * 1000))
+        graphic = .init(id: UUID().uuidString.lowercased(), name: "", type: type, points: [], createdAt: Int64(Date().timeIntervalSince1970 * 1000))
     }
     public init(_ graphic: Backup.Graphic) { self.graphic = graphic; original = graphic }
     public var vertices: [GeoPoint] { graphic.points.map { .init(lat: $0.lat, lon: $0.lon) } }
     public var canAppend: Bool { graphic.points.count < (GraphicTypes.fixedPoints(graphic.type) ?? 4096) }
     public var validationMessage: String? {
-        if graphic.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Enter a name." }
         if graphic.points.count < GraphicTypes.minPoints(graphic.type) { return "Place at least \(GraphicTypes.minPoints(graphic.type)) points." }
         if let count = GraphicTypes.fixedPoints(graphic.type), graphic.points.count != count { return "This graphic uses exactly \(count) points." }
         if graphic.points.contains(where: { !$0.lat.isFinite || !$0.lon.isFinite || abs($0.lat) > 85.05112878 || abs($0.lon) > 180 }) { return "A point is outside map coverage." }

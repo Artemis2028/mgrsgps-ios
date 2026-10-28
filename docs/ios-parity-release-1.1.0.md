@@ -4,6 +4,13 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Latest requested UI work: [automatic names and compact marker labels](automatic-names-and-marker-labels.md)
+now covers waypoints, military units, map/library routes, graphics and generated
+route points. Custom names/IDs survive regeneration; number reservations and
+stale-edit rebasing are tested. TAK fills its sheet without gray side gutters.
+557 core and357 native cases (four opt-in skips/no failures) pass, along with
+ten final drawing/military/route/TAK UI workflows. Current unsigned phone/watch/
+widget Release and ten harness checks pass; screenshots were inspected.
 Long import names now wrap in a selectable full-filename header, including the
 extension. The real Files export/import UI workflow passes with a92-character
 unbroken filename; its screenshot and current phone/watch/widget Release were

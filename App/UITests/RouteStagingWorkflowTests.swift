@@ -34,7 +34,7 @@ final class RouteStagingWorkflowTests: XCTestCase {
         }
         app.terminate(); app.launchArguments += ["-keepUITestData"]; app.launch()
         let search = app.textFields["library-search"]; XCTAssertTrue(search.waitForExistence(timeout: 10))
-        search.tap(); search.typeText("Recon route WP\n")
+        search.tap(); search.typeText("RT1WP\n")
         let count = app.staticTexts["library-listed-count"]
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label CONTAINS %@","2 waypoints · 0 graphics · 0 tracks"),object: count)
         XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 10),.completed)

@@ -50,7 +50,7 @@ final class GraphicWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["save-graphic"].waitForExistence(timeout: 5), "Tapping a saved route opens its map editor")
         app.buttons["Cancel"].tap(); mapTool(app, "map-graphics").tap()
         XCTAssertTrue(app.staticTexts["Route · 4 points · Base"].waitForExistence(timeout: 5))
-        app.buttons["edit-graphic-Route"].tap()
+        app.buttons["edit-graphic-RT1"].tap()
         XCTAssertTrue(app.staticTexts["graphic-point-count"].label.contains("4 points"))
         app.buttons["graphic-details"].tap()
         let name = app.textFields["graphic-name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap()
@@ -75,8 +75,8 @@ final class GraphicWorkflowTests: XCTestCase {
         point(0.65,0.40,2); saveGraphic()
         XCTAssertTrue(app.buttons["Generate waypoints"].waitForExistence(timeout: 5)); app.buttons["Generate waypoints"].tap()
         app.tabBars.buttons["Waypoints"].tap(); app.buttons["open-field-library"].tap()
-        XCTAssertTrue(app.buttons["route-Route"].waitForExistence(timeout: 5))
-        app.buttons["route-Route"].tap()
+        XCTAssertTrue(app.buttons["route-RT1"].waitForExistence(timeout: 5))
+        app.buttons["route-RT1"].tap()
         XCTAssertTrue(app.buttons["follow-route"].waitForExistence(timeout: 5))
     }
     func testLongPressOnRouteSegmentCreatesAndDragsBendDirectly() {

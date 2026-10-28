@@ -140,12 +140,15 @@ struct TAKSettingsView: View {
                         }.accessibilityIdentifier("tak-local-validation")
                     }
                     #endif
-                }.padding(20).foregroundStyle(palette.ink)
-            }.background(palette.background.ignoresSafeArea())
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(20).foregroundStyle(palette.ink)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(palette.background.ignoresSafeArea())
+                .toolbarBackground(palette.background, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
                 .navigationTitle("TAK server").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { tak.setCallsign(callsign); dismiss() } } }
                 .tint(palette.accent)
-        }.preferredColorScheme(.dark)
+        }.background(palette.background.ignoresSafeArea()).preferredColorScheme(.dark)
             .onAppear { callsign = tak.profile.callsign }
             .task(id: tak.profile.credentialID ?? tak.profile.uid) { await tak.refreshCertificateDetails() }
             .sheet(isPresented: $enrollment, onDismiss: { callsign = tak.profile.callsign; tak.clearEnrollmentSuggestion() }) { TAKEnrollmentView(suggestion: tak.enrollmentSuggestion,renewal: tak.renewalContext,usernameSuggestion: tak.renewalContext == nil ? nil : tak.clientCertificate?.subject) }

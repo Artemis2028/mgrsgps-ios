@@ -14,6 +14,17 @@ import XCTest
         try field.saveGraphic(route)
         return (root,store,field,route)
     }
+    func testCustomRouteDoesNotTakeAnExistingNumberedRoutesPointPrefix() async throws {
+        let (_,store,field,custom) = try fixture()
+        let reserved = Backup.Graphic(id: "reserved", name: "RT1", type: "route", points: custom.points)
+        try field.saveGraphic(reserved)
+        try await RouteWaypointAction.generate(custom, to: store, field: field)
+        XCTAssertEqual(store.waypoints.filter { $0.sourceRouteId == custom.id }.map(\.name), ["RT2WP1", "RT2WP2"])
+        try await RouteWaypointAction.generate(reserved, to: store, field: field)
+        XCTAssertEqual(store.waypoints.filter { $0.sourceRouteId == reserved.id }.map(\.name), ["RT1WP1", "RT1WP2"])
+        try await RouteWaypointAction.generate(custom, to: store, field: field)
+        XCTAssertEqual(store.waypoints.filter { $0.sourceRouteId == custom.id }.map(\.name), ["RT2WP1", "RT2WP2"])
+    }
     func testSelectionCancellationAtPublicationCannotSwitchTarget() async throws {
         let (root,store,_,_) = try fixture(), before = store.selectedId
         let next = store.add(.init(name: "Next",lat: 25,lon: 55))

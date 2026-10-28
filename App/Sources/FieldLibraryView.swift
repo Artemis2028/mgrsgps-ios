@@ -110,7 +110,7 @@ struct RouteEditor: View {
         NavigationStack {
             Form {
                 Section("Route") {
-                    TextField("Name", text: $name).accessibilityIdentifier("route-name")
+                    TextField("Name (optional)", text: $name).accessibilityIdentifier("route-name")
                         .focused($focusedField, equals: "name").submitLabel(.done)
                     TextField("Folder", text: $folder)
                         .focused($focusedField, equals: "folder").submitLabel(.done)
@@ -154,7 +154,7 @@ struct RouteEditor: View {
                         route.folder = Folders.canonical(folder); route.points = points
                         focusedField = nil
                         mutation.run("Saving route…",action: { try await onSave(route) },completion: { if $0 { dismiss() } })
-                    }.disabled(mutation.working || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || points.count < 2)
+                    }.disabled(mutation.working || points.count < 2)
                         .accessibilityIdentifier("save-route")
                 }
             }

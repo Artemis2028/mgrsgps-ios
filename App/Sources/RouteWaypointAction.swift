@@ -14,8 +14,10 @@ enum RouteWaypointAction {
             }
         }
         try checkSource()
+        let reference = route.name.range(of: "^RT[1-9][0-9]*$", options: [.regularExpression, .caseInsensitive]) != nil
+            ? route.name : AutomaticNames.next(prefix: "RT", among: field.document.graphics.filter { $0.type == "route" }.map(\.name))
         let edit = await Task.detached(priority: .userInitiated) {
-            WaypointStore.RouteEdit(routeID: route.id,name: route.name,points: route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) },folder: route.folder)
+            WaypointStore.RouteEdit(routeID: route.id,name: reference,points: route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) },folder: route.folder)
         }.value
         while true {
             try checkSource()

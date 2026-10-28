@@ -1384,7 +1384,7 @@ private final class WaypointAnnotation: MLNPointAnnotation {
     required init?(coder: NSCoder) { fatalError("Annotations are built from the waypoint store") }
 }
 
-/// Opaque marker labels keep map imagery from interfering with grid/name text.
+/// Fit labels to their text while keeping a contrasting backing over map imagery.
 private final class WaypointMarkerView: MLNAnnotationView {
     private let nameLabel = UILabel()
     private let dot = UIImageView()
@@ -1396,10 +1396,10 @@ private final class WaypointMarkerView: MLNAnnotationView {
         // Keep the centre of the 44-point symbol exactly at its coordinate.
         centerOffset = CGVector(dx: 0, dy: -13)
         nameLabel.frame = CGRect(x: 0, y: 0, width: 130, height: 26)
-        nameLabel.font = .monospacedSystemFont(ofSize: 12, weight: .semibold)
+        nameLabel.font = .monospacedSystemFont(ofSize: 11, weight: .semibold)
         nameLabel.textAlignment = .center
-        nameLabel.backgroundColor = .black
-        nameLabel.layer.cornerRadius = 7
+        nameLabel.backgroundColor = .black.withAlphaComponent(0.78)
+        nameLabel.layer.cornerRadius = 4
         nameLabel.clipsToBounds = true
         dot.frame = CGRect(x: 43, y: 28, width: 44, height: 44)
         dot.contentMode = .scaleAspectFit
@@ -1420,6 +1420,16 @@ private final class WaypointMarkerView: MLNAnnotationView {
     func configure(_ waypoint: Waypoint, selected: Bool, night: Bool) {
         let style = WaypointMarkerStyle(waypoint: waypoint, night: night)
         nameLabel.text = waypoint.name
+        let textWidth = ceil((waypoint.name as NSString).size(withAttributes: [.font: nameLabel.font!]).width)
+        let labelWidth = min(150, max(16, textWidth + 10))
+        let markerWidth = max(44, labelWidth)
+        bounds.size = CGSize(width: markerWidth, height: 68)
+        centerOffset = CGVector(dx: 0, dy: -10)
+        nameLabel.frame = CGRect(x: (markerWidth-labelWidth)/2, y: 0, width: labelWidth, height: 20)
+        dot.frame = CGRect(x: (markerWidth-44)/2, y: 22, width: 44, height: 44)
+        character.frame = dot.frame
+        nameLabel.layer.borderWidth = 0.5
+        nameLabel.layer.borderColor = (night ? UIColor.systemRed : UIColor.white).withAlphaComponent(0.35).cgColor
         nameLabel.textColor = night ? .systemRed : .white
         dot.tintColor = style.color
         dot.image = MilitaryMarkerRenderer.image(waypoint,night: night)

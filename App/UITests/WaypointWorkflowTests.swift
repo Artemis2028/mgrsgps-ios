@@ -22,6 +22,32 @@ final class WaypointWorkflowTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    func testBlankWaypointNamesSaveAutomaticallyAndMapLabelsStayCompact() {
+        for expected in ["WP1", "WP2"] {
+            app.buttons["add-waypoint"].tap()
+            let field = app.textFields["waypoint-mgrs"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            replaceTextInput(field, "40R BN 3412 0700")
+            app.buttons["waypoint-keyboard-done"].tap()
+            XCTAssertTrue(app.buttons["waypoint-save"].isEnabled)
+            app.buttons["waypoint-save"].tap()
+            XCTAssertTrue(app.buttons["edit-waypoint-" + expected].waitForExistence(timeout: 10))
+        }
+        app.tabBars.buttons["Map"].tap()
+        app.buttons["Show all visible data"].tap()
+        let markers = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "map-waypoint-"))
+        XCTAssertTrue(markers.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(markers.firstMatch.frame.width, 80)
+        capture("automatic-waypoint-names-compact-map")
+        mapStatusButton(app, "map-tak").tap()
+        XCTAssertTrue(app.buttons["tak-import"].waitForExistence(timeout: 5))
+        capture("tak-sheet-full-width-unconfigured")
+        app.navigationBars.buttons["Done"].tap()
+        mapTool(app, "Toggle map night mode").tap()
+        mapStatusButton(app, "map-tak").tap()
+        XCTAssertTrue(app.buttons["tak-enrollment"].waitForExistence(timeout: 5))
+        capture("tak-sheet-full-width-unconfigured-night")
+    }
     func testCoordinateEntryMapNavigationAndFolderVisibility() {
         addWaypoint(name: "Objective", grid: "40R BN 3412 0700")
         addWaypoint(name: "Rally point", grid: "40R BN 3450 0720")
@@ -162,7 +188,7 @@ final class WaypointWorkflowTests: XCTestCase {
         capture("route-card")
         app.buttons["generate-route-waypoints"].tap()
         app.buttons["Navigate to vertex 2"].tap()
-        XCTAssertTrue(app.staticTexts["Patrol WP 2"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["RT1WP2"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Map"].tap()
         app.buttons["Show all visible data"].tap()
         XCTAssertTrue(mapReadout(app, "map-field-overlays").waitForExistence(timeout: 10))
@@ -171,7 +197,7 @@ final class WaypointWorkflowTests: XCTestCase {
         app.terminate()
         app.launchArguments += ["-keepUITestData","-uiTestDeferredFieldLoad"]
         app.launch()
-        XCTAssertTrue(app.buttons["edit-waypoint-Patrol WP 2"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["edit-waypoint-RT1WP2"].waitForExistence(timeout: 5))
         app.tabBars.buttons["Map"].tap(); app.buttons["Show all visible data"].tap()
         let reopened = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","1 routes · 1 tracks"),object:mapReadout(app, "map-field-overlays"))
         XCTAssertEqual(XCTWaiter.wait(for:[reopened],timeout:10),.completed)
@@ -193,14 +219,17 @@ final class WaypointWorkflowTests: XCTestCase {
         capture("routes-tracks-map-deferred-hidden")
     }
 
-    func testRouteCreationAndRepeatedWaypointGeneration() {
+    func testRouteCreationAndRepeatedWaypointGeneration() { exerciseRouteCreation(name: "Training") }
+    func testBlankRouteNameAndLinkedWaypointNames() { exerciseRouteCreation(name: nil) }
+    private func exerciseRouteCreation(name enteredName: String?) {
+        let routeName = enteredName ?? "RT1"
         addWaypoint(name: "Start", grid: "40R BN 3412 0700")
         addWaypoint(name: "Finish", grid: "40R BN 3450 0720")
         app.buttons["open-field-library"].tap()
         app.buttons["create-route"].tap()
         let name = app.textFields["route-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap(); name.typeText("Training\n")
+        if let enteredName { name.tap(); name.typeText(enteredName + "\n") }
         XCTAssertFalse(app.buttons["save-route"].isEnabled)
         tapNativeMenuItem(app.buttons["append-route-waypoint"],revealing: app.buttons["route-append-choice-Start"])
         tapNativeMenuItem(app.buttons["route-append-choice-Start"],revealing: app.staticTexts.matching(identifier: "route-vertex-0").firstMatch)
@@ -215,14 +244,14 @@ final class WaypointWorkflowTests: XCTestCase {
         save.tap()
         let saved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: save)
         XCTAssertEqual(XCTWaiter.wait(for: [saved],timeout: 10),.completed,app.debugDescription)
-        XCTAssertTrue(app.buttons["route-Training"].waitForExistence(timeout: 5))
-        app.buttons["route-Training"].tap()
+        XCTAssertTrue(app.buttons["route-" + routeName].waitForExistence(timeout: 5))
+        app.buttons["route-" + routeName].tap()
         app.buttons["generate-route-waypoints"].tap()
         app.buttons["generate-route-waypoints"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["edit-waypoint-Training WP 2"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons.matching(identifier: "edit-waypoint-Training WP 2").count, 1)
+        XCTAssertTrue(app.buttons["edit-waypoint-RT1WP2"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "edit-waypoint-RT1WP2").count, 1)
         capture("route-generated-waypoints")
     }
 

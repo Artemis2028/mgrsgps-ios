@@ -102,7 +102,7 @@ final class AndroidDataParityTests: XCTestCase {
         try store.replaceRouteWaypoints(routeID: "route", name: "Renamed", points: Array(points.prefix(2)), folder: "Recon")
         XCTAssertEqual(store.selectedId, selected.id)
         XCTAssertTrue(store.waypoints.contains { $0.id == manual.id && $0.sourceRouteId == nil })
-        XCTAssertEqual(store.waypoints.first { $0.id == selected.id }?.name, "Renamed WP 2")
+        XCTAssertEqual(store.waypoints.first { $0.id == selected.id }?.name, "RT1WP2")
         try store.replaceRouteWaypoints(routeID: "route", name: "Renamed", points: Array(points.prefix(1)), folder: "Recon")
         XCTAssertNil(store.selectedId)
         try store.replaceRouteWaypoints(routeID: "route", name: "Renamed", points: points, folder: "Recon")

@@ -80,7 +80,7 @@ struct WaypointEditor: View {
         NavigationStack {
             Form {
                 Section("Waypoint") {
-                    TextField("Name", text: $name, prompt: Text("Name").foregroundColor(secondaryInk)).focused($focusedInput,equals: .name).accessibilityIdentifier("waypoint-name")
+                    TextField("Name (optional)", text: $name, prompt: Text("Name (optional)").foregroundColor(secondaryInk)).focused($focusedInput,equals: .name).accessibilityIdentifier("waypoint-name")
                     TextField("Folder", text: $folder, prompt: Text("Folder").foregroundColor(secondaryInk)).focused($focusedInput,equals: .folder).accessibilityIdentifier("waypoint-folder")
                     if let hint = Folders.reservedHint(folder) {
                         Text(hint).font(.footnote).foregroundStyle(palette.warn)
@@ -216,7 +216,7 @@ struct WaypointEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(mutation.working) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save", action: save)
-                        .disabled(mutation.working || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedPosition == nil)
+                        .disabled(mutation.working || selectedPosition == nil)
                         .accessibilityIdentifier("waypoint-save")
                 }
             }
@@ -268,7 +268,6 @@ struct WaypointEditor: View {
     private func save() {
         guard let position = selectedPosition else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
         let draft = WaypointDraft(name: trimmed, lat: position.lat, lon: position.lon, folder: folder,
                                   symbol: symbol, affiliation: affiliation, echelon: echelon,
                                   designation: designation, kind: kind, rotation: rotation, metadata: markerMetadata)

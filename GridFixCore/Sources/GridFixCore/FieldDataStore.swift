@@ -251,10 +251,12 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     private static func applying(_ edit: Edit,to document: Backup.Document) throws -> Backup.Document? {
         var next = document
         switch edit {
-        case .saveGraphic(let graphic):
+        case .saveGraphic(var graphic):
+            graphic.name = AutomaticNames.graphic(graphic, among: next.graphics)
             if let index = next.graphics.firstIndex(where: { $0.id == graphic.id }) { next.graphics[index] = graphic }
             else { next.graphics.append(graphic) }
-        case .createGraphic(let graphic):
+        case .createGraphic(var graphic):
+            graphic.name = AutomaticNames.graphic(graphic, among: next.graphics)
             guard !next.graphics.contains(where: { $0.id == graphic.id }) else { return nil }
             next.graphics.append(graphic)
         case let .editGraphic(original,updated):
@@ -265,7 +267,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             // preserve current fields the editor did not change. Use exact bytes
             // for strings: Swift equality folds canonical Unicode equivalents.
             func changed(_ a: String,_ b: String) -> Bool { !a.utf8.elementsEqual(b.utf8) }
-            if changed(original.name,updated.name) { next.graphics[i].name = updated.name }
+            if changed(original.name,updated.name) { next.graphics[i].name = AutomaticNames.graphic(updated, among: next.graphics) }
             if changed(original.folder,updated.folder) { next.graphics[i].folder = updated.folder }
             if changed(original.type,updated.type) { next.graphics[i].type = updated.type }
             if changed(original.affiliation,updated.affiliation) { next.graphics[i].affiliation = updated.affiliation }

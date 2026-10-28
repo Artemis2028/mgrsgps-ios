@@ -106,7 +106,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         let folder = Folders.match(known: knownNamesLocked(), raw: draft.folder)
         ensureFolderLocked(folder, visible: nil)
         let wp = Waypoint(
-            name: draft.name, lat: draft.lat, lon: draft.lon,
+            name: AutomaticNames.waypoint(draft, among: waypoints), lat: draft.lat, lon: draft.lon,
             folder: folder, symbol: draft.symbol, affiliation: draft.affiliation,
             echelon: draft.echelon, designation: draft.designation,
             kind: draft.kind, rotation: draft.rotation,
@@ -124,7 +124,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
         let folder = Folders.match(known: knownNamesLocked(), raw: draft.folder)
         ensureFolderLocked(folder, visible: nil)
         var wp = waypoints[idx]
-        wp.name = draft.name
+        wp.name = AutomaticNames.waypoint(draft, among: waypoints, excluding: id)
         wp.lat = draft.lat
         wp.lon = draft.lon
         wp.folder = folder
@@ -505,9 +505,13 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
                 if let index = point.sourceRoutePointIndex, index >= 0,
                    owners[index] == nil || point.id == base.selectedId { owners[index] = point }
             }
+            let routePrefix = AutomaticNames.routePrefix(id: edit.routeID, name: edit.name, among: base.waypoints)
             let generated = edit.points.enumerated().map { index,point -> Waypoint in
                 var value = owners[index] ?? Waypoint(id: edit.ids[index],name: "",lat: point.lat,lon: point.lon,createdAt: edit.now)
-                value.name = "\(edit.name) WP \(index+1)"; value.lat = point.lat; value.lon = point.lon; value.folder = folder
+                if owners[index] == nil || value.name.range(of: "^RT[0-9]+WP[0-9]+$", options: .regularExpression) != nil {
+                    value.name = "\(routePrefix)WP\(index+1)"
+                }
+                value.lat = point.lat; value.lon = point.lon; value.folder = folder
                 value.sourceRouteId = edit.routeID; value.sourceRoutePointIndex = index
                 return value
             }
@@ -581,8 +585,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
             var next = base
             let draft: WaypointDraft
             switch edit { case .create(_,_,let value), .update(_,let value): draft = value }
-            guard !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  TrackCodec.validCoordinates(draft.lat,draft.lon), draft.rotation.isFinite else { throw EditFailure.invalid }
+            guard TrackCodec.validCoordinates(draft.lat,draft.lon), draft.rotation.isFinite else { throw EditFailure.invalid }
             let names = base.folders.map(\.name) + base.waypoints.map(\.folder)
             let folder = Folders.match(known: names,raw: draft.folder)
             let saved: Waypoint
@@ -592,7 +595,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
                 if let existing = base.waypoints.first(where: { $0.id == id }) {
                     return .init(snapshot: base,waypoint: existing,revision: revision,identity: identity,file: nil)
                 }
-                saved = Waypoint(id: id,name: draft.name,lat: draft.lat,lon: draft.lon,createdAt: createdAt,folder: folder,
+                saved = Waypoint(id: id,name: AutomaticNames.waypoint(draft, among: base.waypoints),lat: draft.lat,lon: draft.lon,createdAt: createdAt,folder: folder,
                                  symbol: draft.symbol,affiliation: draft.affiliation,echelon: draft.echelon,designation: draft.designation,
                                  kind: draft.kind,rotation: draft.rotation,metadata: draft.metadata ?? .init())
                 next.waypoints.append(saved)
@@ -603,7 +606,7 @@ public final class WaypointStore: ObservableObject, @unchecked Sendable {
                 guard let index = next.waypoints.firstIndex(where: { $0.id == original.id }) else { throw EditFailure.removed }
                 var value = next.waypoints[index]
                 func changed(_ a: String,_ b: String) -> Bool { !a.utf8.elementsEqual(b.utf8) }
-                if changed(original.name,draft.name) { value.name = draft.name }
+                if changed(original.name,draft.name) { value.name = AutomaticNames.waypoint(draft, among: base.waypoints, excluding: original.id) }
                 if original.lat != draft.lat || original.lon != draft.lon { value.lat = draft.lat; value.lon = draft.lon }
                 if changed(original.folder,draft.folder) { value.folder = folder }
                 if changed(original.symbol,draft.symbol) { value.symbol = draft.symbol }

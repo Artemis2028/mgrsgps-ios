@@ -123,7 +123,7 @@ struct GraphicDrawingControls: View {
             .sheet(isPresented: $properties) {
                 NavigationStack {
                     Form {
-                        TextField("Name", text: $draft.graphic.name).accessibilityIdentifier("graphic-name")
+                        TextField("Name (optional)", text: $draft.graphic.name).accessibilityIdentifier("graphic-name")
                         TextField("Folder", text: $draft.graphic.folder).accessibilityIdentifier("graphic-folder")
                         Picker("Affiliation", selection: $draft.graphic.affiliation) { ForEach(MilitarySymbols.affiliations) { Text($0.label).tag($0.key) } }
                         if draft.graphic.type == "boundary" { Picker("Echelon", selection: $draft.graphic.echelon) { ForEach(MilitarySymbols.echelons) { Text($0.label).tag($0.key) } } }

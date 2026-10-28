@@ -37,7 +37,7 @@ final class RouteWaypointStagingTests: XCTestCase {
         let edit = WaypointStore.RouteEdit(routeID: "r",name: "Renamed",points: points,folder: "Base")
         XCTAssertTrue(try store.publishBatch(store.restoreSnapshot().prepareRoute(edit)))
         XCTAssertEqual(store.selectedId,chosen.id)
-        XCTAssertEqual(store.waypoints.first { $0.id == chosen.id }?.name,"Renamed WP 1")
+        XCTAssertEqual(store.waypoints.first { $0.id == chosen.id }?.name,"Chosen")
         XCTAssertTrue(store.waypoints.first { $0.id == chosen.id }!.favorite)
         XCTAssertNil(store.waypoints.first { $0.id == first.id }?.sourceRouteId)
         XCTAssertTrue(try store.publishBatch(store.restoreSnapshot().prepareRoute(.init(routeID: "r",name: "Empty",points: [],folder: "Base"))))
