@@ -1862,3 +1862,25 @@ Localf2e46e3 is committed with on-demand sources and cleanup authority, behind
 local source from the pushed/hosted source. One-minute coordination remains
 active, server off without GO, and all owned local simulators/feeds are off.
 Next main UI work is the observed pale day Map-tab selected-icon/text contrast.
+
+
+## 29 October 2026 — wrist owners and hosted111 repairs
+
+Foreground wrist lane owners are implemented on both platforms; watchOS40mm
+callbacks verify entry, named limits/backstop, expiry and suspension/rearm.
+Physical haptics, Wear runtime, independent heading/route guidance and background
+wrist owners remain open. See watch-wrist-lanes.md and parity-open-gates.md.
+
+Hosted111 field/dedicated background stages pass; its library/map jobs failed.
+All14 failed cases now have local passes on the repaired source/workflows. A
+real dense-map accessibility defect was fixed without capping/hiding markers:
+MapLibre6.31 repeatedly sorted annotations for each index; FieldMapView reuses
+native ordered views per camera/data snapshot, with public API fallbacks.
+The original5,000-waypoint workflow passes in45.558s; the full visible-count
+comparison also passes after real hide/show, camera and night changes.
+The iOS26.2 map repair bundle passes11 cases, final large-library/selection
+bundle6, plus both complete backup flows and the three former timeout cases.
+Full hosted confirmation of the follow-up source remains open. Runtime
+invalid-frame warnings lack source locations and remain under diagnosis.
+See hosted111-map-repair.md and dense-map-accessibility.md for failed intermediates,
+final evidence and physical gates. No server changes, merge or release.
