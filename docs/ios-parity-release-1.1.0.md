@@ -1703,3 +1703,30 @@ The new Files candidate passes two scoped local iOS26.5 large-GPX cases; shared
 consumer regression is still finishing at pause. Course reveal/CI balancing
 candidates are saved locally with validation limits explicit. Watcher paused at
 Rafael's request; no new hosted run, push, server change, merge or release.
+
+
+### Resumed and pushed; full hosted110 live,28 October
+
+Pushed all held Settings/instrument/Files/course/CI follow-ups as
+`98c5c1764b11b68cb1c96d0067e4a191a81a1cb0`. Same draft PR rewritten around
+current behavior/evidence. Full11040729291858 is confirmed live: library
+122960900401, map122960900820, field122960900902. All109 jobs were terminal
+before this push; no run was cancelled or duplicated. This evidence-only update
+stays local while110 runs. No hosted success claimed.
+
+The preserved20-case Files regression passes, including complete native GPX and
+explicit Icons-to-List, KMZ/ATAK, ordinary/protected and Settings backup flows.
+Resume validation passes six distinct backup/course workflows across final and
+source-compatible bundles; two intermediate active-course failures retain the
+actual117pt header versus helper125pt bound evidence. Final day/largest-night
+active cases pass; ended-form images inspected. Ten harness checks pass. All
+local parents end naturally; owned devices/feeds are off. Production Release
+evidence from the held Settings milestone remains applicable: subsequent edits
+change test interactions/CI/docs only. [Full109 investigation](hosted109-repairs.md).
+
+The one-minute Claude watcher is ACTIVE. Android release/main refs remain
+482b417/94c4cc4. Claude's e099a1a now saves/reuses its sign-in port, matching iOS
+profile.enrollmentPort; note acknowledged, no wire change needed. No server GO,
+infrastructure/credential changes, merge or release. Main saved-log startup
+read costs, wider accessibility, independent watch features and physical/genuine
+enrolled-TAK gates remain open; an unchanged handoff is not a main-task blocker.
