@@ -34,3 +34,12 @@ shrink the fixture, or hide accessibility nodes to make it pass.
 Still to verify/repair: navigation-lane edit/backup and protected GPX native Files
 timeouts, dense map response, runtime invalid-frame warnings, and full hosted
 confirmation after local fixes. Physical-device gates remain separate.
+
+The three hosted timeout cases also pass unchanged on iOS26.2 in
+/tmp/mgrsgps-ci111-dense-lane-files-262.xcresult: linked lane edit/hide/relaunch/
+delete127.145s, hidden route-lane native backup restore/strip-PDF134.174s, and
+protected GPX wrong-password/preview-cancel/import/relaunch115.324s. That bundle's
+one remaining failure was the dense map; its subsequent product repair and final
+passing scope are recorded in dense-map-accessibility.md. None of these test
+execution allowances was raised. Earlier hosted invalid-frame warnings lack a
+source location and remain a separate diagnostic gate.

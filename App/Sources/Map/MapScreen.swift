@@ -895,7 +895,7 @@ private struct MapContainer: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let view = MLNMapView(frame: .zero)
+        let view = FieldMapView(frame: .zero)
         view.delegate = context.coordinator
         view.isPitchEnabled = false
         view.styleURL = mapStore.styleURL
@@ -1234,6 +1234,7 @@ private struct MapContainer: UIViewRepresentable {
 
         func sync(_ waypoints: [Waypoint], navigationID: String?, night: Bool, in map: MLNMapView) {
             guard previous != waypoints || self.navigationID != navigationID || self.night != night else { return }
+            (map as? FieldMapView)?.invalidateAnnotationAccessibility()
             previous = waypoints
             self.navigationID = navigationID
             self.night = night
@@ -1309,6 +1310,7 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            (mapView as? FieldMapView)?.invalidateAnnotationAccessibility()
             if let maps { rasterLayers.update(style: style, store: maps, night: nightMode) }
             overlay.install(into: style)
             fieldOverlay.install(into: style)
@@ -1319,6 +1321,10 @@ private struct MapContainer: UIViewRepresentable {
             graphicHandles.install(style: style)
             boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: mapView)
             reconcileVertexPreview(); redraw(mapView)
+        }
+
+        func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
+            (mapView as? FieldMapView)?.invalidateAnnotationAccessibility()
         }
 
         func insertVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
@@ -1333,7 +1339,9 @@ private struct MapContainer: UIViewRepresentable {
             // Place the canvas immediately below native annotations, inside
             // their hosting view. Raising their outer ancestor can raise the
             // Metal basemap over the tactical canvas as well.
-            if let marker = (map.annotations ?? []).compactMap({ map.view(for: $0) }).first,
+            // Only the first hosted marker is needed. Eager compactMap queried
+            // every annotation on every camera/layout update in dense libraries.
+            if let marker = (map.annotations ?? []).lazy.compactMap({ map.view(for: $0) }).first,
                let container = marker.superview {
                 let host = container === map ? map : container.superview
                 let sibling = container === map ? marker : container

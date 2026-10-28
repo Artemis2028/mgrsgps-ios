@@ -1,6 +1,63 @@
 import XCTest
 
 final class LargeLibraryWorkflowTests: XCTestCase {
+    func testDenseMapAccessibilityKeepsEveryVisibleMarkerAfterCameraAndNightChanges() {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTesting", "-uiTestLargeLibrary", "-uiTestBoundaryMap", "-startTab", "map"]
+        app.launch()
+        let markers = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "map-waypoint-large-point-"))
+        func verify() {
+            let map = app.otherElements.matching(NSPredicate(format: "label == %@", "Map")).firstMatch
+            XCTAssertTrue(map.waitForExistence(timeout: 10))
+            let value = map.value as? String ?? ""
+            let range = value.range(of: #"[0-9,]+ annotation\(s\)"#, options: .regularExpression)
+            XCTAssertNotNil(range, value)
+            let count = range.flatMap { value[$0].split(separator: " ").first }.flatMap { Int($0.replacingOccurrences(of: ",", with: "")) }
+            XCTAssertEqual(markers.count, count, "Every SDK-visible waypoint must remain individually accessible")
+            XCTAssertGreaterThan(markers.count, 100)
+            XCTAssertTrue(app.buttons["Compass"].exists)
+            XCTAssertTrue(app.buttons["About this map"].exists)
+        }
+        func go(_ grid: String) {
+            mapTool(app, "map-goto").tap()
+            let input = app.textFields["map-goto-grid"]
+            XCTAssertTrue(input.waitForExistence(timeout: 5)); replaceTextInput(input, grid)
+            app.buttons["map-goto-keyboard-done"].tap(); app.buttons["map-goto-show"].tap()
+            XCTAssertTrue(app.buttons["map-options"].waitForExistence(timeout: 8))
+        }
+        verify()
+        let origin = app.buttons["map-waypoint-large-point-0"]
+        XCTAssertTrue(origin.exists)
+        func visibility(_ title: String) {
+            tapNativeMenuItem(app.buttons["Waypoints"], revealing: app.textFields["library-search"])
+            let search = app.textFields["library-search"]
+            replaceTextInput(search, "Point 0000"); search.typeText("\n")
+            let actions = app.buttons["Actions for Point 0000"]
+            XCTAssertTrue(actions.waitForExistence(timeout: 8)); tapNativeMenuItem(actions)
+            tapNativeMenuItem(app.buttons[title])
+            tapNativeMenuItem(app.buttons["Map"], revealing: app.buttons["map-options"])
+        }
+        visibility("Hide on map")
+        let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: origin)
+        XCTAssertEqual(XCTWaiter.wait(for: [hidden], timeout: 10), .completed)
+        verify()
+        visibility("Make visible on map")
+        XCTAssertTrue(origin.waitForExistence(timeout: 10))
+        verify()
+        go("40R BN 90000 90000")
+        let empty = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in markers.count == 0 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [empty], timeout: 10), .completed)
+        go("40R BN 34124 07001")
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in markers.count > 100 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+        verify()
+        mapTool(app, "Toggle map night mode").tap(); closeMapOptions(app)
+        verify()
+        let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        image.name = "dense-map-accessible-markers-night"; image.lifetime = .keepAlways; add(image)
+    }
     func testLargeFolderCourseKeepsSavedCheckpointOrderAndLibraryCount() {
         continueAfterFailure = false
         let app = XCUIApplication()
