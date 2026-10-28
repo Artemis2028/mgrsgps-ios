@@ -71,3 +71,9 @@ shows the backstop. This establishes UI/owner integration, not physical vibratio
 Active wrist decisions now precede unselected phone targets so the named limit
 and Stop control fit the40mm viewport. Final device Release passes in
 /tmp/mgrsgps-wrist-final-release.log. Wear runtime remains open.
+
+Pressing the native crown and returning to the same process shows Paused · start
+wrist alerts again; it does not rearm. Capture:
+/tmp/mgrsgps-wrist-watch-final-resumed.png. All owned fake feeds ended naturally
+and their handles were reaped. The synthetic map/night preferences were restored
+after shutting down the owned watch and paired phone. No other simulator ran.
