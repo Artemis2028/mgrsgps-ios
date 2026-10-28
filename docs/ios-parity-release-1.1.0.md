@@ -4,6 +4,10 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+For the current open work, use the [short gate ledger](parity-open-gates.md).
+The long entries below retain historical failures and “next” notes; they are
+not all still-open gaps. Sparse settings restore and paired Wear named-limit
+Data Layer delivery are already verified; independent wrist guidance is not.
 Current pushed checkpoint: c712229 (28 October) includes all held storage,
 map chrome, export focus, filename, naming, marker-label and TAK-sheet changes.
 Full hosted111/run40767120285 is queued on that exact head; no full hosted pass
