@@ -4,6 +4,11 @@ Reference: `Artemis2028/gridfix` branch `release/1.1.0`, commit `482b417`,
 24 October 2026. This inventory supplements the earlier 1.0.4 milestone notes.
 It is not a claim of full Android parity.
 The release branch was rechecked through GitHub on 28 October and still points to this commit.
+Current pushed checkpoint: c712229 (28 October) includes all held storage,
+map chrome, export focus, filename, naming, marker-label and TAK-sheet changes.
+Full hosted111/run40767120285 is queued on that exact head; no full hosted pass
+is claimed. Hosted110 is terminal before this push. The one-minute handoff
+checker remains active, and all local parents/simulator feeds are terminal/off.
 Latest requested UI work: [automatic names and compact marker labels](automatic-names-and-marker-labels.md)
 now covers waypoints, military units, map/library routes, graphics and generated
 route points. Custom names/IDs survive regeneration; number reservations and
