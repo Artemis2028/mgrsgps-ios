@@ -270,3 +270,15 @@ uses scrolling; lower heading row/touch, fresh-GPS recovery after clear, real
 heading callbacks and Home/lock transitions remain open. See watch-own-heading.md
 for exact evidence/limits. All native parents/feeds reaped, both owned simulators
 off, fake GPS cleared and original watch preferences restored byte-for-byte.
+
+
+### Watch GPS recovery follow-up — 29 October 2026
+Same native40mm watch process now verifies fresh fake GPS, expiry after source
+clear and recovery when moving OS GPS resumes. Single replacement fix did not
+refresh; single-fix recovery remains unverified and is not counted as passed.
+Night relaunch also shows fresh distance/bearing and compass-unavailable; native
+callbacks confirm5m precise foreground fixes. No heading injected. Home/lock,
+actual compass callbacks/physical calibration and large-text lower-row interaction
+remain open. All local parents reaped, fake GPS cleared, watch off and original
+prefs restored byte-for-byte. See watch-own-heading.md. Held documentation follow-up
+while hosted115 validates exact5b37bd2; no cancelling push/duplicate run.

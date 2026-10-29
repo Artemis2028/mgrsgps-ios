@@ -31,9 +31,8 @@ GPS distance/bearing and WATCH COMPASS UNAVAILABLE together at ordinary text siz
 No compass value is injected. Terminate/relaunch retains the fake target; clearing
 GPS suppresses navigation numbers in night mode. The accessibility3 capture uses
 the existing scrolling navigation layout; its lower heading row/touch reachability
-was not verified. Fresh GPS recovery after clearing, genuine compass callbacks,
-Home/locked scene transitions and calibrated readings remain gates requiring
-further native/physical testing. A late single-fix recovery attempt did not update
+was not verified. Genuine compass callbacks, Home/locked scene transitions and calibrated readings
+remain gates requiring further native/physical testing. A late single-fix recovery attempt did not update
 the displayed fix and is not counted as a pass. Both simulators are off, feeds
 reaped, synthetic GPS cleared and original watch preferences restored byte-for-byte.
 Evidence: /tmp/mgrsgps-watch-heading-day-fresh.png,
@@ -42,3 +41,30 @@ Evidence: /tmp/mgrsgps-watch-heading-day-fresh.png,
 physical compass-capable watch. No injected heading or new WatchConnectivity,
 background-steering, haptic, battery, physical or enrolled-TAK verification claim.
 Independent watch route/steering owners and offline/terrain transfer remain open.
+
+
+## Native GPS recovery follow-up
+
+On the same40mm watch process, a3-second moving OS GPS feed produces fresh
+location/navigation; stopping it and clearing location suppresses distance/bearing
+after the normal10-second fix gate. One replacement simulator fix did not refresh
+the displayed sample despite a longer wait. Restarting the moving OS feed restores
+fresh distance/bearing in the same process, with no relaunch or app-state injection.
+This closes repeated-feed recovery, not reliable single-fix CoreSimulator delivery.
+
+A subsequent night relaunch also shows fresh distance/bearing and explicit
+WATCH COMPASS UNAVAILABLE. Native callback diagnostics report age around0.001s,
+accuracy5m, foreground/authorized/precise true. No heading is injected or generated;
+true compass callbacks and Home/lock/physical gates stay open. Captures inspected:
+/tmp/mgrsgps-watch-recovery-before.png,
+/tmp/mgrsgps-watch-recovery-expired.png,
+/tmp/mgrsgps-watch-recovery-single.png,
+/tmp/mgrsgps-watch-recovery-repeated.png and
+/tmp/mgrsgps-watch-recovery-night-fresh.png.
+
+Native console /tmp/mgrsgps-watch-heading-recovery-night-console.log retains
+callback evidence; first console used a buffered pipe, so it is not used to time
+individual callbacks. Both feed parents and both console launch parents are
+reaped; fake GPS cleared, watch off and original preferences restored byte-for-byte.
+No phone/server connection, real compass, touch/large-text lower-row or background
+steering validation claimed.
