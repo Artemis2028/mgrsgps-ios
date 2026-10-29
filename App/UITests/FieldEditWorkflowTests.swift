@@ -33,7 +33,7 @@ final class FieldEditWorkflowTests: XCTestCase {
         app.buttons["save-route"].tap(); gone(app.buttons["save-route"])
         XCTAssertTrue(app.navigationBars["Night patrol"].waitForExistence(timeout: 10))
         let visibility = app.switches["Visible on map"]
-        value(visibility,"1"); visibility.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap(); value(visibility,"0")
+        value(visibility,"1"); setNativeSwitch(visibility,to: false); value(visibility,"0")
         capture("field-route-edited-hidden-night")
         relaunch(); library()
         XCTAssertTrue(app.buttons["route-Night patrol"].waitForExistence(timeout: 10)); app.buttons["route-Night patrol"].tap()
@@ -48,14 +48,14 @@ final class FieldEditWorkflowTests: XCTestCase {
     func testGraphicPanelVisibilityDeleteAndTrackDeletionPersistInNightMode() {
         mapTool(app, "map-graphics").tap()
         let visibility = app.switches["graphic-visible-Recon route"]
-        reveal(visibility); value(visibility,"1"); visibility.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap(); value(visibility,"0")
+        reveal(visibility); value(visibility,"1"); setNativeSwitch(visibility,to: false); value(visibility,"0")
         capture("field-graphic-hidden-night")
         let deleteGraphic = app.buttons["Delete graphic Recon route"]; reveal(deleteGraphic); deleteGraphic.tap()
         let alert = app.alerts.firstMatch; XCTAssertTrue(alert.waitForExistence(timeout: 5)); alert.buttons["Delete"].tap()
         gone(visibility); app.navigationBars["Graphics & routes"].buttons["Done"].tap()
         library(); app.buttons["track-Recon track"].tap()
         let trackVisibility = app.switches["Visible on map"]
-        value(trackVisibility,"1"); trackVisibility.coordinate(withNormalizedOffset: .init(dx: 0.9,dy: 0.5)).tap(); value(trackVisibility,"0")
+        value(trackVisibility,"1"); setNativeSwitch(trackVisibility,to: false); value(trackVisibility,"0")
         capture("field-track-hidden-night")
         app.buttons["Delete track"].tap(); XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5)); app.alerts.buttons["Delete"].tap()
         XCTAssertTrue(app.navigationBars["Routes & tracks"].waitForExistence(timeout: 10))

@@ -334,3 +334,15 @@ emulator terminated, original companion preferences restored byte-for-byte.
 Independent Wear steering/routes, hardware compass/orientation and offline/terrain
 remain open. See Wear docs/wear-os.md and /tmp/mgrsgps-wear-heading-active.json.
 No phone checkout edits, TAK connections or infrastructure operations.
+
+
+### Hosted115 field switch interaction — 29 October 2026
+
+Field115 on5b37bd2 has417 cases:407pass/nine skip/one failure. Verified full
+artifact/recording/AX evidence shows the graphics visibility switch remains on
+after a single coordinate gesture. The two night field-edit workflows now use
+existing native-switch acknowledgement; all persistence assertions remain.
+Local graphics/track and route edit/hide/delete/relaunch pass56.177s/65.730s,
+Xcode exit0; captures inspected, feed reaped/GPS cleared/phone off. Product
+mutations unchanged. See hosted115-field-triage.md. Map/library115 still run;
+no cancelling push, duplicate dispatch or full-hosted-green claim.
