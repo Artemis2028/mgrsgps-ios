@@ -20,8 +20,11 @@ features and attribution. Sparse/non-view annotation maps, callouts and tracking
 modes fall through to the SDK. No private selector or SDK patch is used.
 
 Cache identity includes camera, viewport, content inset, location visibility and
-annotation revision. Public add/remove paths, waypoint/theme sync, style loading
-and location updates invalidate it. Reverse element lookup uses identity indices.
+annotation revision and native user-location view identity. Public add/remove
+paths, waypoint/theme sync and style loading invalidate it. A GPS coordinate
+update does not change fixed-marker ordering when tracking is off; appearance
+or replacement of the native location view still changes the cache identity.
+Reverse element lookup uses identity indices.
 The ordinary native marker views keep their labels, traits, IDs and actions.
 Map update container lookup also stops at the first hosted annotation instead
 of requesting every view just to find that first container.
@@ -52,3 +55,25 @@ Validation:
  /tmp/mgrsgps-map-accessibility-harness.log. Core math is unchanged.
 - Dense/night and largest-text waypoint captures were inspected. Full hosted
  confirmation of the final source remains open.
+
+Hosted112 follow-up: the original dense workflow again failed map-options
+acknowledgment under hosted load. This remains an open hosted gate, not a
+confirmed complete fix. MapLibre6.31.0's public view-for-annotation method
+returns its user-location view, so native prefix detection can use that identity
+without asking the expensive per-index accessor. The GPS callback no longer
+discards ordering that depends only on a stationary camera and fixed markers.
+The attached-view guard and every native element remain intact.
+
+The preceding source already passed the unchanged dense workflow locally with
+the CI3-second moving GPS route in
+/tmp/mgrsgps-gpx-native-dense-live-baseline.xcresult (46.959s); continuous GPS
+is therefore a performance hypothesis, not a proven deterministic local cause.
+Fresh exact-count/hide/show/camera/night passes in171.637s and the unchanged
+original dense workflow passes in45.805s on the refined cache in
+/tmp/mgrsgps-gpx-output-cache-final.xcresult, under the same3-second fake GPS
+route. All eight selected UI cases pass. Xcode finalized after its600-second
+diagnostic collector timeout, exited0 with TEST SUCCEEDED. The dense/night
+capture was inspected: all markers are retained, with the previously recorded
+extreme-density label overlap. Full hosted confirmation stays open.
+Unsigned phone/watch/widget Release passes in
+/tmp/mgrsgps-gpx-output-cache-final-release.log.

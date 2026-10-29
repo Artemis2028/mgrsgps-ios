@@ -10,6 +10,7 @@ final class FieldMapView: MLNMapView {
         let bounds: CGRect
         let inset: UIEdgeInsets
         let location: Bool
+        let locationView: ObjectIdentifier?
         let revision: Int
     }
     private struct AnnotationElements {
@@ -39,9 +40,14 @@ final class FieldMapView: MLNMapView {
     }
     private func orderedAnnotations() -> AnnotationElements? {
         guard selectedAnnotations.isEmpty, userTrackingMode == .none else { return nil }
+        // A GPS coordinate changes the native location element, not the order
+        // of fixed field markers. Its view identity covers appearance/removal
+        // of the SDK's optional prefix without invalidating on every GPS fix.
+        let locationView = userLocation.flatMap { view(for: $0) }
         let camera = Camera(latitude: centerCoordinate.latitude, longitude: centerCoordinate.longitude,
                             zoom: zoomLevel, direction: direction, pitch: self.camera.pitch,
-                            bounds: bounds, inset: contentInset, location: showsUserLocation, revision: annotationRevision)
+                            bounds: bounds, inset: contentInset, location: showsUserLocation,
+                            locationView: locationView.map(ObjectIdentifier.init), revision: annotationRevision)
         if let cached = annotationElements, cached.camera == camera { return cached }
         annotationElements = nil
         let annotations = visibleAnnotations ?? []
@@ -58,10 +64,9 @@ final class FieldMapView: MLNMapView {
         }
         ranked.sort { $0.distance == $1.distance ? $0.ordinal < $1.ordinal : $0.distance < $1.distance }
         let total = super.accessibilityElementCount()
-        // The SDK reserves index zero for Compass, then its optional location
-        // view. Ask once; querying a first annotation here costs only one sort.
-        let first = super.accessibilityElement(at: 1) as? MLNAnnotationView
-        let start = first?.annotation is MLNUserLocation ? 2 : 1
+        // The public view-for-annotation API returns the same native user view
+        // the SDK counts before its field annotations. No per-index sort probe.
+        let start = locationView == nil ? 1 : 2
         guard start + ranked.count <= total else { return nil }
         let views = ranked.map(\.view)
         var indices: [ObjectIdentifier: Int] = [:]

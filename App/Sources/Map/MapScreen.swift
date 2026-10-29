@@ -1323,10 +1323,6 @@ private struct MapContainer: UIViewRepresentable {
             reconcileVertexPreview(); redraw(mapView)
         }
 
-        func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
-            (mapView as? FieldMapView)?.invalidateAnnotationAccessibility()
-        }
-
         func insertVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
             let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
             if vertex.owner == "graphic" { onGraphicInsert?(vertex.index,p) } else { onBoundaryInsert?(vertex.index,p) }

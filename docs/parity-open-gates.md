@@ -14,7 +14,7 @@ repeating an implementation or runtime test.
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
 | Independent watch guidance | Foreground independent lane owners now implemented on both platforms,561 Swift core cases/four Wear session tests and both builds pass; watch guide remains separate/read-only | watchOS40mm and Wear192 dp runtime verify local entry, named sides/backstop, expiry and suspension/rearm; independent heading/route guidance and background owners remain implementation work; physical haptic distinction |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
-| Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented;577 core/360 native (four opt-in skips) pass; checksum-gated conservative cleanup | Streaming export writers; real cold-device/dense-map/memory profiles. See track-streaming.md and track-cache-upgrade.md for current local evidence |
+| Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
 | Distribution | Unsigned phone/watch/widget device Release passes | Signing, privacy/distribution and actual physical installation gates; no merge/release approval requested |
 
@@ -47,7 +47,10 @@ Field artifact12864152223 SHA-256 is verified as
 f5d4c7564bc4ab1ea072c322a507d1a36adfe0b61d1adb35880d20d2985f608b.
 Library artifact12866601557 SHA-256 is verified as
 fa0bd20a7f68dd08677f19baa372b2febeada20cc48b203553fb232b98307c1f.
-Both are extracted. The backup log spends most of its allowance repeatedly
+Map artifact12865129169 is also SHA-256 verified as
+82cf1161959f982f66c20781d4c77ef3b1e22afd030e139d879911c8f1c9a759;
+its extracted UI log confirms51 cases, zero failures and TEST SUCCEEDED.
+All three shard artifacts are extracted. The backup log spends most of its allowance repeatedly
 querying/tapping the native Files thumbnail, then restores successfully before
 hitting the allowance during later verification. Its app spindump shows an idle
 run loop/accessibility snapshots, not evidence of a product deadlock.
@@ -59,7 +62,10 @@ The selected filename must still match exactly; counts, timeouts and full
 restore/relaunch assertions are unchanged. Exported large-GPX preview and
 restored night-library screenshots inspected. This validates the helper against
 the earlier app binary. Fresh file-backed GPX output and dense accessibility
-cache validation are running separately; full hosted confirmation remains open.
+cache validation pass together:364 native cases (four opt-in skips), all eight
+selected UI cases, and unsigned Release. Captures inspected; Xcode parent
+finalized with exit0/TEST SUCCEEDED after its diagnostic collector timeout.
+Full hosted confirmation remains open.
 
 Wear28c7717 is pushed to the same draft PR: active lane/status/Stop are visible
 on the small round screen, circular clipped labels replaced with wide controls,
