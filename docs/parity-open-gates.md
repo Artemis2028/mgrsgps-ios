@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground independent lane owners now implemented on both platforms,561 Swift core cases/four Wear session tests and both builds pass; watch guide remains separate/read-only | watchOS40mm runtime verifies local entry, named sides/backstop, expiry and suspension/rearm; Wear runtime remains; independent heading/route guidance and background owners remain implementation work; physical haptic distinction |
+| Independent watch guidance | Foreground independent lane owners now implemented on both platforms,561 Swift core cases/four Wear session tests and both builds pass; watch guide remains separate/read-only | watchOS40mm and Wear192 dp runtime verify local entry, named sides/backstop, expiry and suspension/rearm; independent heading/route guidance and background owners remain implementation work; physical haptic distinction |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented;577 core/360 native (four opt-in skips) pass; checksum-gated conservative cleanup | Streaming export writers; real cold-device/dense-map/memory profiles. See track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -36,3 +36,20 @@ phone-launcher background phases. It did not prove independent watch crossings
 or wrist haptics. Do not reopen the completed delivery gate as a request for the
 user to pair the emulator again. No Android devices were running during this
 audit; the read-only inventory started adb, not another emulator.
+
+
+Hosted112 on2740063: field is terminal with one native Files reopen failure
+in FieldExportWorkflowTests.testLargeLibraryGPXExportsThroughFilesAndReopensAllRecords.
+Native357 cases pass with four opt-in skips; field UI39/40 pass with five skips.
+The same file remains visible after thumbnail activation. Its field artifact
+12864152223 SHA-256 is verified as
+f5d4c7564bc4ab1ea072c322a507d1a36adfe0b61d1adb35880d20d2985f608b; failure artifact
+is extracted for diagnosis. Dedicated field steps are skipped after this failed
+stage; earlier111 background evidence is historical. Map/library112 are still
+live. A single same-runtime local reproduction is running; no cancellation,
+rerun or push against that active run. Streaming/cache commits remain held.
+
+Wear28c7717 is pushed to the same draft PR: active lane/status/Stop are visible
+on the small round screen, circular clipped labels replaced with wide controls,
+46 cases/builds/lint pass and native GPS/vibration foreground runtime passes.
+Physical feel, background/heading/route owners and other recorded gates remain.

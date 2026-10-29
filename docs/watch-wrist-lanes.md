@@ -77,3 +77,62 @@ wrist alerts again; it does not rearm. Capture:
 /tmp/mgrsgps-wrist-watch-final-resumed.png. All owned fake feeds ended naturally
 and their handles were reaped. The synthetic map/night preferences were restored
 after shutting down the owned watch and paired phone. No other simulator ran.
+
+## Wear foreground runtime — 29 October 2026
+
+The actual Wear API34 emulator (384×384 pixels,320 dpi,192 dp round) now runs
+independent wrist alerts with native LocationManager callbacks. Only that watch
+was booted; no paired phone or TAK server participated. Its original companion
+preferences were backed up and restored byte-for-byte. Synthetic lane geometry
+was staged in the ordinary cache; no lane decision, guidance state or haptic
+result was injected. Earlier paired transport evidence remains separate.
+
+Runtime exposed a product UI defect: long Choose/Stop/Cancel labels used round
+CompactButtons and were clipped; active guidance was buried below target data.
+They now use wide chips, the lane picker uses wide multiline rows, and an active
+wrist session moves to the top with its lane name, decision and Stop visible.
+Starting/revisiting Navigate scrolls to this active section. Ordinary waypoint
+metrics, read-only phone guidance and the separate quiet-inside mode remain.
+
+Verified states and Android vibrator-service evidence:
+
+| State | Visible result | App vibration request |
+| --- | --- | --- |
+| Fresh inside | Inside lane | None |
+| Past left Creek | Past Creek · turn right | 0,70,90,70 ms: two short pulses |
+| Return inside | Inside lane | No new request; latest app-vibration timestamp unchanged during quiet hold |
+| Past right Road | Past Road · turn left | 0,300 ms: one long pulse |
+| Return inside | Inside lane | Latest app-vibration timestamp unchanged during quiet hold |
+| Past bent Power line | Past Power line · turn back | 0,300,200,300,200,300 ms: three long pulses |
+| Aged valid fix | Waiting for watch GPS | Requests stop; latest app-vibration timestamp stays unchanged |
+| Fresh recovery outside | Past Power line · turn back | Recovered decision/cue |
+| Home, then return | Paused · start wrist alerts again | Same app PID; requests stay stopped, explicit rearm required |
+| Explicit Start while outside | Not in lane yet | Silent; no auto-entry into a previously armed session |
+| Explicit Stop | Wrist alerts off | Disarmed |
+
+The emulator continues generating fresh GPS locations at its last coordinate
+when geo-fix commands stop; stopping the host feed did NOT prove age expiry.
+For that check, Android's OS test GPS provider delivered one valid5m fix and no
+further locations. The recorded location elapsed time was18m30.369s versus
+1154.23s uptime (>43s old), and the real owner displayed Waiting. The temporary
+provider override was removed; the shell mock-location app-op was restored to
+its original default-deny mode. Its access-history timestamp naturally remains,
+so an initial cleanup assertion comparing the entire diagnostic text was too
+strict; the actual mode is restored. Fresh ordinary emulator GPS then recovered
+the backstop state. No production permission policy was bypassed.
+
+Evidence paths: /tmp/mgrsgps-wrist-wear-{inside,left,return-left,right,return-right,
+backstop,stale,recovered-backstop,resumed,day-active,stopped}.{png,xml}; matching
+-vibrator.txt captures contain the native service's original/played effects.
+Quiet-hold captures and stale-location.txt preserve the timestamp checks.
+All key inside/crossing/backstop/day/resume captures were visually inspected.
+Day and night show a complete active status and wide Stop on the small round
+screen. An initial native UI script missed controls during scroll/animation;
+fresh hierarchy reads and actual taps subsequently complete the same journey.
+
+All46 Wear unit cases pass; Debug/Release APKs and Release lint pass in
+/tmp/mgrsgps-wrist-wear-controls-build.log. GPS feed and emulator parents exited
+naturally after cleanup; adb inventory shows no devices. No extra iOS simulator
+was booted. This closes the foreground Wear runtime gate, not independent
+background/heading/route following or physical vibration/radio/battery checks.
+The vibrator service proves requests/effect timing, not physical wrist feel.
