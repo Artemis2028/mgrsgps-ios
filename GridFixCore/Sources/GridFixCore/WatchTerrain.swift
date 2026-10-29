@@ -211,3 +211,21 @@ public final class WatchTerrainCache: @unchecked Sendable {
         return (value,meta)
     }
 }
+
+/// Request ownership for queued-file status callbacks. Transport cleanup is
+/// independent: an old file can finish after a newer Send has begun or failed.
+public struct WatchTerrainOutboxOwner: Sendable {
+    public private(set) var generation = UUID()
+    private var files = Set<URL>()
+    public init() {}
+    public mutating func begin() {
+        generation = UUID(); files.removeAll()
+    }
+    public mutating func register(_ file: URL, generation: UUID) -> Bool {
+        guard generation == self.generation else { return false }
+        files.insert(file.standardizedFileURL); return true
+    }
+    public mutating func consume(_ file: URL) -> Bool {
+        files.remove(file.standardizedFileURL) != nil
+    }
+}

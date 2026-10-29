@@ -97,3 +97,32 @@ Evidence: `/tmp/mgrsgps-watch-terrain-replacement-core.log`, parent 9183 exit 0
 and reaped. This is core cache/source/atomic replacement evidence only, not new
 native WatchConnectivity fault/queue delivery or physical pressure evidence.
 No production, wire, server, phone cache or original device state changed.
+
+## Queued completion belongs to its Send request
+
+Review found a phone status race: a previous queued transfer could finish during
+a newer Send's cache preparation, while the stored published revision still
+matched the old transfer. It could also overwrite the newer preparation failure
+when that request never published a revision. Revision comparison alone therefore
+could not establish callback ownership.
+
+The phone now assigns queued outbox files to the current request generation.
+Starting a new preparation or invalidating the session drops earlier status
+ownership immediately. Completion still removes its owned temporary file before
+checking ownership, but only the current registered file may update status, once.
+Old asynchronous fallbacks cannot register against a newer request. Cold-session
+SDK completions clean up without claiming an active Send. Transport completion
+still means sent/check coverage; it does not claim successful watch installation.
+No protocol, payload, SDK queue limit, transfer destination or cache policy changed.
+
+Eight focused terrain cases and all641 shared-core cases pass, including late
+completion before revision publication, failed-new-request supersession, stale
+registration, duplicate completion, session invalidation and cold-session scope.
+Evidence: `/tmp/mgrsgps-watch-terrain-owner-core.log` and
+`/tmp/mgrsgps-watch-terrain-owner-core-full.log`; parents13272/55201 exit0/reaped.
+This is callback-ownership policy and bridge source evidence, not new native
+queued WatchConnectivity delivery; physical queued-file/fault tests remain open.
+Unsigned phone/watch/widget device Release also passes in
+`/tmp/mgrsgps-watch-terrain-owner-release.log`, parent98785 exit0/reaped.
+All validation parents are terminal; no simulator or fake-GPS feed was needed.
+The repair stays local while hosted119 map/library are active. TAK remains off.

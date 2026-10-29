@@ -122,6 +122,35 @@ final class WatchTerrainTests: XCTestCase {
             XCTAssertEqual(reader.sample(source: meta.source, lat: c.0, lon: c.1)?.meters, 23)
         }
     }
+    func testQueuedCompletionCannotReplaceNewRequestStatusEvenBeforeRevisionPublication() {
+        var owner = WatchTerrainOutboxOwner()
+        let old = URL(fileURLWithPath: "/synthetic/outbox/old.png")
+        owner.begin()
+        let oldToken = owner.generation
+        XCTAssertTrue(owner.register(old, generation: oldToken))
+        // New Send supersedes the old request immediately. No successful new
+        // manifest/revision publication is required: preparation may fail.
+        owner.begin()
+        let token = owner.generation
+        XCTAssertNotEqual(token, oldToken)
+        XCTAssertFalse(owner.consume(old), "Late completion must not overwrite preparing/error status")
+        XCTAssertFalse(owner.register(old, generation: oldToken), "An old asynchronous fallback cannot queue under a newer request")
+        let current = URL(fileURLWithPath: "/synthetic/outbox/current.png")
+        XCTAssertTrue(owner.register(current, generation: token))
+        XCTAssertTrue(owner.consume(current), "Current queued completion may update transport status")
+        XCTAssertFalse(owner.consume(current), "Duplicate completion has no status ownership")
+    }
+    func testInactiveAndColdSessionCompletionsOnlyPermitIndependentFileCleanup() {
+        let file = URL(fileURLWithPath: "/synthetic/outbox/queued.png")
+        var owner = WatchTerrainOutboxOwner()
+        XCTAssertTrue(owner.register(file, generation: owner.generation))
+        owner.begin() // The bridge uses the same invalidation on session inactivity.
+        XCTAssertFalse(owner.consume(file))
+        var reopened = WatchTerrainOutboxOwner()
+        XCTAssertFalse(reopened.consume(file), "Cold SDK transfer completion cannot claim an active Send")
+        let unknown = URL(fileURLWithPath: "/synthetic/outbox/unknown.png")
+        XCTAssertFalse(owner.consume(unknown))
+    }
     func testTileCountAndByteBudgetsRetainNewestWithoutTouchingUnownedFiles() throws {
         let dir = try temporary(), cache = try WatchTerrainCache(directory:dir), png = try fixture("terrain-rgba.png")
         let keep = dir.appendingPathComponent("notes.txt"); try Data("keep".utf8).write(to:keep)
