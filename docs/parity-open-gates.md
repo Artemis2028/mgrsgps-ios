@@ -205,3 +205,16 @@ Day/night captures inspected. Evidence /tmp/mgrsgps-import-concise-ui.xcresult
 and /tmp/mgrsgps-import-concise-images/manifest.json. Parent reaped, fake GPS
 cleared, owned simulator off. Held locally during hosted114; no new protected
 backup/physical/TAK proof claimed for this copy-only follow-up.
+
+
+### Hosted114 field outcome and selection acknowledgement — 29 October 2026
+Field artifact12877500391 digest verified. Complete main bundle410 cases:
+401 passes/nine skips/zero failures; practice14 passes/one failure out of15.
+Failed night target-write workflow never reached its intended fault: video and
+AX tree show Random points still selected after the From folder gesture.
+Practice setup now uses existing selection-aware native segment activation.
+Both day/night target-save/retry/lock/relaunch/end/preserve-checkpoint workflows
+pass locally59.292s/55.275s, Xcode exit0; reopened captures inspected. Fixtures,
+timeouts and recovery assertions retained. Parent reaped, GPS cleared, simulator
+off. See hosted114-field-triage.md. Local result is not a fresh hosted-green
+claim; other114 shards remain live, so the change is held with prior follow-ups.

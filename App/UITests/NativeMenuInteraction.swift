@@ -26,7 +26,7 @@ extension XCTestCase {
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"),object: element)
             if XCTWaiter.wait(for: [selected],timeout: 3) == .completed { return }
         }
-        XCTAssertTrue(element.isSelected,"Coordinate format did not acknowledge selection",file: file,line: line)
+        XCTAssertTrue(element.isSelected,"Native segment did not acknowledge selection",file: file,line: line)
     }
     func tapNativeSwitch(_ element: XCUIElement,file: StaticString = #filePath,line: UInt = #line) {
         // SwiftUI exposes both a label-wide switch and its actual UISwitch.

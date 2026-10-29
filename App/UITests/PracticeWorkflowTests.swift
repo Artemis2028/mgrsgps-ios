@@ -9,7 +9,7 @@ final class PracticeWorkflowTests: XCTestCase {
     }
     private func startFolder(allowCompleted: Bool = false,allowFailure: Bool = false) {
         let open = app.buttons["open-practice"]; XCTAssertTrue(open.waitForExistence(timeout: 10)); open.tap()
-        tapNativeMenuItem(app.segmentedControls.buttons["From folder"])
+        selectNativeSegment(app.segmentedControls.buttons["From folder"])
         tapNativeMenuItem(app.buttons["practice-folder"])
         tapNativeMenuItem(app.buttons["Drill"])
         let start = app.buttons["practice-start"]
