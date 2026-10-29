@@ -36,6 +36,45 @@ final class TerrainIntegrationTests: XCTestCase {
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [DEMNetworkFixture.self]
         return MapTilePipeline(directory: dir,library: nil,layers: [],configuration: config)
     }
+    func testWatchExportMissAndIncompatibleCacheNeverFetchWhileOnline() throws {
+        let pipeline = try pipeline(), data = try encodedTile(), point = GeoPoint(lat:24,lon:54)
+        DEMNetworkFixture.configure(data); pipeline.offlineOnly = false
+        XCTAssertThrowsError(try pipeline.watchTerrain(at:point,source:"paired-source",revision:1))
+        let p = try XCTUnwrap(WatchTerrainRaster.pixel(lat:point.lat,lon:point.lon))
+        try pipeline.terrainCache.store(Data([1,2,3]),tile:.init(z:13,x:p.x,y:p.y))
+        XCTAssertThrowsError(try pipeline.watchTerrain(at:point,source:"paired-source",revision:1))
+        XCTAssertThrowsError(try pipeline.watchTerrain(at:.init(lat:86,lon:54),source:"paired-source",revision:1))
+        XCTAssertEqual(DEMNetworkFixture.count(),0)
+    }
+    func testWatchExportRetainsRawCachedPNGProvenanceAndReopensOnWatch() throws {
+        let pipeline = try pipeline(), png = try encodedTile()
+        DEMNetworkFixture.configure(png); pipeline.offlineOnly = false
+        let point = GeoPoint(lat:MapTile.latitude(3000.25,zoom:13),lon:MapTile.longitude(4000.5,zoom:13))
+        try pipeline.terrainCache.store(png,tile:.init(z:13,x:4000,y:3000))
+        let (meta,payload) = try pipeline.watchTerrain(at:point,source:"paired-source",revision:5,date:Date(timeIntervalSince1970:1000))
+        XCTAssertEqual(payload,png); XCTAssertEqual(meta.attribution,MapCatalog.elevation.attribution)
+        XCTAssertEqual(meta.x,4000); XCTAssertEqual(meta.y,3000); XCTAssertEqual(meta.revision,5); XCTAssertEqual(meta.publishedAtMillis,1_000_000)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        try WatchTerrainCache(directory:dir).install(manifest:meta,png:payload,expectedSource:"paired-source")
+        XCTAssertEqual(try WatchTerrainCache(directory:dir).sample(source:"paired-source",lat:point.lat,lon:point.lon)?.meters,20)
+        XCTAssertThrowsError(try pipeline.watchTerrain(at:point,source:"paired-source",revision:0))
+        XCTAssertThrowsError(try pipeline.watchTerrain(at:point,source:"paired-source",revision:5,date:Date(timeIntervalSince1970:.infinity)))
+        XCTAssertEqual(DEMNetworkFixture.count(),0)
+    }
+    func testWatchExportPrefersPinnedDEMAndKeepsItsAttribution() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        let library = try MapTileLibrary(directory:dir), png = try encodedTile()
+        let layer = RasterLayer(key:"dem",label:"Synthetic DEM",attribution:"Synthetic pinned terrain",template:MapCatalog.elevation.template,maxZoom:13,maxDownloadZoom:13,bulkDownload:true)
+        let plan = try TileDownloadPlan(bounds:.init(south:23.999,north:24.001,west:53.999,east:54.001),currentZoom:13,layer:layer,elevation:true)
+        let saved = try library.begin(plan,name:"Synthetic",layer:layer)
+        let point = GeoPoint(lat:24,lon:54), p = try XCTUnwrap(WatchTerrainRaster.pixel(lat:24,lon:54))
+        try library.store(png,tile:.init(z:13,x:p.x,y:p.y),in:saved.id)
+        let pipeline = MapTilePipeline(directory:dir,library:library,layers:[])
+        let (meta,payload) = try pipeline.watchTerrain(at:point,source:"paired-source",revision:1)
+        XCTAssertEqual(meta.attribution,"Synthetic pinned terrain"); XCTAssertEqual(payload,png)
+    }
     func testEncodedTerrainKeepsNorthSouthOrientationAndOfflineCacheNeedsNoNetwork() async throws {
         let data = try encodedTile(), pipeline = try pipeline()
         DEMNetworkFixture.configure(data)

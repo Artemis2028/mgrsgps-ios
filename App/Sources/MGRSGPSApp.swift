@@ -24,6 +24,7 @@ struct FieldStartupView: View {
                     .environmentObject(stores.recorder)
                     .environmentObject(stores.maps)
                     .environmentObject(stores.terrain)
+                    .environmentObject(stores.watchBridge)
                     .environmentObject(stores.boundaries)
                     .environmentObject(stores.navigation)
                     .environmentObject(stores.lanes)
@@ -83,7 +84,7 @@ final class FieldAppStores {
     let tak: TAKSession
     let practice: PracticeSession
 
-    private let watchBridge: WatchPhoneBridge
+    let watchBridge: WatchPhoneBridge
 
     init(directory: URL?,waypointStore: WaypointStore,settingsStore: AppSettings,seedFixtures: Bool,mapStore preparedMapStore: MapLayerStore? = nil,practiceStore: PracticeCourseStore? = nil,navigationStartup: NavigationSession.PreparedStartup? = nil,boundaryStartup: BoundaryMonitor.PreparedStartup? = nil,takStartup: TAKLocalStore.PreparedStartup? = nil) {
         #if DEBUG

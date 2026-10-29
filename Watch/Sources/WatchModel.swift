@@ -7,6 +7,51 @@ import UserNotifications
 
 @MainActor
 final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, WCSessionDelegate, UNUserNotificationCenterDelegate {
+    @Published private(set) var terrainRevision = 0
+    @Published private(set) var terrainStatus: String?
+    nonisolated private static func openTerrainCache() throws -> WatchTerrainCache {
+        try WatchTerrainCache(directory:FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("WatchTerrainTiles",isDirectory:true))
+    }
+    private let terrainCache = try? WatchModel.openTerrainCache()
+    func terrain(at point: GeoPoint) async -> (meters:Double,manifest:WatchTerrainManifest)? {
+        guard let source = mapSnapshot?.sourceID,let cache = terrainCache else { return nil }
+        return await Task.detached(priority:.utility) { cache.sample(source:source,lat:point.lat,lon:point.lon) }.value
+    }
+    /// The paired SDK context, never the terrain packet, selects the trusted source.
+    nonisolated private static func installTerrain(_ encoded:Data,png:Data,session:WCSession) throws {
+        let manifest = try WatchTerrainManifest.decode(encoded)
+        let cached = UserDefaults.standard.data(forKey:WatchMapSnapshot.contextKey).flatMap(WatchMapSnapshot.decode)
+        let incoming = (session.receivedApplicationContext[WatchMapSnapshot.contextKey] as? Data).flatMap(WatchMapSnapshot.decode)
+        let accepted = incoming.map { $0.shouldApply(over:cached) ? $0 : cached } ?? cached
+        guard let source = accepted?.sourceID,manifest.source == source else { throw WatchTerrainError.sourceMismatch }
+        try openTerrainCache().install(manifest:manifest,png:png,expectedSource:source)
+    }
+    nonisolated func session(_ session: WCSession,didReceive file: WCSessionFile) {
+        guard let encoded = file.metadata?["gridfix.terrain.v1"] as? Data else { return }
+        do {
+            let manifest = try WatchTerrainManifest.decode(encoded)
+            let size = try file.fileURL.resourceValues(forKeys:[.fileSizeKey]).fileSize ?? 0
+            guard size == manifest.bytes,size <= WatchTerrainRaster.maxBytes else { throw WatchTerrainError.invalid }
+            // Own all bounded bytes before WatchConnectivity removes the temporary inbox file.
+            let png = try Data(contentsOf:file.fileURL)
+            try Self.installTerrain(encoded,png:png,session:session)
+            Task { @MainActor in self.terrainRevision += 1; self.terrainStatus = "Terrain cached" }
+        } catch { Task { @MainActor in self.terrainStatus = "Terrain not saved. Sync phone, then resend." } }
+    }
+    nonisolated func session(_ session:WCSession,didReceiveMessage message:[String:Any],replyHandler:@escaping ([String:Any])->Void) {
+        guard let encoded = message["gridfix.terrain.v1"] as? Data,let png = message["gridfix.terrain.png"] as? Data,
+              let size = try? PropertyListSerialization.data(fromPropertyList:message,format:.binary,options:0).count,size <= 48*1024 else {
+            replyHandler(["terrain.accepted":false]); return
+        }
+        do {
+            try Self.installTerrain(encoded,png:png,session:session)
+            replyHandler(["terrain.accepted":true])
+            Task { @MainActor in self.terrainRevision += 1; self.terrainStatus = "Terrain cached" }
+        } catch {
+            replyHandler(["terrain.accepted":false])
+            Task { @MainActor in self.terrainStatus = "Terrain not saved. Sync phone, then resend." }
+        }
+    }
     @Published private(set) var snapshot = WatchSnapshot()
     @Published private(set) var takScene = WatchTAKScene()
     @Published private(set) var guideSnapshot: WatchGuideSnapshot?

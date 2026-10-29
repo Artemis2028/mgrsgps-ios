@@ -2,6 +2,8 @@ import GridFixCore
 import SwiftUI
 
 struct TerrainPanel: View {
+    @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var watchBridge: WatchPhoneBridge
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var terrain: TerrainSession
     @EnvironmentObject private var waypoints: WaypointStore
@@ -70,6 +72,11 @@ struct TerrainPanel: View {
                 }
                 if let error = terrain.error { Section { Text(error).foregroundStyle(palette.warn).accessibilityIdentifier("terrain-error") } }
                 if let sight = terrain.sight { sightResult(sight) }
+                Section("Apple Watch") {
+                    Button("Send terrain at map centre") { watchBridge.sendTerrain(at:centre,pipeline:maps.pipeline) }
+                        .disabled(watchBridge.terrainPreparing).accessibilityIdentifier("terrain-send-watch")
+                    if let status = watchBridge.terrainStatus { Text(status).font(.caption).accessibilityIdentifier("terrain-watch-status") }
+                }
                 Section("Saved-route elevation profile") {
                     let routes = field.document.graphics.filter { $0.type == "route" }
                     if routes.isEmpty { Text("Save or import a route to view its elevation profile.").font(.footnote) }

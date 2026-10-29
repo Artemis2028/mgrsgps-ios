@@ -31,6 +31,21 @@ final class TerrainWorkflowTests: XCTestCase {
         }
     }
     private func capture(_ name: String) { let a = XCTAttachment(screenshot: app.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a) }
+    /// Explicitly staged paired-simulator SDK round; ordinary CI has no paired watch.
+    func testPairedWatchTerrainSendFromOfflineCache() throws {
+        let optIn = FileManager.default.urls(for:.documentDirectory,in:.userDomainMask)[0].appendingPathComponent("watch-terrain-paired-opt-in")
+        guard FileManager.default.fileExists(atPath:optIn.path) else { throw XCTSkip("Requires explicitly staged paired watch terrain round") }
+        defer { try? FileManager.default.removeItem(at:optIn) }
+        continueAfterFailure = false
+        app = XCUIApplication(); app.launchArguments = ["-uiTesting","-uiTestTerrain","-uiTestWatch","-startTab","map"]; app.launch()
+        let open = mapTool(app,"map-terrain"); XCTAssertTrue(open.waitForExistence(timeout:15)); open.tap()
+        XCTAssertTrue(app.navigationBars["Terrain visibility"].waitForExistence(timeout:5))
+        let send = app.buttons["terrain-send-watch"]; reveal(send); send.tap()
+        let status = app.staticTexts["terrain-watch-status"]
+        let queued = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label == %@","Terrain saved on watch."),object:status)
+        XCTAssertEqual(XCTWaiter.wait(for:[queued],timeout:20),.completed,"The native watch must acknowledge cache installation for this small foreground tile")
+        capture("watch-terrain-native-send")
+    }
     func testOfflineLineOfSightProfileAndViewshedUseRealEncodedTerrain() {
         launch(); pick("observer","West observer"); pick("target","East target")
         let check = app.buttons["terrain-check"]; reveal(check); XCTAssertTrue(check.isEnabled,"Valid selected endpoints must enable analysis"); check.tap()

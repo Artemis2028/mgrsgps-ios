@@ -74,6 +74,36 @@ final class MapTilePipeline: @unchecked Sendable {
         if layer.key == "dem" { try? terrainCache.store(data, tile: tile) }
         return data
     }
+    enum WatchTerrainExportError: LocalizedError {
+        case missing, incompatible
+        var errorDescription: String? {
+            switch self {
+            case .missing: return "No cached terrain at map centre. Download elevation, then retry."
+            case .incompatible: return "This cached terrain cannot be sent to the watch."
+            }
+        }
+    }
+    /// Cache-only: does not call fetch, create a URL request or resample a parent tile.
+    func watchTerrain(at point: GeoPoint, source: String, revision: Int64, date: Date = Date()) throws -> (WatchTerrainManifest,Data) {
+        guard let pixel = WatchTerrainRaster.pixel(lat:point.lat,lon:point.lon) else { throw WatchTerrainExportError.missing }
+        let tile = MapTile(z:13,x:pixel.x,y:pixel.y)
+        var saved: (Data,String)?
+        if let library {
+            let priority = library.maps.reversed().sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+            for map in priority where map.layerKey == "dem" {
+                if let data = try? library.data(for:tile,mapID:map.id) { saved = (data,map.attribution); break }
+            }
+        }
+        if saved == nil, let data = terrainCache.read(tile) { saved = (data,MapCatalog.elevation.attribution) }
+        guard let (png,attribution) = saved else { throw WatchTerrainExportError.missing }
+        do {
+            _ = try WatchTerrainRaster(png:png)
+            let millis = date.timeIntervalSince1970*1000
+            guard millis.isFinite,(1...9_007_199_254_740_991).contains(millis) else { throw WatchTerrainExportError.incompatible }
+            let manifest = WatchTerrainManifest(source:source,revision:revision,publishedAtMillis:Int64(millis),x:tile.x,y:tile.y,png:png,attribution:attribution)
+            _ = try manifest.encoded(); return (manifest,png)
+        } catch { throw WatchTerrainExportError.incompatible }
+    }
     /// A 256 px source is addressed one level above MapLibre's 512 px camera
     /// zoom. Crop saved ancestors when offline/overzoomed instead of leaving
     /// a fully downloaded Android-style area blank at the next display level.

@@ -14,6 +14,7 @@ Wear OS and watchOS share this functional scope. Native controls may differ to f
 | Route leg labels | Complete routes use ordinary numbers; simplified routes use original leg ranges, with a named range summary in map info. Legacy simplified caches remain unnumbered |
 | Navigation lanes | Cached complete side limits/backstop/shading and landmark labels; lane/folder hide/delete replaces the scene; separate live phone-guidance status with expiry; opted-in foreground wrist crossing alerts using own precise fresh GPS, named limits and explicit rearm after suspension |
 | TAK layer | Separate read-only contacts, markers, lines and areas; complete replacements, bounded geometry, explicit omissions and expiry retained across relaunch |
+| Terrain | Bounded cache/sampler on both; Apple explicit cached-tile send and map-centre readout with paired simulator message delivery/relaunch proof. Wear transport/UI and physical file delivery remain open |
 | Night mode | Local Day/Night/Follow phone choice, independent of the precision override |
 
 Digit count describes coordinate formatting, not GPS accuracy. Both platforms display reported GPS accuracy separately. Foreground wrist lane alert owners are implemented on both platforms; watchOS and Wear foreground runtime checks pass (see watch-wrist-lanes.md). Optional screen-off wrist lane alerts are now implemented on both platforms; see watch-background-alerts.md and the Wear background-lanes report. A foreground watchOS own-heading/target-steering owner is now implemented with policy/build and unavailable-compass layout validation (see watch-own-steering.md); positive native compass/haptic/physical validation remains open. Foreground Apple watch route progression is now implemented from complete cached geometry with native simulated GPS validation (see watch-own-route.md). Wear foreground own-compass/explicit steering now also has unit/build/native virtual-sensor and OS-effect validation (Wear b184864). Wear complete cached-route execution now also has unit/build/native GPS progression and steering-handoff validation (Wear92f56ea; existing128-point budget). Broader background navigation and offline/terrain transfer remain implementation work; physical locked-screen delivery/GPS/battery validation is still open.
@@ -118,3 +119,9 @@ raw Terrarium decoding, source/revision binding, atomic disk records, retained a
 and honest missing coverage. Shared fixtures and the native Wear filesystem/decoder test
 pass. Companion file transfer and watch terrain UI remain implementation work; see
 [watch terrain cache](watch-terrain-cache.md).
+
+Apple now integrates the terrain foundation through an explicit phone cached-tile
+send and watch map-centre elevation readout. The native paired simulator acknowledges
+installation and retains the known DEM value after a night relaunch. File delivery on
+a physical pair and the equivalent Wear transport/UI remain open; see
+[Apple terrain transfer](watch-terrain-transfer.md).

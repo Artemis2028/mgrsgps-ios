@@ -4,7 +4,13 @@ import WatchConnectivity
 
 /// A complete application context coalesces offline edits, deletion and selection clearing.
 @MainActor
-final class WatchPhoneBridge: NSObject, WCSessionDelegate {
+final class WatchPhoneBridge: NSObject, ObservableObject, WCSessionDelegate {
+    @Published private(set) var terrainStatus: String?
+    @Published private(set) var terrainPreparing = false
+    private var terrainTask: Task<Void,Never>?
+    private var terrainGeneration = UUID()
+    private static let terrainKey = "gridfix.terrain.v1"
+    private static var terrainOutbox: URL { FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("WatchTerrainOutbox",isDirectory:true) }
     private let store: WaypointStore
     private let settings: AppSettings
     private let field: FieldDataStore
@@ -65,6 +71,93 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
             .sink { [weak self] in self?.publish() }.store(in: &subscriptions)
     }
 
+    func sendTerrain(at point: GeoPoint, pipeline: MapTilePipeline) {
+        guard !terrainPreparing else { return }
+        guard let session,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled else {
+            terrainStatus = "Pair an Apple Watch with MGRS GPS installed."; return
+        }
+        guard session.outstandingFileTransfers.filter({ $0.file.metadata?[Self.terrainKey] != nil }).count < 4 else {
+            terrainStatus = "Four terrain tiles are queued. Wait, then retry."; return
+        }
+        pruneTerrainOutbox()
+        let previous = (UserDefaults.standard.object(forKey:"watch.terrain.revision") as? NSNumber)?.int64Value ?? 0
+        guard previous >= 0,previous < 9_007_199_254_740_991 else { terrainStatus = "Terrain revision unavailable."; return }
+        terrainGeneration = UUID()
+        let token = terrainGeneration
+        let next = previous+1, source = sourceID
+        terrainPreparing = true; terrainStatus = "Preparing cached terrain…"
+        terrainTask = Task { [weak self] in
+            let result = await Task.detached(priority:.utility) { Result { try pipeline.watchTerrain(at:point,source:source,revision:next) } }.value
+            guard let self,self.terrainGeneration == token else { return }
+            var waitingReply = false
+            defer { if !waitingReply { self.terrainPreparing = false }; self.terrainTask = nil }
+            guard !Task.isCancelled,self.terrainGeneration == token,self.sourceID == source,session.activationState == .activated,session.isPaired,session.isWatchAppInstalled else {
+                self.terrainStatus = "Watch connection changed. Retry."; return
+            }
+            do {
+                let (manifest,png) = try result.get()
+                let metadata = try manifest.encoded()
+                UserDefaults.standard.set(next,forKey:"watch.terrain.revision")
+                self.publish()
+                let message: [String:Any] = [Self.terrainKey:metadata,"gridfix.terrain.png":png]
+                let size = try PropertyListSerialization.data(fromPropertyList:message,format:.binary,options:0).count
+                if session.isReachable,size <= 48*1024 {
+                    waitingReply = true
+                    self.terrainStatus = "Sending terrain…"
+                    session.sendMessage(message,replyHandler:{ [weak self] reply in
+                        let accepted = reply["terrain.accepted"] as? Bool == true
+                        Task { @MainActor in
+                            guard let self,self.terrainGeneration == token else { return }
+                            self.terrainPreparing = false
+                            guard self.sourceID == source else { self.terrainStatus = "Watch connection changed. Retry."; return }
+                            self.terrainStatus = accepted ? "Terrain saved on watch." : "Terrain not saved. Sync phone, then retry."
+                        }
+                    },errorHandler:{ [weak self] _ in
+                        Task { @MainActor in
+                            guard let self,self.terrainGeneration == token else { return }
+                            self.terrainPreparing = false
+                            guard self.sourceID == source else { self.terrainStatus = "Watch connection changed. Retry."; return }
+                            do { try self.queueTerrain(png:png,metadata:metadata,session:session) }
+                            catch { self.terrainStatus = "Terrain could not be sent. Retry." }
+                        }
+                    })
+                } else { try self.queueTerrain(png:png,metadata:metadata,session:session) }
+            } catch { self.terrainStatus = error.localizedDescription }
+        }
+    }
+    private func queueTerrain(png:Data,metadata:Data,session:WCSession) throws {
+        guard session.activationState == .activated,session.isPaired,session.isWatchAppInstalled,
+              session.outstandingFileTransfers.filter({ $0.file.metadata?[Self.terrainKey] != nil }).count < 4 else { throw WatchTerrainError.invalid }
+        let directory = Self.terrainOutbox
+        try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+        let file = directory.appendingPathComponent(UUID().uuidString+".png")
+        try png.write(to:file,options:.atomic)
+        _ = session.transferFile(file,metadata:[Self.terrainKey:metadata])
+        terrainStatus = "Terrain queued for watch."
+    }
+    private func pruneTerrainOutbox() {
+        guard let session,session.activationState == .activated else { return }
+        let queued = Set(session.outstandingFileTransfers.map { $0.file.fileURL.standardizedFileURL })
+        let directory = Self.terrainOutbox
+        for url in (try? FileManager.default.contentsOfDirectory(at:directory,includingPropertiesForKeys:nil)) ?? [] {
+            guard url.pathExtension == "png",UUID(uuidString:url.deletingPathExtension().lastPathComponent) != nil,!queued.contains(url.standardizedFileURL) else { continue }
+            try? FileManager.default.removeItem(at:url)
+        }
+    }
+    nonisolated func session(_ session: WCSession,didFinish fileTransfer: WCSessionFileTransfer,error: Error?) {
+        guard fileTransfer.file.metadata?["gridfix.terrain.v1"] is Data else { return }
+        let file = fileTransfer.file.fileURL
+        Task { @MainActor in
+            if file.deletingLastPathComponent().standardizedFileURL == Self.terrainOutbox.standardizedFileURL,
+               UUID(uuidString:file.deletingPathExtension().lastPathComponent) != nil { try? FileManager.default.removeItem(at:file) }
+            // Older queued-file completion cannot overwrite the status of a newer Send.
+            guard let data = fileTransfer.file.metadata?[Self.terrainKey] as? Data,
+                  let manifest = try? WatchTerrainManifest.decode(data),manifest.source == self.sourceID,
+                  manifest.revision == (UserDefaults.standard.object(forKey:"watch.terrain.revision") as? NSNumber)?.int64Value else { return }
+            // WC completion acknowledges transport, not successful terrain installation.
+            self.terrainStatus = error == nil ? "Terrain sent. Check coverage on watch." : "Terrain could not be sent. Retry."
+        }
+    }
     private func publish() {
         guard field.ready, field.loadError == nil else { return }
         guard let session, session.activationState == .activated, session.isPaired,
@@ -157,7 +250,7 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        Task { @MainActor in self.publish(); self.publishTAK() }
+        Task { @MainActor in self.pruneTerrainOutbox(); self.publish(); self.publishTAK() }
     }
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) { Task { @MainActor in self.publish(); self.publishTAK() } }
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) { Task { @MainActor in self.publish(); self.publishTAK() } }
@@ -165,7 +258,12 @@ final class WatchPhoneBridge: NSObject, WCSessionDelegate {
         guard message["gridfix.guide.request"] as? Bool == true || message["gridfix.tak.request"] as? Bool == true else { return }
         Task { @MainActor in self.publishGuide(force:true); self.publishTAK() }
     }
-    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
+        Task { @MainActor in
+            self.terrainGeneration = UUID(); self.terrainTask?.cancel(); self.terrainTask = nil
+            self.terrainPreparing = false; self.terrainStatus = "Watch connection changed. Retry."
+        }
+    }
     nonisolated func sessionDidDeactivate(_ session: WCSession) { session.activate() }
 }
 

@@ -247,6 +247,9 @@ struct WatchMapView: View {
                     Text("\(snapshot.waypoints.count) waypoints · \(snapshot.features.count) items · \(snapshot.laneOverlays.count) lanes")
                     Text("\(snapshot.omittedItems) omitted · \(snapshot.simplifiedItems) simplified")
                 }
+                if let region {
+                    WatchTerrainReadout(model:model,point:.init(lat:region.center.latitude,lon:region.center.longitude)).id("terrainDetails")
+                }
                 Text("TAK REMOTE LAYER").font(.headline).id("takDetails")
                 if let remote = model.takScene.snapshot {
                     Text(!remote.enabled ? "Hidden on phone" : remote.connected ? "Phone reported connected · cached scene" : "Phone reported disconnected · cached scene")
@@ -276,7 +279,7 @@ struct WatchMapView: View {
                     } }
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
-                Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")
+                Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline map packs, MGRS grid, contours and viewsheds are not transferred. Terrain tiles are sent separately.")
                 Text("Remote cap: 8 KiB / 64 items / 384 vertices, at most 128 per drawing. Whole drawings are omitted, never simplified. Local overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
                 Button("Position grid") { showInfo = false; showPosition() }
                 Button("Close map") { showInfo = false; closeMap() }
@@ -286,6 +289,10 @@ struct WatchMapView: View {
         #if DEBUG
         .task {
             let args = ProcessInfo.processInfo.arguments
+            if args.contains("-watchUITesting"),args.contains("-watchTerrainInfo") {
+                try? await Task.sleep(nanoseconds:200_000_000)
+                proxy.scrollTo("terrainDetails",anchor:.top)
+            }
             if args.contains("-watchUITesting"),args.contains("-watchTAKInfo") {
                 try? await Task.sleep(nanoseconds:200_000_000)
                 proxy.scrollTo("takDetails",anchor:.top)
@@ -311,5 +318,27 @@ private struct WatchMapMarker: View {
                 if showName { Text(point.name).font(.system(size: 8, weight: .semibold)).lineLimit(1).fixedSize().foregroundStyle(tint).padding(1).background(.black.opacity(0.7)).offset(y: 12) }
             }
             .accessibilityLabel(point.name + ", " + WaypointMarkerDescription.text(point))
+    }
+}
+
+
+private struct WatchTerrainReadout: View {
+    @ObservedObject var model: WatchModel
+    let point: GeoPoint
+    @State private var sample: (meters:Double,manifest:WatchTerrainManifest)?
+    private var query: String { "\(model.mapSnapshot?.sourceID ?? "")|\(model.terrainRevision)|\(point.lat)|\(point.lon)" }
+    var body: some View {
+        VStack(alignment:.leading,spacing:4) {
+            Text("Terrain · map centre").font(.caption.bold())
+            if let sample {
+                Text("\(sample.meters,specifier:"%.0f") m DEM").accessibilityIdentifier("watch-terrain-elevation")
+                Text(sample.manifest.attribution).font(.caption2)
+            } else { Text("Elevation unavailable here").accessibilityIdentifier("watch-terrain-unavailable") }
+            if let status = model.terrainStatus { Text(status).font(.caption2) }
+        }.task(id:query) {
+            sample = nil
+            let value = await model.terrain(at:point)
+            guard !Task.isCancelled else { return }; sample = value
+        }
     }
 }

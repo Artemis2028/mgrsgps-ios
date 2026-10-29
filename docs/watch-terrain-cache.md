@@ -1,8 +1,11 @@
 # Watch terrain cache foundation
 
 Both watch codebases now have the same offline Terrarium cache and sampler contract.
-This is a reusable foundation; neither watch UI nor companion transport calls it yet.
-Offline map packs, terrain readouts/contours/visibility and file delivery remain open.
+Apple now integrates this layer with explicit cache-only phone export, acknowledged
+foreground delivery/queued-file fallback, and a watch map-centre numeric readout. Wear
+transport/readout remains implementation work. Offline raster packs and terrain
+overlays/analysis remain open. See the iOS report `docs/watch-terrain-transfer.md`;
+physical Apple queued-file delivery still requires validation.
 The existing vector-scene versions and budgets are unchanged.
 
 ## Data and resource limits
