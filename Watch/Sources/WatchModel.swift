@@ -13,6 +13,9 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     @Published private(set) var mapSnapshot: WatchMapSnapshot?
     @Published private(set) var mapSyncStatus = "No phone map sync yet"
     @Published private(set) var fix: CLLocation?
+    @Published private(set) var headingSample: WatchHeadingSample?
+    @Published private(set) var compassAvailable = false
+    private var headingSessionUptime: TimeInterval?
     @Published private(set) var reachable = false
     @Published private(set) var hasSync = false
     @Published private(set) var status = "GPS idle"
@@ -75,6 +78,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                 manager.requestWhenInUseAuthorization()
             } else { startAuthorized() }
         } else {
+            stopHeading()
             wristLane.leaveForeground(backgroundAvailable: backgroundLocation != nil && authorized)
             if !wristLane.active { stopWristLane(wristLane.status) }
             if !backgroundWristActive { manager.stopUpdatingLocation(); status = "GPS paused" }
@@ -94,7 +98,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         reducedAccuracy = manager.accuracyAuthorization == .reducedAccuracy
         guard authorized else {
             stopWristLane("Location permission required")
-            manager.stopUpdatingLocation()
+            manager.stopUpdatingLocation(); stopHeading()
             fix = nil; fixTimestampUptime = nil
             status = manager.authorizationStatus == .notDetermined ? "Allow location for grid" : "Location disabled"
             return
@@ -102,6 +106,35 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         guard locationExecutionActive else { return }
         status = "Acquiring GPS"
         manager.startUpdatingLocation()
+        if foreground, headingSessionUptime == nil {
+            compassAvailable = CLLocationManager.headingAvailable()
+            if compassAvailable {
+                headingSessionUptime = ProcessInfo.processInfo.systemUptime
+                manager.headingFilter = kCLHeadingFilterNone
+                manager.startUpdatingHeading()
+            }
+        }
+    }
+
+    private func stopHeading() {
+        manager.stopUpdatingHeading(); headingSessionUptime = nil; headingSample = nil
+    }
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading heading: CLHeading) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let age = Date().timeIntervalSince(heading.timestamp)
+        let degrees = heading.trueHeading, accuracy = heading.headingAccuracy
+        Task { @MainActor in
+            guard self.foreground, self.authorized, let session = self.headingSessionUptime else { return }
+            guard age.isFinite, age >= 0 else { self.headingSample = nil; return }
+            self.headingSample = WatchHeadingSample(trueDegrees: degrees,accuracy: accuracy,
+                sampleUptime: now-age,sessionUptime: session,nowUptime: ProcessInfo.processInfo.systemUptime)
+        }
+    }
+    func heading(at date: Date) -> Double? {
+        guard foreground,usable(at:date),let fix,let headingSample,
+              headingSample.isFresh(nowUptime:ProcessInfo.processInfo.systemUptime) else { return nil }
+        return snapshot.bearing(trueDegrees:headingSample.trueDegrees,lat:fix.coordinate.latitude,
+                                lon:fix.coordinate.longitude,altitude:fix.altitude,date:date)
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -134,10 +167,10 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
 
     private func loseWristFix() {
         cancelWristPlayback(); clearWristNotice(); wristLane.invalidateFix()
-        fix = nil; fixTimestampUptime = nil; status = "GPS unavailable"
+        fix = nil; fixTimestampUptime = nil; headingSample = nil; status = "GPS unavailable"
         // Transient location failures wait for fresh GPS; revoked permission
         // releases the platform owner and requires a new user Start.
-        if !authorized { stopWristLane("Location permission required"); manager.stopUpdatingLocation() }
+        if !authorized { stopWristLane("Location permission required"); manager.stopUpdatingLocation(); stopHeading() }
     }
 
     func usable(at date: Date) -> Bool {

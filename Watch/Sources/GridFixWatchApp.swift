@@ -287,7 +287,14 @@ struct WatchGlanceView: View {
                         label(["TRUE", "MAG · " + (model.snapshot.declinationOverride == nil ? "WMM" : "SET"), "GRID"][model.snapshot.northRef])
                     }
                 } else { label("MAGNETIC REF UNAVAILABLE") }
-                label("BEARING TO TARGET · NO COMPASS")
+                if let heading = model.heading(at:date) {
+                    HStack(alignment:.firstTextBaseline,spacing:6) {
+                        label("WATCH HEADING")
+                        number(Format.angle(degrees:heading,unit:AngleUnit(rawValue:model.snapshot.angleUnit) ?? .degrees),size:22)
+                    }.accessibilityIdentifier("watch-own-heading")
+                } else {
+                    label(model.compassAvailable ? "WATCH HEADING UNAVAILABLE" : "WATCH COMPASS UNAVAILABLE")
+                }
             } else {
                 number("—", size: 40)
                 label("NEEDS FRESH PRECISE FIX")

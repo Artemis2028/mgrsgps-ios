@@ -239,3 +239,13 @@ portrait/landscape/night/pending-fit workflows pass; Xcode finalized exit0.
 Retained-pan/new-GoTo captures inspected, fake GPS cleared and owned simulator
 off. See hosted114-map-triage.md. Library114 still live; full hosted confirmation
 remains open and local follow-ups are held without cancelling it.
+
+
+### Watch-owned heading foundation — 29 October 2026
+Foreground CoreLocation heading readout now has current-session, five-second
+monotonic age and25-degree accuracy gates plus the existing fresh watch GPS and
+reference conversions. Missing/uncalibrated/expired/native-true-unavailable data
+stays unavailable. Foreground suspension stops/clears compass ownership even
+when lane background location continues. All613 core cases and unsigned Release
+pass. Native simulator/lifecycle/40mm and physical calibrated readings remain
+next; steering/route progression is not claimed complete. See watch-own-heading.md.
