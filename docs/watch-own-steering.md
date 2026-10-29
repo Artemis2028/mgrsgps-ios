@@ -52,8 +52,9 @@ Evidence: /tmp/mgrsgps-watch-steering-core.log,
 /tmp/mgrsgps-watch-steering-native-night-final.png.
 Owned handles: /tmp/mgrsgps-watch-steering-active.json.
 
-This owner steers to one selected target. Automatic watch route progression,
-background steering, independent Wear steering and offline/terrain transfer remain
+This owner steers to the selected target or explicitly armed local route run.
+Foreground route progression now has its own owner; see watch-own-route.md.
+Background steering, independent Wear steering and offline/terrain transfer remain
 separate work. Native Home/lock/permission/positive-compass playback and physical
 orientation/battery/feel verification stay open. No enrolled TAK/server proof.
 

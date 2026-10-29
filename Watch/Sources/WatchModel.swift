@@ -20,6 +20,8 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     @Published private(set) var hasSync = false
     @Published private(set) var status = "GPS idle"
     @Published private(set) var reducedAccuracy = false
+    @Published private(set) var route = WatchRouteSession()
+    private var routeSteeringRun: UUID?
     @Published private(set) var steering = WatchSteeringSession()
     private var steeringTick: Task<Void,Never>?
     private var steeringPlayback: Task<Void,Never>?
@@ -82,7 +84,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                 manager.requestWhenInUseAuthorization()
             } else { startAuthorized() }
         } else {
-            stopHeading(); stopSteering("Paused · start steering again")
+            stopHeading(); route.pause(); stopSteering("Paused · start steering again")
             wristLane.leaveForeground(backgroundAvailable: backgroundLocation != nil && authorized)
             if !wristLane.active { stopWristLane(wristLane.status) }
             if !backgroundWristActive { manager.stopUpdatingLocation(); status = "GPS paused" }
@@ -102,7 +104,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         reducedAccuracy = manager.accuracyAuthorization == .reducedAccuracy
         guard authorized else {
             stopWristLane("Location permission required")
-            manager.stopUpdatingLocation(); stopHeading(); stopSteering("Location permission required")
+            manager.stopUpdatingLocation(); stopHeading(); route.pause(); stopSteering("Location permission required")
             fix = nil; fixTimestampUptime = nil
             status = manager.authorizationStatus == .notDetermined ? "Allow location for grid" : "Location disabled"
             return
@@ -164,7 +166,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         }
         fixTimestampUptime = ProcessInfo.processInfo.systemUptime - initialAge
         fix = latest; status = "Watch location"
-        tickWristLane(); tickSteering()
+        tickWristLane(); tickRoute(); tickSteering()
     }
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in self.loseWristFix() }
@@ -172,7 +174,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
 
     private func loseWristFix() {
         cancelWristPlayback(); clearWristNotice(); wristLane.invalidateFix()
-        cancelSteeringPlayback(); steering.invalidateSensors()
+        cancelSteeringPlayback(); steering.invalidateSensors(); route.invalidateFix()
         fix = nil; fixTimestampUptime = nil; headingSample = nil; status = "GPS unavailable"
         // Transient location failures wait for fresh GPS; revoked permission
         // releases the platform owner and requires a new user Start.
@@ -188,7 +190,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     }
 
     func startWristLane(_ lane: WatchLaneOverlay) {
-        stopSteering(); stopWristLane()
+        stopRoute(); stopSteering(); stopWristLane()
         guard foreground else { wristLaneError = "Open the watch app to start"; return }
         guard authorized, manager.accuracyAuthorization == .fullAccuracy else {
             wristLaneError = "Precise watch location is required"; return
@@ -332,9 +334,54 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             }
         } else if previous != wristLane.decision?.state { cancelWristPlayback() }
     }
+    var navigationTarget: WatchSnapshot.Target? { route.hasRoute ? route.target : snapshot.target }
+    var availableRoutes: [WatchMapSnapshot.Feature] {
+        guard let mapSnapshot,mapSnapshot.isValid else { return [] }
+        return mapSnapshot.features.filter(WatchRouteSession.canFollow)
+    }
+    var canStartRoute: Bool { foreground && usable(at:Date()) }
+    @discardableResult func startRoute(_ feature: WatchMapSnapshot.Feature) -> Bool {
+        guard canStartRoute,let scene = mapSnapshot,scene.isValid,scene.features.contains(feature),
+              WatchRouteSession.canFollow(feature) else { return false }
+        stopSteering(); stopWristLane()
+        return route.start(feature,sourceID:scene.sourceID,now:ProcessInfo.processInfo.systemUptime)
+    }
+    func stopRoute() { route.stop(); stopSteering() }
+    func pauseRoute() { route.pause(); stopSteering("Route paused · start steering again") }
+    func resumeRoute() {
+        guard foreground,usable(at:Date()),!wristLane.active,!wristStarting else { return }
+        _ = route.resume(now:ProcessInfo.processInfo.systemUptime)
+    }
+    private func tickRoute() {
+        guard route.active,foreground else { return }
+        guard usable(at:Date()),let fix,let fixTimestampUptime else { route.invalidateFix(); return }
+        let previousTarget = route.target
+        guard let pulse = route.update(position:.init(lat:fix.coordinate.latitude,lon:fix.coordinate.longitude),
+                                       accuracy:fix.horizontalAccuracy,fixTime:fixTimestampUptime,
+                                       now:ProcessInfo.processInfo.systemUptime,usable:true,
+                                       sampleID:fix.timestamp.timeIntervalSince1970) else { return }
+        if pulse == .complete { stopSteering("Route complete") }
+        else if steering.active,routeSteeringRun == route.runID,steering.target == previousTarget,let next = route.target {
+            cancelSteeringPlayback(); _ = steering.start(next)
+        }
+        // One synchronous foreground milestone per consumed fresh GPS sample.
+        WKInterfaceDevice.current().play(pulse == .complete ? .notification : .click)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-watchLocationDiagnostics") {
+            print("Watch route advanced: index=\(route.progress?.index ?? -1) complete=\(route.progress?.complete ?? false)")
+        }
+        #endif
+    }
+    private func validateRouteScene() {
+        let hadRoute = route.hasRoute
+        route.validateScene(mapSnapshot)
+        if hadRoute && !route.hasRoute { stopSteering(route.status) }
+    }
+
     var steeringStartProblem: String? {
         guard foreground else { return "Open the watch app" }
-        guard snapshot.target != nil else { return "Select a waypoint" }
+        guard navigationTarget != nil else { return route.hasRoute ? "Route complete" : "Select a waypoint" }
+        guard !route.hasRoute || route.active else { return "Resume route first" }
         guard !wristLane.active && !wristStarting else { return "Stop wrist alerts first" }
         guard compassAvailable else { return "Watch compass unavailable" }
         guard usable(at:Date()) else { return "Needs fresh precise GPS" }
@@ -344,9 +391,10 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     }
     var canStartSteering: Bool { steeringStartProblem == nil }
     func startSteering() {
-        guard canStartSteering,let target = snapshot.target else { return }
+        guard canStartSteering,let target = navigationTarget else { return }
         stopSteering()
         guard steering.start(target) else { return }
+        routeSteeringRun = route.active ? route.runID : nil
         steeringTick = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self,self.steering.active else { return }
@@ -356,14 +404,14 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         }
     }
     func stopSteering(_ message: String = "Steering off") {
-        cancelSteeringPlayback(); steeringTick?.cancel(); steeringTick = nil; steering.stop(message)
+        cancelSteeringPlayback(); steeringTick?.cancel(); steeringTick = nil; routeSteeringRun = nil; steering.stop(message)
     }
     private func cancelSteeringPlayback() {
         steeringGeneration = UUID(); steeringPlayback?.cancel(); steeringPlayback = nil
     }
     private func tickSteering() {
         guard steering.active else { return }
-        steering.validateTarget(snapshot.target)
+        steering.validateTarget(navigationTarget)
         guard steering.active else { stopSteering(steering.status); return }
         guard foreground,usable(at:Date()),heading(at:Date()) != nil,let fix,let fixTimestampUptime,let headingSample,
               headingSample.isFreshForSteering(nowUptime:ProcessInfo.processInfo.systemUptime) else {
@@ -393,7 +441,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
             for (delay,effect) in pattern {
                 do { try await Task.sleep(for:delay) } catch { return }
                 guard let self,!Task.isCancelled,self.foreground,self.steering.active,
-                      self.steeringGeneration == token,self.snapshot.target == self.steering.target,
+                      self.steeringGeneration == token,self.navigationTarget == self.steering.target,
                       self.headingSample?.isFreshForSteering(nowUptime:ProcessInfo.processInfo.systemUptime) == true,
                       self.heading(at:Date()) != nil else { return }
                 WKInterfaceDevice.current().play(effect)
@@ -402,6 +450,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
     }
 
     private func validateWristScene() {
+        validateRouteScene()
         wristLane.validateScene(mapSnapshot?.laneOverlays ?? [])
         if !wristLane.active { stopWristLane(wristLane.status) }
     }
@@ -447,7 +496,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         }
         applyTAK(context,complete:true)
         snapshot = incoming; hasSync = true
-        steering.validateTarget(incoming.target)
+        steering.validateTarget(navigationTarget)
         if !steering.active { stopSteering(steering.status) }
         UserDefaults.standard.set(data, forKey: cacheKey)
         if let mapData = context[WatchMapSnapshot.contextKey] as? Data {

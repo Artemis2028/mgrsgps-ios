@@ -27,6 +27,10 @@ struct WatchGlanceView: View {
     @State private var showDetails = false
     @State private var showMap = false
     @State private var showWristLanes = false
+    @State private var showRoutes = false
+    #if DEBUG
+    @State private var startedRouteFixture = false
+    #endif
     @ScaledMetric(relativeTo: .caption) private var headerHeight: CGFloat = 13
     @AppStorage("watch.mgrs.digits") private var precisionOverride = 0
     private var digits: Int { [4, 6, 8, 10].contains(precisionOverride) ? precisionOverride : model.snapshot.mgrsDigits }
@@ -82,6 +86,28 @@ struct WatchGlanceView: View {
                 }.navigationTitle("Wrist lane")
             }.tint(accent)
         }
+        .sheet(isPresented:$showRoutes) {
+            NavigationStack {
+                List {
+                    ForEach(model.availableRoutes,id:\.renderID) { route in
+                        Button("Start \(route.name) · \(route.points.count) points") {
+                            if model.startRoute(route) { showRoutes = false }
+                        }.disabled(!model.canStartRoute)
+                    }
+                    if model.availableRoutes.isEmpty { Text("No complete cached routes") }
+                    else if !model.canStartRoute { Text("Needs fresh precise watch GPS") }
+                }.navigationTitle("Watch route")
+            }.tint(accent)
+        }
+        #if DEBUG
+        .onChange(of:model.fix?.timestamp) { _,_ in
+            let args = ProcessInfo.processInfo.arguments
+            if !startedRouteFixture,args.contains("-watchUITesting"),let i=args.firstIndex(of:"-watchFollowRoute"),
+               i+1 < args.count,let route=model.availableRoutes.first(where:{$0.id == args[i+1]}) {
+                startedRouteFixture = model.startRoute(route)
+            }
+        }
+        #endif
         .onAppear {
             #if DEBUG
             let args = ProcessInfo.processInfo.arguments
@@ -126,6 +152,7 @@ struct WatchGlanceView: View {
                               color: model.usable(at: date) ? good : accent)
                     }
                 }
+                if model.route.hasRoute { routeSummary }
                 if model.wristLane.active || model.wristStarting {
                     wristLaneControls
                     navigationContent(date: date)
@@ -133,6 +160,7 @@ struct WatchGlanceView: View {
                     navigationContent(date: date)
                     wristLaneControls
                 }
+                routeControls
                 VStack(alignment:.leading,spacing:4) {
                     label("WATCH STEERING")
                     Text(model.steering.active ? model.steering.status : model.steeringStartProblem ?? model.steering.status).font(.caption)
@@ -150,6 +178,9 @@ struct WatchGlanceView: View {
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
         }
         .accessibilityElement(children: .contain)
+        .onChange(of:model.route.runID) { _,run in
+            if run != nil { proxy.scrollTo("watchRouteSummary",anchor:.top) }
+        }
         #if DEBUG
         .task {
             let args = ProcessInfo.processInfo.arguments
@@ -159,6 +190,9 @@ struct WatchGlanceView: View {
             } else if args.contains("-watchUITesting"),args.contains("-watchSteering") {
                 try? await Task.sleep(nanoseconds:200_000_000)
                 proxy.scrollTo("watchSteering",anchor:.top)
+            } else if args.contains("-watchUITesting"),args.contains("-watchRouteControls") {
+                try? await Task.sleep(nanoseconds:200_000_000)
+                proxy.scrollTo("watchRoute",anchor:.top)
             }
         }
         #endif
@@ -285,8 +319,10 @@ struct WatchGlanceView: View {
     }
 
     @ViewBuilder private func navigationContent(date: Date) -> some View {
-        if let target = model.snapshot.target {
-            Text(target.name).font(.custom("SairaSemiCondensed-SemiBold", size: 14)).lineLimit(2)
+        if model.route.progress?.complete == true {
+            EmptyView()
+        } else if let target = model.navigationTarget {
+            if !model.route.hasRoute { Text(target.name).font(.custom("SairaSemiCondensed-SemiBold", size: 14)).lineLimit(2) }
             if model.usable(at: date), let fix = model.fix {
                 let nav = Geodesy.navInfo(fromLat: fix.coordinate.latitude, fromLon: fix.coordinate.longitude, toLat: target.lat, toLon: target.lon)
                 let bearing = model.snapshot.bearing(trueDegrees: nav.bearingTrue, lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, altitude: fix.altitude, date: date)
@@ -315,6 +351,27 @@ struct WatchGlanceView: View {
             Text("No waypoint selected").font(.headline)
             label("SELECT ONE ON IPHONE")
         }
+    }
+
+    private var routeSummary: some View {
+        VStack(alignment:.leading,spacing:4) {
+            Text(model.route.target?.name ?? model.route.feature?.name ?? "Route").font(.caption).lineLimit(2)
+            Text(model.route.status).font(.caption)
+        }.id("watchRouteSummary")
+    }
+    private var routeControls: some View {
+        VStack(alignment:.leading,spacing:4) {
+            if model.route.feature != nil {
+                HStack {
+                    if model.route.active { Button("Pause") { model.pauseRoute() } }
+                    else if model.route.progress?.complete == false {
+                        Button("Resume") { model.resumeRoute() }.disabled(!model.canStartRoute)
+                    }
+                    Button("Stop route") { model.stopRoute() }
+                }
+                .font(.caption2)
+            } else { Button("Choose route") { showRoutes = true } }
+        }.accessibilityIdentifier("watch-route").id("watchRoute")
     }
 
     private var wristLaneControls: some View {
