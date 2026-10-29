@@ -422,3 +422,24 @@ fault/source delivery and offline/terrain/hardware/provider gates remain open.
 This is additional watch route execution, not Android phone saved-route parity.
 CI116 continues on2c650e8; this documentation update is held locally to preserve it.
 TAK off; enrolled exchange/renewal still requires coordinated test.
+
+
+### Hosted117 and dense waypoint captions —29October2026
+
+117is fully terminal on ea06859: mapSUCCESS, field409pass/2fail/9skip in420cases,
+library57pass/3fail/0skip in60cases. SHA-verified field/library artifacts and native
+recordings/spindumps distinguish actual product rendering from stale Files retry,
+missed switch gesture, dense transition delay and protected workflow deadline.
+Field exact-case follow-ups pass52.418s/42.646s; all three final library failures
+have local passes150.303s/44.573s/133.329s with original counts, persistence, night,
+password and300s assertions retained. No full hosted pass is claimed.
+
+Waypoint captions now avoid collisions and paint above every marker symbol while
+retaining the full native marker/AX/tap set. Actual cold-day/night captures exposed
+and resolved a nil SDK visibility snapshot despite attached views; owned native
+view geometry now supplies captions. Four meaningful layout cases include5000
+noncolliding labels with no cap. This does not declutter symbols or change tactical,
+grid/lane/remote policies. See map-waypoint-labels.md and hosted117-field/library
+triage reports. All local test/diagnostic parents are reaped and fake GPS cleared;
+the disposable clone is removed. Final unsigned phone/watch/widget device Release passes; fresh hosted
+confirmation remains open. TAKOFF, real enrolled exchange/renewal still requires coordinatedGO.

@@ -1233,16 +1233,31 @@ private struct MapContainer: UIViewRepresentable {
         private var night = false
         private var labelsNeedLayout = true
         private var labelLayoutWork: DispatchWorkItem?
+        private var annotationLabelPassQueued = false
         private let waypointCaptions = WaypointCaptionOverlay()
+
+        private func annotationLabelViewCreated(in map: MLNMapView) {
+            guard !annotationLabelPassQueued else { return }
+            annotationLabelPassQueued = true
+            // The SDK can realize UIKit annotations after its final Metal
+            // frame. Coalesce factories, then sample after views are attached.
+            DispatchQueue.main.async { [weak self,weak map] in
+                guard let self,let map else { return }
+                self.annotationLabelPassQueued = false
+                self.scheduleLabelLayout(map)
+            }
+        }
 
         private func scheduleLabelLayout(_ map: MLNMapView) {
             labelLayoutWork?.cancel()
             labelsNeedLayout = false
             let work = DispatchWorkItem { [weak self, weak map] in
                 guard let self, let map else { return }
-                let markers = (map.visibleAnnotations ?? []).compactMap { annotation -> (WaypointAnnotation,WaypointMarkerView)? in
-                    guard let annotation = annotation as? WaypointAnnotation,
-                          let marker = map.view(for: annotation) as? WaypointMarkerView,
+                // visibleAnnotations can be nil while UIKit marker views are
+                // already on screen. Use the owned attached views and clip
+                // their actual label geometry instead of dropping cold labels.
+                let markers = self.annotations.values.compactMap { annotation -> (WaypointAnnotation,WaypointMarkerView)? in
+                    guard let marker = map.view(for: annotation) as? WaypointMarkerView,
                           marker.superview != nil else { return nil }
                     return (annotation,marker)
                 }
@@ -1322,6 +1337,7 @@ private struct MapContainer: UIViewRepresentable {
                 ?? WaypointMarkerView(reuseIdentifier: "waypoint")
             marker.configure(annotation.waypoint, selected: navigationID == annotation.waypoint.id, night: night)
             labelsNeedLayout = true
+            annotationLabelViewCreated(in: mapView)
             return marker
         }
 

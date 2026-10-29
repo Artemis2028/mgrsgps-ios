@@ -1,8 +1,9 @@
 # Hosted117 field triage
 
 Run40863515930 on ea06859617b150a38055268e50f9c0ec1b67dc86 has a terminal
-field job failure. Map and library jobs remain in progress at this report's
-initial write; no cancelling push or duplicate run was issued.
+field job failure. The final run outcome is mapSUCCESS, fieldFAIL and libraryFAIL; all are now
+terminal. No cancelling push or duplicate run was issued. Library triage is
+recorded separately in hosted117-library-triage.md.
 
 The field xcresult records 420 cases: 409 passed, 2 failed, 9 skipped on iPhone16e,
 iOS26.2. Artifact12895884316 (`mgrsgps-ios-117-field`), archive SHA256:

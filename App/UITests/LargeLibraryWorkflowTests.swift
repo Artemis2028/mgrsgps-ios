@@ -28,6 +28,8 @@ final class LargeLibraryWorkflowTests: XCTestCase {
             XCTAssertTrue(app.buttons["map-options"].waitForExistence(timeout: 8))
         }
         verify()
+        let day = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        day.name = "dense-map-accessible-markers-day"; day.lifetime = .keepAlways; add(day)
         let origin = app.buttons["map-waypoint-large-point-0"]
         XCTAssertTrue(origin.exists)
         func visibility(_ title: String) {
