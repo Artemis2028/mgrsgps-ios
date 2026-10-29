@@ -54,7 +54,8 @@ Owned handles: /tmp/mgrsgps-watch-steering-active.json.
 
 This owner steers to the selected target or explicitly armed local route run.
 Foreground route progression now has its own owner; see watch-own-route.md.
-Background steering, independent Wear steering and offline/terrain transfer remain
+The Wear foreground counterpart is now implemented/virtual-sensor validated (Wear b184864).
+Background steering and offline/terrain transfer remain
 separate work. Native Home/lock/permission/positive-compass playback and physical
 orientation/battery/feel verification stay open. No enrolled TAK/server proof.
 

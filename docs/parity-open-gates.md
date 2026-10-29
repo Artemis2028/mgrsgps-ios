@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass foundation now implemented/virtual-sensor validated; Wear steering/routes, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
+| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear routes, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -346,3 +346,30 @@ Local graphics/track and route edit/hide/delete/relaunch pass56.177s/65.730s,
 Xcode exit0; captures inspected, feed reaped/GPS cleared/phone off. Product
 mutations unchanged. See hosted115-field-triage.md. Map/library115 still run;
 no cancelling push, duplicate dispatch or full-hosted-green claim.
+
+
+### Explicit Wear foreground steering — 29 October 2026
+
+Wearb184864 adds locally armed own-GPS/compass homing with shared phone turn policy,
+10°/5s confirmation, quiet on course, strict50m whole-circle one-shot arrival and
+2s heading gate. All56 Wear unit cases, Debug/Release and Release lint pass. Native
+round-screen Start shows Confirming turn then Turn right; OS vibrator history
+records expected pairs of70ms effects. Stop quiet4s and Home-before-hold quiet6s
+pass; fresh resume and night relaunch remain disarmed. Original prefs restored
+byte-for-byte, owned read-only emulator off/no snapshot, all parents reaped.
+Physical compass/haptic/battery and broader sensor/permission faults, Wear route
+execution, held-azimuth/corridor mode and offline/terrain remain open. See Wear
+checkout docs/watch-own-steering.md and /tmp/mgrsgps-wear-steering-active.json.
+
+
+### Hosted115 measurement rail interaction — 29 October 2026
+
+Verified map115 full bundle51cases:50pass/one failure. The landscape recording
+shows Terrain visibility after a map-measure gesture, before ruler selection.
+Local helper now waits for a fully visible rail row and slow drag/hold ends
+momentum; measurement opens through the existing validated-frame native helper.
+All four local measurement workflows pass29.058/44.862/48.150/36.326s with exact
+geometry/zoom assertions intact. Xcode exit0, captures inspected, feed reaped/GPS
+cleared/owned phone off. Product drawing/geometry unchanged. See
+hosted115-map-triage.md. Library115 remains live; no full-hosted-green claim or
+cancelling push.
