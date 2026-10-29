@@ -63,6 +63,15 @@ final class FieldExportWorkflowTests: XCTestCase {
         counts("5000 waypoints · 1000 graphics/routes · 0 tracks")
         capture("large-gpx-icon-transition-preview"); app.buttons["Cancel"].tap()
     }
+    func testKMLWholeLibraryExportsThroughFilesAndRetainsTrackAsLine() {
+        launch("-uiTestLibrary")
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export KML"])
+        let name = saveAndReview("kml-field-export-")
+        XCTAssertEqual(app.staticTexts["interchange-filename"].label,name+".kml")
+        // KML point graphics become point placemarks; the track stays a line.
+        counts("4 waypoints · 2 graphics/routes · 0 tracks")
+        capture("kml-streaming-file-preview"); app.buttons["Cancel"].tap()
+    }
     func testNativeExportCancellationAllowsAnotherCompleteExport() {
         launch("-uiTestLibrary"); exportLibraryGPX()
         let filename = app.textFields["export-filename"]

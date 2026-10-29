@@ -41,6 +41,36 @@ final class GPXFileExportTests: XCTestCase {
         catch { XCTAssertTrue(error.localizedDescription.contains("Too large to protect")) }
         XCTAssertTrue(FileManager.default.fileExists(atPath:file.url.path))
     }
+    func testWholeLibraryKMLUsesFilePayloadAndRetainsLongDeferredTrack() async throws {
+        let (_,field,_) = try await fixture(count:300_003)
+        let result = try await FieldExportPreparation.prepare(.library(.kml,[],field.document))
+        guard case .file(let file) = result.payload else { return XCTFail("Production KML must stream to a file") }
+        XCTAssertEqual(result.format,.kml); XCTAssertEqual(file.url.pathExtension,"kml")
+        let parser = try XCTUnwrap(XMLParser(contentsOf:file.url)),counter = KMLFileCoordinateCounter()
+        parser.delegate = counter
+        XCTAssertTrue(parser.parse(),String(describing:parser.parserError)); XCTAssertEqual(counter.count,300_003)
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        let document = FieldExportDocumentFile(result)
+        XCTAssertEqual(document.contentType,.gridFixKML)
+        guard case .file = document.payload else { return XCTFail("KML native presenter must retain a file") }
+    }
+    func testKMLLateChecksumFailureRemovesPartialFileWithoutChangingSavedSource() async throws {
+        let (root,_,_) = try await fixture(count:5000)
+        let index = root.appendingPathComponent("field-data-v2.json"),originalIndex = try Data(contentsOf:index)
+        let log = try XCTUnwrap(FileManager.default.contentsOfDirectory(at:root.appendingPathComponent("field-track-logs-v2"),includingPropertiesForKeys:nil).first)
+        let changed = Data(String(repeating:"25 55 1000 12.75\n",count:5000).utf8)
+        try changed.write(to:log,options:.atomic)
+        let field = FieldDataStore(directory:root,loadImmediately:false)
+        await field.load { try $0.prepare(deferTrackContents:true) }
+        XCTAssertNil(field.loadError)
+        let output = try directory()
+        do {
+            _ = try await FieldExportPreparation.prepare(.library(.kml,[],field.document)) { try FieldExportPreparation.buildForPresentation($0,root:output) }
+            XCTFail("Checksum-invalid KML returned a file")
+        } catch { XCTAssertTrue(error.localizedDescription.contains("checksum")) }
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath:output.path).isEmpty)
+        XCTAssertEqual(try Data(contentsOf:log),changed); XCTAssertEqual(try Data(contentsOf:index),originalIndex)
+    }
     func testApprovedNativeFilenameCopiesCompleteIndependentFileWithoutReadingItsPayload() async throws {
         let (_,field,track) = try await fixture(count:100)
         let result = try await FieldExportPreparation.prepare(.savedTrack(field.trackReadSnapshot(track.id)))
@@ -101,4 +131,18 @@ private final class GPXFilePointCounter: NSObject,XMLParserDelegate {
     func parser(_ parser:XMLParser,didStartElement name:String,namespaceURI:String?,qualifiedName:String?,attributes:[String:String]) {
         if name == "trkpt" { points += 1 }; if name == "time" { times += 1 }; if name == "ele" { elevations += 1 }
     }
+}
+
+private final class KMLFileCoordinateCounter: NSObject,XMLParserDelegate {
+    var count = 0
+    private var reading = false,inToken = false
+    func parser(_ parser:XMLParser,didStartElement name:String,namespaceURI:String?,qualifiedName:String?,attributes:[String:String]) { if name == "coordinates" { reading = true; inToken = false } }
+    func parser(_ parser:XMLParser,foundCharacters string:String) {
+        guard reading else { return }
+        for character in string {
+            if character.isWhitespace { inToken = false }
+            else if !inToken { count += 1; inToken = true }
+        }
+    }
+    func parser(_ parser:XMLParser,didEndElement name:String,namespaceURI:String?,qualifiedName:String?) { if name == "coordinates" { reading = false } }
 }

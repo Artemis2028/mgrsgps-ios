@@ -71,3 +71,12 @@ Wear28c7717 is pushed to the same draft PR: active lane/status/Stop are visible
 on the small round screen, circular clipped labels replaced with wide controls,
 46 cases/builds/lint pass and native GPS/vibration foreground runtime passes.
 Physical feel, background/heading/route owners and other recorded gates remain.
+
+Local KML follow-up now streams whole local logs into native Files without
+import ceilings, preserving folder/shape/track semantics and validated cleanup.
+All587 core cases and the full366 native cases (four opt-in skips) pass; the
+real KML Files save/reopen passes54.667s after correcting a new test's expected
+point-vs-line classification. Screenshot inspected; unsigned Release passes.
+See kml-streaming-output.md. Held locally while hosted113/run40807863444
+validates a54ac75; it is not covered by that head. GeoJSON/KMZ/backup streaming,
+physical/provider checks and other listed gates remain.

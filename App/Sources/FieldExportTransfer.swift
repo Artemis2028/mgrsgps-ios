@@ -97,26 +97,34 @@ enum FieldExportPreparation {
             try GPX.write(waypoints:points,routes:document.graphics,tracks:streams,sink:sink)
         }
     }
+    private static func writeStreamed(_ request: FieldExportRequest,sink: (Data) throws -> Void) throws {
+        if request.format == .gpx { try writeGPX(request,sink:sink); return }
+        guard case let .library(.kml,points,document) = request else { throw CocoaError(.fileWriteUnknown) }
+        let streams = document.tracks.map { track in
+            GPX.TrackStream(name:track.name) { try document.visitTrackPoints(track.id,point:$0) }
+        }
+        try KML.write(waypoints:points,graphics:document.graphics,tracks:streams,sink:sink)
+    }
     static func buildForPresentation(_ request: FieldExportRequest,root: URL = FileManager.default.temporaryDirectory) throws -> PreparedFieldExport {
-        guard request.format == .gpx else { return try build(request) }
+        guard request.format == .gpx || request.format == .kml else { return try build(request) }
         let name = gpxFilename(request)
-        let file = try PreparedNativeExport.prepare(filename:name,extension:"gpx",root:root) { url in
+        let file = try PreparedNativeExport.prepare(filename:name,extension:request.format.rawValue,root:root) { url in
             guard FileManager.default.createFile(atPath:url.path,contents:nil,attributes:[.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication]) else { throw CocoaError(.fileWriteUnknown) }
             let handle = try FileHandle(forWritingTo:url)
             do {
-                try writeGPX(request) { try handle.write(contentsOf:$0) }
+                try writeStreamed(request) { try handle.write(contentsOf:$0) }
                 try handle.synchronize(); try handle.close()
             } catch { try? handle.close(); throw error }
         }
-        return .init(file:file,format:.gpx,filename:name)
+        return .init(file:file,format:request.format,filename:name)
     }
 
     static func build(_ request: FieldExportRequest) throws -> PreparedFieldExport {
         try Task.checkCancellation()
-        if request.format == .gpx {
+        if request.format == .gpx || request.format == .kml {
             var data = Data()
-            try writeGPX(request) { data.append($0) }
-            return .init(data:data,format:.gpx,filename:gpxFilename(request))
+            try writeStreamed(request) { data.append($0) }
+            return .init(data:data,format:request.format,filename:gpxFilename(request))
         }
         let data: Data, filename: String
         switch request {
@@ -132,8 +140,7 @@ enum FieldExportPreparation {
                 }
                 try Task.checkCancellation()
                 switch format {
-                case .gpx: preconditionFailure("GPX handled above")
-                case .kml: data = Data(KML.build(waypoints: points,graphics: document.graphics,tracks: tracks).utf8)
+                case .gpx,.kml: preconditionFailure("Streamed formats handled above")
                 case .geojson: data = Data(try GeoJSON.build(waypoints: points,graphics: document.graphics,tracks: tracks).utf8)
                 case .kmz: data = try KMZ.build(waypoints: points,graphics: document.graphics,tracks: tracks)
                 case .csv,.atak: preconditionFailure("Handled without track decoding")

@@ -35,9 +35,9 @@ does not narrow Android's supported route or point behavior.
 Compatibility and remaining work:
 
 - Eager Data compatibility APIs and test-injected transformations remain valid.
-- Production GPX output now uses a file-backed streaming writer; see
-  gpx-streaming-output.md for validation in progress. Other interchange/backup
-  writers and bounded watch snapshots retain their existing limits.
+- Production GPX and KML output now use file-backed streaming writers; see
+  gpx-streaming-output.md and kml-streaming-output.md for current evidence. Other
+  interchange/backup writers and bounded watch snapshots retain their limits.
 - Automatic receiptless/v1 cache upgrade is now implemented (track-cache-upgrade.md).
   Cold-device memory/battery profiling,
   physical field checks and wider accessibility remain open.

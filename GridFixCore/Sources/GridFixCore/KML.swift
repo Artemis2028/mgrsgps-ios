@@ -58,6 +58,66 @@ public enum KML {
         }
         return output+"</Document></kml>\n"
     }
+    /// Complete local sources are streamed without interchange import ceilings.
+    /// Output is provisional until every source visit validates successfully.
+    public static func write(waypoints: [Waypoint],graphics: [Backup.Graphic],tracks: [GPX.TrackStream],
+                             sink: (Data) throws -> Void) throws {
+        var buffer = ""
+        func emit(_ text: String) throws {
+            try Task.checkCancellation()
+            buffer += text
+            if buffer.utf8.count >= 64 * 1024 { try sink(Data(buffer.utf8)); buffer = "" }
+        }
+        func placemark(_ name: String,_ points: [GeoPoint],area: Bool) throws {
+            guard let first = points.first else { return }
+            try emit("<Placemark><name>"+escape(name)+"</name>")
+            if points.count == 1 { try emit("<Point><coordinates>"+position(first)+"</coordinates></Point>") }
+            else {
+                try emit(area ? "<Polygon><outerBoundaryIs><LinearRing><coordinates>" : "<LineString><tessellate>1</tessellate><coordinates>")
+                for (index,point) in points.enumerated() { try emit((index == 0 ? "" : " ")+position(point)) }
+                if area, first != points.last { try emit(" "+position(first)) }
+                try emit(area ? "</coordinates></LinearRing></outerBoundaryIs></Polygon>" : "</coordinates></LineString>")
+            }
+            try emit("</Placemark>\n")
+        }
+        try emit("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>\n<name>MGRS GPS export</name>\n")
+        // Keep Kotlin groupBy's first-occurrence folder order.
+        var folders: [String] = [],groups: [String:[Waypoint]] = [:]
+        for point in waypoints {
+            try Task.checkCancellation()
+            if groups[point.folder] == nil { folders.append(point.folder) }
+            groups[point.folder,default:[]].append(point)
+        }
+        for folder in folders {
+            try emit("<Folder><name>"+escape(folder)+"</name>\n")
+            for point in groups[folder] ?? [] { try placemark(point.name,[.init(lat:point.lat,lon:point.lon)],area:false) }
+            try emit("</Folder>\n")
+        }
+        if !graphics.isEmpty {
+            try emit("<Folder><name>Graphics</name>\n")
+            for graphic in graphics {
+                try Task.checkCancellation()
+                if let shape = GraphicExportGeometry.make(graphic) { try placemark(GraphicExportGeometry.prefix(graphic.type)+graphic.name,shape.points,area:shape.area) }
+            }
+            try emit("</Folder>\n")
+        }
+        if !tracks.isEmpty {
+            try emit("<Folder><name>Tracks</name>\n")
+            for track in tracks {
+                try emit("<Placemark><name>"+escape(track.name)+"</name><LineString><tessellate>1</tessellate><coordinates>")
+                var first = true
+                try track.visit { point in
+                    try emit((first ? "" : " ")+position(.init(lat:point.lat,lon:point.lon)))
+                    first = false
+                }
+                try emit("</coordinates></LineString></Placemark>\n")
+            }
+            try emit("</Folder>\n")
+        }
+        try emit("</Document></kml>\n")
+        if !buffer.isEmpty { try sink(Data(buffer.utf8)) }
+        try Task.checkCancellation()
+    }
     static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&",with: "&amp;").replacingOccurrences(of: "<",with: "&lt;")
             .replacingOccurrences(of: ">",with: "&gt;").replacingOccurrences(of: "\"",with: "&quot;")
