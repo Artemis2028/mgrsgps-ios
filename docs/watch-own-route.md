@@ -162,3 +162,39 @@ All build/setup/feed/wait parents (98448, 70908, 35231, 82035, 42341, 33387,
 27637, 65311) are terminal/reaped. Fake GPS was cleared, and disposable E58D6BCE
 was shut down/deleted. Existing client/device state was untouched. No TAK
 connection, credentials, server/container/database, merge/publish/release action.
+
+
+## Native Home transition and return
+
+The current 40 mm watch simulator binary (including the held picker fix) was
+validated on a fresh disposable watchOS 27 device. Only a cached synthetic
+complete RT1 near 24 N / 54 E and fake OS GPS were supplied. Actual native
+Choose route and Start taps opened active RT1WP1. The native Device Hub Home
+control displayed the watch clock. While away, fake OS positions moved to WP1.
+
+After a six-second clock phase, app activation returned the same process
+(PID 86215 before/after). Its summary retained RT1WP1 with Paused · resume route
+and fresh 1-second-old GPS at the checkpoint. It did not advance or automatically
+resume. Native controls showed Resume and Resume route first for steering. An
+explicit Resume tap changed the control to Pause; a subsequent fake GPS callback
+advanced to RT1WP2 / WP2 of 2. The finite feed later expired, and the summary
+honestly showed a dash / Needs fresh precise fix. This is not completion or
+positive compass/steering/haptic evidence.
+
+No app foreground/background state, consent, progress, heading or successful
+result was injected. App activation used the simulator launch command without
+termination; matching PIDs distinguish it from cold restart. Setup parent 67841,
+finite feed 15717 and return parent 49690 all exited 0 and were reaped. Fake GPS
+was cleared and disposable device 65244BEC shut down/deleted; existing simulators
+and original client state were untouched. No production code change was needed,
+so prior core/build evidence was not redundantly rerun for this report.
+
+Captures: `/tmp/mgrsgps-watch-route-home-before.png`,
+`/tmp/mgrsgps-watch-route-home-clock.png`,
+`/tmp/mgrsgps-watch-route-home-returned.png`,
+`/tmp/mgrsgps-watch-route-home-resumed.png`; journal
+`/tmp/mgrsgps-watch-route-home-active.json`. This closes one native Home/return
+route-pause path. Physical lock/wrist behavior, permission/provider interruption,
+positive compass steering and background route execution remain separate gates.
+CI119 continues on 40e7e63; this report and picker fix stay local to preserve it.
+TAK remains off; current enrolled exchange/real renewal remain open.
