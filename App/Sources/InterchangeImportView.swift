@@ -51,7 +51,7 @@ struct InterchangeImportView: View {
                                 .accessibilityIdentifier("interchange-filename")
                         }.font(.headline).frame(maxWidth: .infinity, alignment: .leading)
                     } else {
-                        Text("Paste \(label) to preview its \(request.format?.pasteSummary ?? "field data").").font(.subheadline)
+                        Text("Paste \(label)").font(.subheadline)
                         TextEditor(text: $text).font(.system(.caption,design: .monospaced))
                             .frame(minHeight: 180).scrollContentBackground(.hidden)
                             .padding(8).background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 12))
@@ -66,7 +66,6 @@ struct InterchangeImportView: View {
                                 .foregroundStyle(FieldPalette(night: night).ink)
                                 .textInputAutocapitalization(.never).autocorrectionDisabled()
                                 .accessibilityIdentifier("interchange-password")
-                            Text("Unlock to review this file. Nothing is added until you confirm.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 12))
                     }
                     if let backup = backupPreview {
@@ -78,7 +77,7 @@ struct InterchangeImportView: View {
                                 Text(backup.quietBoundaries.count == 1 ? "1 quiet boundary · imported monitoring stays off" : "\(backup.quietBoundaries.count) quiet boundaries · imported monitoring stays off")
                                     .accessibilityIdentifier("backup-quiet-boundary-count")
                             }
-                            Text(onRestoreBackup == nil ? "Use Import backup to restore this file." : "Confirm to restore saved records and included settings. Existing records are kept.").font(.footnote)
+                            Text(onRestoreBackup == nil ? "Use Import backup to restore this file." : "Restores records and included settings. Existing records are kept.").font(.footnote)
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }
                     if working || importing {
@@ -92,9 +91,11 @@ struct InterchangeImportView: View {
                                 .accessibilityIdentifier("interchange-counts")
                             if preview.skipped > 0 { Text("\(preview.skipped) invalid or unsupported entries/coordinates skipped. Check the source before importing.") }
                             if preview.recordCount == 0 { Text("No supported records found. Nothing will be imported.") }
-                            Text("Existing records and settings are kept. Matching records are reviewed before import. Reimporting unchanged content keeps saved edits.")
                             Text(preview.format.importNote).font(.footnote)
-                            Text("Use an MGRS GPS backup to preserve library symbols and settings.").font(.footnote)
+                            DisclosureGroup("Import details") {
+                                Text("Existing records and settings are kept. Matching records are reviewed before import. Reimporting unchanged content keeps saved edits.")
+                                Text("Use an MGRS GPS backup to preserve library symbols and settings.")
+                            }.font(.footnote).accessibilityIdentifier("interchange-details")
                         }.padding().background(FieldPalette(night: night).ink.opacity(0.06),in: RoundedRectangle(cornerRadius: 16))
                     }
                     if let message = importCommit.failure ?? message { Text(message).font(.footnote).accessibilityIdentifier("interchange-message") }

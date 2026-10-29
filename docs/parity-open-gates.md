@@ -192,3 +192,16 @@ Xcode exit0). Day/night/XXXL captures inspected. Fake GPS cleared, owned simulat
 off, parent reaped. Evidence /tmp/mgrsgps-practice-concise-ui.xcresult and
 /tmp/mgrsgps-practice-concise-images/manifest.json. No new real-location scoring
 or physical verification claimed. Held locally while hosted114 is live.
+
+
+### Concise interchange previews — 29 October 2026
+Shortened paste/password/backup prompt copy and moved generic preservation and
+backup advice into collapsed Import details. Per-format loss/unsupported-content
+notes, skipped-record counts, errors and duplicate confirmation stay visible;
+parsing, preview/commit and password behavior unchanged. Existing CSV
+preview/cancel/confirm/retry/relaunch, malformed input/night preview and night
+skip-matches/persistence workflows pass (three cases, zero failures, Xcode exit0).
+Day/night captures inspected. Evidence /tmp/mgrsgps-import-concise-ui.xcresult
+and /tmp/mgrsgps-import-concise-images/manifest.json. Parent reaped, fake GPS
+cleared, owned simulator off. Held locally during hosted114; no new protected
+backup/physical/TAK proof claimed for this copy-only follow-up.
