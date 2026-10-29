@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear routes, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
+| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear foreground routes now implemented/native virtual-GPS validated; physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -389,3 +389,26 @@ off. Extreme-density label overlap remains a readability limit. See
 hosted115-library-triage.md. Field/map repairs also have local passes; fresh
 hosted confirmation on the combined follow-up remains required. No job cancellation
 or duplicate dispatch, merge or release.
+
+
+### Wear complete-route owner — 29 October 2026
+
+Wear92f56ea adds explicit Start/Pause/Resume/Stop from complete visible cached
+routes within the existing128-point line budget. Only unique post-action own-GPS
+samples advance ordered checkpoints, with distance+accuracy strictly below25m.
+Accepted source identity is stored locally from Data Layer metadata; wire budgets
+and revision rejection are unchanged. Accepted source/geometry/hide/delete/omission
+changes disarm; suspension pauses; separately armed route steering transfers only
+within that run and never auto-arms after Resume or cold launch. All63 Wear unit
+cases, Debug/Release and Release lint pass. Native route picker/progression,
+steering checkpoint handoff, Pause/Resume, final four-point completion, Stop and
+night cold-no-auto-arm pass using fake OS GPS/virtual compass. Final source-header/
+compact-completion captures inspected. Initial finite feed ended before its final
+point and is not counted as completion evidence; a fresh-process final replay logs
+exactly1/2/3/4complete. Original prefs restored byte-for-byte, all parents reaped,
+owned read-only emulator off/no snapshot. See Wear docs/watch-own-route.md and
+/tmp/mgrsgps-wear-route-active.json. Physical route haptics/compass, broader native
+fault/source delivery and offline/terrain/hardware/provider gates remain open.
+This is additional watch route execution, not Android phone saved-route parity.
+CI116 continues on2c650e8; this documentation update is held locally to preserve it.
+TAK off; enrolled exchange/renewal still requires coordinated test.

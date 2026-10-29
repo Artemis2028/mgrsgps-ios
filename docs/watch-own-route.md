@@ -51,8 +51,8 @@ Evidence: /tmp/mgrsgps-watch-route-source-identity-core.log,
 /tmp/mgrsgps-watch-route-identity-native-console.log. Layout captures and terminal
 cleanup are recorded in /tmp/mgrsgps-watch-route-active.json.
 
-Independent Wear route/steering, broader offline/terrain transfer and physical
-GPS/battery/radio checks remain work. TAK remains off; real enrolled iOS/Android
+Foreground Wear route/steering now also have native virtual-sensor validation.
+Broader offline/terrain transfer and physical GPS/battery/radio checks remain work. TAK remains off; real enrolled iOS/Android
 exchange and renewal still require the coordinated test.
 
 All finite GPS feeds and console parents finished/reaped, fake GPS was cleared,
@@ -65,4 +65,4 @@ circle checkpoint rule matches the phone practice-course policy. The Android
 phone does not automatically advance a saved route's vertices: it guides to a
 selected target until a user or course changes it. This Apple watch route owner
 is an additional capability, not a claim of matching an Android saved-route
-execution feature. Independent Wear route execution remains unimplemented.
+execution feature. Wear foreground route execution is now implemented and native virtual-GPS validated (Wear92f56ea), retaining its own128-point complete-line budget. Broader physical and background route checks remain open.
