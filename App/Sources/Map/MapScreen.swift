@@ -1231,6 +1231,40 @@ private struct MapContainer: UIViewRepresentable {
         private var previous: [Waypoint] = []
         private var navigationID: String?
         private var night = false
+        private var labelsNeedLayout = true
+        private var labelLayoutWork: DispatchWorkItem?
+        private let waypointCaptions = WaypointCaptionOverlay()
+
+        private func scheduleLabelLayout(_ map: MLNMapView) {
+            labelLayoutWork?.cancel()
+            labelsNeedLayout = false
+            let work = DispatchWorkItem { [weak self, weak map] in
+                guard let self, let map else { return }
+                let markers = (map.visibleAnnotations ?? []).compactMap { annotation -> (WaypointAnnotation,WaypointMarkerView)? in
+                    guard let annotation = annotation as? WaypointAnnotation,
+                          let marker = map.view(for: annotation) as? WaypointMarkerView,
+                          marker.superview != nil else { return nil }
+                    return (annotation,marker)
+                }
+                let candidates = markers.map { annotation,marker in
+                    WaypointLabelLayout.Candidate(id: annotation.waypoint.id,rect: marker.labelRect(in: map),priority: annotation.waypoint.id == self.navigationID)
+                }
+                let visible = WaypointLabelLayout.visible(candidates,in: map.bounds)
+                self.waypointCaptions.frame = map.bounds
+                self.waypointCaptions.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+                self.waypointCaptions.captions = candidates.filter { visible.contains($0.id) }.compactMap { item in
+                    guard let annotation = self.annotations[item.id] else { return nil }
+                    return .init(text: annotation.waypoint.name,rect: item.rect,night: self.night)
+                }
+                if self.waypointCaptions.superview !== map { map.addSubview(self.waypointCaptions) }
+                self.waypointCaptions.isHidden = false
+                map.bringSubviewToFront(self.waypointCaptions)
+                map.bringSubviewToFront(self.crosshair)
+            }
+            labelLayoutWork = work
+            // Wait for camera motion and native annotation realization to settle.
+            DispatchQueue.main.asyncAfter(deadline: .now()+0.12,execute: work)
+        }
 
         func sync(_ waypoints: [Waypoint], navigationID: String?, night: Bool, in map: MLNMapView) {
             guard previous != waypoints || self.navigationID != navigationID || self.night != night else { return }
@@ -1258,6 +1292,8 @@ private struct MapContainer: UIViewRepresentable {
             // library; commit the complete diff in two operations instead.
             if !removed.isEmpty { map.removeAnnotations(removed) }
             if !added.isEmpty { map.addAnnotations(added) }
+            labelsNeedLayout = true
+            scheduleLabelLayout(map)
         }
 
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
@@ -1285,6 +1321,7 @@ private struct MapContainer: UIViewRepresentable {
             let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: "waypoint") as? WaypointMarkerView)
                 ?? WaypointMarkerView(reuseIdentifier: "waypoint")
             marker.configure(annotation.waypoint, selected: navigationID == annotation.waypoint.id, night: night)
+            labelsNeedLayout = true
             return marker
         }
 
@@ -1351,6 +1388,8 @@ private struct MapContainer: UIViewRepresentable {
             map.bringSubviewToFront(crosshair)
         }
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            waypointCaptions.isHidden = true
+            labelsNeedLayout = true
             lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded()
             if rulerActive {
                 let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
@@ -1360,9 +1399,11 @@ private struct MapContainer: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
         func mapViewDidFinishRenderingFrame(_ mapView: MLNMapView, fullyRendered: Bool) {
             (mapView as? FieldMapView)?.annotationVisibilityDidRender()
+            if labelsNeedLayout { scheduleLabelLayout(mapView) }
         }
 
         private func redraw(_ map: MLNMapView) {
+            scheduleLabelLayout(map)
             lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded(); raiseAnnotations(in: map)
             if lassoActive { map.bringSubviewToFront(lasso) }
             if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
@@ -1424,9 +1465,14 @@ private final class WaypointMarkerView: MLNAnnotationView {
 
     required init?(coder: NSCoder) { fatalError("Markers are created by MapLibre") }
 
+    func labelRect(in view: UIView) -> CGRect { nameLabel.convert(nameLabel.bounds,to: view) }
+
     func configure(_ waypoint: Waypoint, selected: Bool, night: Bool) {
         let style = WaypointMarkerStyle(waypoint: waypoint, night: night)
         nameLabel.text = waypoint.name
+        // The common caption overlay paints above all symbols, so neighboring
+        // annotation views cannot cover the contrasting text backing.
+        nameLabel.isHidden = true
         let textWidth = ceil((waypoint.name as NSString).size(withAttributes: [.font: nameLabel.font!]).width)
         let labelWidth = min(150, max(16, textWidth + 10))
         let markerWidth = max(44, labelWidth)
@@ -1447,5 +1493,29 @@ private final class WaypointMarkerView: MLNAnnotationView {
         accessibilityLabel = "Waypoint \(waypoint.name)"
         accessibilityIdentifier = "map-waypoint-\(waypoint.id)"
         accessibilityValue = [WaypointMarkerDescription.text(waypoint),selected ? "Navigation target" : nil].compactMap { $0 }.joined(separator: ", ")
+    }
+}
+
+private final class WaypointCaptionOverlay: UIView {
+    struct Caption { let text: String, rect: CGRect, night: Bool }
+    var captions: [Caption] = [] { didSet { setNeedsDisplay() } }
+    init() {
+        super.init(frame: .zero)
+        isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
+        isAccessibilityElement = false; accessibilityElementsHidden = true
+    }
+    required init?(coder: NSCoder) { fatalError("Captions are created by the map coordinator") }
+    override func draw(_ rect: CGRect) {
+        let font = UIFont.monospacedSystemFont(ofSize: 11,weight: .semibold)
+        for caption in captions {
+            let path = UIBezierPath(roundedRect: caption.rect,cornerRadius: 4)
+            UIColor.black.withAlphaComponent(0.9).setFill(); path.fill()
+            let ink: UIColor = caption.night ? .systemRed : .white
+            ink.withAlphaComponent(0.35).setStroke(); path.lineWidth = 0.5; path.stroke()
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center; paragraph.lineBreakMode = .byTruncatingTail
+            let textRect = CGRect(x: caption.rect.minX+5,y: caption.rect.midY-font.lineHeight/2,width: caption.rect.width-10,height: font.lineHeight)
+            (caption.text as NSString).draw(in: textRect,withAttributes: [.font: font,.foregroundColor: ink,.paragraphStyle: paragraph])
+        }
     }
 }
