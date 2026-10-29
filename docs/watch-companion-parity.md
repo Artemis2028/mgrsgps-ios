@@ -125,3 +125,23 @@ send and watch map-centre elevation readout. The native paired simulator acknowl
 installation and retains the known DEM value after a night relaunch. File delivery on
 a physical pair and the equivalent Wear transport/UI remain open; see
 [Apple terrain transfer](watch-terrain-transfer.md).
+
+## Clock-safe navigation controls — 29 October 2026
+
+The navigation page now clips scrolling content to its existing watchOS safe
+viewport, preventing controls and labels from painting beneath the system clock
+after scrolling or programmatic route-control positioning. Horizontal content
+padding drops from 8 to 2 points, moving the content left and widening controls
+inside the display. The clock stays visible; no fixed blank header is added.
+
+Native 40 mm watchOS 27 captures were inspected at the route controls and several
+scroll positions. The first fixed-padding experiment left excessive blank space
+and was replaced by viewport clipping. Final capture:
+`/tmp/mgrsgps-watch-clock-layout-final-40mm.png`. Current watch simulator build
+and unsigned phone/watch/widget Release pass; parents81613/41082 exit0/reaped.
+Earlier build/install parents67317/30944/43419 and final install20333 are also
+terminal/reaped. No navigation policy, sensor, phone, TAK or wire changes. Prior
+641 core cases remain valid and were not repeated for a view-only layout fix.
+Physical bezel/touch and wider Dynamic Type coverage remain separate checks.
+The fresh disposable watch is retained as a user preview with fake GPS cleared,
+no feed and no armed route; see /tmp/mgrsgps-watch-clock-layout-active.json.

@@ -287,3 +287,20 @@ wait 27600 and recovery feed 44937 exited 0 and were reaped before cleanup.
 Fake GPS was cleared and the fresh disposable device shut down/deleted; original
 client/device state was untouched. No production change or redundant rebuild.
 TAK off; current enrolled exchange/real renewal and physical/background gates open.
+
+## Native process restart requires a new route Start
+
+A fresh 40 mm watchOS 27 simulator used only cached synthetic RT1 and fake OS
+GPS. Actual Choose route/Start opened active RT1WP1 / 305 m. Terminating PID14462
+and launching the app again produced new PID18400. With fresh GPS still arriving,
+the app returned to Position; a native swipe showed Choose route and Select a
+waypoint, with steering disabled. Cached geometry did not restore execution
+consent. No route/consent/progress/heading/success injection or launch auto-Start.
+
+Captures: /tmp/mgrsgps-watch-route-cold-before.png,
+/tmp/mgrsgps-watch-route-cold-after.png,
+/tmp/mgrsgps-watch-route-cold-disarmed.png. Setup39360, feed87503 and restart87303
+exit0/reaped. Fake GPS is cleared and the same fresh device was reused for the
+user's clock/left-inset visual repair, then retained only as its disarmed preview.
+Original client/device state was untouched. This is process restart evidence,
+not physical lock, OS provider-error, background route or haptic/compass proof.

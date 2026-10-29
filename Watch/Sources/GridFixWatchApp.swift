@@ -180,8 +180,11 @@ struct WatchGlanceView: View {
                 fixStatus(date: date)
                 connectionStatus(date: date)
                 nightControls
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 2)
         }
+        // watchOS allows scrolling content to paint into the clock's safe
+        // area. Clip to the proposed safe viewport instead of adding a spacer.
+        .clipped()
         .accessibilityElement(children: .contain)
         .onChange(of:model.route.runID) { _,run in
             if run != nil { proxy.scrollTo("watchRouteSummary",anchor:.top) }
