@@ -237,7 +237,9 @@ func mapReadout(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
     let value = app.staticTexts[identifier]
     if !value.exists {
         let summary = app.buttons["map-centre-summary"]
-        if summary.waitForExistence(timeout: 5) { summary.tap() }
+        // A loading row can briefly disappear while an expanded HUD publishes
+        // new counts. Do not turn that refresh into a collapse gesture.
+        if summary.waitForExistence(timeout: 5), summary.value as? String != "Details expanded" { summary.tap() }
     }
     return value
 }
@@ -246,7 +248,9 @@ func mapStatusButton(_ app: XCUIApplication, _ identifier: String) -> XCUIElemen
     let button = app.buttons[identifier]
     if !button.exists {
         let summary = app.buttons["map-centre-summary"]
-        if summary.waitForExistence(timeout: 5) { summary.tap() }
+        // A loading row can briefly disappear while an expanded HUD publishes
+        // new counts. Do not turn that refresh into a collapse gesture.
+        if summary.waitForExistence(timeout: 5), summary.value as? String != "Details expanded" { summary.tap() }
     }
     return button
 }

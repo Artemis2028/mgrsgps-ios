@@ -228,3 +228,14 @@ navigation-lane wrist alerts. Removed the long artwork implementation paragraph.
 Watch README/current parity summary now match the existing route/background
 owners. Copy-only change; unsigned phone/watch/widget device Release passes.
 No new watch touch, runtime, physical or transport verification claimed.
+
+
+### Hosted114 map helper acknowledgement — 29 October 2026
+Verified full map artifact51 cases:50 passes/one failure. The saved-geometry
+manual pan succeeded, but the readout helper collapsed an expanded HUD during
+an AX child refresh. Guarding the exposed expanded state preserves the same
+user gestures and exact camera/overlay/loading assertions. All four local
+portrait/landscape/night/pending-fit workflows pass; Xcode finalized exit0.
+Retained-pan/new-GoTo captures inspected, fake GPS cleared and owned simulator
+off. See hosted114-map-triage.md. Library114 still live; full hosted confirmation
+remains open and local follow-ups are held without cancelling it.
