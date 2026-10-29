@@ -38,16 +38,28 @@ user to pair the emulator again. No Android devices were running during this
 audit; the read-only inventory started adb, not another emulator.
 
 
-Hosted112 on2740063: field is terminal with one native Files reopen failure
-in FieldExportWorkflowTests.testLargeLibraryGPXExportsThroughFilesAndReopensAllRecords.
-Native357 cases pass with four opt-in skips; field UI39/40 pass with five skips.
-The same file remains visible after thumbnail activation. Its field artifact
-12864152223 SHA-256 is verified as
-f5d4c7564bc4ab1ea072c322a507d1a36adfe0b61d1adb35880d20d2985f608b; failure artifact
-is extracted for diagnosis. Dedicated field steps are skipped after this failed
-stage; earlier111 background evidence is historical. Map/library112 are still
-live. A single same-runtime local reproduction is running; no cancellation,
-rerun or push against that active run. Streaming/cache commits remain held.
+Hosted112 on2740063 is terminal: map passes; field has one Files reopen
+failure and library has two failures (ordinary backup time allowance and dense
+map options responsiveness). Native357 cases complete with four opt-in skips;
+40 field UI cases complete with five skips and one failure. Dedicated later
+field steps were skipped; earlier111 background evidence is historical.
+Field artifact12864152223 SHA-256 is verified as
+f5d4c7564bc4ab1ea072c322a507d1a36adfe0b61d1adb35880d20d2985f608b.
+Library artifact12866601557 SHA-256 is verified as
+fa0bd20a7f68dd08677f19baa372b2febeada20cc48b203553fb232b98307c1f.
+Both are extracted. The backup log spends most of its allowance repeatedly
+querying/tapping the native Files thumbnail, then restores successfully before
+hitting the allowance during later verification. Its app spindump shows an idle
+run loop/accessibility snapshots, not evidence of a product deadlock.
+
+Filename-first native Files activation passes seven local ordinary/protected
+backup, large GPX, icon-to-list, long-name, cancel/retry and selected-track UI
+workflows in /tmp/mgrsgps-ci112-file-label-repair.xcresult (678.952s total).
+The selected filename must still match exactly; counts, timeouts and full
+restore/relaunch assertions are unchanged. Exported large-GPX preview and
+restored night-library screenshots inspected. This validates the helper against
+the earlier app binary. Fresh file-backed GPX output and dense accessibility
+cache validation are running separately; full hosted confirmation remains open.
 
 Wear28c7717 is pushed to the same draft PR: active lane/status/Stop are visible
 on the small round screen, circular clipped labels replaced with wide controls,

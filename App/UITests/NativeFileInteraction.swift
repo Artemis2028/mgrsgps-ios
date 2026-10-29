@@ -62,13 +62,15 @@ extension XCTestCase {
             XCTAssertTrue(item.waitForExistence(timeout:15),app.debugDescription,file:file,line:line)
         }
         let tabs = app.tabBars["DOC.browsingModeTabBar"]
-        // The hosted List row exposes distinct thumbnail and filename views.
-        // Tap the actual thumbnail, never an inferred fraction of the row.
+        // List rows expose a filename and a separate preview/drag thumbnail.
+        // Hosted112 left the document unopened after three thumbnail gestures;
+        // activate its exact filename, keeping the thumbnail only as fallback.
         func target() -> XCUIElement {
+            let filename = item.staticTexts.matching(match).firstMatch
+            if filename.exists { return filename }
             let thumbnails = item.images.allElementsBoundByIndex.filter { !$0.frame.isEmpty && $0.frame.width.isFinite && $0.frame.height.isFinite }
             if let thumbnail = thumbnails.max(by: { $0.frame.width*$0.frame.height < $1.frame.width*$1.frame.height }) { return thumbnail }
-            let filename = item.staticTexts.matching(match).firstMatch
-            return filename.exists ? filename : item
+            return item
         }
         func unobscured() -> Bool {
             let visible = target()
@@ -99,7 +101,7 @@ extension XCTestCase {
         }
         XCTAssertTrue(item.exists,app.debugDescription,file: file,line: line)
         XCTAssertTrue(unobscured(),app.debugDescription,file: file,line: line)
-        // Activate the resolved thumbnail in the collection view's valid
+        // Activate the resolved document label in the collection view's valid
         // coordinate space, even when the app AX origin is invalid.
         for attempt in 0..<3 {
             if attempt == 0 {
@@ -115,7 +117,7 @@ extension XCTestCase {
                 // try its native double-tap opening gesture on that exact row.
                 target().doubleTap()
             }
-            // Files can ignore the first thumbnail tap while finishing its
+            // Files can ignore the first tap while finishing its
             // provider transition. Acknowledge dismissal before proceeding;
             // never tap again once the app's import review replaces Files.
             let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !files.exists },object: nil)
