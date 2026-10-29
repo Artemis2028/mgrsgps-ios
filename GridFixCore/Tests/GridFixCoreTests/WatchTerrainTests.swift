@@ -83,6 +83,45 @@ final class WatchTerrainTests: XCTestCase {
         try FileManager.default.removeItem(at:file)
         XCTAssertNil(cache.sample(source:meta.source,lat:c.0,lon:c.1))
     }
+    func testRejectedTerrainReplacementPreservesWarmAndColdTileUntilValidNewRevision() throws {
+        let dir = try temporary(), cache = try WatchTerrainCache(directory: dir)
+        let png = try fixture("terrain-rgba.png")
+        let meta = try WatchTerrainManifest.decode(fixture("terrain-manifest.json"))
+        let c = center()
+        try cache.install(manifest: meta, png: png, expectedSource: meta.source)
+        XCTAssertEqual(cache.sample(source: meta.source, lat: c.0, lon: c.1)?.meters, 23)
+        let record = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil).first)
+        let before = try Data(contentsOf: record)
+        // A matching manifest/hash must not allow malformed raster data to
+        // replace a valid tile; exercise decoder failure after envelope checks.
+        let malformed = Data(png.dropLast())
+        let invalid = WatchTerrainManifest(source: meta.source, revision: meta.revision + 1,
+            publishedAtMillis: meta.publishedAtMillis + 1, x: meta.x, y: meta.y,
+            png: malformed, attribution: meta.attribution)
+        XCTAssertThrowsError(try cache.install(manifest: invalid, png: malformed, expectedSource: meta.source))
+        let wrongSource = WatchTerrainManifest(source: "other-companion", revision: meta.revision + 2,
+            publishedAtMillis: meta.publishedAtMillis + 2, x: meta.x, y: meta.y,
+            png: png, attribution: meta.attribution)
+        XCTAssertThrowsError(try cache.install(manifest: wrongSource, png: png, expectedSource: meta.source))
+        let conflict = WatchTerrainManifest(source: meta.source, revision: meta.revision,
+            publishedAtMillis: meta.publishedAtMillis + 3, x: meta.x, y: meta.y,
+            png: png, attribution: meta.attribution)
+        XCTAssertThrowsError(try cache.install(manifest: conflict, png: png, expectedSource: meta.source))
+        XCTAssertEqual(try Data(contentsOf: record), before)
+        for reader in [cache, try WatchTerrainCache(directory: dir)] {
+            XCTAssertEqual(reader.sample(source: meta.source, lat: c.0, lon: c.1)?.manifest, meta)
+            XCTAssertEqual(reader.sample(source: meta.source, lat: c.0, lon: c.1)?.meters, 23)
+            XCTAssertNil(reader.sample(source: wrongSource.source, lat: c.0, lon: c.1))
+        }
+        let newer = WatchTerrainManifest(source: meta.source, revision: meta.revision + 1,
+            publishedAtMillis: meta.publishedAtMillis + 4, x: meta.x, y: meta.y,
+            png: png, attribution: "Updated synthetic provenance")
+        try cache.install(manifest: newer, png: png, expectedSource: meta.source)
+        for reader in [cache, try WatchTerrainCache(directory: dir)] {
+            XCTAssertEqual(reader.sample(source: meta.source, lat: c.0, lon: c.1)?.manifest, newer)
+            XCTAssertEqual(reader.sample(source: meta.source, lat: c.0, lon: c.1)?.meters, 23)
+        }
+    }
     func testTileCountAndByteBudgetsRetainNewestWithoutTouchingUnownedFiles() throws {
         let dir = try temporary(), cache = try WatchTerrainCache(directory:dir), png = try fixture("terrain-rgba.png")
         let keep = dir.appendingPathComponent("notes.txt"); try Data("keep".utf8).write(to:keep)

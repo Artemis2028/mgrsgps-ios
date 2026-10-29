@@ -82,3 +82,18 @@ library job is active. Map116 passes; field116 failure triage continues independ
 Next: Wear companion transport/readout, physical Apple queued-file transfer, explicit
 cache deletion/area semantics, offline raster packs and terrain analysis overlays.
 Real enrolled iOS/Android TAK exchange/renewal still requires coordinated GO; server off.
+
+## Rejected replacement retention — core checkpoint
+
+Six focused WatchTerrain tests pass, including a sequence against an already
+installed and decoded synthetic tile. A malformed PNG with a matching manifest
+hash reaches raster validation and is rejected; a newer wrong-companion payload
+and same-revision metadata conflict are also rejected. The original record bytes
+stay identical. Both the warm reader and a newly opened cache retain the original
+sample/provenance; the wrong source cannot read it. A later valid revision with
+identical PNG bytes updates provenance correctly in both readers.
+
+Evidence: `/tmp/mgrsgps-watch-terrain-replacement-core.log`, parent 9183 exit 0
+and reaped. This is core cache/source/atomic replacement evidence only, not new
+native WatchConnectivity fault/queue delivery or physical pressure evidence.
+No production, wire, server, phone cache or original device state changed.
