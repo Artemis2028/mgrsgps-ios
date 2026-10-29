@@ -87,17 +87,22 @@ struct WatchGlanceView: View {
             }.tint(accent)
         }
         .sheet(isPresented:$showRoutes) {
-            NavigationStack {
-                List {
-                    ForEach(model.availableRoutes,id:\.renderID) { route in
-                        Button("Start \(route.name) · \(route.points.count) points") {
-                            if model.startRoute(route) { showRoutes = false }
-                        }.disabled(!model.canStartRoute)
-                    }
-                    if model.availableRoutes.isEmpty { Text("No complete cached routes") }
-                    else if !model.canStartRoute { Text("Needs fresh precise watch GPS") }
-                }.navigationTitle("Watch route")
-            }.tint(accent)
+            // Freshness can expire without another location callback. Keep the
+            // presented picker current, just like the navigation page below it.
+            TimelineView(.periodic(from:.now,by:1)) { _ in
+                let canStart = model.canStartRoute
+                NavigationStack {
+                    List {
+                        ForEach(model.availableRoutes,id:\.renderID) { route in
+                            Button("Start \(route.name) · \(route.points.count) points") {
+                                if model.startRoute(route) { showRoutes = false }
+                            }.disabled(!canStart)
+                        }
+                        if model.availableRoutes.isEmpty { Text("No complete cached routes") }
+                        else if !canStart { Text("Needs fresh precise watch GPS") }
+                    }.navigationTitle("Watch route")
+                }.tint(accent)
+            }
         }
         #if DEBUG
         .onChange(of:model.fix?.timestamp) { _,_ in

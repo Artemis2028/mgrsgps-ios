@@ -126,3 +126,39 @@ Inspected evidence: `/tmp/mgrsgps-watch-route-native-resumed-wp2.png`,
 `/tmp/mgrsgps-watch-route-controls-active.json`. This closes these four foreground
 control-gesture checks on this simulator; Home/lock/permission transitions,
 positive compass integration and physical wrist delivery remain open.
+
+
+## Route picker freshness presentation
+
+A controlled native baseline on a fresh disposable 40 mm watchOS 27 simulator
+confirmed the picker still displayed an enabled Start after its last fake OS fix
+expired. The finite feed had ended; after 14 seconds without callbacks, no fresh
+GPS warning appeared. The action retained its freshness guard, so this was stale
+presentation rather than permission to navigate from an expired fix.
+
+The presented route picker now has the same one-second periodic TimelineView as
+the other location readouts. Its Start state and missing-fix message share one
+current eligibility value. No location owner, timer in the navigation model,
+route consent/progression policy, packet or persistence change is introduced.
+
+Both current watch simulator and unsigned phone/watch/widget Release builds pass.
+On the rebuilt native app: fresh fake OS callbacks enable Start; ending the feed
+and waiting 14 seconds disables it and shows Needs fresh precise watch GPS
+without any interaction or new callback. Restoring fake OS callbacks re-enables
+Start; a real CUA native tap opens active RT1WP1 / WP1 of 2. No consent, heading,
+progress or successful result injection. Cached synthetic route setup is not a
+phone-delivery claim. Core navigation source is unchanged from the 637-case pass.
+
+Evidence: `/tmp/mgrsgps-watch-route-freshness-baseline-stale.png`,
+`/tmp/mgrsgps-watch-route-freshness-fixed-fresh.png`,
+`/tmp/mgrsgps-watch-route-freshness-fixed-stale.png`,
+`/tmp/mgrsgps-watch-route-freshness-fixed-recovered.png`,
+`/tmp/mgrsgps-watch-route-freshness-fixed-started.png` and
+`/tmp/mgrsgps-watch-route-freshness-active.json`. This closes the picker-only
+freshness-display issue; background/permission/physical compass and haptics
+remain separate gates. The change is held locally while hosted 119 runs.
+
+All build/setup/feed/wait parents (98448, 70908, 35231, 82035, 42341, 33387,
+27637, 65311) are terminal/reaped. Fake GPS was cleared, and disposable E58D6BCE
+was shut down/deleted. Existing client/device state was untouched. No TAK
+connection, credentials, server/container/database, merge/publish/release action.
