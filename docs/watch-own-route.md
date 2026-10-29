@@ -257,3 +257,33 @@ Evidence: `/tmp/mgrsgps-watch-route-provider-core.log`, parent 81194 exited 0 an
 was reaped. No production code changed. This is core state-machine evidence,
 not native OS provider-toggle, compass, haptic or background execution evidence;
 those native/physical gates remain open. No server/device/network action.
+
+## Native GPS callback outage and recovery
+
+The current binary on a fresh disposable 40 mm watchOS 27 simulator followed a
+cached synthetic RT1 near 24 N / 54 E using native Choose route/Start controls.
+Fresh fake OS GPS showed RT1WP1 / WP1 of 2 and 308 m. Stopping the owned feed and
+clearing simulated location left the same original PID 2091 alive. After a
+14-second wait (capture showed 27-second-old GPS), the native screen retained
+WP1 but displayed a dash and Needs fresh precise fix. No route state or app
+consent was injected.
+
+A bounded fresh OS feed at WP1, without another Start or Resume gesture, advanced
+to RT1WP2 / WP2 of 2 with fresh 1-second GPS, 99 m and 090 degrees True. This
+matches transient callback-loss recovery: the prior explicit run remains armed,
+while stale samples withhold navigation. The later expired feed again withheld
+distance at WP2. No completion, compass or physical haptic delivery is claimed.
+
+This is loss of simulated callbacks and freshness recovery, **not** proof of an
+actual OS provider-disable or CLLocationManager error callback. The simulator's
+supported location clear command does not establish that separate error path.
+Permission loss remains the distinct native pause/explicit-Resume case above.
+
+Captures: `/tmp/mgrsgps-watch-route-outage-before.png`,
+`/tmp/mgrsgps-watch-route-outage-stale.png`,
+`/tmp/mgrsgps-watch-route-outage-recovered.png`; journal
+`/tmp/mgrsgps-watch-route-outage-active.json`. Setup 50638, feed 47287, outage
+wait 27600 and recovery feed 44937 exited 0 and were reaped before cleanup.
+Fake GPS was cleared and the fresh disposable device shut down/deleted; original
+client/device state was untouched. No production change or redundant rebuild.
+TAK off; current enrolled exchange/real renewal and physical/background gates open.
