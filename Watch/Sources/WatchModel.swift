@@ -338,7 +338,8 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         guard !wristLane.active && !wristStarting else { return "Stop wrist alerts first" }
         guard compassAvailable else { return "Watch compass unavailable" }
         guard usable(at:Date()) else { return "Needs fresh precise GPS" }
-        guard heading(at:Date()) != nil else { return "Needs calibrated watch compass" }
+        guard headingSample?.isFreshForSteering(nowUptime:ProcessInfo.processInfo.systemUptime) == true,
+              heading(at:Date()) != nil else { return "Needs calibrated watch compass" }
         return nil
     }
     var canStartSteering: Bool { steeringStartProblem == nil }
@@ -365,7 +366,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
         steering.validateTarget(snapshot.target)
         guard steering.active else { stopSteering(steering.status); return }
         guard foreground,usable(at:Date()),heading(at:Date()) != nil,let fix,let fixTimestampUptime,let headingSample,
-              headingSample.isFresh(nowUptime:ProcessInfo.processInfo.systemUptime) else {
+              headingSample.isFreshForSteering(nowUptime:ProcessInfo.processInfo.systemUptime) else {
             cancelSteeringPlayback(); steering.invalidateSensors(); return
         }
         let previous = steering.decision?.cue
@@ -393,6 +394,7 @@ final class WatchModel: NSObject, ObservableObject, CLLocationManagerDelegate, W
                 do { try await Task.sleep(for:delay) } catch { return }
                 guard let self,!Task.isCancelled,self.foreground,self.steering.active,
                       self.steeringGeneration == token,self.snapshot.target == self.steering.target,
+                      self.headingSample?.isFreshForSteering(nowUptime:ProcessInfo.processInfo.systemUptime) == true,
                       self.heading(at:Date()) != nil else { return }
                 WKInterfaceDevice.current().play(effect)
             }

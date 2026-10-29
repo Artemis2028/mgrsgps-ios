@@ -38,4 +38,13 @@ final class WatchHeadingSampleTests: XCTestCase {
         XCTAssertNil(WatchHeadingSample(trueDegrees:90,accuracy:1,sampleUptime:.nan,sessionUptime:99,nowUptime:101))
         XCTAssertNil(WatchHeadingSample(trueDegrees:90,accuracy:1,sampleUptime:100,sessionUptime:99,nowUptime:.nan))
     }
+    func testSteeringExpiresAtTwoSecondsWhileNumericReadoutCanRemainFresh() throws {
+        let sample = try XCTUnwrap(WatchHeadingSample(trueDegrees:90,accuracy:1,sampleUptime:100,sessionUptime:99,nowUptime:100))
+        XCTAssertTrue(sample.isFreshForSteering(nowUptime:102))
+        XCTAssertFalse(sample.isFreshForSteering(nowUptime:102.001))
+        XCTAssertTrue(sample.isFresh(nowUptime:104))
+        XCTAssertFalse(sample.isFreshForSteering(nowUptime:99))
+        XCTAssertFalse(sample.isFreshForSteering(nowUptime:.nan))
+    }
+
 }

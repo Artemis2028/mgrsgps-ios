@@ -294,3 +294,13 @@ OS fake GPS and no heading injection. Positive compass/haptic/Home-lock/physical
 Wear steering, route progression and offline/terrain gates remain open. See
 watch-own-steering.md. All local parents reaped/watch off/prefs restored/GPS clear.
 Held locally while115 validates5b37bd2; no cancelling push or duplicate dispatch.
+
+
+### Claude steering contract follow-up — 29 October 2026
+Read-only Android source confirms Claude's2s heading/10s GPS policy. Watch
+steering arming/decisions/queued effects now use2s; display-only5s values cannot
+authorize steering cues. All622 core cases and Release pass. Quiet watch homing
+has no heartbeat and does not claim Android's default30s reassurance or held-leg
+azimuth/corridor mode; these differences are explicit in watch-own-steering.md.
+No Android/protocol edits. Locally held while115 runs; full route progression
+accepting only complete cached geometry remains next independent implementation.

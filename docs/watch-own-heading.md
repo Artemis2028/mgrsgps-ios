@@ -68,3 +68,8 @@ individual callbacks. Both feed parents and both console launch parents are
 reaped; fake GPS cleared, watch off and original preferences restored byte-for-byte.
 No phone/server connection, real compass, touch/large-text lower-row or background
 steering validation claimed.
+
+
+Steering subsequently uses a stricter2s sensor deadline aligned with Android;
+the display-only5s retention cannot authorize steering or queued effects. See
+watch-own-steering.md for the coordinated contract and deliberate mode differences.

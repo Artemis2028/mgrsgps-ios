@@ -34,7 +34,7 @@ public struct WatchSteeringSession: Sendable {
         guard usable, now.isFinite, lastTime.map({ now >= $0 }) ?? true,
               NavigationFixPolicy.isUsable(lat:position.lat,lon:position.lon,accuracyMeters:accuracy,
                                           timestampUptime:fixTime,nowUptime:now),
-              let heading,heading.isFresh(nowUptime:now) else { invalidateSensors(); return nil }
+              let heading,heading.isFreshForSteering(nowUptime:now) else { invalidateSensors(); return nil }
         lastTime = now
         let nav = Geodesy.navInfo(fromLat:position.lat,fromLon:position.lon,toLat:target.lat,toLon:target.lon)
         let arrived = arrival.update(target:target.id,distance:nav.distanceMeters,accuracy:accuracy)

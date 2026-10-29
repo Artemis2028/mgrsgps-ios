@@ -2,7 +2,7 @@
 
 Navigate now offers explicit Start/Stop steering for the cached selected target.
 Consent is process-local and off by default. Start requires the foreground watch,
-a target, fresh precise own GPS and calibrated fresh own compass; missing sensor,
+a target, fresh precise own GPS and calibrated own compass no older than2s; missing sensor,
 target or active lane status explains disabled Start. It does not borrow phone
 location/heading/guidance, infer heading from movement or start a background owner.
 
@@ -31,7 +31,8 @@ and actual physical haptic distinction remain hardware gates.
 
 Validation:
 
-- All620 core cases pass, including seven new session cases: explicit consent/
+- All622 core cases pass, including seven session cases and two display-versus-steering
+  freshness boundary/reconfirmation cases: explicit consent/
   malformed target, turn hold/hysteresis/cadence, north wrap, invalid/stale sensors
   and fresh re-confirmation, target edit/clear/Stop, one-shot arrival/rearm and
   nonfinite/poor/future fixes/uptime rollback.
@@ -55,3 +56,23 @@ This owner steers to one selected target. Automatic watch route progression,
 background steering, independent Wear steering and offline/terrain transfer remain
 separate work. Native Home/lock/permission/positive-compass playback and physical
 orientation/battery/feel verification stay open. No enrolled TAK/server proof.
+
+
+## Android contract coordination
+
+Claude's29 October10:33:30 reply was verified read-only against Android
+GuidePolicy.kt and NavigationFixPolicy.kt. Both now use the2s steering-heading
+gate and10s GPS gate. The5s own-heading numeric display is separate and cannot
+authorize steering cues or allow queued playback after2s. The watch quiet homing
+mode intentionally has no periodic reassurance heartbeat; phone default is30s
+(options0/30/60). Phone also defaults to holding the leg azimuth until homing
+inside100m, with optional corridor intercept. This first watch mode homes on the
+current target throughout and does not implement that default lensatic/corridor
+mode. Those are explicit mode differences/open parity work, not shared-default
+claims. No Android source/protocol changes required.
+
+Two freshness cases verify2s inclusive/2.001s expired while display remains fresh,
+and that an expired-for-steering sample clears pending turn confirmation even
+when still eligible for numeric display. Final logs:
+/tmp/mgrsgps-watch-steering-two-second-core.log and
+/tmp/mgrsgps-watch-steering-two-second-release.log. Both parents exit0/reaped.

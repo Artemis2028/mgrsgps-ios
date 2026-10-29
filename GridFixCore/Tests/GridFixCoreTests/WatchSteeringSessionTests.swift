@@ -74,4 +74,14 @@ final class WatchSteeringSessionTests: XCTestCase {
                               heading:heading(0,121),now:121,usable:true))
         XCTAssertNil(s.decision)
     }
+    func testDisplayFreshHeadingCannotCarryPendingTurnAcrossSteeringExpiry() {
+        var s = WatchSteeringSession(); s.start(east)
+        XCTAssertNil(tick(&s,100))
+        let old = heading(0,100)
+        XCTAssertTrue(old.isFresh(nowUptime:103))
+        XCTAssertNil(s.update(position:.init(lat:0,lon:0),accuracy:5,fixTime:103,heading:old,now:103,usable:true))
+        XCTAssertNil(s.decision)
+        XCTAssertNil(tick(&s,104)); XCTAssertNil(tick(&s,108)); XCTAssertEqual(tick(&s,109),.right)
+    }
+
 }
