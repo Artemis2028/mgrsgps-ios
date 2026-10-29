@@ -4,21 +4,19 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
-Latest snapshot, 29 October: hosted121 on `905f92b` is terminal: field passes;
-map UI52total/50pass/1fail/1skip; library60total/59pass/1fail/0skip. Both complete
-artifacts are SHA256 verified. Map failed at the debug geometry-load gate tap
-after a successful manual pan; library failed native marker readiness after
-returning the camera. Native recordings scoped both interactions. Test-only
-follow-ups preserve original assertions, fixtures and time limits: one native
-retry for the idempotent debug gate, and SDK annotation readiness before dense
-native enumeration. Three map workflows pass locally (70.922s), and the full
-dense workflow passes (118.394s). See hosted121-map-triage.md and
-hosted121-library-triage.md. Hosted confirmation remains open. Prior120's Files
-stall root cause remains unresolved, although KML/KMZ passed121. No hang stacks
-were captured on121. Current641core/watchsimulator/unsigned phone-watch-widget
-Release results remain valid. Clock-safe watch UI and scoped40/44mm text checks
-are pushed; disarmed user40mm preview retained. TAK renewal/enrolled exchange
-and physical verification remain open; server stays off.
+Latest snapshot, 29 October: hosted122 on `0cf1542` is terminal: field passes;
+map52total/50pass/1fail/1skip; library60total/58pass/2fail/0skip. SHA256-verified
+finalized artifacts identify usable-options-rail expectations and the dense300s
+allowance. Prior manual-pan gate test passed. Test-only follow-ups require usable
+native rail rows and avoid replacing an already exact preserved library filter.
+Two map-tool cases pass locally194.825s; dense/search library cases pass158.535s
+(dense113.061s). Original fixtures, assertions and time limits remain. See
+hosted122-map-triage.md and hosted122-library-triage.md. Full hosted confirmation
+remains open. KML/KMZ passed121/122; prior120 Files-stall cause remains unresolved.
+No native hang stacks captured. Current641core/watchsimulator/unsigned
+phone-watch-widgetRelease results remain valid. Clock-safe watch UI is pushed;
+disarmed user40mm preview retained. TAK enrollment exchange/renewal and physical
+verification remain open; server stays off.
 
 Wear cached-terrain phone transfer, round/night readout, repeated delivery,
 missing-cache handling and phone-off recovery from retained SDK Assets now have

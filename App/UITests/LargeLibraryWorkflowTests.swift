@@ -54,7 +54,13 @@ final class LargeLibraryWorkflowTests: XCTestCase {
         func visibility(_ title: String) {
             tapNativeMenuItem(app.buttons["Waypoints"], revealing: app.textFields["library-search"])
             let search = app.textFields["library-search"]
-            replaceTextInput(search, "Point 0000"); search.typeText("\n")
+            // The library preserves this filter across the map round trip.
+            // Keep an already exact native value rather than opening Select
+            // All and rebuilding the same dense accessibility tree again.
+            if search.value as? String != "Point 0000" {
+                replaceTextInput(search, "Point 0000"); search.typeText("\n")
+            }
+            XCTAssertEqual(search.value as? String, "Point 0000")
             let actions = app.buttons["Actions for Point 0000"]
             XCTAssertTrue(actions.waitForExistence(timeout: 8)); tapNativeMenuItem(actions)
             tapNativeMenuItem(app.buttons[title])
