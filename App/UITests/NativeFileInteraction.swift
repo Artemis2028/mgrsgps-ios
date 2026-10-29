@@ -120,7 +120,12 @@ extension XCTestCase {
             // Files can ignore the first tap while finishing its
             // provider transition. Acknowledge dismissal before proceeding;
             // never tap again once the app's import review replaces Files.
-            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in !files.exists },object: nil)
+            // Files may keep its old collection in the accessibility tree
+            // after our import review is already visible. Acknowledge that
+            // concrete destination before attempting another document tap.
+            let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                app.staticTexts["interchange-counts"].exists || !files.exists
+            },object: nil)
             if XCTWaiter.wait(for: [dismissed],timeout: 10) == .completed { return }
         }
         XCTAssertFalse(files.exists,"The selected file did not leave the native picker: " + app.debugDescription,file: file,line: line)

@@ -8,9 +8,13 @@ final class LaneCueWorkflowTests:XCTestCase {
     }
     private func toggle(_ key:String,to value:Bool,in app:XCUIApplication) {
         let element=app.switches[key]
-        for _ in 0..<6 {if element.isHittable && element.frame.maxY < app.frame.maxY-50 {break};app.swipeUp()}
+        for _ in 0..<6 {if element.isHittable && element.frame.maxY < app.frame.maxY-120 {break};app.swipeUp()}
         XCTAssertTrue(element.isHittable,app.debugDescription)
-        if (element.value as? String == "1") != value {element.coordinate(withNormalizedOffset:.init(dx:0.9,dy:0.5)).tap()}
+        if (element.value as? String == "1") != value {
+            // Activate UIKit's switch rather than a point in the full Form row.
+            let control = element.switches.firstMatch
+            (control.exists ? control : element).tap()
+        }
         let expected=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@",value ? "1":"0"),object:element)
         XCTAssertEqual(XCTWaiter.wait(for:[expected],timeout:5),.completed,app.debugDescription)
     }
@@ -33,7 +37,7 @@ final class LaneCueWorkflowTests:XCTestCase {
         guideSettings(app)
         for key in ["lane-side-cues","lane-backstop-cue","lane-inside-tick","lane-gps-alert"] {
             let element=app.switches[key]
-            for _ in 0..<6 {if element.isHittable && element.frame.maxY < app.frame.maxY-50 {break};app.swipeUp()}
+            for _ in 0..<6 {if element.isHittable && element.frame.maxY < app.frame.maxY-120 {break};app.swipeUp()}
             XCTAssertEqual(element.value as? String,"0",app.debugDescription)
         }
         XCTAssertTrue(app.staticTexts["Every 10 min"].exists,app.debugDescription)
