@@ -32,10 +32,10 @@ final class GridOverlay {
     private(set) var lineCount: Int = 0
     var onChange: ((String, Int) -> Void)?
 
-    var enabled = true { didSet { applyColors() } }
-    var nightMode = false { didSet { applyColors() } }
+    var enabled = true { didSet { if enabled != oldValue { applyColors() } } }
+    var nightMode = false { didSet { if nightMode != oldValue { applyColors() } } }
     /// True over satellite imagery, where dark lines disappear.
-    var lightLines = false { didSet { applyColors() } }
+    var lightLines = false { didSet { if lightLines != oldValue { applyColors() } } }
 
     // Blackout, matching the Android overlay.
     private var lineColor: UIColor {

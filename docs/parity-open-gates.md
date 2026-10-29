@@ -4,6 +4,16 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
+Latest: hosted116 is terminal with map success, field405pass/3fail/9skip and
+library59pass/1fail. All4 failing workflows now have corresponding local iOS26.2
+passes with their original assertions/deadlines: route65.572s, resection121.730s,
+invalid-port form30.791s and dense map156.535s. Release passes. The native helper
+acknowledges the usable map rail; unchanged grid paint no longer re-applies styling.
+All owned parents are reaped, fake GPS cleared and test devices off. Full fresh CI
+confirmation remains pending; see hosted116-field-triage.md and
+hosted116-library-triage.md. Apple cached-terrain transfer/readout is implemented and
+paired-simulator acknowledged; physical queued-file and Wear transfer/UI remain open.
+
 | Area | Current evidence | Remaining work |
 | --- | --- | --- |
 | Phone route following, haptics, quiet-inside boundaries | Native owners and separate modes implemented; previous hosted107 dedicated background checks green; current local native/UI suites pass | Hosted111 field/dedicated background stages pass; physical locked-screen/GPS/haptic/battery checks |

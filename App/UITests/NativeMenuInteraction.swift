@@ -216,8 +216,11 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
     let toggle = app.buttons["map-options"]
     if toggle.waitForExistence(timeout: 5), toggle.value as? String != "Expanded" {
         toggle.tap()
-        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Expanded"), object: toggle)
-        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Map options did not acknowledge opening")
+        let rail = app.scrollViews["map-options-rail"]
+        // Hosted AX can retain the toggle's pre-animation value after the
+        // native rail is visibly open. Require the actual usable disclosure.
+        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in rail.exists && rail.isHittable }, object: rail)
+        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Map options did not reveal a usable rail")
     }
     let button = app.buttons[identifier]
     let rail = app.scrollViews["map-options-rail"]
