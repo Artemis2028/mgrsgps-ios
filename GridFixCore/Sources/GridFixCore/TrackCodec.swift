@@ -50,7 +50,7 @@ public enum TrackCodec {
         return count
     }
 
-    static func visitLocal(_ data: Data,point: (TrackPoint) throws -> Void) throws {
+    public static func visitLocal(_ data: Data,point: (TrackPoint) throws -> Void) throws {
         try visitLocalRows(data) { try point(parseLine($0)) }
     }
 

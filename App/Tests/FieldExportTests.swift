@@ -47,7 +47,7 @@ final class FieldExportTests: XCTestCase {
             catch { XCTAssertTrue(error.localizedDescription.contains("missing")) }
         }
         let csv = try await FieldExportPreparation.prepare(.library(.csv,[.init(name:"Independent point",lat:24,lon:54)],field.document))
-        XCTAssertTrue(String(decoding:csv.data,as:UTF8.self).contains("Independent point"))
+        XCTAssertTrue(try String(decoding:csv.data,as:UTF8.self).contains("Independent point"))
         XCTAssertEqual(field.document.tracks.count,1)
     }
     func testRestoringDeferredDocumentCopiesTrackIntoIndependentDestination() async throws {
@@ -114,11 +114,11 @@ final class FieldExportTests: XCTestCase {
         let bytes = Data(String(repeating: "24.0000000 54.0000000 0 -32768\n",count: count).utf8)
         let track = Backup.TrackMeta(id: id,name: "Long CAFÉ & patrol",startedAt: 0,endedAt: 1,distanceM: 0,pointCount: count)
         let result = try await FieldExportPreparation.prepare(.track(track,bytes))
-        let counter = ExportedTrackPointCounter(),parser = XMLParser(data: result.data)
+        let counter = ExportedTrackPointCounter(),parser = XMLParser(data: try result.data)
         parser.delegate = counter
         XCTAssertTrue(parser.parse()); XCTAssertEqual(counter.points,count)
         XCTAssertEqual(counter.tracks,1)
-        XCTAssertTrue(String(decoding: result.data,as: UTF8.self).contains("Long CAFÉ &amp; patrol"))
+        XCTAssertTrue(try String(decoding: result.data,as: UTF8.self).contains("Long CAFÉ &amp; patrol"))
         XCTAssertThrowsError(try TrackCodec.decode(bytes),"External backup decoder remains bounded")
     }
     private func fixture() throws -> Backup.Document {
@@ -154,7 +154,7 @@ final class FieldExportTests: XCTestCase {
                 // These formats encode a finished track as geographic linework.
                 XCTAssertEqual(preview.document.graphics.count,3); XCTAssertTrue(preview.document.tracks.isEmpty)
             }
-            XCTAssertEqual(FieldExportDocumentFile(result).data,result.data)
+            XCTAssertEqual(try FieldExportDocumentFile(result).data,try result.data)
             XCTAssertEqual(FieldExportDocumentFile(result).contentType.preferredFilenameExtension,format == .atak ? "zip" : format.rawValue)
         }
     }
@@ -229,7 +229,11 @@ final class FieldExportTests: XCTestCase {
         XCTAssertFalse(transfer.start(.library(.csv,[],source)) { _ in XCTFail("Busy start accepted") })
         let cancelled = transfer.cancel()
         XCTAssertTrue(transfer.start(.library(.csv,source.waypoints,source)) { result in
-            if case let .success(output) = result { XCTAssertEqual(output.format,.csv); XCTAssertTrue(String(decoding: output.data,as: UTF8.self).contains("Hidden point")) }
+            if case let .success(output) = result {
+                XCTAssertEqual(output.format,.csv)
+                do { let bytes = try output.data; XCTAssertTrue(String(decoding:bytes,as:UTF8.self).contains("Hidden point")) }
+                catch { XCTFail(error.localizedDescription) }
+            }
             else { XCTFail("New export failed") }
             completed.fulfill()
         })

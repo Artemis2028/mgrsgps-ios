@@ -16,8 +16,8 @@ final class ProtectedFileIntegrationTests: XCTestCase {
             let sealed = try await FieldExportPreparation.protect(plain,password: "Nørth 雪 🧭")
             XCTAssertTrue(sealed.protected); XCTAssertEqual(sealed.filename,plain.completeFilename+".mgrsgps")
             let file = FieldExportDocumentFile(sealed)
-            XCTAssertEqual(file.contentType,.gridFixProtectedBackup); XCTAssertTrue(BackupCrypto.isSealed(file.data))
-            XCTAssertNotEqual(file.data,plain.data)
+            XCTAssertEqual(file.contentType,.gridFixProtectedBackup); XCTAssertTrue(try BackupCrypto.isSealed(file.data))
+            XCTAssertNotEqual(try file.data,try plain.data)
             let url = root.appendingPathComponent("renamed-"+format.rawValue+".zip")
             try file.data.write(to: url)
             XCTAssertThrowsError(try InterchangeFileReader.preview(url,format: nil,knownFolders: [])) { error in
@@ -58,7 +58,10 @@ final class ProtectedFileIntegrationTests: XCTestCase {
         let retry = FieldExportTransfer(), done = expectation(description: "retry")
         XCTAssertTrue(retry.start(request,password: "test password") { result in
             guard case let .success(value) = result else { XCTFail("Retry failed"); done.fulfill(); return }
-            XCTAssertTrue(value.protected); XCTAssertTrue(BackupCrypto.isSealed(value.data)); done.fulfill()
+            XCTAssertTrue(value.protected)
+            do { let bytes = try value.data; XCTAssertTrue(BackupCrypto.isSealed(bytes)) }
+            catch { XCTFail(error.localizedDescription) }
+            done.fulfill()
         })
         await fulfillment(of: [done],timeout: 5)
     }

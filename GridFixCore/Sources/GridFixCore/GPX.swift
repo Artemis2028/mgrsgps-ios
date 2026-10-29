@@ -7,20 +7,8 @@ public enum GPX {
     public static let milgpsNamespace = "https://milgps.com/gpx/v1"
 
     public static func build(waypoints: [Waypoint], routes: [Backup.Graphic] = [], tracks: [Track] = []) -> String {
-        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" creator=\"MGRS GPS\" xmlns=\"\(namespace)\" xmlns:milgps=\"\(milgpsNamespace)\">\n"
-        for waypoint in waypoints {
-            xml += "<wpt \(coordinate(waypoint.lat, waypoint.lon))>"
-            if let altitude = waypoint.metadata.elevationMeters, altitude.isFinite { xml += "<ele>\(number(altitude))</ele>" }
-            if let time = waypoint.metadata.timestampMillis { xml += "<time>\(timestamp(time))</time>" }
-            xml += "<name>\(escape(waypoint.name))</name>"
-            if waypoint.metadata.color != nil || waypoint.metadata.milgpsSymbolCode != nil {
-                xml += "<extensions>"
-                if let code = waypoint.metadata.milgpsSymbolCode { xml += "<milgps:symbolcode>\(code)</milgps:symbolcode>" }
-                if let color = waypoint.metadata.color { xml += "<milgps:color>\(escape(color))</milgps:color>" }
-                xml += "</extensions>"
-            }
-            xml += "</wpt>\n"
-        }
+        var xml = header
+        for waypoint in waypoints { xml += waypointXML(waypoint) }
         for route in routes where route.type == "route" {
             xml += "<rte><name>\(escape(route.name))</name>"
             for point in route.points { xml += "<rtept \(coordinate(point.lat, point.lon))/>" }
@@ -37,6 +25,67 @@ public enum GPX {
             xml += "</trkseg></trk>\n"
         }
         return xml + "</gpx>\n"
+    }
+
+    private static var header: String { "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx version=\"1.1\" creator=\"MGRS GPS\" xmlns=\"\(namespace)\" xmlns:milgps=\"\(milgpsNamespace)\">\n" }
+    private static func waypointXML(_ waypoint: Waypoint) -> String {
+        var xml = ""
+        xml += "<wpt \(coordinate(waypoint.lat, waypoint.lon))>"
+        if let altitude = waypoint.metadata.elevationMeters, altitude.isFinite { xml += "<ele>\(number(altitude))</ele>" }
+        if let time = waypoint.metadata.timestampMillis { xml += "<time>\(timestamp(time))</time>" }
+        xml += "<name>\(escape(waypoint.name))</name>"
+        if waypoint.metadata.color != nil || waypoint.metadata.milgpsSymbolCode != nil {
+            xml += "<extensions>"
+            if let code = waypoint.metadata.milgpsSymbolCode { xml += "<milgps:symbolcode>\(code)</milgps:symbolcode>" }
+            if let color = waypoint.metadata.color { xml += "<milgps:color>\(escape(color))</milgps:color>" }
+            xml += "</extensions>"
+        }
+        xml += "</wpt>\n"
+        return xml
+    }
+
+    /// A source visit must validate its complete input before returning. Output
+    /// is provisional until write returns; callers discard partial files on error.
+    public struct TrackStream: Sendable {
+        public let name: String
+        let visit: @Sendable (_ point: (TrackPoint) throws -> Void) throws -> Void
+        public init(name: String,visit: @escaping @Sendable (_ point: (TrackPoint) throws -> Void) throws -> Void) {
+            self.name = name; self.visit = visit
+        }
+    }
+    /// Whole local logs have no import count/byte ceiling. Bound the writer's
+    /// buffer, retain exact point order/metadata and check cancellation throughout.
+    public static func write(waypoints: [Waypoint],routes: [Backup.Graphic] = [],tracks: [TrackStream] = [],
+                             sink: (Data) throws -> Void) throws {
+        try Task.checkCancellation()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        var buffer = ""
+        func emit(_ text: String) throws {
+            try Task.checkCancellation()
+            buffer += text
+            if buffer.utf8.count >= 64 * 1024 { try sink(Data(buffer.utf8)); buffer = "" }
+        }
+        try emit(header)
+        for waypoint in waypoints { try emit(waypointXML(waypoint)) }
+        for route in routes where route.type == "route" {
+            try emit("<rte><name>\(escape(route.name))</name>")
+            for point in route.points { try emit("<rtept \(coordinate(point.lat,point.lon))/>") }
+            try emit("</rte>\n")
+        }
+        for track in tracks {
+            try emit("<trk><name>\(escape(track.name))</name><trkseg>")
+            try track.visit { point in
+                var xml = "<trkpt \(coordinate(point.lat,point.lon))>"
+                if let altitude = point.altitudeMeters,altitude.isFinite { xml += "<ele>\(number(altitude))</ele>" }
+                if point.time > 0 { xml += "<time>\(formatter.string(from:Date(timeIntervalSince1970:Double(point.time)/1000)))</time>" }
+                try emit(xml + "</trkpt>")
+            }
+            try emit("</trkseg></trk>\n")
+        }
+        try emit("</gpx>\n")
+        if !buffer.isEmpty { try sink(Data(buffer.utf8)) }
+        try Task.checkCancellation()
     }
 
     public struct Track: Sendable {

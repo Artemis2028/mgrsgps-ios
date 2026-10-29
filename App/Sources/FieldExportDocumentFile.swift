@@ -6,15 +6,16 @@ import UniformTypeIdentifiers
 /// modifiers on the same view can suppress one another on older SwiftUI.
 struct FieldExportDocumentFile: FileDocument {
     static var readableContentTypes: [UTType] { [.pdf,.data,.zip,.gridFixProtectedBackup,.gridFixGPX,.commaSeparatedText,.gridFixGeoJSON,.gridFixKML,.gridFixKMZ] }
-    var data: Data
+    var payload: FieldExportPayload
+    var data: Data { get throws { try payload.readData() } }
     var contentType: UTType
     var filename: String
     init(data: Data,contentType: UTType,filename: String = "gridfix") {
-        self.data = data; self.contentType = contentType; self.filename = filename
+        self.payload = .bytes(data); self.contentType = contentType; self.filename = filename
     }
     init(_ prepared: PreparedFieldExport) {
         if prepared.protected {
-            self.init(data: prepared.data,contentType: .gridFixProtectedBackup,filename: prepared.filename); return
+            payload = prepared.payload; contentType = .gridFixProtectedBackup; filename = prepared.filename; return
         }
         let type: UTType
         switch prepared.format {
@@ -25,13 +26,13 @@ struct FieldExportDocumentFile: FileDocument {
         case .kmz: type = .gridFixKMZ
         case .atak: type = .zip
         }
-        self.init(data: prepared.data,contentType: type,filename: prepared.filename)
+        payload = prepared.payload; contentType = type; filename = prepared.filename
     }
     init(configuration: ReadConfiguration) throws {
         guard let bytes = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
-        data = bytes; contentType = configuration.contentType; filename = configuration.file.preferredFilename ?? "gridfix"
+        payload = .bytes(bytes); contentType = configuration.contentType; filename = configuration.file.preferredFilename ?? "gridfix"
     }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: try data) }
 }
 
 /// A provider receives a complete on-disk file, never a document that SwiftUI
@@ -41,17 +42,34 @@ final class PreparedNativeExport: @unchecked Sendable {
     let url: URL
     private init(directory: URL,url: URL) { self.directory = directory; self.url = url }
     static func prepare(data: Data,filename: String,extension ext: String,root: URL = FileManager.default.temporaryDirectory) throws -> PreparedNativeExport {
+        try prepare(filename:filename,extension:ext,root:root) { url in
+            try data.write(to:url,options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+    static func prepare(payload: FieldExportPayload,filename: String,extension ext: String,root: URL = FileManager.default.temporaryDirectory) throws -> PreparedNativeExport {
+        switch payload {
+        case .bytes(let data): return try prepare(data:data,filename:filename,extension:ext,root:root)
+        case .file(let source):
+            return try withExtendedLifetime(source) {
+                try prepare(filename:filename,extension:ext,root:root) { url in
+                    try FileManager.default.copyItem(at:source.url,to:url)
+                    try FileManager.default.setAttributes([.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication],ofItemAtPath:url.path)
+                }
+            }
+        }
+    }
+    static func prepare(filename: String,extension ext: String,root: URL = FileManager.default.temporaryDirectory,write: (URL) throws -> Void) throws -> PreparedNativeExport {
         try Task.checkCancellation()
-        let directory = root.appendingPathComponent("gridfix-export-"+UUID().uuidString,isDirectory: true)
-        try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
+        let directory = root.appendingPathComponent("gridfix-export-"+UUID().uuidString,isDirectory:true)
+        try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         do {
-            let name = filename.replacingOccurrences(of: "[/\\\\\\p{Cc}]",with: "_",options: .regularExpression)
+            let name = filename.replacingOccurrences(of:"[/\\\\\\p{Cc}]",with:"_",options:.regularExpression)
             let safe = name.isEmpty || name == "." || name == ".." ? "gridfix" : name
             let url = directory.appendingPathComponent(safe).appendingPathExtension(ext)
-            try data.write(to: url,options: [.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+            try write(url)
             try Task.checkCancellation()
-            return .init(directory: directory,url: url)
-        } catch { try? FileManager.default.removeItem(at: directory); throw error }
+            return .init(directory:directory,url:url)
+        } catch { try? FileManager.default.removeItem(at:directory); throw error }
     }
     func discard() { Self.remove(directory) }
     private static func remove(_ directory: URL) {
@@ -91,8 +109,8 @@ struct FieldFileExportPresentation: View {
             }
             .task(id: approvedName) {
                 guard let name = approvedName,file == nil,!completed else { return }
-                let bytes = document.data,ext = document.contentType.preferredFilenameExtension ?? "data"
-                let worker = Task.detached(priority: .userInitiated) { try PreparedNativeExport.prepare(data: bytes,filename: name,extension: ext) }
+                let payload = document.payload,ext = document.contentType.preferredFilenameExtension ?? "data"
+                let worker = Task.detached(priority: .userInitiated) { try PreparedNativeExport.prepare(payload:payload,filename:name,extension:ext) }
                 do {
                     let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
                     guard !Task.isCancelled else { prepared.discard(); return }

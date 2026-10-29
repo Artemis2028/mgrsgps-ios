@@ -13,11 +13,48 @@ enum FieldExportRequest: Sendable {
     }
 }
 
+enum FieldExportPayload: Sendable {
+    case bytes(Data)
+    case file(PreparedNativeExport)
+    var byteCount: UInt64 {
+        get throws {
+            switch self {
+            case .bytes(let data): return UInt64(data.count)
+            case .file(let file):
+                return try withExtendedLifetime(file) {
+                    let values = try file.url.resourceValues(forKeys:[.isRegularFileKey,.fileSizeKey])
+                    guard values.isRegularFile == true,let size = values.fileSize,size >= 0 else { throw CocoaError(.fileReadCorruptFile) }
+                    return UInt64(size)
+                }
+            }
+        }
+    }
+    func readData() throws -> Data {
+        try Task.checkCancellation()
+        switch self {
+        case .bytes(let data): return data
+        case .file(let file):
+            return try withExtendedLifetime(file) {
+                let data = try Data(contentsOf:file.url)
+                try Task.checkCancellation()
+                return data
+            }
+        }
+    }
+}
+
 struct PreparedFieldExport: Sendable {
-    let data: Data
+    let payload: FieldExportPayload
     let format: TextInterchangeFormat
     let filename: String
     var protected = false
+    var data: Data { get throws { try payload.readData() } }
+    init(data: Data,format: TextInterchangeFormat,filename: String,protected: Bool = false) {
+        payload = .bytes(data); self.format = format; self.filename = filename; self.protected = protected
+    }
+    init(file: PreparedNativeExport,format: TextInterchangeFormat,filename: String) {
+        payload = .file(file); self.format = format; self.filename = filename
+    }
     var completeFilename: String {
         let ext = format == .atak ? "zip" : format.rawValue
         return filename + "." + ext
@@ -26,7 +63,7 @@ struct PreparedFieldExport: Sendable {
 
 enum FieldExportPreparation {
     typealias Builder = @Sendable (FieldExportRequest) throws -> PreparedFieldExport
-    static func prepare(_ request: FieldExportRequest,builder: @escaping Builder = { try build($0) }) async throws -> PreparedFieldExport {
+    static func prepare(_ request: FieldExportRequest,builder: @escaping Builder = { try buildForPresentation($0) }) async throws -> PreparedFieldExport {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
             let result = try builder(request)
@@ -36,18 +73,54 @@ enum FieldExportPreparation {
         return try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
     }
 
-    static func build(_ request: FieldExportRequest) throws -> PreparedFieldExport {
-        try Task.checkCancellation()
-        let data: Data, filename: String
+    private static func gpxFilename(_ request: FieldExportRequest) -> String {
+        let name: String
+        switch request {
+        case .library: return "gridfix"
+        case .track(let track,_): name = track.name
+        case .savedTrack(let source): name = source.track.name
+        }
+        let safe = name.replacingOccurrences(of:"[^A-Za-z0-9 _-]",with:"_",options:.regularExpression).trimmingCharacters(in:.whitespaces)
+        return safe.isEmpty ? "track" : safe
+    }
+    private static func writeGPX(_ request: FieldExportRequest,sink: (Data) throws -> Void) throws {
         switch request {
         case .savedTrack(let source):
-            return try build(.track(source.track,source.readBytes()))
-        case let .track(track,bytes):
-            let points = try TrackCodec.decodeLocal(bytes)
-            try Task.checkCancellation()
-            data = Data(GPX.build(waypoints: [],tracks: [.init(name: track.name,points: points)]).utf8)
-            let safe = track.name.replacingOccurrences(of: "[^A-Za-z0-9 _-]",with: "_",options: .regularExpression).trimmingCharacters(in: .whitespaces)
-            filename = safe.isEmpty ? "track" : safe
+            try GPX.write(waypoints:[],tracks:[.init(name:source.track.name) { try source.visitPoints($0) }],sink:sink)
+        case .track(let track,let bytes):
+            try GPX.write(waypoints:[],tracks:[.init(name:track.name) { try TrackCodec.visitLocal(bytes,point:$0) }],sink:sink)
+        case .library(let format,let points,let document):
+            guard format == .gpx else { throw CocoaError(.fileWriteUnknown) }
+            let streams = document.tracks.map { track in
+                GPX.TrackStream(name:track.name) { try document.visitTrackPoints(track.id,point:$0) }
+            }
+            try GPX.write(waypoints:points,routes:document.graphics,tracks:streams,sink:sink)
+        }
+    }
+    static func buildForPresentation(_ request: FieldExportRequest,root: URL = FileManager.default.temporaryDirectory) throws -> PreparedFieldExport {
+        guard request.format == .gpx else { return try build(request) }
+        let name = gpxFilename(request)
+        let file = try PreparedNativeExport.prepare(filename:name,extension:"gpx",root:root) { url in
+            guard FileManager.default.createFile(atPath:url.path,contents:nil,attributes:[.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication]) else { throw CocoaError(.fileWriteUnknown) }
+            let handle = try FileHandle(forWritingTo:url)
+            do {
+                try writeGPX(request) { try handle.write(contentsOf:$0) }
+                try handle.synchronize(); try handle.close()
+            } catch { try? handle.close(); throw error }
+        }
+        return .init(file:file,format:.gpx,filename:name)
+    }
+
+    static func build(_ request: FieldExportRequest) throws -> PreparedFieldExport {
+        try Task.checkCancellation()
+        if request.format == .gpx {
+            var data = Data()
+            try writeGPX(request) { data.append($0) }
+            return .init(data:data,format:.gpx,filename:gpxFilename(request))
+        }
+        let data: Data, filename: String
+        switch request {
+        case .savedTrack,.track: preconditionFailure("GPX handled above")
         case let .library(format,points,document):
             filename = format == .atak ? "gridfix-datapackage" : "gridfix"
             if format == .csv { data = Data(CSV.build(points).utf8) }
@@ -59,7 +132,7 @@ enum FieldExportPreparation {
                 }
                 try Task.checkCancellation()
                 switch format {
-                case .gpx: data = Data(GPX.build(waypoints: points,routes: document.graphics,tracks: tracks).utf8)
+                case .gpx: preconditionFailure("GPX handled above")
                 case .kml: data = Data(KML.build(waypoints: points,graphics: document.graphics,tracks: tracks).utf8)
                 case .geojson: data = Data(try GeoJSON.build(waypoints: points,graphics: document.graphics,tracks: tracks).utf8)
                 case .kmz: data = try KMZ.build(waypoints: points,graphics: document.graphics,tracks: tracks)
@@ -73,6 +146,9 @@ enum FieldExportPreparation {
 
     static func protect(_ prepared: PreparedFieldExport,password: String) async throws -> PreparedFieldExport {
         let worker = Task.detached(priority: .userInitiated) {
+            guard try prepared.payload.byteCount <= UInt64(ProtectedFiles.maximumFileBytes) else {
+                throw BackupError.notABackup("Too large to protect (over 16 MB). Export fewer items, or without a password.")
+            }
             let sealed = try ProtectedFiles.seal(name: prepared.completeFilename,bytes: prepared.data,password: password)
             try Task.checkCancellation()
             return PreparedFieldExport(data: sealed,format: prepared.format,filename: prepared.completeFilename+".mgrsgps",protected: true)
