@@ -198,3 +198,47 @@ route-pause path. Physical lock/wrist behavior, permission/provider interruption
 positive compass steering and background route execution remain separate gates.
 CI119 continues on 40e7e63; this report and picker fix stay local to preserve it.
 TAK remains off; current enrolled exchange/real renewal remain open.
+
+
+## Native location permission revoke/regrant
+
+The current watch simulator binary on a fresh disposable 40 mm watchOS 27
+device passed one foreground route permission-loss round. Setup supplied only
+a synthetic cached complete RT1 near 24 N / 54 E, fake OS GPS and the simulator's
+real location permission. Native Choose route/Start taps opened RT1WP1 / WP1 of 2.
+No app permission, progress, consent, foreground, heading or success injection.
+
+The actual `simctl privacy revoke location` operation left the original PID 91942
+alive. Without a user Pause gesture, the route became Paused · resume route,
+retained RT1WP1 and withheld distance. This is same-process authorization-change
+evidence, not a process-death/relaunch substitute. After native permission grant
+and six seconds of fresh fake GPS at WP1, the route remained paused at WP1 with
+0 m / fresh 1-second GPS. Permission and sensor recovery did not resume or advance
+it automatically. Native controls offered Resume and Resume route first for
+steering. A subsequent explicit native Resume changed the control to Pause and
+a new callback advanced RT1WP2 / WP2 of 2. The finite feed later expired and the
+summary correctly withheld distance; no completion or positive compass/haptic
+delivery is claimed.
+
+The first finite feed expired before the first Start attempt; the picker refused
+it with the new freshness warning. That attempt is not positive active-route
+evidence. A corrected finite feed established actual Start before permission
+revocation. Another bounded fresh feed enabled the final explicit Resume; none
+of these supplied navigation state directly.
+
+Evidence: `/tmp/mgrsgps-watch-route-permission-before.png`,
+`/tmp/mgrsgps-watch-route-permission-revoked.png`,
+`/tmp/mgrsgps-watch-route-permission-regranted.png`,
+`/tmp/mgrsgps-watch-route-permission-resume-fresh.png`,
+`/tmp/mgrsgps-watch-route-permission-resumed-control.png`,
+`/tmp/mgrsgps-watch-route-permission-resumed-wp2.png` and
+`/tmp/mgrsgps-watch-route-permission-active.json`.
+
+Setup 54634, finite feeds 22085/47464/5946, revoke 13359 and regrant 86289 are
+terminal/reaped. Fake GPS was cleared and disposable 2E00DDAB shut down/deleted;
+existing simulators and original client state were untouched. No production code
+change was needed; prior core/build checks were not repeated for this report.
+Provider-only interruption, background owners, physical lock/compass/GPS/haptic
+behavior and other permission/process paths remain open. CI119 still runs on
+40e7e63; this report stays local. TAK off; current enrolled exchange/real renewal
+remain open, with no server/container/database or credential action.
