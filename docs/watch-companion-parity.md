@@ -154,3 +154,11 @@ This uses the already built binary; no duplicate build or injected sensor state.
 Setup parent86828 exited0/reaped, then only the fresh 44 mm device B6B7CF3A was
 cleared/shut down/deleted. Rafael's 40 mm preview was left intact. Physical bezel,
 VoiceOver, other pages/sizes and other text categories remain separate checks.
+
+The smallest 40 mm device was separately checked at accessibility3 using the same
+binary: Choose route wraps into two complete lines and stays below the clock.
+Lower controls extend below the viewport and require normal scrolling; this is
+not a claim that all controls fit simultaneously. Capture:
+`/tmp/mgrsgps-watch-clock-40-large.png`. Parent81655 exited0/reaped; only fresh
+7297A230 QA device was cleared/shut down/deleted. The user preview was untouched.
+No additional build, production change, fake position or test consent was needed.
