@@ -11,6 +11,16 @@ final class LargeLibraryWorkflowTests: XCTestCase {
         func verify() {
             let map = app.otherElements.matching(NSPredicate(format: "label == %@", "Map")).firstMatch
             XCTAssertTrue(map.waitForExistence(timeout: 10))
+            // A fresh map can exist before the SDK publishes its annotations.
+            // Wait for the dense fixture's observable SDK count, not a delay.
+            let populated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                let value = map.value as? String ?? ""
+                guard let range = value.range(of: #"[0-9,]+ annotation\(s\)"#, options: .regularExpression),
+                      let text = value[range].split(separator: " ").first,
+                      let count = Int(text.replacingOccurrences(of: ",", with: "")) else { return false }
+                return count > 100
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [populated], timeout: 10), .completed)
             let value = map.value as? String ?? ""
             let range = value.range(of: #"[0-9,]+ annotation\(s\)"#, options: .regularExpression)
             XCTAssertNotNil(range, value)
@@ -24,7 +34,15 @@ final class LargeLibraryWorkflowTests: XCTestCase {
         func go(_ grid: String) {
             mapTool(app, "map-goto").tap()
             let input = app.textFields["map-goto-grid"]
-            XCTAssertTrue(input.waitForExistence(timeout: 5)); replaceTextInput(input, grid)
+            XCTAssertTrue(input.waitForExistence(timeout: 5))
+            // Go to pre-fills the current zone/square. Complete that visible
+            // prefix like a user instead of invoking selection menus over the
+            // dense map's expensive accessibility tree. Keep exact input proof.
+            let prefix = input.value as? String ?? ""
+            if !prefix.isEmpty, grid.hasPrefix(prefix) {
+                input.tap(); input.typeText(String(grid.dropFirst(prefix.count)))
+                XCTAssertEqual(input.value as? String, grid)
+            } else { replaceTextInput(input, grid) }
             app.buttons["map-goto-keyboard-done"].tap(); app.buttons["map-goto-show"].tap()
             XCTAssertTrue(app.buttons["map-options"].waitForExistence(timeout: 8))
         }

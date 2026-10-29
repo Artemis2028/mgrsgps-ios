@@ -4,17 +4,16 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
-Latest snapshot, 29 October: hosted 117 is terminal with map success, field
-409 passed / 2 failed / 9 skipped and library 57 passed / 3 failed. Each of its
-five final failures has a corresponding local pass with the original assertions
-and deadlines; see the hosted117 triage reports below. Hosted 118 is now terminal on `bc563bd`: map and field pass; library has 59
-passes / one dense-map 300-second timeout / zero skips. The SHA-verified result
-bundle is triaged in hosted118-library-triage.md; the recording attachment is
-unavailable, and no video conclusion is claimed.
-Hosted 119 on `40e7e63` is active: the field shard has passed; map and library
-are still running. A full hosted pass is still pending. The native local renewal
-test is prepared and offline-validated on that pushed revision; its live case has
-only skipped. Preserve the running jobs by holding newer local commits.
+Latest snapshot, 29 October: hosted119 on `40e7e63` is terminal. Field and map
+shards pass (map UI:52 total,51 passed,1 skipped). Library has60 total:59 passed,
+one dense-map300-second timeout,zero skips. The complete library ZIP is SHA256
+verified; see hosted119-library-triage.md. The full dense follow-up now passes
+locally in121.051s with original assertions/deadlines, after using the Go to
+form's existing prefix and waiting for SDK annotation readiness. A full hosted
+pass still needs confirmation on the combined follow-up. Current production
+passes641core cases and watchsimulator/unsigned phone-watch-widgetRelease.
+The native renewal harness remains offline-validated only; no private fixture
+was read or staged and no live renewal/enrolled exchange is claimed.
 
 Wear cached-terrain phone transfer, round/night readout, repeated delivery,
 missing-cache handling and phone-off recovery from retained SDK Assets now have
@@ -507,3 +506,14 @@ OS provider-error event; compass/haptic/background/physical checks remain open.
 TAK remains OFF; current enrolled exchange and real renewal need coordinated GO.
 Routing side-project spec reviews stay in the Claude handoff, with no routing
 code/docs/fixtures added to the current iOS or Wear branches.
+
+### Hosted119 terminal triage and follow-up
+
+Field/map pass; library59/60 has only the dense300s timeout. SHA-verified complete
+bundle and native activities identify accumulated Go to selection/input latency.
+Prefix completion and SDK annotation readiness preserve all count, visibility,
+far/return camera and night assertions; full native case passes121.051s.
+See hosted119-library-triage.md. All local parents reaped; fakeGPS cleared and
+fresh disposable phone deleted. Latest watch picker/terrain repairs and native
+lifecycle reports are validated and ready for a single combined follow-up push.
+TAK remains off; real enrolled exchange/renewal and physical gates remain open.
