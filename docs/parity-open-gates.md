@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners and native GPS runtime on both platforms; watchOS optional background location/system notices now implemented locally with597 core cases and repaired Release passing; named sides/backstop, notification opening/Stop and default-mode rearm verified on40mm | Wear background owner, independent heading/route guidance; physical GPS interruption, notification delivery, haptic distinction and battery. See watch-background-alerts.md |
+| Independent watch guidance | Foreground lane owners and native GPS runtime on both platforms; watchOS optional background location/system notices now implemented locally with597 core cases and repaired Release passing; named sides/backstop, notification opening/Stop and default-mode rearm verified on40mm | Wear background owner now implemented/pushed with native component runtime; new Wear toggle/notification visual checks, independent heading/route guidance, physical GPS interruption, notification delivery, haptic distinction and battery. See watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -99,3 +99,25 @@ pass. Owned pair shut down, fake locations cleared and preferences restored
 byte-for-byte. Wear background work and physical interruption/lock/haptic/battery
 gates remain open. Hosted113 field is now successful; map/library remain live.
 No push cancelled the run; local KML/GeoJSON/watch changes are not in that head.
+
+
+Wear4faf220 is pushed to its existing draft PR. Optional background lane alerts
+now use an explicit location foreground service with its own native GPS, cadence,
+freshness clock, bounded wake ownership and run-scoped notification Stop. All46
+Wear unit cases, both APKs and Release lint pass; native API34 component runtime
+passes unassisted in55.583s. System UI is top resumed while real synthetic GPS
+callbacks drive both sides/bent backstop; finished vibrator waveforms, quiet
+return/stale holds, recovery, Stop, old-action isolation and scene deletion are
+verified. This is not a visual toggle/notification or physical-wrist pass.
+See the Wear checkout's docs/watch-background-lanes.md. Owned emulator is off,
+original preferences/notification grant/mock-location mode restored and every
+parent reaped. No TAK server or phone connection.
+Hosted113/run40807863444 is now terminal: field/map pass, library has three
+failures in42 UI cases: dense-library map-options acknowledgement, filtered
+Select All showing0 rather than3 selected, and opening the complete checkpoint
+splits screen. Failed stage log retained at
+/tmp/mgrsgps-ci113-library-failed.log. Library artifact12873327051 is being
+retrieved for triage; expected SHA-256 is
+255d295dbfeb04e8dbac24beac434a341ad2af9ddf8f2ea83d5859946c0a6f32.
+KML1370c82, GeoJSONded37ba and watche84e090 remain local while these failures
+are inspected; no full hosted-green claim and no redundant rerun.

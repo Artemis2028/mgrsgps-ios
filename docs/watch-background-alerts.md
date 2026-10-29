@@ -62,5 +62,9 @@ Validation:
   Release: /tmp/mgrsgps-watch-background-response-fix-release.log. All parents
   are terminal. Held locally while hosted113 validates pushed a54ac75.
 
-Wear OS's matching background owner is still implementation work. Independent
+Wear OS's matching background owner is now implemented in Wear4faf220 and passes
+a real native API34 component runtime (55.583s), including background GPS/cadence,
+notification Stop and stale/quiet holds. Its visual toggle/notification and
+physical-wrist checks remain open; see the Wear checkout's
+docs/watch-background-lanes.md. Independent
 heading/route guidance and offline/terrain transfer remain separate open work.
