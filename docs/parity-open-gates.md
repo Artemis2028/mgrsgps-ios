@@ -373,3 +373,19 @@ geometry/zoom assertions intact. Xcode exit0, captures inspected, feed reaped/GP
 cleared/owned phone off. Product drawing/geometry unchanged. See
 hosted115-map-triage.md. Library115 remains live; no full-hosted-green claim or
 cancelling push.
+
+
+### Hosted115 library timeout follow-up — 29 October 2026
+
+All115 jobs are terminal failure on5b37bd2. Verified library result60cases:
+58pass/two300s timeouts. Dense spindump identifies repeated O(points×folders)
+Foundation visibility comparisons on the app main thread. Per-call distinct-folder
+memoization retains exact comparison/first-match/orphan/order rules. Native helper
+also avoids polling for already-existing controls. All631 core cases, final
+unsigned phone/watch/widget Release and both exact native workflows pass:
+dense160.622s/protected Files144.814s. Original marker/persistence/password and
+300s assertions remain; captures inspected, all parents reaped, GPS clear/phone
+off. Extreme-density label overlap remains a readability limit. See
+hosted115-library-triage.md. Field/map repairs also have local passes; fresh
+hosted confirmation on the combined follow-up remains required. No job cancellation
+or duplicate dispatch, merge or release.

@@ -175,7 +175,9 @@ extension XCTestCase {
     }
 
     private func tapVisibleControl(_ element: XCUIElement,horizontal: CGFloat,file: StaticString,line: UInt) {
-        XCTAssertTrue(element.waitForExistence(timeout: 8),file: file,line: line)
+        // Existing controls need no polling interval. Retain the full wait
+        // for controls that are still being presented by UIKit or Files.
+        XCTAssertTrue(element.exists || element.waitForExistence(timeout: 8),file: file,line: line)
         let visible = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
             let frame = element.frame, screen = XCUIApplication().frame
             guard frame.minX.isFinite && frame.minY.isFinite && frame.width > 0 && frame.height > 0 else { return false }

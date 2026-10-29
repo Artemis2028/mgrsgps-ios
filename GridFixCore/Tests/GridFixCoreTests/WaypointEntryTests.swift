@@ -101,4 +101,24 @@ final class WaypointEntryTests: XCTestCase {
                                                  folders: [FolderInfo(name: "recon", visible: false)])
         XCTAssertEqual(visible.map(\.id), ["shown"])
     }
+    func testDenseFolderVisibilityKeepsEveryEligibleWaypointInInputOrder() {
+        let folders = (0..<100).map { FolderInfo(name: "Folder \($0)", visible: $0 % 2 == 1) }
+        let points = (0..<5000).map { i in
+            Waypoint(id: "point\(i)", name: "Point \(i)", lat: 24, lon: 54, folder: "Folder \(i % 100)")
+        }
+        let result = WaypointMapSnapshot.visible(waypoints: points, folders: folders)
+        XCTAssertEqual(result.map(\.id),stride(from: 1,to: 5000,by: 2).map { "point\($0)" })
+    }
+
+    func testFolderLookupRetainsFirstCaseInsensitiveMatchAndUnknownFolderDefault() {
+        let folders = [FolderInfo(name: "RÉCON",visible: false),FolderInfo(name: "récon",visible: true),
+                       FolderInfo(name: "Base",visible: true),FolderInfo(name: "BASE",visible: false)]
+        let points = [Waypoint(id: "hidden",name: "Hidden",lat: 24,lon: 54,folder: "récon"),
+                      Waypoint(id: "first",name: "First",lat: 24,lon: 54,folder: "base"),
+                      Waypoint(id: "orphan",name: "Orphan",lat: 24,lon: 54,folder: "Unknown"),
+                      Waypoint(id: "repeat",name: "Repeat",lat: 24,lon: 54,folder: "base")]
+        XCTAssertEqual(WaypointMapSnapshot.visible(waypoints: points,folders: folders).map(\.id),
+                       ["first","orphan","repeat"])
+    }
+
 }
