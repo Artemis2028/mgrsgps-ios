@@ -11,8 +11,10 @@ and deadlines; see the hosted117 triage reports below. Hosted 118 is now termina
 passes / one dense-map 300-second timeout / zero skips. The SHA-verified result
 bundle is triaged in hosted118-library-triage.md; the recording attachment is
 unavailable, and no video conclusion is claimed.
-A full hosted pass is still pending. The native local renewal test is prepared
-and offline-validated in a separate held commit; its live case has only skipped.
+Hosted 119 on `40e7e63` is active: the field shard has passed; map and library
+are still running. A full hosted pass is still pending. The native local renewal
+test is prepared and offline-validated on that pushed revision; its live case has
+only skipped. Preserve the running jobs by holding newer local commits.
 
 Wear cached-terrain phone transfer, round/night readout, repeated delivery,
 missing-cache handling and phone-off recovery from retained SDK Assets now have
@@ -34,9 +36,9 @@ status and limitations; their old “next” steps do not override this snapshot
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear foreground routes now implemented/native virtual-GPS validated; selected-target permission revoke/regrant and same-process provider interruption/reconfirmation pass. Route/background permission and provider faults, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
+| Independent watch guidance | Both platforms implement foreground owners, complete cached-route progression and optional background lane owners. Apple native Start/Pause/Resume/Stop, Home pause, same-process permission loss/regrant with explicit Resume, and callback-outage stale withholding/fresh recovery pass. Route picker freshness is repaired locally. Wear native selected-target permission and provider interruption/reconfirmation pass | Apple actual OS provider-error delivery, positive calibrated compass steering, physical wrist/lock/GPS/haptics/battery; Wear route/background permission/provider faults and physical delivery. Callback outage is distinct from an OS error. See watch-own-route.md and watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays/native maps plus bounded, source-bound offline Terrarium cache/sampler implemented on both platforms; shared fixtures/core and Wear native cache runtime pass | Apple acknowledged foreground delivery/readout and Wear native Asset transfer/readout, repeat/miss handling and retained-SDK recovery pass. Apple physical queued-file delivery, other sizes/day-mode Wear checks, source/queue faults, terrain overlays/analysis, offline raster areas and physical resource/provider checks remain open. See watch-terrain-transfer.md and the Wear reports linked below |
-| Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
+| Saved logs | Deferred validated log visitors, cache upgrades and owned file-backed GPX/KML/GeoJSON/KMZ/ordinary backup writers implemented and validated; protected backups retain bounded eager authenticated encryption. Native Files roundtrips, cleanup and aggregate budgets pass | Physical peak-memory, cold-device/storage-pressure and provider profiles; no claim of fully incremental manifest encoding or encryption. See backup-streaming-output.md, kmz-streaming-output.md, geojson-streaming-output.md, kml-streaming-output.md and track-streaming.md |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Historical Oct 26 enrolled exchange is recorded; current-build enrolled exchange and live renewal remain open pending coordinated GO. New native renewal harness has offline guard/Keychain passes and a safe live skip; see tak-local-renewal-proof.md. Server stays off |
 | Distribution | Unsigned phone/watch/widget device Release passes | Signing, privacy/distribution and actual physical installation gates; no merge/release approval requested |
 
@@ -492,3 +494,16 @@ coverage passes long Files filename53.398s and coordinate/tool workflow123.175s.
 Captures inspected; all parents reaped, fake GPS cleared, disposable phone deleted.
 See hosted118-library-triage.md. The combined follow-up needs fresh hosted
 confirmation; real enrolled TAK exchange/renewal and physical watch gates stay open.
+
+### Hosted119 field and local watch lifecycle checkpoint
+
+Hosted119/run40903664862 on40e7e63 has a successful field shard; map and library
+remain in progress. No full hosted pass or cancelling push. Local held commits
+1d9d16b/df8cf39/2139f9d/ccbb183/627ccbf contain the route-picker freshness fix,
+Home/permission/callback-outage native evidence and nine passing focused route
+policy cases. All owned local parents are reaped and disposable devices deleted.
+See watch-own-route.md for precise scope: GPS callback outage is not an actual
+OS provider-error event; compass/haptic/background/physical checks remain open.
+TAK remains OFF; current enrolled exchange and real renewal need coordinated GO.
+Routing side-project spec reviews stay in the Claude handoff, with no routing
+code/docs/fixtures added to the current iOS or Wear branches.
