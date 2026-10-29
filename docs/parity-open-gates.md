@@ -218,3 +218,13 @@ pass locally59.292s/55.275s, Xcode exit0; reopened captures inspected. Fixtures,
 timeouts and recovery assertions retained. Parent reaped, GPS cleared, simulator
 off. See hosted114-field-triage.md. Local result is not a fresh hosted-green
 claim; other114 shards remain live, so the change is held with prior follow-ups.
+
+
+### Watch Map info accuracy — 29 October 2026
+Removed obsolete prose claiming simplified routes omit leg numbers and that no
+wrist alerts run. Info now describes supplied original leg numbers/ranges and
+Choose lane; custom quiet-perimeter monitoring remains distinct from implemented
+navigation-lane wrist alerts. Removed the long artwork implementation paragraph.
+Watch README/current parity summary now match the existing route/background
+owners. Copy-only change; unsigned phone/watch/widget device Release passes.
+No new watch touch, runtime, physical or transport verification claimed.

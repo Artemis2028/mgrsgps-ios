@@ -261,8 +261,8 @@ struct WatchMapView: View {
                 if let fix = model.fix {
                     Text(String(format: "±%.0f m · ", fix.horizontalAccuracy) + WatchFixPolicy.ageLabel(date.timeIntervalSince(fix.timestamp)))
                 }
-                Text("L/R = lane side limits · BS = backstop. Shading is a cached phone lane, not a watch crossing detector.")
-                Text("F = displayed fence · TRK = track. Tactical symbols and route leg numbers match the phone. Simplified routes omit leg numbers because one displayed segment may span several original legs. Zoom closer for names.")
+                Text("L/R = lane side limits · BS = backstop. Choose lane starts wrist alerts.")
+                Text("F = perimeter · TRK = track. Route labels show original leg numbers or ranges when available. Zoom closer for names.")
                 if let snapshot = model.mapSnapshot {
                     ForEach(snapshot.waypoints) { point in Text("Waypoint: " + point.name + " · " + WaypointMarkerDescription.text(point)) }
                     ForEach(snapshot.laneOverlays) { lane in
@@ -277,7 +277,6 @@ struct WatchMapView: View {
                 }
                 Text("Pan to browse. +/− zoom around the viewed center; location recenters on a fresh watch fix. Native map gestures are supported.")
                 Text("Apple basemap may require a connection; offline cache is not guaranteed. Phone offline packs, MGRS grid, terrain, contours and viewsheds are not transferred.")
-                Text("NATO unit PNGs and mission-task artwork match the phone. Directional tasks rotate; S/G/C letter badges and labels stay upright. Basic affiliation frames, echelon marks and imported MilGPS shapes, characters and colors use the shared artwork. Unknown keys use a question-mark glyph. All 30 phone tactical control measures share its drawing code: attack arrows, wire/obstacle marks, screen/guard/cover badges, numbered route legs, areas, sectors and range rings. The Legal control stays clear of artwork. No boundary alerts run on watch.")
                 Text("Remote cap: 8 KiB / 64 items / 384 vertices, at most 128 per drawing. Whole drawings are omitted, never simplified. Local overlay cap: 48 KiB, 150 waypoints / 64 field items. Lines ≤160 vertices; large lines simplified. Areas ≤256 vertices, retained in full or omitted. Track files over 2 MiB and coordinates beyond 85° latitude and dateline-crossing areas/sectors are omitted.")
                 Button("Position grid") { showInfo = false; showPosition() }
                 Button("Close map") { showInfo = false; closeMap() }
