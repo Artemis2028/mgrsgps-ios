@@ -111,3 +111,10 @@ See [behavior and exact evidence](watch-guide-expiry.md).
 
 Original leg-range labels are implemented and validated on both watches; see
 [exact packet, renderer and runtime evidence](watch-route-leg-ranges.md).
+
+
+The offline terrain cache/sampler foundation now exists on both platforms with bounded
+raw Terrarium decoding, source/revision binding, atomic disk records, retained attribution
+and honest missing coverage. Shared fixtures and the native Wear filesystem/decoder test
+pass. Companion file transfer and watch terrain UI remain implementation work; see
+[watch terrain cache](watch-terrain-cache.md).
