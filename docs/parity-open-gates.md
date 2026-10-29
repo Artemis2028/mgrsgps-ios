@@ -167,3 +167,15 @@ See backup-streaming-output.md for evidence and limits. Held locally while
 hosted114/run40821076335 validates pushed5f73683; all three shards remain active.
 Physical memory/provider, watch heading/route/offline/terrain and real enrolled
 TAK exchange/renewal remain open. Server stays OFF; no GO or infrastructure action.
+
+
+### Concise boundary panel — 29 October 2026
+Moved drawing/monitoring explanatory paragraphs and the settings link into a
+collapsed Boundary help disclosure. Primary draw/status/saved boundary controls
+remain visible; monitoring decisions and permissions are unchanged. The existing
+day draw/insert/move/save/relaunch and night edit/cancel/delete/durable-delete
+workflows pass on iOS26.2 (two cases, zero failures, Xcode exit0). Day/night
+captures inspected; every local parent reaped, static fake GPS cleared and owned
+simulator off. Evidence: /tmp/mgrsgps-boundary-concise-ui.xcresult and
+/tmp/mgrsgps-boundary-concise-images/manifest.json. No new background crossing,
+physical or TAK verification claimed. Held locally while hosted114 remains live.

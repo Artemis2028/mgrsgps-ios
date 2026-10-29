@@ -23,8 +23,6 @@ struct BoundaryPanel: View {
         NavigationStack {
             List {
                 Section("Backstops & handrails") {
-                    Text("Draw the perimeter of the area you want to stay inside. Straight sides and end backstops join at movable points; add points to make bends.")
-                    Text("Quiet anywhere inside. One buzz on a confirmed exit, then quiet outside until you return inside and re-arm. Your heading does not matter.").font(.footnote).foregroundStyle(palette.inkDim)
                     Button("Draw boundary") { dismiss(); onDraw(nil) }
                         .disabled(monitor.running || monitor.preparing || monitor.writing || monitor.loadFailed).accessibilityIdentifier("draw-boundary")
                 }
@@ -37,9 +35,6 @@ struct BoundaryPanel: View {
                         Text(monitor.alertStatus).font(.footnote).foregroundStyle(palette.inkDim)
                         Button("Stop monitoring",role: .destructive) { monitor.stop() }.accessibilityIdentifier("stop-boundary")
                     }
-                    Text("Start while the app is open with Precise Location. Monitoring continues with background location while locked when iOS permits. Locked-screen alerts use notification sound/haptic settings; Focus or notification settings can silence them. Force quit or termination stops monitoring; reopen and start again.")
-                        .font(.footnote).foregroundStyle(palette.inkDim)
-                    Button("Open iOS settings") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
                 }
                 if monitor.writing { ProgressView("Saving boundaries…").tint(palette.accent).accessibilityIdentifier("boundary-saving") }
                 if let error = monitor.error { Text(error).foregroundStyle(palette.warn).accessibilityIdentifier("boundary-error") }
@@ -60,6 +55,15 @@ struct BoundaryPanel: View {
                             }.buttonStyle(.borderless)
                         }.padding(.vertical,6)
                     }
+                }
+                Section {
+                    DisclosureGroup("Boundary help") {
+                        Text("Draw a closed perimeter. Move its points or add points along a side to make bends.")
+                        Text("Monitoring stays quiet inside. A confirmed exit triggers one alert; returning inside re-arms it. Heading does not affect crossings.")
+                        Text("Start with Precise Location while the app is open. Background location continues while locked when iOS permits. Focus and notification settings can silence locked-screen alerts.")
+                        Text("Force quit or termination stops monitoring. Reopen the app and start again.")
+                        Button("Open iOS settings") { if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
+                    }.accessibilityIdentifier("boundary-help")
                 }
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
