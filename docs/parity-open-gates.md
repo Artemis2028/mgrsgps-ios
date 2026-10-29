@@ -282,3 +282,15 @@ actual compass callbacks/physical calibration and large-text lower-row interacti
 remain open. All local parents reaped, fake GPS cleared, watch off and original
 prefs restored byte-for-byte. See watch-own-heading.md. Held documentation follow-up
 while hosted115 validates exact5b37bd2; no cancelling push/duplicate run.
+
+
+### Foreground own-watch target steering — 29 October 2026
+Explicit foreground-only Start/Stop, fresh own GPS/heading, sensor-gap silence,
+turn confirmation/cadence and one-shot arrival now use shared native-independent
+policies. Target/permission/scene changes disarm; lane and steering owners do not
+compete. All620 core cases, final Release and watch simulator build pass. Native
+40mm day/night layout and unsupported-compass disabled Start inspected with real
+OS fake GPS and no heading injection. Positive compass/haptic/Home-lock/physical,
+Wear steering, route progression and offline/terrain gates remain open. See
+watch-own-steering.md. All local parents reaped/watch off/prefs restored/GPS clear.
+Held locally while115 validates5b37bd2; no cancelling push or duplicate dispatch.

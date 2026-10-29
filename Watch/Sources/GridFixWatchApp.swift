@@ -133,6 +133,15 @@ struct WatchGlanceView: View {
                     navigationContent(date: date)
                     wristLaneControls
                 }
+                VStack(alignment:.leading,spacing:4) {
+                    label("WATCH STEERING")
+                    Text(model.steering.active ? model.steering.status : model.steeringStartProblem ?? model.steering.status).font(.caption)
+                    if model.steering.active {
+                        Button("Stop steering") { model.stopSteering() }
+                    } else {
+                        Button("Start steering") { model.startSteering() }.disabled(!model.canStartSteering)
+                    }
+                }.accessibilityIdentifier("watch-steering").id("watchSteering")
                 phoneGuidance(date: date).id("phoneGuidance")
                 Divider().overlay(accent.opacity(0.3))
                 fixStatus(date: date)
@@ -147,6 +156,9 @@ struct WatchGlanceView: View {
             if args.contains("-watchUITesting"),args.contains("-watchPhoneGuide") {
                 try? await Task.sleep(nanoseconds:200_000_000)
                 proxy.scrollTo("phoneGuidance",anchor:.top)
+            } else if args.contains("-watchUITesting"),args.contains("-watchSteering") {
+                try? await Task.sleep(nanoseconds:200_000_000)
+                proxy.scrollTo("watchSteering",anchor:.top)
             }
         }
         #endif
