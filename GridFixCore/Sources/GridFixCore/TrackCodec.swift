@@ -23,8 +23,11 @@ public enum TrackCodec {
     /// Local logs are independent of the bounded external backup contract.
     /// Statistics validate every row without retaining a second point array.
     public static func summarizeLocal(_ data: Data) throws -> LocalSummary {
+        try summarizeLocal(visit: { try visitLocal(data,point: $0) })
+    }
+    static func summarizeLocal(visit: (_ point: (TrackPoint) throws -> Void) throws -> Void) throws -> LocalSummary {
         var count = 0,distance = 0.0,last: TrackPoint?
-        try visitLocal(data) { point in
+        try visit { point in
             if let previous = last {
                 distance += Geodesy.navInfo(fromLat: previous.lat,fromLon: previous.lon,toLat: point.lat,toLon: point.lon).distanceMeters
             }

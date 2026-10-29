@@ -44,12 +44,13 @@ encoded in manifests, ZIPs, TAK events or watch packets.
 
 ## Compatibility and limits
 
-Receiptless, malformed-receipt or older-version logs still take the strict eager
-fallback, as do legacy v1 archives. A confirmed library save persists successful
-validation receipts, enabling deferred reads on the next launch. Startup does
-not rewrite the saved index merely to upgrade its cache. Automatic migration of
-large receiptless libraries without requiring a user edit remains follow-up
-work; this milestone must not be described as zero point I/O for every old save.
+Receiptless, malformed-receipt or older-version v2 logs now validate in chunks
+on first deferred load. The shared loader automatically stages/publishes their
+summary cache after loading; no user edit is required. V1 archives still take
+strict bounded ZIP decoding first, then automatically stage complete v2 logs
+while preserving the original archive. Healthy subsequent loads use deferred
+references without rewriting the index. Prepared reads remain read-only; see
+[automatic cache upgrade and evidence](track-cache-upgrade.md).
 
 Synchronous compatibility APIs retain their eager defaults; the production app
 explicitly requests deferred reads. A metadata row shows the saved summary;
@@ -60,10 +61,9 @@ There is no automatic destructive repair or new format/permission/server action.
 
 Requested map previews, camera fitting and backtracks now parse deferred files
 in verified chunks; see [streaming behavior and evidence](track-streaming.md).
-Bounded exports still own their requested bytes. Automatic legacy cache migration,
-cold-device pressure/battery profiling, dense-map rendering and wider accessibility
-remain open. Orphan cleanup can stay deferred for hidden
-tracks never read by any consumer. Physical locked-screen recording and watch
+Bounded exports still own their requested bytes. Cold-device pressure/battery
+profiling, dense-map rendering and wider accessibility remain open. Orphan
+cleanup can stay deferred for hidden tracks never read by any consumer. Physical locked-screen recording and watch
 radio/field checks are not proven by simulator background tests.
 
 ## Validation

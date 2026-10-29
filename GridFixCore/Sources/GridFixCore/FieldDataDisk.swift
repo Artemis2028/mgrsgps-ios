@@ -57,6 +57,7 @@ enum FieldDataDisk {
         name.hasSuffix(".txt") && TrackCodec.validID(String(name.dropLast(4)))
     }
     static func read(_ index: URL,deferTrackContents: Bool = false,
+                     receiptsUpdated: () -> Void = {},
                      readContents: (SavedTrackSource) throws -> Data = { try $0.read() },
                      summarize: (Data) throws -> TrackCodec.LocalSummary = TrackCodec.summarizeLocal) throws -> (Backup.Document,[String: Log]) {
         let size = try index.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? Int.max
@@ -78,6 +79,16 @@ enum FieldDataDisk {
                 document.localTrackFiles[id] = source
                 document.tracks[i].pointCount = cached.count
                 document.tracks[i].distanceM = cached.distanceM
+                continue
+            }
+            if deferTrackContents {
+                // Older caches get the same strict validation, without owning
+                // every log's raw bytes during their first deferred load.
+                let summary = Summary(try TrackCodec.summarizeLocal(visit: source.visitPoints),sha256:ref.sha256)
+                logs[id]?.summary = summary; receiptsUpdated()
+                document.localTrackFiles[id] = source
+                document.tracks[i].pointCount = summary.count
+                document.tracks[i].distanceM = summary.distanceM
                 continue
             }
             let bytes = try readContents(source)

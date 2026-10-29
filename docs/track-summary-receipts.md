@@ -76,3 +76,10 @@ backups, exports and staged mutations so missing or changed data cannot become
 an empty track or be silently overwritten. Cold-device storage pressure, dense
 rendering and battery/memory profiling remain open. No physical-device or whole-
 library startup completion is claimed by the synthetic benchmark.
+
+
+29 October follow-up: automatic receiptless/v1 cache upgrades and requested
+map/fit/backtrack streaming are now implemented and validated locally; see
+track-cache-upgrade.md and track-streaming.md. Earlier open-cache notes above
+are historical. Streaming export writers and physical pressure/battery checks
+remain open.

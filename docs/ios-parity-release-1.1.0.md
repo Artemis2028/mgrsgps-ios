@@ -1896,3 +1896,15 @@ unsigned phone/watch/widget Release pass. See track-streaming.md. Full export
 writers, automatic receiptless/v1 cache migration and physical memory/battery
 remain open. This local follow-up is held while hosted112 validates2740063; it
 is not covered by that run. No merge/release or TAK/infrastructure change.
+
+
+### 29 October — automatic legacy track-cache upgrade
+Receiptless v2 logs validate in verified chunks on first deferred load, and the
+shared loader automatically stages/publishes their receipts without a user edit.
+Legacy v1 archives migrate to complete v2 storage after strict read, retaining
+the original ZIP unchanged. Revision/disk checks preserve concurrent edits;
+failed/cancelled cache maintenance leaves the readable source intact.577 core
+cases and all360 native cases complete with four opt-in skips/no failures;
+unsigned phone/watch/widget Release passes. Final cold-load/retry UI evidence
+and held-commit status are recorded in track-cache-upgrade.md. No settings
+application, recording start or TAK connection/sharing is introduced.

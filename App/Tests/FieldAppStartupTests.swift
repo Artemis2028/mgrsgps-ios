@@ -266,6 +266,35 @@ final class FieldAppStartupTests: XCTestCase {
         XCTAssertNil(startup.error); XCTAssertNotNil(startup.stores)
         XCTAssertEqual(startup.pendingURLs,[link]); XCTAssertEqual(attempts.count,2)
     }
+    func testProductionWorkspaceLoadsAndUpgradesLegacyTracksWithoutApplyingSettingsOrStartingGPS() async throws {
+        let dir = try directory()
+        let (track,bytes) = try TrackCodec.imported(name:"Legacy CAFÉ patrol",points:[.init(lat:24,lon:54),.init(lat:24.01,lon:54.01,time:1000)],now:1)
+        var document = Backup.Document(tracks:[track],trackFiles:[track.id:bytes])
+        document.settings.nightMode = true
+        let legacy = dir.appendingPathComponent("field-data-v1.zip"),archive = try Backup.exportZip(document)
+        try archive.write(to:legacy)
+        let startup = FieldAppStartup(configuration:.init(directory:dir,seedFixtures:false,holdsForUITest:false))
+        await startup.load()
+        let stores = try XCTUnwrap(startup.stores)
+        defer { stores.tak.disconnect() }
+        var publishedOnMain = true
+        let observation = stores.fieldData.$document.dropFirst().sink { _ in publishedOnMain = publishedOnMain && Thread.isMainThread }
+        defer { observation.cancel() }
+        // Same deferred policy used by RootView and the recorder's cold path.
+        await stores.fieldData.load { try $0.prepare(deferTrackContents:true) }
+        XCTAssertTrue(publishedOnMain); XCTAssertTrue(stores.fieldData.ready)
+        XCTAssertEqual(stores.recorder.phase,.idle); XCTAssertFalse(stores.tak.connected)
+        XCTAssertFalse(stores.tak.sharePosition)
+        XCTAssertNil(stores.fieldData.loadError)
+        XCTAssertEqual(stores.fieldData.document.tracks,[track])
+        XCTAssertTrue(stores.fieldData.document.trackFiles.isEmpty)
+        XCTAssertNotNil(stores.fieldData.document.localTrackFiles[track.id])
+        XCTAssertFalse(stores.settings.nightMode,"Cache migration must not apply archived preferences")
+        XCTAssertEqual(try Data(contentsOf:legacy),archive)
+        let source = try stores.fieldData.trackReadSnapshot(track.id)
+        let read = try await Task.detached { try source.readBytes() }.value
+        XCTAssertEqual(read,bytes)
+    }
 }
 
 private final class StartupAttemptCounter: @unchecked Sendable {

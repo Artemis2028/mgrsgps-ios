@@ -37,7 +37,8 @@ Compatibility and remaining work:
 - Eager Data compatibility APIs and test-injected transformations remain valid.
 - GPX/interchange/backup exports and bounded watch snapshots still own requested
   bytes under their existing limits. They have not become streaming writers.
-- Automatic receiptless/v1 cache migration, cold-device memory/battery profiling,
+- Automatic receiptless/v1 cache upgrade is now implemented (track-cache-upgrade.md).
+  Cold-device memory/battery profiling,
   physical field checks and wider accessibility remain open.
 - Current hosted112 runs2740063, preceding this change. It cannot validate the
   streaming reader. Local validation is recorded below before committing.

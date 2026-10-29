@@ -3,7 +3,8 @@ import Foundation
 
 /// Imported/saved graphics, track logs, and practice history are committed as a
 /// single atomic index with immutable point-log files. A legacy archive is read
-/// without modification; the next successful commit migrates its complete data.
+/// without modification; a deferred load automatically stages its complete v2
+/// cache after publication, preserving the original recovery archive.
 /// Live recording is deliberately separate from this finished-data store.
 public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     @Published public private(set) var document = Backup.Document() { didSet { revision &+= 1 } }
@@ -13,11 +14,13 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
     private var logs: [String: FieldDataDisk.Log] = [:]
     private var source: FieldDataReadSource?
     private var sourceDigest: String?
+    private var needsTrackCacheUpgrade = false
     private let lock = NSRecursiveLock()
     private var revision: UInt64 = 0
     private let identity = UUID()
     @MainActor private var loadTask: Task<PreparedLoad,Error>?
     @MainActor private var loadGeneration = UUID()
+    @MainActor private var upgradingTrackCache = false
 
     public enum LoadFailure: LocalizedError {
         case changed
@@ -57,17 +60,18 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         public func prepare(deferTrackContents: Bool = false) throws -> PreparedLoad {
             try Task.checkCancellation()
             var document = Backup.Document(); document.hasSettings = false
-            var logs: [String: FieldDataDisk.Log] = [:], failure: String?
+            var logs: [String: FieldDataDisk.Log] = [:], failure: String?, cacheUpgrade = false
             let source: FieldDataReadSource
             do { source = try FieldDataReadSource.read(destination) }
             catch { return PreparedLoad(document:document,logs:[:],error:error.localizedDescription,identity:identity,source:nil) }
             do {
                 if source.index != nil {
-                    (document,logs) = try FieldDataDisk.read(destination,deferTrackContents:deferTrackContents)
+                    (document,logs) = try FieldDataDisk.read(destination,deferTrackContents:deferTrackContents,receiptsUpdated: { cacheUpgrade = true })
                 } else {
                     let legacy = destination.deletingLastPathComponent().appendingPathComponent("field-data-v1.zip")
                     if source.legacy != nil {
                         document = try Backup.importZip(Data(contentsOf: legacy,options: .mappedIfSafe))
+                        cacheUpgrade = deferTrackContents
                     }
                 }
             } catch is CancellationError { throw CancellationError() }
@@ -75,7 +79,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             try Task.checkCancellation()
             let sourceDigest = failure == nil ? try source.contentDigest() : nil
             try source.validate()
-            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity,source:source,sourceDigest:sourceDigest)
+            return PreparedLoad(document: document,logs: logs,error: failure,identity: identity,source:source,sourceDigest:sourceDigest,cacheUpgrade:failure == nil && cacheUpgrade)
         }
     }
     public struct PreparedLoad: Sendable {
@@ -85,6 +89,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let identity: UUID
         fileprivate let source: FieldDataReadSource?
         fileprivate var sourceDigest: String? = nil
+        fileprivate var cacheUpgrade = false
     }
     public func loadSnapshot() -> LoadSnapshot {
         LoadSnapshot(destination: fileURL,identity: identity)
@@ -95,6 +100,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard !ready else { return false }
         try prepared.source?.validate()
         document = prepared.document; logs = prepared.logs; loadError = prepared.error; source = prepared.source; sourceDigest = prepared.sourceDigest
+        needsTrackCacheUpgrade = prepared.cacheUpgrade
         ready = true
         return true
     }
@@ -117,6 +123,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
                 guard loadGeneration == token, !Task.isCancelled else { return }
                 _ = try publishLoad(prepared)
                 loadTask = nil
+                await upgradeTrackCacheIfNeeded()
                 return
             } catch LoadFailure.changed {
                 guard loadGeneration == token,!Task.isCancelled else { return }
@@ -182,6 +189,29 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard !Task.isCancelled,let snapshot = try? trackMaintenanceSnapshot() else { return }
         let worker = Task.detached(priority:.utility) { try snapshot.prune() }
         await withTaskCancellationHandler(operation:{ _ = try? await worker.value },onCancel:{ worker.cancel() })
+    }
+
+    /// Optional cache maintenance after a successful deferred load. A failed or
+    /// cancelled upgrade leaves the readable library and original files intact.
+    @MainActor public func upgradeTrackCacheIfNeeded() async {
+        guard !upgradingTrackCache else { return }
+        upgradingTrackCache = true
+        defer { upgradingTrackCache = false }
+        for _ in 0..<3 {
+            guard !Task.isCancelled,let snapshot = try? trackCacheUpgradeSnapshot() else { return }
+            let worker = Task.detached(priority: .utility) { try snapshot.prepareTrackCacheUpgrade() }
+            do {
+                let prepared = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+                try Task.checkCancellation()
+                if try publishEdit(prepared) { return }
+            } catch { return }
+        }
+    }
+    public func trackCacheUpgradeSnapshot() throws -> RestoreSnapshot? {
+        lock.lock(); defer { lock.unlock() }
+        try requireReady()
+        guard needsTrackCacheUpgrade else { return nil }
+        return try restoreSnapshot()
     }
 
     public func points(for trackID: String) throws -> [TrackPoint] {
@@ -378,6 +408,27 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         fileprivate let source: FieldDataReadSource
         fileprivate let sourceDigest: String?
 
+        /// Reuse validated v2 logs; install independent immutable logs for v1.
+        /// The old archive remains untouched. Publication still checks revision
+        /// and exact disk provenance, just like an ordinary saved-library edit.
+        public func prepareTrackCacheUpgrade() throws -> PreparedEdit {
+            let file = try FieldDataDisk.prepare(document,previous:document,logs:logs,index:destination,source:source,sourceDigest:sourceDigest)
+            do {
+                var next = document
+                let directory = destination.deletingLastPathComponent().appendingPathComponent(FieldDataDisk.logsName)
+                for track in next.tracks {
+                    try Task.checkCancellation()
+                    guard let ref = file.logs[track.id] else { throw WriteFailure.changed }
+                    if next.localTrackFiles[track.id] == nil {
+                        next.localTrackFiles[track.id] = try SavedTrackSource(fileURL:directory.appendingPathComponent(ref.name),sha256:ref.sha256)
+                    }
+                }
+                next.trackFiles = [:]
+                try Task.checkCancellation()
+                return .init(document:next,revision:revision,identity:identity,file:file)
+            } catch { file.discard(); throw error }
+        }
+
         /// Prepare an ordinary edit without borrowing the live repository lock.
         public func prepare(edit: Edit) throws -> PreparedEdit {
             try Task.checkCancellation()
@@ -412,6 +463,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard prepared.revision == revision else { prepared.file?.discard(); return false }
         if let file = prepared.file, let next = prepared.document {
             source = try file.publish(); sourceDigest = file.digest; logs = file.logs; document = next
+            needsTrackCacheUpgrade = false
         }
         return true
     }
@@ -443,6 +495,7 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         if let file = prepared.file {
             source = try file.publish(); sourceDigest = file.digest
             logs = file.logs; document = prepared.document
+            needsTrackCacheUpgrade = false
         }
         return prepared.result
     }
@@ -464,5 +517,6 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
         guard let source else { throw WriteFailure.changed }
         let prepared = try FieldDataDisk.prepare(next,previous: document,logs: logs,index: fileURL,source:source,sourceDigest:sourceDigest)
         self.source = try prepared.publish(); sourceDigest = prepared.digest; logs = prepared.logs; document = next
+        needsTrackCacheUpgrade = false
     }
 }

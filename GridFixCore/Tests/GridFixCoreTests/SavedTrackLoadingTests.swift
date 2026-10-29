@@ -40,7 +40,7 @@ final class SavedTrackLoadingTests: XCTestCase {
                        try JSONSerialization.jsonObject(with:eagerMap.data) as? NSDictionary)
         XCTAssertEqual(try Data(contentsOf:index),before)
     }
-    func testLegacyReferenceAloneIsStrictlyReadWithoutRewritingIndex() throws {
+    func testLegacyReferenceIsStrictlyStreamedWithoutRewritingIndexDuringPreparation() throws {
         let (index,original,_) = try fixture(), id = original.tracks[0].id
         var json = try XCTUnwrap(JSONSerialization.jsonObject(with:Data(contentsOf:index)) as? [String:Any])
         var logs = try XCTUnwrap(json["logs"] as? [String:[String:Any]])
@@ -48,8 +48,9 @@ final class SavedTrackLoadingTests: XCTestCase {
         let before = try JSONSerialization.data(withJSONObject:json); try before.write(to:index)
         var reads = 0
         let (doc,refs) = try FieldDataDisk.read(index,deferTrackContents:true,readContents:{ source in reads += 1; return try source.read() })
-        XCTAssertEqual(reads,1); XCTAssertEqual(doc.trackFiles[id],original.trackFiles[id])
-        XCTAssertEqual(doc.localTrackFiles.count,1); XCTAssertNotNil(refs[id]?.summary)
+        XCTAssertEqual(reads,0); XCTAssertTrue(doc.trackFiles.isEmpty)
+        XCTAssertEqual(try doc.trackData(id),original.trackFiles[id])
+        XCTAssertEqual(doc.localTrackFiles.count,2); XCTAssertNotNil(refs[id]?.summary)
         XCTAssertEqual(try Data(contentsOf:index),before)
     }
     func testMissingFileBeforeStartupStillRefusesWritesAndKeepsIndex() throws {
