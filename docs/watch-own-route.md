@@ -59,3 +59,10 @@ All finite GPS feeds and console parents finished/reaped, fake GPS was cleared,
 the owned watch was shut down, and original preferences were restored byte-for-byte
 in the final installed data container after its UUID changed. No phone/server
 connection, credential, container or database operation was performed.
+
+Claude's29October11:09 Android source review confirms that the25m whole-accuracy-
+circle checkpoint rule matches the phone practice-course policy. The Android
+phone does not automatically advance a saved route's vertices: it guides to a
+selected target until a user or course changes it. This Apple watch route owner
+is an additional capability, not a claim of matching an Android saved-route
+execution feature. Independent Wear route execution remains unimplemented.
