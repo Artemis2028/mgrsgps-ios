@@ -7,9 +7,10 @@ repeating an implementation or runtime test.
 Latest snapshot, 29 October: hosted 117 is terminal with map success, field
 409 passed / 2 failed / 9 skipped and library 57 passed / 3 failed. Each of its
 five final failures has a corresponding local pass with the original assertions
-and deadlines; see the hosted117 triage reports below. Hosted 118 is currently
-validating the combined repair on `bc563bd`: map/library integration workflows
-are active and field has advanced to the dedicated background-boundary checks.
+and deadlines; see the hosted117 triage reports below. Hosted 118 is now terminal on `bc563bd`: map and field pass; library has 59
+passes / one dense-map 300-second timeout / zero skips. The SHA-verified result
+bundle is triaged in hosted118-library-triage.md; the recording attachment is
+unavailable, and no video conclusion is claimed.
 A full hosted pass is still pending. The native local renewal test is prepared
 and offline-validated in a separate held commit; its live case has only skipped.
 
