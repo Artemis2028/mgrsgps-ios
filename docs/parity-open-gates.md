@@ -4,15 +4,26 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
-Latest: hosted116 is terminal with map success, field405pass/3fail/9skip and
-library59pass/1fail. All4 failing workflows now have corresponding local iOS26.2
-passes with their original assertions/deadlines: route65.572s, resection121.730s,
-invalid-port form30.791s and dense map156.535s. Release passes. The native helper
-acknowledges the usable map rail; unchanged grid paint no longer re-applies styling.
-All owned parents are reaped, fake GPS cleared and test devices off. Full fresh CI
-confirmation remains pending; see hosted116-field-triage.md and
-hosted116-library-triage.md. Apple cached-terrain transfer/readout is implemented and
-paired-simulator acknowledged; physical queued-file and Wear transfer/UI remain open.
+Latest snapshot, 29 October: hosted 117 is terminal with map success, field
+409 passed / 2 failed / 9 skipped and library 57 passed / 3 failed. Each of its
+five final failures has a corresponding local pass with the original assertions
+and deadlines; see the hosted117 triage reports below. Hosted 118 is currently
+validating the combined repair on `bc563bd`: map/library integration workflows
+are active and field has advanced to the dedicated background-boundary checks.
+A full hosted pass is still pending. The native local renewal test is prepared
+and offline-validated in a separate held commit; its live case has only skipped.
+
+Wear cached-terrain phone transfer, round/night readout, repeated delivery,
+missing-cache handling and phone-off recovery from retained SDK Assets now have
+native emulator evidence. Foreground selected-target steering has separate native
+permission-revocation and in-process provider-loss evidence. These close only the
+specific emulator paths described in the linked reports. Physical radio, GPS,
+compass, haptics, storage, background and battery gates remain open. All local
+build/test parents are terminal and owned test devices are off. No live TAK round
+has been authorized; the server remains off.
+
+The table is the current summary. Dated entries below it retain historical run
+status and limitations; their old “next” steps do not override this snapshot.
 
 | Area | Current evidence | Remaining work |
 | --- | --- | --- |
@@ -22,10 +33,10 @@ paired-simulator acknowledged; physical queued-file and Wear transfer/UI remain 
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear foreground routes now implemented/native virtual-GPS validated; physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
-| Watch offline/terrain | Cached field overlays/native maps plus bounded, source-bound offline Terrarium cache/sampler implemented on both platforms; shared fixtures/core and Wear native cache runtime pass | Apple explicit cached-tile send, actual acknowledged foreground delivery and numeric readout/relaunch now pass; Wear transport/UI, physical queued-file delivery, terrain overlays/analysis, offline raster packs and resource/provider checks remain open. See watch-terrain-transfer.md |
+| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass/foreground steering now implemented/native virtual-sensor and OS-effect validated; Wear foreground routes now implemented/native virtual-GPS validated; selected-target permission revoke/regrant and same-process provider interruption/reconfirmation pass. Route/background permission and provider faults, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
+| Watch offline/terrain | Cached field overlays/native maps plus bounded, source-bound offline Terrarium cache/sampler implemented on both platforms; shared fixtures/core and Wear native cache runtime pass | Apple acknowledged foreground delivery/readout and Wear native Asset transfer/readout, repeat/miss handling and retained-SDK recovery pass. Apple physical queued-file delivery, other sizes/day-mode Wear checks, source/queue faults, terrain overlays/analysis, offline raster areas and physical resource/provider checks remain open. See watch-terrain-transfer.md and the Wear reports linked below |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
-| TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
+| TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Historical Oct 26 enrolled exchange is recorded; current-build enrolled exchange and live renewal remain open pending coordinated GO. New native renewal harness has offline guard/Keychain passes and a safe live skip; see tak-local-renewal-proof.md. Server stays off |
 | Distribution | Unsigned phone/watch/widget device Release passes | Signing, privacy/distribution and actual physical installation gates; no merge/release approval requested |
 
 Hosted111/run40767120285 on c712229 is terminal: field all stages pass;
@@ -443,3 +454,18 @@ grid/lane/remote policies. See map-waypoint-labels.md and hosted117-field/librar
 triage reports. All local test/diagnostic parents are reaped and fake GPS cleared;
 the disposable clone is removed. Final unsigned phone/watch/widget device Release passes; fresh hosted
 confirmation remains open. TAKOFF, real enrolled exchange/renewal still requires coordinatedGO.
+
+
+### Cross-platform evidence reconciliation — 29 October 2026
+
+Current owned Wear source is `1b5fb57` on `codex/wearos-glance`. Reports in that
+checkout supply the exact scope and cleanup limitations:
+
+- [Phone/Wear terrain delivery and retained SDK recovery](../../gridfix-wearos/docs/watch-terrain-transfer.md): 71 Wear / 460 phone unit cases and build/lint baseline, actual paired raw Asset delivery, map-centre 100 m synthetic DEM readout and cold recovery with the phone emulator off. Watch datastore restoration was not verified in the terrain recovery round; temporary read-only overlays were discarded. Later permission/provider rounds validated archives before testing.
+- [Permission revocation](../../gridfix-wearos/docs/watch-steering-permission.md): Android kills the steering process; restored permission and fresh sensors do not re-arm it. A new native Start is required.
+- [Provider interruption](../../gridfix-wearos/docs/watch-steering-provider.md): same-process loss stays quiet, retains the existing consent and reconfirms before producing new native effects. This is selected-target foreground evidence, not route or background-owner coverage.
+- [Prepared local renewal proof](tak-local-renewal-proof.md): offline guards and native Keychain/certificate cases pass; the live case skips without a private reviewed fixture. No credentials were read or staged, and no TAK connection was made. Actual renewal, native Renew-button interaction and current-build iOS/Android fake-position exchange remain coordinated gates.
+
+No duplicate CI run, server/infrastructure change, merge, publish or release is
+authorized by this ledger. The held test/report changes must not be pushed while
+hosted 118 is active because doing so cancels its evidence run.
