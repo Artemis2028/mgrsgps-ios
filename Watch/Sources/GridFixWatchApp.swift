@@ -49,14 +49,6 @@ struct WatchGlanceView: View {
             .foregroundStyle(ink)
             .tint(accent)
         }
-        .task {
-            // Updating the observed model from TimelineView's date change can
-            // recreate its .now schedule and trigger a render/update loop.
-            while !Task.isCancelled {
-                model.tickWristLane()
-                do { try await Task.sleep(for: .seconds(1)) } catch { return }
-            }
-        }
         .onChange(of: selection) { _, value in if value == 2 { showMap = true } }
         .fullScreenCover(isPresented: $showMap) {
             WatchMapView(model: model, night: night, showPosition: { showMap = false; selection = 0 }, closeMap: { showMap = false })
@@ -78,12 +70,13 @@ struct WatchGlanceView: View {
         .sheet(isPresented: $showWristLanes) {
             NavigationStack {
                 List {
-                    Text("Foreground wrist alerts").font(.caption)
+                    Toggle("Screen-off alerts",isOn:$model.keepWristAlertsRunning)
+                        .accessibilityIdentifier("watch-wrist-background")
                     if let updated = model.mapSnapshot?.updatedAt {
                         Text("Cached map · " + age(Date().timeIntervalSince(updated))).font(.caption2)
                     }
                     ForEach(model.mapSnapshot?.laneOverlays ?? []) { lane in
-                        Button("Start " + lane.name) { model.startWristLane(lane); showWristLanes = false }
+                        Button("Start " + lane.name) { model.startWristLane(lane); showWristLanes = false }.disabled(model.wristStarting)
                     }
                     if model.mapSnapshot?.laneOverlays.isEmpty != false { Text("No cached navigation lanes") }
                 }.navigationTitle("Wrist lane")
@@ -133,7 +126,7 @@ struct WatchGlanceView: View {
                               color: model.usable(at: date) ? good : accent)
                     }
                 }
-                if model.wristLane.active {
+                if model.wristLane.active || model.wristStarting {
                     wristLaneControls
                     navigationContent(date: date)
                 } else {
@@ -312,7 +305,9 @@ struct WatchGlanceView: View {
             if let lane = model.wristLane.lane { Text(lane.name).font(.caption) }
             Text(model.wristLane.status).font(.caption).fixedSize(horizontal: false, vertical: true)
             if let error = model.wristLaneError { Text(error).font(.caption).foregroundStyle(accent) }
-            if model.wristLane.active {
+            if model.wristStarting {
+                Button("Cancel start") { model.stopWristLane() }
+            } else if model.wristLane.active {
                 Button("Stop wrist alerts") { model.stopWristLane() }
             } else {
                 Button("Choose lane") { showWristLanes = true }

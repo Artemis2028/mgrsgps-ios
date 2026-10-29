@@ -205,7 +205,9 @@ targets:
         WKApplication: true
         WKCompanionAppBundleIdentifier: app.gridfix.ios
         WKRunsIndependentlyOfCompanionApp: true
-        NSLocationWhenInUseUsageDescription: MGRS GPS uses your location while open to show your current grid and bearing to your selected waypoint.
+        NSLocationWhenInUseUsageDescription: MGRS GPS uses your location for your grid, waypoint bearing and wrist alerts. Alerts can keep running with the screen off when you enable that option.
+        UIBackgroundModes:
+          - location
         UIAppFonts:
           - antonio.ttf
           - fira_mono_regular.ttf

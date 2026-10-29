@@ -54,6 +54,76 @@ final class WatchLaneSessionTests: XCTestCase {
         XCTAssertEqual(session.decision?.state,.notYet)
         session.validateScene([]); XCTAssertFalse(session.active)
     }
+    func testOptedInBackgroundOwnerRetainsEntryAndNamedCrossingUntilStopped() throws {
+        var session = WatchLaneSession(); try session.start(lane(),continueInBackground:true)
+        fix(&session,100,0,100); fix(&session,101,0,100)
+        fix(&session,102,-80,100)
+        session.leaveForeground(backgroundAvailable:true)
+        XCTAssertTrue(session.active); XCTAssertTrue(session.continuesInBackground)
+        XCTAssertEqual(fix(&session,103,-80,100),.turnRight)
+        XCTAssertTrue(session.status.contains("Creek"))
+        fix(&session,104,0,100); XCTAssertNil(fix(&session,105,0,100))
+        XCTAssertEqual(session.decision?.state,.inside)
+        session.stop()
+        XCTAssertFalse(session.continuesInBackground); XCTAssertNil(fix(&session,106,-80,100))
+    }
+    func testForegroundConsentOrMissingBackgroundOwnerRequiresExplicitRearm() throws {
+        for backgroundConsent in [false,true] {
+            var session = WatchLaneSession(); try session.start(lane(),continueInBackground:backgroundConsent)
+            fix(&session,100,0,100); fix(&session,101,0,100)
+            session.leaveForeground(backgroundAvailable:!backgroundConsent)
+            XCTAssertFalse(session.active); XCTAssertFalse(session.continuesInBackground)
+            XCTAssertNil(fix(&session,102,-80,100))
+            try session.start(lane(),continueInBackground:backgroundConsent)
+            for t in 103...106 { XCTAssertNil(fix(&session,Double(t),-80,100)) }
+            XCTAssertEqual(session.decision?.state,.notYet)
+        }
+    }
+    func testBackgroundGPSGapClearsHalfCrossingAndSceneChangeReleasesConsent() throws {
+        var session = WatchLaneSession(); let overlay = try lane()
+        try session.start(overlay,continueInBackground:true)
+        fix(&session,100,0,100); fix(&session,101,0,100); fix(&session,102,-80,100)
+        session.leaveForeground(backgroundAvailable:true)
+        session.invalidateFix()
+        XCTAssertTrue(session.active); XCTAssertNil(session.decision)
+        XCTAssertNil(fix(&session,103,-80,100))
+        XCTAssertEqual(fix(&session,104,-80,100),.turnRight)
+        var changed = overlay; changed.leftLabel = "New creek"
+        session.validateScene([changed])
+        XCTAssertFalse(session.active); XCTAssertFalse(session.continuesInBackground)
+        XCTAssertNil(fix(&session,105,-80,100))
+    }
+    func testBackgroundNoticesAreQuietInsideAndOnlyOncePerConfirmedExcursion() throws {
+        var session = WatchLaneSession(); try session.start(lane(),continueInBackground:true)
+        XCTAssertNil(session.takeBackgroundNotice())
+        fix(&session,100,0,100); fix(&session,101,0,100)
+        XCTAssertNil(session.takeBackgroundNotice())
+        fix(&session,102,-80,100); XCTAssertNil(session.takeBackgroundNotice())
+        fix(&session,103,-80,100)
+        XCTAssertEqual(session.takeBackgroundNotice()?.state,.outLeft)
+        for t in 104...110 { fix(&session,Double(t),-80,100); XCTAssertNil(session.takeBackgroundNotice()) }
+        fix(&session,111,0,100); fix(&session,112,0,100)
+        XCTAssertNil(session.takeBackgroundNotice())
+        fix(&session,113,-80,100); fix(&session,114,-80,100)
+        XCTAssertEqual(session.takeBackgroundNotice()?.state,.outLeft)
+        session.stop(); XCTAssertNil(session.takeBackgroundNotice())
+    }
+    func testBackgroundNoticeScopeAndGPSGapCannotLeakOrConsumeForegroundCue() throws {
+        var session = WatchLaneSession(); try session.start(lane())
+        fix(&session,100,0,100); fix(&session,101,0,100); fix(&session,102,80,100)
+        XCTAssertEqual(fix(&session,103,80,100),.turnLeft)
+        XCTAssertNil(session.takeBackgroundNotice())
+        try session.start(lane(),continueInBackground:true)
+        fix(&session,104,0,100); fix(&session,105,0,100); fix(&session,106,80,100); fix(&session,107,80,100)
+        XCTAssertEqual(session.takeBackgroundNotice()?.state,.outRight)
+        session.invalidateFix(); XCTAssertNil(session.takeBackgroundNotice())
+        // The engine retains an already confirmed outside state across a GPS
+        // gap; the first fresh fix can renew that notice, then stays quiet.
+        fix(&session,108,80,100); XCTAssertEqual(session.takeBackgroundNotice()?.state,.outRight)
+        fix(&session,109,80,100); XCTAssertNil(session.takeBackgroundNotice())
+        fix(&session,110,0,400); fix(&session,111,0,400)
+        XCTAssertEqual(session.takeBackgroundNotice()?.state,.overshot)
+    }
     func testInvalidReplacementDisarmsAndFutureOrNonfiniteFixesStaySilent() throws {
         var session = WatchLaneSession(); var overlay = try lane(); try session.start(overlay)
         overlay.left = []

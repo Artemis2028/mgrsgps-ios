@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground independent lane owners now implemented on both platforms,561 Swift core cases/four Wear session tests and both builds pass; watch guide remains separate/read-only | watchOS40mm and Wear192 dp runtime verify local entry, named sides/backstop, expiry and suspension/rearm; independent heading/route guidance and background owners remain implementation work; physical haptic distinction |
+| Independent watch guidance | Foreground lane owners and native GPS runtime on both platforms; watchOS optional background location/system notices now implemented locally with597 core cases and repaired Release passing; named sides/backstop, notification opening/Stop and default-mode rearm verified on40mm | Wear background owner, independent heading/route guidance; physical GPS interruption, notification delivery, haptic distinction and battery. See watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -87,3 +87,15 @@ rounding and short-track rules retained. All592 core cases and368 native cases
 unsigned Release. Captures inspected. See geojson-streaming-output.md. Held
 locally alongside the KML change while hosted113 validates a54ac75; no live
 run cancelled. KMZ/backup streaming and remaining watch/physical gates stay open.
+
+
+Local watchOS background lane milestone is implemented and simulator-validated;
+see watch-background-alerts.md for exact scope and crash repair evidence. The
+optional location owner survives the crown/clock transition, named system
+notices cover both sides and the bent backstop, notification opening preserves
+the repaired process, and Stop/default foreground-only rearming work. All597
+core cases, twelve focused policy cases and repaired simulator/device Release
+pass. Owned pair shut down, fake locations cleared and preferences restored
+byte-for-byte. Wear background work and physical interruption/lock/haptic/battery
+gates remain open. Hosted113 field is now successful; map/library remain live.
+No push cancelled the run; local KML/GeoJSON/watch changes are not in that head.
