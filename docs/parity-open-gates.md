@@ -260,3 +260,13 @@ and night ring/sector workflows pass57.350s/56.005s; unsigned Release passes.
 All final Xcode parents exit0, captures inspected, phone feed reaped/GPS cleared
 and simulator off. Extreme-density label overlap remains, not hidden. See
 hosted114-library-triage.md. Fresh hosted confirmation is still required.
+
+
+### Watch compass native availability check — 29 October 2026
+Native40mm watch run shows own fake-GPS distance/bearing and explicit compass
+unavailable with a cached fake target; no heading injection. Night expired-fix
+readout suppresses numbers; terminate/relaunch retains target. Accessibility3
+uses scrolling; lower heading row/touch, fresh-GPS recovery after clear, real
+heading callbacks and Home/lock transitions remain open. See watch-own-heading.md
+for exact evidence/limits. All native parents/feeds reaped, both owned simulators
+off, fake GPS cleared and original watch preferences restored byte-for-byte.
