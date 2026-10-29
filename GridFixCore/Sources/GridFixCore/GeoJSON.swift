@@ -82,30 +82,77 @@ public enum GeoJSON {
     }
     public static func build(waypoints: [Waypoint],graphics: [Backup.Graphic],tracks: [GPX.Track]) throws -> String {
         var features: [[String: Any]] = []
-        func position(_ lat: Double,_ lon: Double) -> [Double] { [floor(lon*1e7+0.5)/1e7,floor(lat*1e7+0.5)/1e7] }
-        func feature(_ geometry: [String: Any],_ properties: [String: Any]) -> [String: Any] { ["type":"Feature","geometry":geometry,"properties":properties] }
-        for w in waypoints {
-            var props: [String: Any] = ["name":w.name,"kind":"waypoint","folder":w.folder]
-            props["mgrs"] = MGRS.parts(lat: w.lat,lon: w.lon,digits: 10)?.full
-            props["elevation"] = w.metadata.elevationMeters.flatMap { $0.isFinite ? $0 : nil }; props["color"] = w.metadata.color
-            features.append(feature(["type":"Point","coordinates":position(w.lat,w.lon)],props))
-        }
-        for g in graphics {
-            guard let shape = GraphicExportGeometry.make(g), let first = shape.points.first else { continue }
-            var coords = shape.points.map { position($0.lat,$0.lon) }
-            let geometry: [String: Any]
-            if shape.area, shape.points.count >= 3 {
-                if shape.points.first != shape.points.last { coords.append(position(first.lat,first.lon)) }
-                geometry = ["type":"Polygon","coordinates":[coords]]
-            } else if coords.count >= 2 { geometry = ["type":"LineString","coordinates":coords] }
-            else { geometry = ["type":"Point","coordinates":position(first.lat,first.lon)] }
-            features.append(feature(geometry,["name":GraphicExportGeometry.prefix(g.type)+g.name,"kind":g.type,"folder":g.folder]))
-        }
+        for waypoint in waypoints { features.append(waypointFeature(waypoint)) }
+        for graphic in graphics { if let value = graphicFeature(graphic) { features.append(value) } }
         for track in tracks where track.points.count >= 2 {
             features.append(feature(["type":"LineString","coordinates":track.points.map { position($0.lat,$0.lon) }],["name":track.name,"kind":"track"]))
         }
         let data = try JSONSerialization.data(withJSONObject: ["type":"FeatureCollection","features":features],options: [.prettyPrinted,.sortedKeys,.withoutEscapingSlashes])
         return String(decoding: data,as: UTF8.self)+"\n"
+    }
+    private static func position(_ lat: Double,_ lon: Double) -> [Double] { [floor(lon*1e7+0.5)/1e7,floor(lat*1e7+0.5)/1e7] }
+    private static func feature(_ geometry: [String:Any],_ properties: [String:Any]) -> [String:Any] { ["type":"Feature","geometry":geometry,"properties":properties] }
+    private static func waypointFeature(_ waypoint: Waypoint) -> [String:Any] {
+        var properties: [String:Any] = ["name":waypoint.name,"kind":"waypoint","folder":waypoint.folder]
+        properties["mgrs"] = MGRS.parts(lat:waypoint.lat,lon:waypoint.lon,digits:10)?.full
+        properties["elevation"] = waypoint.metadata.elevationMeters.flatMap { $0.isFinite ? $0 : nil }
+        properties["color"] = waypoint.metadata.color
+        return feature(["type":"Point","coordinates":position(waypoint.lat,waypoint.lon)],properties)
+    }
+    private static func graphicFeature(_ graphic: Backup.Graphic) -> [String:Any]? {
+        guard let shape = GraphicExportGeometry.make(graphic),let first = shape.points.first else { return nil }
+        var coordinates = shape.points.map { position($0.lat,$0.lon) }
+        let geometry: [String:Any]
+        if shape.area,shape.points.count >= 3 {
+            if shape.points.first != shape.points.last { coordinates.append(position(first.lat,first.lon)) }
+            geometry = ["type":"Polygon","coordinates":[coordinates]]
+        } else if coordinates.count >= 2 { geometry = ["type":"LineString","coordinates":coordinates] }
+        else { geometry = ["type":"Point","coordinates":position(first.lat,first.lon)] }
+        return feature(geometry,["name":GraphicExportGeometry.prefix(graphic.type)+graphic.name,"kind":graphic.type,"folder":graphic.folder])
+    }
+    /// Preserve geographic semantics while visiting complete local logs without
+    /// import ceilings or a complete track-coordinate/FeatureCollection array.
+    /// Whitespace is compact; output remains provisional until all sources pass.
+    public static func write(waypoints: [Waypoint],graphics: [Backup.Graphic],tracks: [GPX.TrackStream],
+                             sink: (Data) throws -> Void) throws {
+        var buffer = Data()
+        func emit(_ bytes: Data) throws {
+            try Task.checkCancellation()
+            buffer.append(bytes)
+            if buffer.count >= 64*1024 { try sink(buffer); buffer.removeAll(keepingCapacity:true) }
+        }
+        func text(_ value: String) throws { try emit(Data(value.utf8)) }
+        func json(_ value: Any) throws -> Data { try JSONSerialization.data(withJSONObject:value,options:[.sortedKeys,.withoutEscapingSlashes]) }
+        var firstFeature = true
+        func separator() throws { if firstFeature { firstFeature = false } else { try text(",") } }
+        try text("{\"features\":[")
+        for waypoint in waypoints { try separator(); try emit(json(waypointFeature(waypoint))) }
+        for graphic in graphics {
+            try Task.checkCancellation()
+            if let value = graphicFeature(graphic) { try separator(); try emit(json(value)) }
+        }
+        for track in tracks {
+            var first: TrackPoint?,started = false
+            try track.visit { point in
+                try Task.checkCancellation()
+                guard let initial = first else { first = point; return }
+                if !started {
+                    // Empty/single-point tracks are omitted by the existing
+                    // contract. Buffer only the first point until a second.
+                    try separator()
+                    try text("{\"type\":\"Feature\",\"properties\":")
+                    try emit(json(["name":track.name,"kind":"track"]))
+                    try text(",\"geometry\":{\"type\":\"LineString\",\"coordinates\":[")
+                    try emit(json(position(initial.lat,initial.lon)))
+                    started = true
+                }
+                try text(","); try emit(json(position(point.lat,point.lon)))
+            }
+            if started { try text("]}}") }
+        }
+        try text("],\"type\":\"FeatureCollection\"}\n")
+        if !buffer.isEmpty { try sink(buffer) }
+        try Task.checkCancellation()
     }
     private static func number(_ raw: Any?) -> Double? {
         if let text = raw as? String { return Double(text).flatMap { $0.isFinite ? $0 : nil } }

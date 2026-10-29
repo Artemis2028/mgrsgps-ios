@@ -80,3 +80,10 @@ point-vs-line classification. Screenshot inspected; unsigned Release passes.
 See kml-streaming-output.md. Held locally while hosted113/run40807863444
 validates a54ac75; it is not covered by that head. GeoJSON/KMZ/backup streaming,
 physical/provider checks and other listed gates remain.
+
+Local GeoJSON follow-up streams complete tracks with Android feature metadata,
+rounding and short-track rules retained. All592 core cases and368 native cases
+(four opt-in skips) pass, along with two real Files/import/map workflows and
+unsigned Release. Captures inspected. See geojson-streaming-output.md. Held
+locally alongside the KML change while hosted113 validates a54ac75; no live
+run cancelled. KMZ/backup streaming and remaining watch/physical gates stay open.

@@ -72,6 +72,14 @@ final class FieldExportWorkflowTests: XCTestCase {
         counts("4 waypoints · 2 graphics/routes · 0 tracks")
         capture("kml-streaming-file-preview"); app.buttons["Cancel"].tap()
     }
+    func testGeoJSONWholeLibraryExportsThroughFilesAndRetainsTrackAsLine() {
+        launch("-uiTestLibrary")
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export GeoJSON"])
+        let name = saveAndReview("geojson-field-export-")
+        XCTAssertEqual(app.staticTexts["interchange-filename"].label,name+".geojson")
+        counts("4 waypoints · 2 graphics/routes · 0 tracks")
+        capture("geojson-streaming-file-preview"); app.buttons["Cancel"].tap()
+    }
     func testNativeExportCancellationAllowsAnotherCompleteExport() {
         launch("-uiTestLibrary"); exportLibraryGPX()
         let filename = app.textFields["export-filename"]

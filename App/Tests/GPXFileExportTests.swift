@@ -54,7 +54,30 @@ final class GPXFileExportTests: XCTestCase {
         XCTAssertEqual(document.contentType,.gridFixKML)
         guard case .file = document.payload else { return XCTFail("KML native presenter must retain a file") }
     }
+    func testWholeLibraryGeoJSONUsesFilePayloadAndRetainsLongDeferredTrack() async throws {
+        let (_,field,_) = try await fixture(count:300_003)
+        let result = try await FieldExportPreparation.prepare(.library(.geojson,[],field.document))
+        guard case .file(let file) = result.payload else { return XCTFail("Production GeoJSON must stream to a file") }
+        XCTAssertEqual(result.format,.geojson); XCTAssertEqual(file.url.pathExtension,"geojson")
+        let stream = try XCTUnwrap(InputStream(url:file.url)); stream.open(); defer { stream.close() }
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with:stream) as? [String:Any])
+        let features = try XCTUnwrap(root["features"] as? [[String:Any]])
+        let geometry = try XCTUnwrap(features.first?["geometry"] as? [String:Any])
+        let points = try XCTUnwrap(geometry["coordinates"] as? [[Double]])
+        XCTAssertEqual(points.count,300_003); XCTAssertEqual(points.first,[54,24]); XCTAssertEqual(points.last,[54,24])
+        XCTAssertEqual((features.first?["properties"] as? [String:Any])?["kind"] as? String,"track")
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        let document = FieldExportDocumentFile(result)
+        XCTAssertEqual(document.contentType,.gridFixGeoJSON)
+        guard case .file = document.payload else { return XCTFail("GeoJSON native presenter must retain a file") }
+    }
+    func testGeoJSONLateChecksumFailureRemovesPartialFileWithoutChangingSavedSource() async throws {
+        try await verifyLateChecksumFailure(format:.geojson)
+    }
     func testKMLLateChecksumFailureRemovesPartialFileWithoutChangingSavedSource() async throws {
+        try await verifyLateChecksumFailure(format:.kml)
+    }
+    private func verifyLateChecksumFailure(format: TextInterchangeFormat) async throws {
         let (root,_,_) = try await fixture(count:5000)
         let index = root.appendingPathComponent("field-data-v2.json"),originalIndex = try Data(contentsOf:index)
         let log = try XCTUnwrap(FileManager.default.contentsOfDirectory(at:root.appendingPathComponent("field-track-logs-v2"),includingPropertiesForKeys:nil).first)
@@ -65,8 +88,8 @@ final class GPXFileExportTests: XCTestCase {
         XCTAssertNil(field.loadError)
         let output = try directory()
         do {
-            _ = try await FieldExportPreparation.prepare(.library(.kml,[],field.document)) { try FieldExportPreparation.buildForPresentation($0,root:output) }
-            XCTFail("Checksum-invalid KML returned a file")
+            _ = try await FieldExportPreparation.prepare(.library(format,[],field.document)) { try FieldExportPreparation.buildForPresentation($0,root:output) }
+            XCTFail("Checksum-invalid \(format.rawValue) returned a file")
         } catch { XCTAssertTrue(error.localizedDescription.contains("checksum")) }
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath:output.path).isEmpty)
         XCTAssertEqual(try Data(contentsOf:log),changed); XCTAssertEqual(try Data(contentsOf:index),originalIndex)
