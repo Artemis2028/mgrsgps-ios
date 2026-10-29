@@ -24,3 +24,6 @@ tmp/
 output/
 
 ActivityWidget/Info.generated.plist
+
+# One-shot local renewal credentials are staged only outside the repository.
+tak-local-renewal-proof-login.json
