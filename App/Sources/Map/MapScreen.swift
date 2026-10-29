@@ -1351,7 +1351,7 @@ private struct MapContainer: UIViewRepresentable {
             map.bringSubviewToFront(crosshair)
         }
         func mapViewRegionIsChanging(_ mapView: MLNMapView) {
-            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.setNeedsDisplay()
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded()
             if rulerActive {
                 let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
                 DispatchQueue.main.async { [weak self] in if self?.rulerActive == true { self?.onRulerTarget?(point) } }
@@ -1363,7 +1363,7 @@ private struct MapContainer: UIViewRepresentable {
         }
 
         private func redraw(_ map: MLNMapView) {
-            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.setNeedsDisplay(); raiseAnnotations(in: map)
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded(); raiseAnnotations(in: map)
             if lassoActive { map.bringSubviewToFront(lasso) }
             if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
             if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }

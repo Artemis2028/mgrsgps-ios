@@ -12,11 +12,30 @@ final class TacticalMapOverlay: UIView {
     var rulerAnchor: GeoPoint?
     private var shade: UIImage?
     private var shadeKey = ""
+    private struct Camera: Equatable {
+        let latitude: Double, longitude: Double, zoom: Double, direction: Double, pitch: Double
+        let mapBounds: CGRect, canvasFrame: CGRect
+        let inset: UIEdgeInsets
+    }
+    private var lastCamera: Camera?
+    func redrawForCameraIfNeeded() {
+        guard let map else { return }
+        let camera = Camera(latitude:map.centerCoordinate.latitude,longitude:map.centerCoordinate.longitude,
+                            zoom:map.zoomLevel,direction:map.direction,pitch:map.camera.pitch,
+                            mapBounds:map.bounds,canvasFrame:frame,inset:map.contentInset)
+        guard camera != lastCamera else { return }
+        lastCamera = camera; setNeedsDisplay()
+    }
     override init(frame: CGRect) { super.init(frame: frame); backgroundColor = .clear; isOpaque = false; isUserInteractionEnabled = false; accessibilityElementsHidden = true; contentMode = .redraw }
     required init?(coder: NSCoder) { fatalError("Created by map") }
     func update(document: Backup.Document, folders: [FolderInfo], draft: Backup.Graphic?, night: Bool, light: Bool, viewshed: TerrainAnalysis.Viewshed?,rulerAnchor: GeoPoint? = nil) {
         let hidden = Set(folders.filter { !$0.visible }.map { $0.name.lowercased() })
-        graphics = document.graphics.filter { $0.visible && !hidden.contains($0.folder.lowercased()) && $0.id != draft?.id }
+        let graphics = document.graphics.filter { $0.visible && !hidden.contains($0.folder.lowercased()) && $0.id != draft?.id }
+        // Own-location/status publications do not change this canvas. Repainting
+        // every tactical label on each GPS callback stalls dense native maps.
+        guard self.graphics != graphics || self.draft != draft || self.night != night || lightLines != light
+                || self.viewshed?.id != viewshed?.id || self.rulerAnchor != rulerAnchor else { return }
+        self.graphics = graphics
         self.draft = draft; self.night = night; lightLines = light
         self.viewshed = viewshed
         self.rulerAnchor = rulerAnchor

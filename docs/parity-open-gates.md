@@ -249,3 +249,14 @@ stays unavailable. Foreground suspension stops/clears compass ownership even
 when lane background location continues. All613 core cases and unsigned Release
 pass. Native simulator/lifecycle/40mm and physical calibrated readings remain
 next; steering/route progression is not claimed complete. See watch-own-heading.md.
+
+
+### Tactical canvas redraw follow-up — 29 October 2026
+Full hosted114 library bundle59pass/1timeout across60 cases. Tactical canvas
+now skips unchanged data/camera repaint requests; visibility and native markers
+are retained in full. Exact dense map count/hide/show/camera/night workflow
+passes168.538s with the CI3s moving fake GPS feed. Route insert/drag/edit/relaunch
+and night ring/sector workflows pass57.350s/56.005s; unsigned Release passes.
+All final Xcode parents exit0, captures inspected, phone feed reaped/GPS cleared
+and simulator off. Extreme-density label overlap remains, not hidden. See
+hosted114-library-triage.md. Fresh hosted confirmation is still required.
