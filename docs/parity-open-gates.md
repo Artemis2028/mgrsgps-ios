@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners and native GPS runtime on both platforms; watchOS optional background location/system notices now implemented locally with597 core cases and repaired Release passing; named sides/backstop, notification opening/Stop and default-mode rearm verified on40mm | Wear background owner now implemented/pushed with native component runtime; new Wear toggle/notification visual checks, independent heading/route guidance, physical GPS interruption, notification delivery, haptic distinction and battery. See watch-background-alerts.md |
+| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | New Wear toggle/notification visual checks, independent heading/route guidance, physical GPS interruption/lock, notification delivery, haptic distinction and battery. See watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -121,3 +121,22 @@ retrieved for triage; expected SHA-256 is
 255d295dbfeb04e8dbac24beac434a341ad2af9ddf8f2ea83d5859946c0a6f32.
 KML1370c82, GeoJSONded37ba and watche84e090 remain local while these failures
 are inspected; no full hosted-green claim and no redundant rerun.
+
+
+The full hosted113 result artifact corrects the library total to56 passes/four
+failures across60 cases: the console final42-case block omitted an earlier
+dense accessibility timeout. Verified artifact and exact local reproduction
+are recorded in hosted113-library-triage.md. Three unchanged local workflows
+pass; the stronger dense case exposes907 accessible markers vs924 SDK
+annotations after camera return. A visibility-aware ordering-cache repair is
+staged, and unsigned device Release passes. Its UI replay awaits the preserved
+baseline parent's diagnostic finalization; no duplicate or cancelling run.
+
+
+The visibility-cache repair passes all four unchanged hosted113 regression
+workflows together (179.270/46.581/11.410/46.574s), exit0/TEST SUCCEEDED.
+Unsigned phone/watch/widget Release passes; key captures inspected. See
+hosted113-library-triage.md for the reproduced907/924 mismatch and exact proof.
+Every local parent is reaped, fake location cleared and owned simulator off.
+The repaired head needs fresh hosted confirmation; earlier local export/watch
+commits are now ready to accompany that push. Other listed gates remain open.

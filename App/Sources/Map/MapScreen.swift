@@ -1358,6 +1358,9 @@ private struct MapContainer: UIViewRepresentable {
             }
         }
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
+        func mapViewDidFinishRenderingFrame(_ mapView: MLNMapView, fullyRendered: Bool) {
+            (mapView as? FieldMapView)?.annotationVisibilityDidRender()
+        }
 
         private func redraw(_ map: MLNMapView) {
             lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.setNeedsDisplay(); raiseAnnotations(in: map)

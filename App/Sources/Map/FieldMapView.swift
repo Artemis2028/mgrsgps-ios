@@ -18,9 +18,25 @@ final class FieldMapView: MLNMapView {
         let start: Int
         let views: [MLNAnnotationView]
         let indices: [ObjectIdentifier: Int]
+        let visibleViews: [ObjectIdentifier: ObjectIdentifier]
+        let nativeCount: Int
     }
     private var annotationRevision = 0
     private var annotationElements: AnnotationElements?
+    private var visibilityNeedsValidation = true
+
+    // Rendering can finish changing the SDK-visible set after the camera has
+    // reached its final coordinates. Defer this check to the next AX access;
+    // the per-frame callback itself must remain constant-time.
+    func annotationVisibilityDidRender() { visibilityNeedsValidation = true }
+    override func accessibilityElementCount() -> Int {
+        let count = super.accessibilityElementCount()
+        if let cached = annotationElements, cached.nativeCount != count {
+            annotationElements = nil
+            visibilityNeedsValidation = true
+        }
+        return count
+    }
 
     func invalidateAnnotationAccessibility() {
         annotationRevision &+= 1
@@ -48,11 +64,21 @@ final class FieldMapView: MLNMapView {
                             zoom: zoomLevel, direction: direction, pitch: self.camera.pitch,
                             bounds: bounds, inset: contentInset, location: showsUserLocation,
                             locationView: locationView.map(ObjectIdentifier.init), revision: annotationRevision)
-        if let cached = annotationElements, cached.camera == camera { return cached }
-        annotationElements = nil
+        if let cached = annotationElements, cached.camera == camera, !visibilityNeedsValidation { return cached }
         let annotations = visibleAnnotations ?? []
-        // Leave ordinary maps and any SDK-managed non-view annotations alone.
-        guard annotations.count > 100 else { return nil }
+        // Ordinary maps keep the SDK path without collecting view identities.
+        guard annotations.count > 100 else { annotationElements = nil; return nil }
+        var visibleViews: [ObjectIdentifier: ObjectIdentifier] = [:]
+        visibleViews.reserveCapacity(annotations.count)
+        for annotation in annotations {
+            guard let view = view(for: annotation), view.superview != nil else {
+                annotationElements = nil; return nil
+            }
+            visibleViews[ObjectIdentifier(annotation as AnyObject)] = ObjectIdentifier(view)
+        }
+        visibilityNeedsValidation = false
+        if let cached = annotationElements, cached.camera == camera, cached.visibleViews == visibleViews { return cached }
+        annotationElements = nil
         let content = bounds.inset(by: contentInset)
         let center = CGPoint(x: content.midX, y: content.midY)
         var ranked: [(view: MLNAnnotationView, distance: CGFloat, ordinal: Int)] = []
@@ -71,7 +97,7 @@ final class FieldMapView: MLNMapView {
         let views = ranked.map(\.view)
         var indices: [ObjectIdentifier: Int] = [:]
         for (index, view) in views.enumerated() { indices[ObjectIdentifier(view)] = start + index }
-        let result = AnnotationElements(camera: camera, start: start, views: views, indices: indices)
+        let result = AnnotationElements(camera: camera, start: start, views: views, indices: indices, visibleViews: visibleViews, nativeCount: total)
         annotationElements = result
         return result
     }

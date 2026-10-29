@@ -77,3 +77,19 @@ capture was inspected: all markers are retained, with the previously recorded
 extreme-density label overlap. Full hosted confirmation stays open.
 Unsigned phone/watch/widget Release passes in
 /tmp/mgrsgps-gpx-output-cache-final-release.log.
+
+
+## Renderer visibility completion (hosted113 follow-up)
+
+A camera-only key can be current before the SDK finishes its final visible
+annotation update. The unchanged iOS26.2 regression reproduced907 accessible
+markers versus924 SDK annotations after a round-trip camera move. The cache
+now tracks complete annotation/view identities after rendering, deferring their
+comparison to the next AX read; the frame callback only marks a dirty flag.
+A changed native element count invalidates immediately. No marker is hidden
+and sparse/native non-view behavior is retained.
+
+The exact count/hide/show/camera/night case passes179.270s with the CI3-second
+GPS feed. All four hosted113 regression workflows pass together, and unsigned
+device Release passes. See hosted113-library-triage.md. Extreme-density labels
+can still overlap; physical profiling and fresh hosted confirmation remain open.
