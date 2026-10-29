@@ -31,6 +31,15 @@ public enum KMZ {
         }
         return content ?? .init()
     }
+    /// Complete validated local logs, bounded KML/ZIP output, no import ceilings.
+    /// Sources must support two visits; both are strictly validated and the ZIP
+    /// is unfinished if their byte count or CRC changes between visits.
+    public static func write(waypoints: [Waypoint],graphics: [Backup.Graphic],tracks: [GPX.TrackStream],
+                             sink: (Data) throws -> Void) throws {
+        try ZipArchive.writeStored(name:"doc.kml",produce: { emit in
+            try KML.write(waypoints:waypoints,graphics:graphics,tracks:tracks,sink:emit)
+        },sink:sink)
+    }
     public static func build(waypoints: [Waypoint],graphics: [Backup.Graphic],tracks: [GPX.Track]) throws -> Data {
         let xml = KML.build(waypoints: waypoints,graphics: graphics,tracks: tracks)
         guard xml.utf8.count <= KML.byteLimit else { throw BackupError.notABackup("Exported KML exceeds 32 MB; export a smaller library") }

@@ -72,6 +72,14 @@ final class FieldExportWorkflowTests: XCTestCase {
         counts("4 waypoints · 2 graphics/routes · 0 tracks")
         capture("kml-streaming-file-preview"); app.buttons["Cancel"].tap()
     }
+    func testKMZWholeLibraryExportsThroughFilesAndRetainsTrackAsLine() {
+        launch("-uiTestLibrary")
+        app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export KMZ"])
+        let name = saveAndReview("kmz-field-export-")
+        XCTAssertEqual(app.staticTexts["interchange-filename"].label,name+".kmz")
+        counts("4 waypoints · 2 graphics/routes · 0 tracks")
+        capture("kmz-streaming-file-preview"); app.buttons["Cancel"].tap()
+    }
     func testGeoJSONWholeLibraryExportsThroughFilesAndRetainsTrackAsLine() {
         launch("-uiTestLibrary")
         app.buttons["Waypoint actions"].tap(); tapNativeMenuItem(app.buttons["Export"]); tapNativeMenuItem(app.buttons["Export GeoJSON"])

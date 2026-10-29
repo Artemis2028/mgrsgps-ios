@@ -140,3 +140,15 @@ hosted113-library-triage.md for the reproduced907/924 mismatch and exact proof.
 Every local parent is reaped, fake location cleared and owned simulator off.
 The repaired head needs fresh hosted confirmation; earlier local export/watch
 commits are now ready to accompany that push. Other listed gates remain open.
+
+
+Local KMZ follow-up now uses complete validated local-log visitors, bounded
+production output and an owned Files payload. A two-pass STORE writer retains
+legacy ZIP headers with upfront CRC/size and refuses changed source bytes before
+finishing its directory. All603 core cases, full370 native cases (four opt-in
+skips), real KMZ Files save/reopen55.232s and unsigned Release pass. Preview
+captures inspected; Java ZipInputStream independently reads the Files-saved
+archive with all six expected records. Every parent is reaped and owned
+simulator off/fake location cleared. Held locally while hosted114/run40821076335
+validates5f73683. See kmz-streaming-output.md. Backup streaming and remaining
+watch/physical/provider gates stay open; no new TAK/paired-transport proof.

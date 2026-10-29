@@ -65,3 +65,10 @@ Validation:
   one owned simulator is off and its fake location cleared. No server contact.
 - The first focused test compile missed a try in an assertion; it ran no cases.
   The corrected34-case run and final569-case run pass. No fixture/timeout shrink.
+
+
+KMZ production output now streams complete validated local logs through a
+two-pass CRC/size STORE container into an owned native Files payload. It keeps
+ZIP32 output and existing import/protection limits explicit. All603 core/full370
+native cases and real KMZ Files roundtrip pass; see kmz-streaming-output.md.
+Backup streaming and physical memory/provider gates remain open.

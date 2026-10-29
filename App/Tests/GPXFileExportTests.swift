@@ -54,6 +54,28 @@ final class GPXFileExportTests: XCTestCase {
         XCTAssertEqual(document.contentType,.gridFixKML)
         guard case .file = document.payload else { return XCTFail("KML native presenter must retain a file") }
     }
+    func testWholeLibraryKMZUsesFilePayloadAndRetainsLongDeferredTrack() async throws {
+        let (_,field,_) = try await fixture(count:300_003)
+        let result = try await FieldExportPreparation.prepare(.library(.kmz,[],field.document))
+        guard case .file(let file) = result.payload else { return XCTFail("Production KMZ must stream to a file") }
+        XCTAssertEqual(result.format,.kmz); XCTAssertEqual(file.url.pathExtension,"kmz")
+        let bytes = try Data(contentsOf:file.url,options:.mappedIfSafe)
+        func little(_ start: Int,_ count: Int) -> Int { (0..<count).reduce(0) {$0 | Int(bytes[start+$1]) << (8*$1)} }
+        XCTAssertEqual(little(0,4),0x04034b50); XCTAssertEqual(little(8,2),0,"Legacy STORE container")
+        let nameLength = little(26,2),start = 30+nameLength+little(28,2),size = little(18,4)
+        XCTAssertEqual(String(decoding:bytes.subdata(in:30..<30+nameLength),as:UTF8.self),"doc.kml")
+        guard start+size <= bytes.count else { return XCTFail("Truncated KMZ member") }
+        let parser = XMLParser(data:bytes.subdata(in:start..<start+size)),counter = KMLFileCoordinateCounter()
+        parser.delegate = counter
+        XCTAssertTrue(parser.parse(),String(describing:parser.parserError)); XCTAssertEqual(counter.count,300_003)
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        let document = FieldExportDocumentFile(result)
+        XCTAssertEqual(document.contentType,.gridFixKMZ)
+        guard case .file = document.payload else { return XCTFail("KMZ native presenter must retain a file") }
+    }
+    func testKMZLateChecksumFailureRemovesPartialFileWithoutChangingSavedSource() async throws {
+        try await verifyLateChecksumFailure(format:.kmz)
+    }
     func testWholeLibraryGeoJSONUsesFilePayloadAndRetainsLongDeferredTrack() async throws {
         let (_,field,_) = try await fixture(count:300_003)
         let result = try await FieldExportPreparation.prepare(.library(.geojson,[],field.document))

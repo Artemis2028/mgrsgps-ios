@@ -69,6 +69,62 @@ enum ZipArchive {
         return local + central + end
     }
 
+    /// Bounded single-member STORE output. Measure/validate a repeatable source
+    /// first so headers contain CRC/size, matching the legacy STORE format.
+    /// Verify the second visit
+    /// before finishing the central directory; callers discard provisional files.
+    static func writeStored(name: String,produce: ((Data) throws -> Void) throws -> Void,
+                            sink: (Data) throws -> Void) throws {
+        // Both producer visits are synchronous; this bridge permits the nested
+        // callback while checking the sink has not escaped when we return.
+        try withoutActuallyEscaping(sink) { sink in
+            let nameData = Data(name.utf8)
+            guard !nameData.isEmpty,nameData.count <= Int(UInt16.max) else { throw BackupError.notABackup("Invalid ZIP output name") }
+            let headerBytes = 30 + nameData.count
+            let maximum = UInt64(UInt32.max) - UInt64(headerBytes)
+            var size: UInt64 = 0, crc: UInt32 = 0
+            func update(_ bytes: Data,size: inout UInt64,crc: inout UInt32) throws {
+                try Task.checkCancellation()
+                guard UInt64(bytes.count) <= maximum-size else { throw BackupError.notABackup("ZIP output exceeds supported ZIP32 size") }
+                size += UInt64(bytes.count)
+                if !bytes.isEmpty {
+                    crc = bytes.withUnsafeBytes { UInt32(zlib.crc32(uLong(crc),$0.bindMemory(to:Bytef.self).baseAddress,uInt(bytes.count))) }
+                }
+            }
+            try produce { try update($0,size:&size,crc:&crc) }
+            try Task.checkCancellation()
+            var header = Data()
+            header.appendLE(UInt32(0x04034b50)); header.appendLE(UInt16(20))
+            header.appendLE(UInt16(0)); header.appendLE(UInt16(0))
+            header.appendLE(UInt16(0)); header.appendLE(UInt16(0))
+            header.appendLE(crc); header.appendLE(UInt32(size)); header.appendLE(UInt32(size))
+            header.appendLE(UInt16(nameData.count)); header.appendLE(UInt16(0)); header.append(nameData)
+            try sink(header)
+            var written: UInt64 = 0, writtenCRC: UInt32 = 0
+            func writeBody(_ bytes: Data) throws {
+                try update(bytes,size:&written,crc:&writtenCRC)
+                guard written <= size else { throw BackupError.notABackup("ZIP output changed during preparation") }
+                try sink(bytes); try Task.checkCancellation()
+            }
+            try produce(writeBody)
+            try Task.checkCancellation()
+            guard written == size,writtenCRC == crc else { throw BackupError.notABackup("ZIP output changed during preparation") }
+            var central = Data()
+            central.appendLE(UInt32(0x02014b50)); central.appendLE(UInt16(20)); central.appendLE(UInt16(20))
+            central.appendLE(UInt16(0)); central.appendLE(UInt16(0)); central.appendLE(UInt16(0)); central.appendLE(UInt16(0))
+            central.appendLE(crc); central.appendLE(UInt32(size)); central.appendLE(UInt32(size))
+            central.appendLE(UInt16(nameData.count)); central.appendLE(UInt16(0)); central.appendLE(UInt16(0))
+            central.appendLE(UInt16(0)); central.appendLE(UInt16(0)); central.appendLE(UInt32(0)); central.appendLE(UInt32(0))
+            central.append(nameData)
+            try sink(central); try Task.checkCancellation()
+            var end = Data()
+            end.appendLE(UInt32(0x06054b50)); end.appendLE(UInt16(0)); end.appendLE(UInt16(0))
+            end.appendLE(UInt16(1)); end.appendLE(UInt16(1)); end.appendLE(UInt32(central.count))
+            end.appendLE(UInt32(UInt64(headerBytes)+size)); end.appendLE(UInt16(0))
+            try sink(end); try Task.checkCancellation()
+        }
+    }
+
     static let totalLimit = 32 * 1024 * 1024
     static let entryLimit = 16 * 1024 * 1024
     static let manifestLimit = 4 * 1024 * 1024
