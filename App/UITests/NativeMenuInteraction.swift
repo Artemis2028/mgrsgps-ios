@@ -223,7 +223,15 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         let rail = app.scrollViews["map-options-rail"]
         // Hosted AX can retain the toggle's pre-animation value after the
         // native rail is visibly open. Require the actual usable disclosure.
-        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in rail.exists && rail.isHittable }, object: rail)
+        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
+            guard rail.exists else { return false }
+            // An active ruler panel can cover the scroll container's native
+            // activation point while its tool rows remain fully usable.
+            let viewport = rail.frame
+            return rail.buttons.allElementsBoundByIndex.contains { row in
+                row.isHittable && viewport.contains(row.frame) && !row.frame.isEmpty
+            }
+        }, object: rail)
         XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Map options did not reveal a usable rail")
     }
     let button = app.buttons[identifier]
