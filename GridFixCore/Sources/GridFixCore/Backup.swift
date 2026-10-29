@@ -190,6 +190,43 @@ public enum Backup {
         return ZipArchive.write(entries: entries)
     }
 
+    /// File-oriented output with the existing external backup budgets. Retains
+    /// bounded manifest metadata and at most one 16 MiB track, never all track
+    /// bytes or a decoded point array/archive. Sources are validated twice.
+    public static func writeZip(_ doc: Document,sink: (Data) throws -> Void) throws {
+        try validate(doc,includingTrackFiles:false)
+        let ids = Set(doc.tracks.map(\.id))
+        guard doc.tracks.count+1 <= 512,Set(doc.trackFiles.keys).union(doc.localTrackFiles.keys).isSubset(of:ids) else {
+            throw BackupError.notABackup("Backup exceeds member limits or a track file is missing from manifest")
+        }
+        let manifest = try encodeManifest(doc)
+        guard manifest.count <= ZipArchive.manifestLimit else { throw BackupError.notABackup("Backup exceeds supported manifest size") }
+        var entries = [ZipArchive.StoredEntry(name:manifestName,produce: { emit in
+            for start in stride(from:0,to:manifest.count,by:64*1024) {
+                try Task.checkCancellation(); try emit(manifest.subdata(in:start..<min(start+64*1024,manifest.count)))
+            }
+        })]
+        var measured = Set<String>(),totalPoints = 0,totalBytes = manifest.count
+        for track in doc.tracks {
+            entries.append(.init(name:"tracks/\(track.id).txt",produce: { emit in
+                let data = try doc.trackData(track.id,maximumBytes:ZipArchive.entryLimit)
+                var count = 0
+                try TrackCodec.visitLocal(data) { _ in
+                    count += 1
+                    guard count <= 250_000 else { throw BackupError.notABackup("Too many backup track points") }
+                }
+                if measured.insert(track.id).inserted {
+                    totalPoints += count; totalBytes += data.count
+                    guard totalPoints <= 250_000,totalBytes <= ZipArchive.totalLimit else { throw BackupError.notABackup("Backup exceeds supported point or size limits") }
+                }
+                for start in stride(from:0,to:data.count,by:64*1024) {
+                    try Task.checkCancellation(); try emit(data.subdata(in:start..<min(start+64*1024,data.count)))
+                }
+            }))
+        }
+        try ZipArchive.writeStored(entries:entries,sink:sink)
+    }
+
     public static func encodeManifest(_ doc: Document) throws -> Data {
         let root = NSMutableDictionary()
         root["app"] = "GridFix"

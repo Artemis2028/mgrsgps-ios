@@ -767,10 +767,10 @@ struct WaypointsView: View {
         do { doc = try BackupCoordinator.snapshot(waypoints:store,fieldData:fieldData,settings:settings,lanes:lanes,boundaries:boundaries) }
         catch { status = "Backup failed: \(error.localizedDescription)"; return }
         status = nil
-        backupTransfer.export(doc,password: password) { result in
+        backupTransfer.exportFile(doc,password: password) { result in
             switch result {
-            case .success(let data):
-                exportFile = FieldExportDocumentFile(data: data,contentType: password == nil ? .zip : .gridFixProtectedBackup,filename: password == nil ? "gridfix-backup" : "gridfix-backup.mgrsgps")
+            case .success(let payload):
+                exportFile = FieldExportDocumentFile(payload: payload,contentType: password == nil ? .zip : .gridFixProtectedBackup,filename: password == nil ? "gridfix-backup" : "gridfix-backup.mgrsgps")
                 status = "Backup ready"
             case .failure(let error): status = "Backup failed: \(error.localizedDescription)"
             }

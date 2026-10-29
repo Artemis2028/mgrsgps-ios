@@ -18,7 +18,7 @@ This writer keeps the ZIP32 member/offset ceiling and throws a readable size
 error before overflowing. It does not introduce ZIP64 output. The separate KMZ
 import budgets and legacy eager KMZ.build helper retain their limits. Protected
 export still checks its 16 MiB envelope limit before reading the completed file;
-there is no plaintext fallback. Backup output streaming remains separate work.
+there is no plaintext fallback. Backup file output is now validated separately; see backup-streaming-output.md.
 
 Validation:
 
@@ -50,5 +50,5 @@ nested nonescaping-callback error; a synchronous withoutActuallyEscaping scope
 resolves it and checks sink lifetime at return. No callback is retained.
 
 This change is held locally while hosted114 validates pushed 5f73683. Physical
-memory/provider/cold-device checks, backup streaming and other recorded parity
+memory/provider/cold-device checks and other recorded parity
 gates remain open. No TAK server, credentials or infrastructure were changed.

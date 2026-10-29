@@ -71,4 +71,5 @@ KMZ production output now streams complete validated local logs through a
 two-pass CRC/size STORE container into an owned native Files payload. It keeps
 ZIP32 output and existing import/protection limits explicit. All603 core/full370
 native cases and real KMZ Files roundtrip pass; see kmz-streaming-output.md.
-Backup streaming and physical memory/provider gates remain open.
+Backup file output is now validated locally; see backup-streaming-output.md.
+Physical memory/provider gates remain open.

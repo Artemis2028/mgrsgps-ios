@@ -28,6 +28,30 @@ enum BackupPreparation {
         return try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
     }
 
+    static func prepareFile(_ document: Backup.Document,password: String? = nil,root: URL = FileManager.default.temporaryDirectory) async throws -> FieldExportPayload {
+        let worker = Task.detached(priority:.userInitiated) {
+            let plain = try PreparedNativeExport.prepare(filename:"gridfix-backup",extension:"zip",root:root) { url in
+                guard FileManager.default.createFile(atPath:url.path,contents:nil,attributes:[.protectionKey:FileProtectionType.completeUntilFirstUserAuthentication]) else { throw CocoaError(.fileWriteUnknown) }
+                let handle = try FileHandle(forWritingTo:url)
+                do { try Backup.writeZip(document) { try handle.write(contentsOf:$0) }; try handle.synchronize(); try handle.close() }
+                catch { try? handle.close(); throw error }
+            }
+            if let password {
+                // The existing authenticated envelope is one-shot and bounded.
+                // Remove provisional plaintext before any protected presentation.
+                defer { try? FileManager.default.removeItem(at:plain.directory) }
+                let bytes = try Data(contentsOf:plain.url)
+                try Task.checkCancellation()
+                let sealed = try BackupCrypto.seal(bytes,password:password)
+                try Task.checkCancellation()
+                return FieldExportPayload.file(try PreparedNativeExport.prepare(data:sealed,filename:"gridfix-backup",extension:"mgrsgps",root:root))
+            }
+            try Task.checkCancellation()
+            return FieldExportPayload.file(plain)
+        }
+        return try await withTaskCancellationHandler(operation:{try await worker.value},onCancel:{worker.cancel()})
+    }
+
     static func encode(_ document: Backup.Document, writer: @escaping @Sendable (Backup.Document) throws -> Data = { try Backup.exportZip($0) }) async throws -> Data {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
@@ -84,6 +108,12 @@ final class BackupTransfer: ObservableObject {
             if let password { return try await BackupPreparation.protect(bytes,password: password) }
             return bytes
         },commit: { completion(.success($0)) },failure: { completion(.failure($0)) })
+    }
+
+    @discardableResult
+    func exportFile(_ snapshot: Backup.Document,password: String? = nil,completion: @escaping (Result<FieldExportPayload,Error>) -> Void) -> Bool {
+        start(.exporting,prepare: { try await BackupPreparation.prepareFile(snapshot,password:password) },
+              commit: {completion(.success($0))},failure: {completion(.failure($0))})
     }
 
     /// The returned handle lets an owner await canceled provider work if needed.

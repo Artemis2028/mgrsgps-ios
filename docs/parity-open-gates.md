@@ -152,3 +152,18 @@ archive with all six expected records. Every parent is reaped and owned
 simulator off/fake location cleared. Held locally while hosted114/run40821076335
 validates5f73683. See kmz-streaming-output.md. Backup streaming and remaining
 watch/physical/provider gates stay open; no new TAK/paired-transport proof.
+
+
+### Backup file output follow-up — 29 October 2026
+Ordinary/protected native Files exports now use owned file payloads. The STORE
+writer validates every source before output, verifies the second visit and
+preserves complete raw track bytes and existing manifest/protocol budgets.
+Manifest encoding and the protected authenticated envelope remain bounded eager
+steps. All609 core cases pass; full374 native cases complete with four opt-in
+skips/no failures. Both ordinary/protected Files workflows and unsigned Release
+pass. Actual Files-saved ZIP also passes independent Java17 member/CRC checks;
+representative captures inspected. Every parent reaped and simulator off.
+See backup-streaming-output.md for evidence and limits. Held locally while
+hosted114/run40821076335 validates pushed5f73683; all three shards remain active.
+Physical memory/provider, watch heading/route/offline/terrain and real enrolled
+TAK exchange/renewal remain open. Server stays OFF; no GO or infrastructure action.

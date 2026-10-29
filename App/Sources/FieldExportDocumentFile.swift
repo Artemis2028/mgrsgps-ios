@@ -13,6 +13,9 @@ struct FieldExportDocumentFile: FileDocument {
     init(data: Data,contentType: UTType,filename: String = "gridfix") {
         self.payload = .bytes(data); self.contentType = contentType; self.filename = filename
     }
+    init(payload: FieldExportPayload,contentType: UTType,filename: String) {
+        self.payload = payload; self.contentType = contentType; self.filename = filename
+    }
     init(_ prepared: PreparedFieldExport) {
         if prepared.protected {
             payload = prepared.payload; contentType = .gridFixProtectedBackup; filename = prepared.filename; return
