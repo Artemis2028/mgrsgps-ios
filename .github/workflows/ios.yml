@@ -126,7 +126,11 @@ jobs:
           LINK_PID=$!
           python3 scripts/recording_background_check.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" > "$GITHUB_WORKSPACE/recording-background-check.log" 2>&1 &
           RECORDING_CHECK_PID=$!
+          # Observe native UI stalls without changing app state or test deadlines.
+          python3 scripts/ui_hang_diagnostics.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" "$GITHUB_WORKSPACE/ui-hang-diagnostics" > "$GITHUB_WORKSPACE/ui-hang-diagnostics.log" 2>&1 &
+          HANG_DIAGNOSTICS_PID=$!
           cleanup_route() {
+            kill "$HANG_DIAGNOSTICS_PID" 2>/dev/null || true
             kill "$ROUTE_PID" 2>/dev/null || true
             kill "$LINK_PID" 2>/dev/null || true
             kill "$RECORDING_CHECK_PID" 2>/dev/null || true
@@ -317,6 +321,8 @@ jobs:
             navigation-test.log
             recording-route.log
             recording-background-check.log
+            ui-hang-diagnostics.log
+            ui-hang-diagnostics/
             boundary-route.log
             navigation-route.log
             practice-route.log

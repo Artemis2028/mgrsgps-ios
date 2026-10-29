@@ -4,16 +4,19 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
-Latest snapshot, 29 October: hosted119 on `40e7e63` is terminal. Field and map
-shards pass (map UI:52 total,51 passed,1 skipped). Library has60 total:59 passed,
-one dense-map300-second timeout,zero skips. The complete library ZIP is SHA256
-verified; see hosted119-library-triage.md. The full dense follow-up now passes
-locally in121.051s with original assertions/deadlines, after using the Go to
-form's existing prefix and waiting for SDK annotation readiness. A full hosted
-pass still needs confirmation on the combined follow-up. Current production
-passes641core cases and watchsimulator/unsigned phone-watch-widgetRelease.
-The native renewal harness remains offline-validated only; no private fixture
-was read or staged and no live renewal/enrolled exchange is claimed.
+Latest snapshot, 29 October: hosted120 on `e0eec01` is terminal. Field and map
+pass; map UI has52 total/51passed/1skipped. Library exceeded its two-hour job
+limit after KML main-loop snapshot and KMZ launch failures. Its SHA256-verified
+artifact is an incomplete staging xcresult, so complete library counts are not
+claimed. See hosted120-library-triage.md. Both affected native workflows pass
+locally unchanged (KML80.597s, KMZ62.754s); hosted root cause remains unresolved.
+The follow-up preserves all deadlines/assertions and adds bounded, read-only
+owned-app stack capture for native stall signals. All13 observer/feed tests and
+workflow YAML parsing pass; an actual healthy owned-app sample succeeds.
+Current production641core/watchsimulator/unsigned phone-watch-widgetRelease
+passes remain valid. The validated clock-safe watch UI and scoped40/44mm text
+checks are ready alongside this diagnostic-only follow-up. TAK renewal/enrolled
+exchange and physical verification remain open; server stays off.
 
 Wear cached-terrain phone transfer, round/night readout, repeated delivery,
 missing-cache handling and phone-off recovery from retained SDK Assets now have
@@ -517,3 +520,15 @@ See hosted119-library-triage.md. All local parents reaped; fakeGPS cleared and
 fresh disposable phone deleted. Latest watch picker/terrain repairs and native
 lifecycle reports are validated and ready for a single combined follow-up push.
 TAK remains off; real enrolled exchange/renewal and physical gates remain open.
+
+### Hosted120 cancellation triage
+
+Field/map pass. Library hit the configured120-minute job limit after a busy
+main-loop Files presentation and subsequent app-launch failure. Partial result
+artifact is SHA256-verified; no full-suite counts or production root cause claimed.
+The unchanged two native Files cases pass locally with inspected reopened previews;
+Xcode finalized exit0 after its600s diagnostics timeout. A bounded read-only CI
+stack observer is validated with13 Python tests and an actual owned-app sample.
+No deadline increase, assertion weakening or speculative production Files repair.
+All parents reaped, fakeGPS clear, fresh phone deleted; userwatchpreview preserved.
+See hosted120-library-triage.md. Full hosted confirmation remains open.
