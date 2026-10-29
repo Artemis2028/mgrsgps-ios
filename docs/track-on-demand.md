@@ -58,9 +58,11 @@ bad index structure still fail opening. A stale source asks the user to reopen
 the app, rather than pretending that opening the same sheet refreshes the store.
 There is no automatic destructive repair or new format/permission/server action.
 
-Requested long logs are still read as complete owned byte snapshots; streaming
-file parsing, cold-device pressure/battery profiling, dense-map rendering and
-wider accessibility remain open. Orphan cleanup can stay deferred for hidden
+Requested map previews, camera fitting and backtracks now parse deferred files
+in verified chunks; see [streaming behavior and evidence](track-streaming.md).
+Bounded exports still own their requested bytes. Automatic legacy cache migration,
+cold-device pressure/battery profiling, dense-map rendering and wider accessibility
+remain open. Orphan cleanup can stay deferred for hidden
 tracks never read by any consumer. Physical locked-screen recording and watch
 radio/field checks are not proven by simulator background tests.
 

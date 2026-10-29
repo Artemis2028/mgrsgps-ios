@@ -8,12 +8,15 @@ enum TrackBacktrackAction {
         var errorDescription: String? { "The saved track changed while building its backtrack route. Try again." }
     }
     static func create(track: Backup.TrackMeta,field: FieldDataStore,waypoints: WaypointStore,
-                       build: @escaping @Sendable (Backup.TrackMeta,Data) async throws -> Backup.Graphic = { try TrackBacktrack.route(track: $0,data: $1) },
+                       build: (@Sendable (Backup.TrackMeta,Data) async throws -> Backup.Graphic)? = nil,
                        prepare: @escaping @Sendable (FieldDataStore.RestoreSnapshot,Backup.Graphic) async throws -> FieldDataStore.PreparedEdit = { try $0.prepare(edit: .createGraphic($1)) }) async throws -> Backup.Graphic {
         while true {
             try Task.checkCancellation()
             let source = try field.trackReadSnapshot(track.id)
-            let worker = Task.detached(priority: .userInitiated) { try await build(source.track,source.readBytes()) }
+            let worker = Task.detached(priority: .userInitiated) {
+                if let build { return try await build(source.track,source.readBytes()) }
+                return try TrackBacktrack.route(track: source.track,visit: source.visitPoints)
+            }
             var route = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
             try Task.checkCancellation()
             // A changed source during calculation must be rebuilt from the

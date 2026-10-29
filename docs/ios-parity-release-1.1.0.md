@@ -1884,3 +1884,15 @@ Full hosted confirmation of the follow-up source remains open. Runtime
 invalid-frame warnings lack source locations and remain under diagnosis.
 See hosted111-map-repair.md and dense-map-accessibility.md for failed intermediates,
 final evidence and physical gates. No server changes, merge or release.
+
+
+### 29 October — requested track streaming
+Map preparation, exact camera fitting and backtracking now parse deferred logs
+in verified64 KiB chunks, keeping Android preview stride/exact simplification
+and original point bytes. Every row and full checksum/source receipt must pass
+before derived output is returned.569 core cases,21 focused native cases and
+three UI workflows pass; inspected day/night map and reverse-route captures,
+unsigned phone/watch/widget Release pass. See track-streaming.md. Full export
+writers, automatic receiptless/v1 cache migration and physical memory/battery
+remain open. This local follow-up is held while hosted112 validates2740063; it
+is not covered by that run. No merge/release or TAK/infrastructure change.

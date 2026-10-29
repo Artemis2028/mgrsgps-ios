@@ -201,6 +201,11 @@ public final class FieldDataStore: ObservableObject, @unchecked Sendable {
             guard track.pointCount == 0 else { throw BackupError.notABackup("Saved track points are missing; original files were kept") }
             return Data()
         }
+        public func visitPoints(_ point: (TrackPoint) throws -> Void) throws {
+            if let bytes { try TrackCodec.visitLocal(bytes,point: point) }
+            else if let file { try file.visitPoints(point) }
+            else { try TrackCodec.visitLocal(readBytes(),point: point) }
+        }
     }
     /// Capture the immutable source and library revision without file I/O.
     /// Its worker reads and verifies bytes only when the track is requested.

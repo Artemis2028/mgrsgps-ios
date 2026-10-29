@@ -40,6 +40,22 @@ final class TrackMapFocusTests: XCTestCase {
         XCTAssertEqual(points.selectedId,selected)
         try field.deleteTrack(track.id); XCTAssertFalse(result.isCurrent(in: field))
     }
+
+    func testDeferredSourceUsesVerifiedStreamingFitAndKeepsBytesOnDisk() async throws {
+        let (dir,_,points,track) = try fixture()
+        let field = FieldDataStore(directory: dir,loadImmediately: false)
+        XCTAssertTrue(try field.publishLoad(field.loadSnapshot().prepare(deferTrackContents: true)))
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        XCTAssertNotNil(field.document.localTrackFiles[track.id])
+        let selected = points.selectedId
+        let result = try await TrackMapFocusAction.prepare(trackID: track.id,field: field,waypoints: points)
+        let bounds = try XCTUnwrap(FieldMapGeometry.bounds(result.points))
+        XCTAssertEqual(bounds.south,24); XCTAssertEqual(bounds.north,24.01)
+        XCTAssertEqual(bounds.west,54); XCTAssertEqual(bounds.east,54.02)
+        XCTAssertTrue(result.isCurrent(in: field))
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        XCTAssertEqual(points.selectedId,selected)
+    }
     func testCancelledFocusDoesNotRevealFolder() async throws {
         let (_,field,points,track) = try fixture()
         let work = Task { try await TrackMapFocusAction.prepare(trackID: track.id,field: field,waypoints: points) }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// A value capture of one immutable local log, not an open handle or cached
@@ -53,9 +54,51 @@ public struct SavedTrackSource: Equatable, Sendable {
             throw error
         }
     }
+
+    /// Results must remain worker-local until this returns successfully: the
+    /// final checksum/stamp validates every byte, including unsampled rows.
+    public func visitPoints(_ point: (TrackPoint) throws -> Void) throws {
+        try visitPoints(chunkSize: 64 * 1024,point: point)
+    }
+    func visitPoints(chunkSize: Int,point: (TrackPoint) throws -> Void) throws {
+        precondition(chunkSize > 0)
+        try Task.checkCancellation()
+        verification.begin()
+        do {
+            try validate()
+            let handle = try FileHandle(forReadingFrom: fileURL)
+            defer { try? handle.close() }
+            var reader = TrackCodec.PointReader(),hash = SHA256(),total: UInt64 = 0
+            while let chunk = try handle.read(upToCount: chunkSize),!chunk.isEmpty {
+                try Task.checkCancellation()
+                guard total <= byteCount,UInt64(chunk.count) <= byteCount-total else {
+                    throw BackupError.notABackup("Saved track file changed; original data was kept")
+                }
+                total += UInt64(chunk.count); hash.update(data: chunk)
+                try reader.append(chunk,point: point)
+            }
+            try reader.append(Data(),final: true,point: point)
+            try validate()
+            guard total == byteCount,hash.finalize().map({ String(format:"%02x",$0) }).joined() == sha256 else {
+                throw BackupError.notABackup("Saved track checksum failed; original data was kept")
+            }
+            try Task.checkCancellation()
+            verification.end(success: true)
+        } catch {
+            verification.end(success: false)
+            throw error
+        }
+    }
 }
 
 extension Backup.Document {
+    /// Streaming local source or eager imported bytes, with identical strict
+    /// row validation. Callers publish their derived result only after success.
+    public func visitTrackPoints(_ id: String,point: (TrackPoint) throws -> Void) throws {
+        if let bytes = trackFiles[id] { try TrackCodec.visitLocal(bytes,point: point) }
+        else if let source = localTrackFiles[id] { try source.visitPoints(point) }
+        else { try TrackCodec.visitLocal(trackData(id),point: point) }
+    }
     /// A missing nonempty log is an error, never a fabricated empty export,
     /// backtrack, map preview or restored track. Local sources stay off the wire.
     public func trackData(_ id: String,maximumBytes: Int? = nil) throws -> Data {

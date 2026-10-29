@@ -78,6 +78,45 @@ public enum TrackCodec {
         try Task.checkCancellation()
     }
 
+    /// Incremental local-log reader. Retains only the current row and a chunk;
+    /// Unicode newline prefixes and UTF-8 characters may span chunk boundaries.
+    struct PointReader {
+        private var pending = Data()
+        private var offset = 0
+        mutating func append(_ chunk: Data,final: Bool = false,point: (TrackPoint) throws -> Void) throws {
+            try Task.checkCancellation()
+            pending.append(chunk)
+            var start = 0,i = offset
+            try pending.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+                func consume(_ end: Int) throws {
+                    guard end > start else { return }
+                    guard let line = String(bytes: bytes[start..<end],encoding: .utf8) else {
+                        throw BackupError.notABackup("Invalid track point file")
+                    }
+                    if !line.allSatisfy(\.isWhitespace) { try point(parseLine(line[...])) }
+                }
+                while i < bytes.count {
+                    let length: Int
+                    if (10...13).contains(bytes[i]) { length = 1 }
+                    else if bytes[i] == 0xc2 {
+                        if i+1 == bytes.count && !final { break }
+                        length = i+1 < bytes.count && bytes[i+1] == 0x85 ? 2 : 0
+                    } else if bytes[i] == 0xe2 {
+                        if i+2 >= bytes.count && !final { break }
+                        length = i+2 < bytes.count && bytes[i+1] == 0x80 && (0xa8...0xa9).contains(bytes[i+2]) ? 3 : 0
+                    } else { length = 0 }
+                    if length > 0 { try consume(i); i += length; start = i }
+                    else { i += 1 }
+                    if i % 65536 == 0 { try Task.checkCancellation() }
+                }
+                if final { try consume(bytes.count); start = bytes.count; i = bytes.count }
+            }
+            if start > 0 { pending.removeFirst(start) }
+            offset = i-start
+            try Task.checkCancellation()
+        }
+    }
+
     private static func parseLine(_ line: Substring) throws -> TrackPoint {
         let parts = line.split(whereSeparator: \.isWhitespace)
         guard (3...4).contains(parts.count), let lat = Double(parts[0]), let lon = Double(parts[1]),

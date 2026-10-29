@@ -95,8 +95,12 @@ public enum TrackBacktrack {
     /// once and retain only coordinates needed by Android's exact random-access
     /// simplifier; no full TrackPoint array or reversed coordinate copy.
     public static func route(track: Backup.TrackMeta,data: Data,now: Int64 = Int64(Date().timeIntervalSince1970*1000)) throws -> Backup.Graphic {
+        try route(track: track,visit: { try TrackCodec.visitLocal(data,point: $0) },now: now)
+    }
+    public static func route(track: Backup.TrackMeta,visit: (_ point: (TrackPoint) throws -> Void) throws -> Void,
+                             now: Int64 = Int64(Date().timeIntervalSince1970*1000)) throws -> Backup.Graphic {
         var coordinates: [GeoPoint] = []
-        try TrackCodec.visitLocal(data) { coordinates.append(.init(lat: $0.lat,lon: $0.lon)) }
+        try visit { coordinates.append(.init(lat: $0.lat,lon: $0.lon)) }
         guard coordinates.count >= 2 else { throw Failure.tooShort }
         let reduced = try simplify(count: coordinates.count,tolerance: 20,maxPoints: 64) { coordinates[coordinates.count-1-$0] }
         return graphic(track: track,reduced: reduced,now: now)

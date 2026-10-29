@@ -39,6 +39,20 @@ final class BacktrackIntegrationTests: XCTestCase {
         do { _ = try await task.value; XCTFail("Cancelled work must not publish") } catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertTrue(field.document.graphics.isEmpty); XCTAssertEqual(field.document.tracks.count,1)
     }
+    func testDeferredBacktrackPublishesSameRouteWithoutMaterializingLogBytes() async throws {
+        let (dir,original,waypoints,track) = try fixture()
+        let expected = try TrackBacktrack.route(track: track,data: original.document.trackData(track.id))
+        let field = FieldDataStore(directory: dir,loadImmediately: false)
+        XCTAssertTrue(try field.publishLoad(field.loadSnapshot().prepare(deferTrackContents: true)))
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        XCTAssertNotNil(field.document.localTrackFiles[track.id])
+        let selected = waypoints.selectedId
+        let result = try await TrackBacktrackAction.create(track: track,field: field,waypoints: waypoints)
+        XCTAssertEqual(result.points,expected.points); XCTAssertEqual(result.name,expected.name)
+        XCTAssertEqual(result.folder,expected.folder); XCTAssertEqual(waypoints.selectedId,selected)
+        XCTAssertTrue(field.document.trackFiles.isEmpty)
+        XCTAssertEqual(FieldDataStore(directory: dir).document.graphics,[result])
+    }
     func testDeletedTrackCannotProduceRouteFromOldSelection() async throws {
         let (_,field,waypoints,track) = try fixture(); try field.deleteTrack(track.id)
         do { _ = try await TrackBacktrackAction.create(track: track,field: field,waypoints: waypoints); XCTFail("Deleted track") } catch {}

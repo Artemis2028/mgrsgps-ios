@@ -26,12 +26,17 @@ public enum FieldMapGeometry {
         }
         for track in document.tracks where track.visible && !hidden.contains(track.folder.lowercased()) {
             try Task.checkCancellation()
-            let bytes = try document.trackData(track.id)
-            let count = try TrackCodec.countLocalRows(bytes)
+            let count: Int
+            if let bytes = document.trackFiles[track.id] { count = try TrackCodec.countLocalRows(bytes) }
+            else {
+                var actual = 0
+                try document.visitTrackPoints(track.id) { _ in actual += 1 }
+                count = actual
+            }
             let step = max(1,count/1500)
             var sampled: [GeoPoint] = [],index = 0
             // One validated point at a time: long logs need no full decoded array.
-            try TrackCodec.visitLocal(bytes) { point in
+            try document.visitTrackPoints(track.id) { point in
                 defer { index += 1 }
                 guard count >= 2 else { return }
                 let coordinate = GeoPoint(lat: point.lat,lon: point.lon)
@@ -57,8 +62,12 @@ public enum FieldMapGeometry {
     /// Exact camera extent of every validated saved row, with constant output
     /// space. A single-point log still has a useful camera location.
     public static func trackFitPoints(_ data: Data) throws -> [GeoPoint] {
+        try trackFitPoints(visit: { try TrackCodec.visitLocal(data,point: $0) })
+    }
+
+    public static func trackFitPoints(visit: (_ point: (TrackPoint) throws -> Void) throws -> Void) throws -> [GeoPoint] {
         var extent = FitExtent()
-        try TrackCodec.visitLocal(data) { extent.include(.init(lat: $0.lat,lon: $0.lon)) }
+        try visit { extent.include(.init(lat: $0.lat,lon: $0.lon)) }
         return extent.points
     }
 

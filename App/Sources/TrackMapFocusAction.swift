@@ -22,11 +22,14 @@ enum TrackMapFocusAction {
         }
     }
     static func prepare(trackID: String,field: FieldDataStore,waypoints: WaypointStore,
-                        scan: @escaping @Sendable (Data) async throws -> [GeoPoint] = { try FieldMapGeometry.trackFitPoints($0) }) async throws -> Prepared {
+                        scan: (@Sendable (Data) async throws -> [GeoPoint])? = nil) async throws -> Prepared {
         while true {
             try Task.checkCancellation()
             let source = try field.trackReadSnapshot(trackID)
-            let worker = Task.detached(priority: .userInitiated) { try await scan(source.readBytes()) }
+            let worker = Task.detached(priority: .userInitiated) {
+                if let scan { return try await scan(source.readBytes()) }
+                return try FieldMapGeometry.trackFitPoints(visit: source.visitPoints)
+            }
             let points = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
             try Task.checkCancellation()
             guard field.isCurrent(source) else { continue }
