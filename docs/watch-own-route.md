@@ -242,3 +242,18 @@ Provider-only interruption, background owners, physical lock/compass/GPS/haptic
 behavior and other permission/process paths remain open. CI119 still runs on
 40e7e63; this report stays local. TAK off; current enrolled exchange/real renewal
 remain open, with no server/container/database or credential action.
+
+## Transient provider loss core recovery contract
+
+A focused `WatchRouteSessionTests` round passes all nine cases, including a new
+outage/recovery sequence: invalidation retains the explicitly started run and
+current target with Waiting for watch GPS; an old source timestamp with a newer
+converted uptime and a stale callback cannot advance coincident checkpoints.
+One fresh callback recovers the same run and advances exactly one checkpoint.
+After Stop, a delayed recovery callback cannot recreate the route. This tests
+transient provider semantics independently of authorization loss and Home pause.
+
+Evidence: `/tmp/mgrsgps-watch-route-provider-core.log`, parent 81194 exited 0 and
+was reaped. No production code changed. This is core state-machine evidence,
+not native OS provider-toggle, compass, haptic or background execution evidence;
+those native/physical gates remain open. No server/device/network action.

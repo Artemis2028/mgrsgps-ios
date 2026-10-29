@@ -81,6 +81,40 @@ final class WatchRouteSessionTests: XCTestCase {
         XCTAssertEqual(tick(&s,116,0),.checkpoint)
         XCTAssertNil(tick(&s,115,0.001));XCTAssertEqual(s.progress?.index,1)
     }
+    func testProviderLossRetainsProgressAndSampleWatermarkUntilFreshRecovery() {
+        var r = route()
+        r.points = Array(repeating: .init(lat: 0, lon: 0), count: 3)
+        var s = WatchRouteSession()
+        XCTAssertTrue(s.start(r, sourceID: "phone", now: 100))
+        XCTAssertEqual(s.update(position: .init(lat: 0, lon: 0), accuracy: 5,
+                                fixTime: 101, now: 101, usable: true, sampleID: 1_000), .checkpoint)
+        let run = s.runID, target = s.target
+        s.invalidateFix()
+        XCTAssertTrue(s.active, "A transient provider loss retains explicit route consent")
+        XCTAssertEqual(s.status, "Waiting for watch GPS")
+        XCTAssertEqual(s.runID, run)
+        XCTAssertEqual(s.target, target)
+        XCTAssertEqual(s.progress?.index, 1)
+        // Re-delivery after outage must not convert the old source timestamp
+        // into a second arrival even if its converted uptime has increased.
+        XCTAssertNil(s.update(position: .init(lat: 0, lon: 0), accuracy: 5,
+                              fixTime: 102, now: 102, usable: true, sampleID: 1_000))
+        XCTAssertEqual(s.progress?.index, 1)
+        XCTAssertEqual(s.status, "Waiting for watch GPS")
+        XCTAssertNil(s.update(position: .init(lat: 0, lon: 0), accuracy: 5,
+                              fixTime: 103, now: 114, usable: true, sampleID: 1_001))
+        XCTAssertEqual(s.progress?.index, 1)
+        XCTAssertEqual(s.update(position: .init(lat: 0, lon: 0), accuracy: 5,
+                                fixTime: 115, now: 115, usable: true, sampleID: 1_002), .checkpoint)
+        XCTAssertEqual(s.runID, run)
+        XCTAssertEqual(s.progress?.index, 2, "Recovery consumes only one checkpoint per new callback")
+        XCTAssertFalse(s.progress?.complete ?? true)
+        s.invalidateFix()
+        s.stop()
+        XCTAssertNil(s.update(position: .init(lat: 0, lon: 0), accuracy: 5,
+                              fixTime: 116, now: 116, usable: true, sampleID: 1_003))
+        XCTAssertFalse(s.hasRoute, "A delayed recovery cannot rearm a stopped route")
+    }
     func testSceneReplacementHideDeleteSourceAndGeometryChangesDisarm() {
         let r=route();var s=WatchRouteSession();s.start(r,sourceID:"phone",now:100)
         s.validateScene(scene(r));XCTAssertTrue(s.active)
