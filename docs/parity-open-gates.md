@@ -12,7 +12,7 @@ repeating an implementation or runtime test.
 | Waypoints, courses, interchange and field tools | Durable workers/retry, duplicate review, field tools, native Files/protected formats and course workflows implemented | Every hosted111 library failure has a local pass; ordinary/protected backup and dense map workflows repaired; full hosted confirmation, real cross-device/provider and wider accessibility checks remain |
 | Sparse settings restore | Already implemented in0d84a55; key-presence roundtrip, null/false/zero and stale preparation/rebase tests pass | Closed; see settings-presence-audit.md |
 | Watch grid/precision/target/map/overlay and phone guidance | Both apps implemented; real paired local-scene replacement and named-lane states/expiry verified, as recorded in wear-paired-validation.md and watch-phone-guidance.md | Physical wrist/radio/GPS/battery/touch checks |
-| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear heading/steering/routes, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
+| Independent watch guidance | Foreground lane owners/runtime on both platforms; optional watchOS background location/system notices and Wear location foreground service implemented;597 core cases and Release pass, native watchOS40mm UI and Wear API34 component runtime verified | Apple foreground own-heading/steering and complete cached-route progression implemented; 629 core cases and builds pass, native simulated GPS advances all checkpoints. Wear compass foundation now implemented/virtual-sensor validated; Wear steering/routes, physical GPS interruption/lock, compass, notification delivery, haptic distinction and battery remain. See watch-own-route.md and watch-background-alerts.md |
 | Watch offline/terrain | Cached field overlays and platform-native maps exist | Offline packs/terrain transfer remain implementation work, not a proven OS impossibility |
 | Saved logs | Deferred references, verified map/fit/backtrack streaming and automatic receiptless/v1 cache upgrades implemented, plus file-backed GPX output;582 core/364 native (four opt-in skips), eight export/dense UI cases and Release pass; checksum-gated conservative cleanup | Other format streaming writers; real cold-device/dense-map/memory profiles. See gpx-streaming-output.md, track-streaming.md and track-cache-upgrade.md for current local evidence |
 | TAK | Package/TLS/pinning/enrollment/renewal and CoT owner/receive/share implemented; fixture/stand-in and historical non-enrolled runtime evidence exist | Real enrolled iOS/Android exchange and renewal require a coordinated GO; server stays off until then |
@@ -319,3 +319,18 @@ Pause/Resume/Stop taps, positive compass-driven route steering, physical haptics
 and Home/lock/permission transitions remain gates. See watch-own-route.md.
 Hosted115 still validates5b37bd2; local follow-ups held without cancelling it.
 TAK off, real enrolled exchange/renewal still requires coordinated GO.
+
+
+### Wear own-compass foundation — 29 October 2026
+
+Wear localb1a8b37 adds foreground rotation-vector heading, watch-top display remap,
+local magnetic model/reference correction and target deviation. Display5s and
+future-steering2s age gates are separate; uncalibrated/missing/poor sensors have
+explicit unavailable states. All49 Wear unit cases, Debug/Release and Release
+lint pass. Actual native emulator callbacks plus fake cached target/OS GPS show
+002°TRUE/L002° in day/night. Sensorservice confirms Home unregister/resume fresh
+registration; no heading injection or physical compass claim. Owned read-only
+emulator terminated, original companion preferences restored byte-for-byte.
+Independent Wear steering/routes, hardware compass/orientation and offline/terrain
+remain open. See Wear docs/wear-os.md and /tmp/mgrsgps-wear-heading-active.json.
+No phone checkout edits, TAK connections or infrastructure operations.
