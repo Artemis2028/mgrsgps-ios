@@ -76,13 +76,11 @@ struct PracticeCourseView: View {
                         if mode == 0 {
                             Picker("Points",selection: $count) { ForEach([3,4,5,6,8],id: \.self) { Text("\($0)").tag($0) } }
                             Picker("Radius",selection: $radius) { Text("500 m").tag(500); Text("1 km").tag(1000); Text("2 km").tag(2000) }
-                            Text(location.usableFix == nil ? "Waiting for a recent, precise GPS fix." : "Points are scattered 120 m to the chosen radius around you, at least 120 m apart, and saved in a course folder.")
+                            if location.usableFix == nil { Text("Waiting for an accurate location").foregroundStyle(palette.inkDim) }
                         } else {
                             FieldChoicePicker(selection: $folder,title: "Folder",choices: eligible.map { .init(id: $0,title: $0) },identifier: "practice-folder")
-                            Text("Checkpoints follow their saved list order, including hidden points. A folder needs at least two points.")
+                            if eligible.isEmpty { Text("No folders with at least two points").foregroundStyle(palette.inkDim) }
                         }
-                        Text("Find checkpoints in order. Your position and its full accuracy circle must fit inside 25 m. Scoring runs with the app open; elapsed time continues while closed.")
-                            .font(.footnote)
                         Button("Start course") {
                             if mode == 0 { course.startRandom(count: count,radius: radius,fix: location.usableFix) }
                             else { course.startFolder(folder) }
@@ -96,6 +94,16 @@ struct PracticeCourseView: View {
                             }
                         }.listRowBackground(rowBackground)
                     }
+                }
+                if !course.damaged && course.summary == nil {
+                    Section {
+                        DisclosureGroup("Practice help") {
+                            Text("Random checkpoints are saved in a course folder, 120 m to the chosen radius from you and at least 120 m apart.")
+                            Text("Folder courses use saved checkpoint order, including hidden points. Choose a folder with at least two points.")
+                            Text("Find checkpoints in order. Your position and its accuracy circle must fit inside 25 m. Scoring runs while the app is open; elapsed time continues while closed.")
+                            Text("Navigation follows the current checkpoint and advances automatically. Haptic guidance is optional and separate from scoring.")
+                        }.accessibilityIdentifier("practice-help")
+                    }.listRowBackground(rowBackground)
                 }
             }
             .scrollContentBackground(.hidden).background { FieldScreenBackground() }
@@ -137,7 +145,6 @@ struct PracticeCourseView: View {
                     Text("View all \(active.foundAt.count) recorded splits")
                 }.accessibilityIdentifier("practice-open-active-splits")
             }
-            if !active.paused && !active.done { Text("Navigate is locked to this checkpoint and advances automatically. Haptic guidance is optional and separate from scoring.").font(.footnote) }
             Button("Continue") { dismiss() }
             if course.finalizing { ProgressView("Saving course result…").accessibilityIdentifier("practice-saving-result") }
             if active.done { Button("Retry saving result") { course.retryResult() }.disabled(course.finalizing).accessibilityIdentifier("practice-retry-result") }

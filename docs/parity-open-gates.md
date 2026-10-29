@@ -179,3 +179,16 @@ captures inspected; every local parent reaped, static fake GPS cleared and owned
 simulator off. Evidence: /tmp/mgrsgps-boundary-concise-ui.xcresult and
 /tmp/mgrsgps-boundary-concise-images/manifest.json. No new background crossing,
 physical or TAK verification claimed. Held locally while hosted114 remains live.
+
+
+### Concise practice-course controls — 29 October 2026
+Moved setup/scoring/navigation explanations into collapsed Practice help. Missing
+location and empty eligible-folder states remain visible next to their controls;
+scoring, persistence, checkpoint ordering, navigation locking and recovery stay
+unchanged. Existing day folder-start/relaunch/end-preserves-checkpoints,
+night progress/grid and largest-text night10,000-checkpoint active-course
+first/last split/relaunch/end-control workflows all pass (three cases, no failures,
+Xcode exit0). Day/night/XXXL captures inspected. Fake GPS cleared, owned simulator
+off, parent reaped. Evidence /tmp/mgrsgps-practice-concise-ui.xcresult and
+/tmp/mgrsgps-practice-concise-images/manifest.json. No new real-location scoring
+or physical verification claimed. Held locally while hosted114 is live.
