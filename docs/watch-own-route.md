@@ -91,3 +91,38 @@ Evidence: `/tmp/mgrsgps-watch-route-replay-before.log` (expected regression),
 `/tmp/mgrsgps-watch-route-replay-active.json` (parent/build status). Native
 Pause/Resume/Stop gestures, physical timestamp faults and the other runtime gates
 above remain open; this core regression does not close them.
+
+
+## Native route-control gestures, 29 October
+
+The watch simulator build on `49b6ce4` passes. A newly created disposable 40 mm
+watchOS 27 simulator ran it with a deliberately cached synthetic RT1 (three full
+vertices near 24 N / 54 E). No phone, Data Layer delivery, route consent, progress,
+heading or successful result was injected. The only input after cache setup was
+fake OS GPS and native Device Hub touch gestures through CUA.
+
+Choose route → Start RT1 opened active RT1WP1 / WP1 of 3. Native Pause changed
+the control to Resume. Fresh fake positions at WP1 left the summary Paused and
+the target unchanged. Explicit native Resume changed the control back to Pause;
+a subsequent GPS callback advanced to RT1WP2 / WP2 of 3, about 99 m away. Native
+Stop route returned to Choose route with no selected waypoint. Watch compass
+unavailable was shown honestly; this is not positive route-steering evidence.
+
+The first finite feed oscillated below the production 1 m distance filter, so it
+did not sustain fresh callbacks and is not counted as the complete control test.
+Corrected feeds moved about 3 m between OS updates. The picker also appeared to
+retain an enabled Start presentation after the fix expired, while the action
+still refused it; timer-driven freshness presentation needs a focused follow-up.
+No failed gesture is presented as a pass.
+
+Current simulator build parent 69647 and setup 18630 exited 0 and were reaped.
+Finite feeds 57944/31293 and final bounded feed 78174 all exited 0 and were reaped
+before cleanup. The final feed ended via its owned stop marker after native Stop.
+Fake GPS was cleared and disposable device 0B9015C9 was shut down/deleted. Existing
+simulators and client state were untouched. No TAK/server/container/database action.
+
+Inspected evidence: `/tmp/mgrsgps-watch-route-native-resumed-wp2.png`,
+`/tmp/mgrsgps-watch-route-native-stopped.png`, CUA screenshots in this chat and
+`/tmp/mgrsgps-watch-route-controls-active.json`. This closes these four foreground
+control-gesture checks on this simulator; Home/lock/permission transitions,
+positive compass integration and physical wrist delivery remain open.
