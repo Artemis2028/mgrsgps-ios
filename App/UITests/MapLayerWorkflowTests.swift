@@ -52,9 +52,18 @@ final class MapLayerWorkflowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Show all visible data"].isEnabled)
     }
     private func finishSavedGeometry() {
-        app.buttons["finish-map-geometry"].tap()
+        let finish = app.buttons["finish-map-geometry"]
+        finish.tap()
+        let deadline = Date().addingTimeInterval(10)
+        // A pan can reflow the coordinate HUD while XCTest resolves the tap.
+        // This debug-only action only removes the same gate file; retry once
+        // if its button still exists, without extending the readiness budget.
+        let acknowledged = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),object: finish)
+        if XCTWaiter.wait(for: [acknowledged],timeout: 2) == .timedOut,finish.exists,finish.isHittable {
+            finish.tap()
+        }
         let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@","1 routes · 1 tracks"),object: mapReadout(app, "map-field-overlays"))
-        XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: 10),.completed,app.debugDescription)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready],timeout: max(0,deadline.timeIntervalSinceNow)),.completed,app.debugDescription)
         XCTAssertFalse(mapReadout(app, "map-field-loading").exists)
     }
     func testShowAllWaitsForSavedGeometryInsteadOfFittingAnEmptySnapshot() {
