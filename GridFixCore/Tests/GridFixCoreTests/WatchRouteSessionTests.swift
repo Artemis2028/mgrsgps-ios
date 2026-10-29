@@ -53,6 +53,25 @@ final class WatchRouteSessionTests: XCTestCase {
         XCTAssertNil(s.update(position:.init(lat:0,lon:0.001),accuracy:5,fixTime:109,now:110,usable:true))
         XCTAssertEqual(tick(&s,111,0.001),.checkpoint)
     }
+    func testNonconsecutiveSourceReplayCannotFinishCoincidentRouteAfterResume() {
+        var r=route(); r.points=Array(repeating:.init(lat:0,lon:0),count:3)
+        var s=WatchRouteSession(); s.start(r,sourceID:"phone",now:100)
+        func update(_ uptime: Double,_ source: Double) -> NavigationPulse? {
+            s.update(position:.init(lat:0,lon:0),accuracy:5,fixTime:uptime,
+                     now:uptime,usable:true,sampleID:source)
+        }
+        XCTAssertEqual(update(101,1_000),.checkpoint)
+        XCTAssertEqual(update(101.001,1_000.001),.checkpoint)
+        s.pause(); XCTAssertTrue(s.resume(now:101.002))
+        // Wall-time/uptime conversion can jitter; increasing converted time must
+        // not turn an earlier CLLocation timestamp into a new checkpoint visit.
+        XCTAssertNil(update(101.003,1_000))
+        XCTAssertEqual(s.progress?.index,2); XCTAssertFalse(s.progress?.complete ?? true)
+        XCTAssertNil(update(101.004,999.999))
+        XCTAssertEqual(update(101.005,1_000.002),.complete)
+        s.stop(); XCTAssertTrue(s.start(r,sourceID:"phone",now:102))
+        XCTAssertEqual(update(103,999),.checkpoint,"A new explicit run resets its source-sample watermark")
+    }
     func testBadStaleFutureAndRollbackFixesCannotAdvance() {
         var s=WatchRouteSession();s.start(route(),sourceID:"phone",now:100)
         XCTAssertNil(tick(&s,101,0,accuracy:26));XCTAssertEqual(s.progress?.index,0)

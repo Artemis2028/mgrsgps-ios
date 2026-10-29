@@ -469,3 +469,14 @@ checkout supply the exact scope and cleanup limitations:
 No duplicate CI run, server/infrastructure change, merge, publish or release is
 authorized by this ledger. The held test/report changes must not be pushed while
 hosted 118 is active because doing so cancels its evidence run.
+
+
+### Watch route GPS replay repair — 29 October 2026
+
+A failing core regression exposed nonconsecutive source callback replay completing
+a coincident route after Pause/Resume when converted uptime moved forward. The
+Apple route policy now requires strictly increasing original source timestamps
+throughout a run; explicit Start resets the watermark. All 637 core cases and
+unsigned phone/watch/widget Release pass. Wear already uses strictly increasing
+native elapsedRealtimeNanos. See watch-own-route.md. This does not close native
+watch gesture/physical fault or live TAK gates. Held locally while CI 118 runs.

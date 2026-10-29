@@ -64,7 +64,9 @@ public struct WatchRouteSession: Sendable {
                                 now: TimeInterval,usable: Bool,sampleID: TimeInterval? = nil) -> NavigationPulse? {
         guard active,var progress else { return nil }
         let identity = sampleID ?? fixTime
-        guard usable,identity.isFinite,identity != lastSampleID,now >= lastNow,fixTime > after,fixTime > lastFix,
+        // Preserve source ordering independently of wall-time/uptime conversion
+        // jitter. An older callback must never revisit coincident checkpoints.
+        guard usable,identity.isFinite,lastSampleID.map({ identity > $0 }) ?? true,now >= lastNow,fixTime > after,fixTime > lastFix,
               NavigationFixPolicy.isUsable(lat:position.lat,lon:position.lon,accuracyMeters:accuracy,
                                           timestampUptime:fixTime,nowUptime:now) else { invalidateFix(); return nil }
         lastFix = fixTime; lastNow = now; lastSampleID = identity

@@ -66,3 +66,28 @@ phone does not automatically advance a saved route's vertices: it guides to a
 selected target until a user or course changes it. This Apple watch route owner
 is an additional capability, not a claim of matching an Android saved-route
 execution feature. Wear foreground route execution is now implemented and native virtual-GPS validated (Wear92f56ea), retaining its own128-point complete-line budget. Broader physical and background route checks remain open.
+
+
+## Nonconsecutive GPS replay regression
+
+A core regression reproduced premature completion of a three-point coincident
+route: source timestamp A advances WP1, newer B advances WP2, then replayed A
+with a slightly newer converted uptime completes the route. Pause/Resume did
+not prevent it because only the immediately previous source timestamp was
+rejected. These are synthetic inputs to the actual route policy; no physical
+GPS reproduction is claimed.
+
+The route now retains a strictly increasing source-timestamp watermark for the
+whole run, including Pause/Resume. A replay or older callback cannot advance,
+regardless of conversion jitter. A fresh newer sample still completes, and a new
+explicit Start resets the watermark. Eight route tests, including that failing
+before/passing after scenario, and all 637 core cases pass with zero failures.
+The final unsigned phone/watch/widget device Release build also passes.
+Wear already compares the original native elapsedRealtimeNanos strictly against
+its accepted sample watermark; no Wear code change is needed for this case.
+
+Evidence: `/tmp/mgrsgps-watch-route-replay-before.log` (expected regression),
+`/tmp/mgrsgps-watch-route-replay-core.log` (637 passed), and
+`/tmp/mgrsgps-watch-route-replay-active.json` (parent/build status). Native
+Pause/Resume/Stop gestures, physical timestamp faults and the other runtime gates
+above remain open; this core regression does not close them.
