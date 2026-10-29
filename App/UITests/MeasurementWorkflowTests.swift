@@ -8,7 +8,7 @@ final class MeasurementWorkflowTests: XCTestCase {
     }
     override func tearDownWithError() throws { XCUIDevice.shared.orientation = .portrait }
     private func choose(_ id: String) {
-        let menu = mapTool(app, "map-measure"); XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let menu = mapTool(app, "map-measure"); XCTAssertTrue(menu.waitForExistence(timeout: 10)); tapNativeMenuItem(menu)
         tapNativeMenuItem(app.buttons[id])
         let ready = id == "measure-area" ? app.buttons["measurement-done"] : app.staticTexts["ruler-distance"]
         XCTAssertTrue(ready.waitForExistence(timeout: 8),app.debugDescription)

@@ -221,13 +221,18 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
     let rail = app.scrollViews["map-options-rail"]
     if rail.exists && button.exists {
         for _ in 0..<16 {
-            if button.isHittable { break }
-            let downward = button.frame.midY < rail.frame.midY
+            let frame = button.frame, viewport = rail.frame.insetBy(dx: 0,dy: 2)
+            // A clipped row can be hittable while its centre is still outside
+            // the rail. Return only a fully visible row after momentum ends.
+            if frame.minY >= viewport.minY,frame.maxY <= viewport.maxY,button.isHittable { break }
+            let downward = frame.midY < viewport.midY
             // Keep gestures inside the viewport: native swipeDown can start at
             // the landscape system edge and open Control Center instead.
             let start = rail.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: downward ? 0.4 : 0.75))
             let end = rail.coordinate(withNormalizedOffset: .init(dx: 0.5, dy: downward ? 0.75 : 0.4))
-            start.press(forDuration: 0.05, thenDragTo: end)
+            // Release after a hold: a flick can leave the native activation
+            // point over the adjacent tool while the rail is still moving.
+            start.press(forDuration: 0.1,thenDragTo: end,withVelocity: .slow,thenHoldForDuration: 0.3)
         }
     }
     return button
