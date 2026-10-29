@@ -126,3 +126,22 @@ Unsigned phone/watch/widget device Release also passes in
 `/tmp/mgrsgps-watch-terrain-owner-release.log`, parent98785 exit0/reaped.
 All validation parents are terminal; no simulator or fake-GPS feed was needed.
 The repair stays local while hosted119 map/library are active. TAK remains off.
+
+## Query-bound watch elevation display
+
+The Apple watch terrain view now labels each asynchronous sample with its query
+(source, terrain revision and map-centre coordinates) and renders it only while
+that query still matches the current view. Source/camera changes can render a
+new SwiftUI body before its replacement task starts; clearing sample state only
+inside the task left that interval able to display the previous point/source's
+value. The new body immediately shows unavailable until its own result arrives.
+Task cancellation continues to reject late results. Android already resets its
+remembered sample synchronously using source/point/reception-generation keys.
+
+Current watch simulator and unsigned phone/watch/widget device Release builds
+pass: `/tmp/mgrsgps-watch-terrain-readout-build.log` and
+`/tmp/mgrsgps-watch-terrain-readout-release.log`, parents84494/25261 exit0/reaped.
+This is a view-only repair and compile verification; the 641-case core result
+from the previous ownership repair is unchanged and was not rerun. No new native
+source-transition capture, paired transport, sensor or physical claim. No device
+was booted for these builds. Hosted119 is preserved; newer commits stay local.

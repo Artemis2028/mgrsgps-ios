@@ -326,19 +326,24 @@ private struct WatchTerrainReadout: View {
     @ObservedObject var model: WatchModel
     let point: GeoPoint
     @State private var sample: (meters:Double,manifest:WatchTerrainManifest)?
+    @State private var sampleQuery: String?
     private var query: String { "\(model.mapSnapshot?.sourceID ?? "")|\(model.terrainRevision)|\(point.lat)|\(point.lon)" }
     var body: some View {
         VStack(alignment:.leading,spacing:4) {
             Text("Terrain · map centre").font(.caption.bold())
-            if let sample {
+            // A new body can render before its replacement task starts. Never
+            // present the previous source/camera result during that interval.
+            if sampleQuery == query, let sample {
                 Text("\(sample.meters,specifier:"%.0f") m DEM").accessibilityIdentifier("watch-terrain-elevation")
                 Text(sample.manifest.attribution).font(.caption2)
             } else { Text("Elevation unavailable here").accessibilityIdentifier("watch-terrain-unavailable") }
             if let status = model.terrainStatus { Text(status).font(.caption2) }
         }.task(id:query) {
-            sample = nil
+            let requestedQuery = query
+            sample = nil; sampleQuery = nil
             let value = await model.terrain(at:point)
-            guard !Task.isCancelled else { return }; sample = value
+            guard !Task.isCancelled else { return }
+            sample = value; sampleQuery = requestedQuery
         }
     }
 }
