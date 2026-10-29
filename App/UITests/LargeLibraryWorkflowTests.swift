@@ -71,8 +71,9 @@ final class LargeLibraryWorkflowTests: XCTestCase {
         let empty = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in markers.count == 0 }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [empty], timeout: 10), .completed)
         go("40R BN 34124 07001")
-        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in markers.count > 100 }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+        // Wait on the SDK's count before querying thousands of native marker
+        // nodes. verify retains the ten-second readiness wait and exact count
+        // equality; an early expensive AX scan can consume that whole window.
         verify()
         mapTool(app, "Toggle map night mode").tap(); closeMapOptions(app)
         verify()
