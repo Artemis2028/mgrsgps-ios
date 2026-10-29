@@ -145,3 +145,12 @@ terminal/reaped. No navigation policy, sensor, phone, TAK or wire changes. Prior
 Physical bezel/touch and wider Dynamic Type coverage remain separate checks.
 The fresh disposable watch is retained as a user preview with fake GPS cleared,
 no feed and no armed route; see /tmp/mgrsgps-watch-clock-layout-active.json.
+
+A separate fresh 44 mm watchOS 27 device also displays the current navigation
+controls clearly with the opt-in accessibility3 text size. Native capture
+`/tmp/mgrsgps-watch-clock-44-large.png` shows Choose route and Start steering
+fully legible, left inset retained and clock clear above the scroll viewport.
+This uses the already built binary; no duplicate build or injected sensor state.
+Setup parent86828 exited0/reaped, then only the fresh 44 mm device B6B7CF3A was
+cleared/shut down/deleted. Rafael's 40 mm preview was left intact. Physical bezel,
+VoiceOver, other pages/sizes and other text categories remain separate checks.
