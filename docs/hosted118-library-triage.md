@@ -37,3 +37,45 @@ Independent watch native control validation passed and its fresh disposable
 simulator is deleted; see watch-own-route.md. No new TAK/network/credential,
 container or database action. Current enrolled exchange and real renewal remain
 open; the server stays off.
+
+
+## Follow-up under validation
+
+The dense verifier now obtains one actual marker count per verification and uses
+that same observed count for equality and the greater-than-100 assertion. It still
+verifies every visible marker, both hide/show transitions, distant/return camera
+and night controls. Native text replacement sends one delete after Select All
+instead of emitting more delete events after the selected value is gone. The
+existing empty-value check/retry and exact replacement-value assertion remain.
+No deadline or fixture size changed.
+
+The exact full workflow passes locally in 140.050 s with the original 300/600
+execution settings; parent 56362 exit 0/reaped, TEST SUCCEEDED. Its first day image
+is occluded by the simulator location permission prompt, so it is not clean day
+visual evidence. Final night caption placement was inspected. Coordinate and long
+Files filename replacement regressions are running separately before completion;
+see `/tmp/mgrsgps-ci118-dense-active.json`.
+
+
+## Completed local validation
+
+Both shared-input regressions pass: long native Files filename/export/reopen and
+full wrapped extension 53.398 s; grid/decimal latitude/longitude validation, camera
+movement, hidden-tool persistence/reset and day/night workflow 123.175 s. Parent
+65231 exits 0, TEST SUCCEEDED, and is reaped. The long filename capture retains
+the complete `.gpx` suffix. The final night dense capture was inspected, and a
+fresh launch of the same synthetic dense map after test completion supplies an
+unobstructed day image at `/tmp/mgrsgps-ci118-dense-day-unobstructed.png`; this
+extra launch is visual evidence, not a second full-case run.
+
+No production behavior changed in this follow-up. Marker count equality and the
+minimum count now share one actual AX snapshot per verify, while native selection
+and exact empty/replacement checks remain. All three selected native cases pass
+on the combined source, with original assertions/deadlines. Prior 637 core and
+unsigned phone/watch/widget Release evidence belongs to the unchanged production
+source and is not rerun for this helper-only change.
+
+Both local test parents are terminal/reaped. Fake GPS was cleared, and the
+disposable C8FF88E0 simulator was shut down/deleted. No original device or client
+state was modified. Fresh hosted confirmation is required after the follow-up
+push; no full hosted pass is claimed.

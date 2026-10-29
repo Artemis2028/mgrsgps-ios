@@ -131,8 +131,9 @@ extension XCTestCase {
             element.coordinate(withNormalizedOffset: .init(dx: 0.999,dy: 0.5)).press(forDuration: 1.1)
             let selectAll = app.buttons["Select All"].firstMatch
             let menuItem = app.menuItems["Select All"].firstMatch
-            if selectAll.waitForExistence(timeout: 1) { selectAll.tap() }
-            else if menuItem.exists { menuItem.tap() }
+            var selectedAll = false
+            if selectAll.waitForExistence(timeout: 1) { selectAll.tap(); selectedAll = true }
+            else if menuItem.exists { menuItem.tap(); selectedAll = true }
             else {
                 // A short numeric value may offer no selection menu. A press
                 // at the label-wide centre can leave the caret before its last
@@ -144,7 +145,10 @@ extension XCTestCase {
                     element.coordinate(withNormalizedOffset: .init(dx: 0.999,dy: 0.5)).tap()
                 } else { tapVisibleControl(element,horizontal: 0.999,file: file,line: line) }
             }
-            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: max(1,old.utf16.count)))
+            // One delete removes the selected value. Sending a delete for every
+            // original character adds native key events after the field is empty.
+            // The empty-value check below still rejects an ineffective selection.
+            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,count: selectedAll ? 1 : max(1,old.utf16.count)))
             let remaining = element.value as? String ?? ""
             if remaining.isEmpty || remaining == element.placeholderValue { break }
         }

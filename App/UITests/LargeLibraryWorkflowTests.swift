@@ -15,8 +15,9 @@ final class LargeLibraryWorkflowTests: XCTestCase {
             let range = value.range(of: #"[0-9,]+ annotation\(s\)"#, options: .regularExpression)
             XCTAssertNotNil(range, value)
             let count = range.flatMap { value[$0].split(separator: " ").first }.flatMap { Int($0.replacingOccurrences(of: ",", with: "")) }
-            XCTAssertEqual(markers.count, count, "Every SDK-visible waypoint must remain individually accessible")
-            XCTAssertGreaterThan(markers.count, 100)
+            let accessibleCount = markers.count
+            XCTAssertEqual(accessibleCount, count, "Every SDK-visible waypoint must remain individually accessible")
+            XCTAssertGreaterThan(accessibleCount, 100)
             XCTAssertTrue(app.buttons["Compass"].exists)
             XCTAssertTrue(app.buttons["About this map"].exists)
         }

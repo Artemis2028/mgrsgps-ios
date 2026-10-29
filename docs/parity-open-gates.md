@@ -481,3 +481,14 @@ throughout a run; explicit Start resets the watermark. All 637 core cases and
 unsigned phone/watch/widget Release pass. Wear already uses strictly increasing
 native elapsedRealtimeNanos. See watch-own-route.md. This does not close native
 watch gesture/physical fault or live TAK gates. Held locally while CI 118 runs.
+
+
+### Hosted118 follow-up validated locally
+
+The single remaining dense case now passes in140.050s after removing duplicate
+AX count snapshots and redundant delete events after native Select All. Marker,
+hide/show, camera-return, night and300s assertions remain intact. Shared-helper
+coverage passes long Files filename53.398s and coordinate/tool workflow123.175s.
+Captures inspected; all parents reaped, fake GPS cleared, disposable phone deleted.
+See hosted118-library-triage.md. The combined follow-up needs fresh hosted
+confirmation; real enrolled TAK exchange/renewal and physical watch gates stay open.
