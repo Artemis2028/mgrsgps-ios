@@ -221,27 +221,10 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
     if toggle.waitForExistence(timeout: 5), toggle.value as? String != "Expanded" {
         toggle.tap()
         let rail = app.scrollViews["map-options-rail"]
-        // Hosted AX can retain the toggle's pre-animation value after the
-        // native rail is visibly open. Require the actual usable disclosure.
-        let expanded = XCTNSPredicateExpectation(predicate: NSPredicate { _,_ in
-            guard rail.exists else { return false }
-            // An active ruler panel can cover the scroll container's native
-            // activation point while its tool rows remain fully usable.
-            let viewport = rail.frame
-            // Hosted AX can invalidate both index- and accessibility-bound
-            // handles during disclosure. Re-query each stable identity, and
-            // read its frame once rather than retaining a snapshot handle.
-            let toolIDs = ["map-lanes", "map-graphics", "map-boundaries", "map-layers",
-                           "map-measure", "map-terrain", "map-ruler", "map-goto",
-                           "map-button-settings"]
-            return toolIDs.contains { toolID in
-                let row = app.buttons[toolID].firstMatch
-                guard row.exists else { return false }
-                let frame = row.frame
-                return !frame.isEmpty && viewport.contains(frame) && row.isHittable
-            }
-        }, object: rail)
-        XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Map options did not reveal a usable rail")
+        // Confirm disclosure once. A scan of unrelated tool rows repeatedly
+        // snapshots the full map and can exhaust readiness before reaching
+        // the requested control. Its own viewport/hit check follows scrolling.
+        XCTAssertTrue(rail.waitForExistence(timeout: 5), "Map options did not reveal the rail")
     }
     let button = app.buttons[identifier]
     let rail = app.scrollViews["map-options-rail"]
@@ -260,6 +243,12 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
             // point over the adjacent tool while the rail is still moving.
             start.press(forDuration: 0.1,thenDragTo: end,withVelocity: .slow,thenHoldForDuration: 0.3)
         }
+    }
+    // Callers also query intentionally hidden tools to assert absence.
+    if button.exists, rail.exists {
+        let frame = button.frame, viewport = rail.frame
+        XCTAssertTrue(!frame.isEmpty && viewport.contains(frame) && button.isHittable,
+                      "Requested map tool is not fully visible and hittable: \(identifier)")
     }
     return button
 }

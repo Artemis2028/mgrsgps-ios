@@ -562,3 +562,17 @@ and deadlines. Four focused workflows pass locally; unchanged GeoJSON also
 passes. Captures inspected, all local parents reaped and phones deleted; watch
 preview retained. See hosted124-triage.md. Hosted confirmation and real enrolled
 TAK exchange/renewal/native Renew UI and physical gates remain open.
+
+### Hosted125 follow-ups validated locally
+
+Map passed. Field initial UI418pass/0fail/10skip and cached expiry/course/boundary/
+navigation stages pass; practice14pass/1fail exposed moving-host-GPS interference
+with fixed random-course progress. Stationary host controls pass five native
+practice cases, including two advancing completion checks. Library55pass/5fail
+all involve an unrelated-row readiness scan. Requested-tool viewport/hit checks
+pass the five affected workflows; corrected hidden-tool negative queries pass
+active ruler/drawing separately. Initial six-case run had one helper error,
+accurately retained in evidence. Captures inspected; all parents reaped and
+disposable phones deleted; user watch preview preserved. See hosted125-field-
+triage.md and hosted125-library-triage.md. Fresh hosted confirmation and current
+real enrolled TAK exchange/renewal/native Renew UI and physical gates stay open.
