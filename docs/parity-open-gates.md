@@ -551,3 +551,14 @@ pass locally; inspected captures retain the known extreme-density overlap.
 All local parents reaped, disposable phone deleted, watch preview retained.
 See hosted123-library-triage.md. Combined field/library follow-up needs hosted
 confirmation; real enrolled TAK exchange/renewal and physical gates stay open.
+
+### Hosted124 native follow-up
+
+All three shards failed: field417pass/1fail/10skip, map49pass/2fail/1skip,
+library58pass/2fail. SHA256-verified recordings identify rail-query failures
+and separate Files/Save activations whose exact causes remain open. Direct
+stable-ID re-query and a single frame read retain the original rail checks
+and deadlines. Four focused workflows pass locally; unchanged GeoJSON also
+passes. Captures inspected, all local parents reaped and phones deleted; watch
+preview retained. See hosted124-triage.md. Hosted confirmation and real enrolled
+TAK exchange/renewal/native Renew UI and physical gates remain open.

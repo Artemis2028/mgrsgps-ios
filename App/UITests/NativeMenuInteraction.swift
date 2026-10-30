@@ -228,15 +228,17 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
             // An active ruler panel can cover the scroll container's native
             // activation point while its tool rows remain fully usable.
             let viewport = rail.frame
-            // Hosted snapshots can expose the scroll view with no children
-            // while its native buttons remain visible at application scope.
-            // Resolve stable tool identities, rather than stale child indices.
+            // Hosted AX can invalidate both index- and accessibility-bound
+            // handles during disclosure. Re-query each stable identity, and
+            // read its frame once rather than retaining a snapshot handle.
             let toolIDs = ["map-lanes", "map-graphics", "map-boundaries", "map-layers",
                            "map-measure", "map-terrain", "map-ruler", "map-goto",
                            "map-button-settings"]
-            let rows = app.buttons.matching(NSPredicate(format: "identifier IN %@", toolIDs))
-            return rows.allElementsBoundByAccessibilityElement.contains { row in
-                row.isHittable && viewport.contains(row.frame) && !row.frame.isEmpty
+            return toolIDs.contains { toolID in
+                let row = app.buttons[toolID].firstMatch
+                guard row.exists else { return false }
+                let frame = row.frame
+                return !frame.isEmpty && viewport.contains(frame) && row.isHittable
             }
         }, object: rail)
         XCTAssertEqual(XCTWaiter.wait(for: [expanded], timeout: 5), .completed, "Map options did not reveal a usable rail")
