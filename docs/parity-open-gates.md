@@ -4,19 +4,20 @@ This short ledger supplements the chronological inventory. Older “next” and
 “missing” notes are historical; check source and the latest evidence before
 repeating an implementation or runtime test.
 
-Latest snapshot, 29 October: hosted122 on `0cf1542` is terminal: field passes;
-map52total/50pass/1fail/1skip; library60total/58pass/2fail/0skip. SHA256-verified
-finalized artifacts identify usable-options-rail expectations and the dense300s
-allowance. Prior manual-pan gate test passed. Test-only follow-ups require usable
-native rail rows and avoid replacing an already exact preserved library filter.
-Two map-tool cases pass locally194.825s; dense/search library cases pass158.535s
-(dense113.061s). Original fixtures, assertions and time limits remain. See
-hosted122-map-triage.md and hosted122-library-triage.md. Full hosted confirmation
-remains open. KML/KMZ passed121/122; prior120 Files-stall cause remains unresolved.
-No native hang stacks captured. Current641core/watchsimulator/unsigned
-phone-watch-widgetRelease results remain valid. Clock-safe watch UI is pushed;
-disarmed user40mm preview retained. TAK enrollment exchange/renewal and physical
-verification remain open; server stays off.
+Latest snapshot, 30 October: hosted126 on `d446114` is terminal. Field passes:
+initial UI418passed/10skipped, then expiry1, movement1, boundary5, navigation1
+and practice15 all pass. Map50/52pass with one failure and one skip; library59/60pass
+with one failure. The bounded disclosure follow-up passes both focused native workflows
+(drawing57.150s/settings93.963s), with original wait budgets and assertions.
+Fresh hosted confirmation remains open. SHA-256-verified artifacts narrow the remaining failures to a
+collapsed map-options toggle after a native centre tap and a Settings backup entry
+that remained on Settings after activation. Exact causes remain open; previous
+rail-visible readiness failures are absent. Unchanged local drawing passes58.418s;
+unchanged settings roundtrip passes94.722s. See hosted126-triage.md. No speculative
+production change or timeout increase. Current641core/watchsimulator/unsigned
+phone-watch-widgetRelease evidence remains valid. Disarmed40mm watch preview is
+retained. Current enrolled TAK exchange, renewal/native Renew UI and physical
+gates remain open; server stays off.
 
 Wear cached-terrain phone transfer, round/night readout, repeated delivery,
 missing-cache handling and phone-off recovery from retained SDK Assets now have

@@ -215,6 +215,21 @@ extension XCTestCase {
     }
 }
 
+/// A native tap can finish without presenting its destination on hosted UIKit.
+/// Retry only a still-visible disclosure, once, within the caller's original
+/// wait budget. Use this for presentation controls, never storage operations.
+func waitForNativeDisclosure(_ destination: XCUIElement, from source: XCUIElement,
+                             timeout: TimeInterval, sourceUnchanged: () -> Bool = { true }) -> Bool {
+    let deadline = ProcessInfo.processInfo.systemUptime + timeout
+    if destination.waitForExistence(timeout: min(1, timeout)) { return true }
+    guard ProcessInfo.processInfo.systemUptime < deadline,
+          !destination.exists, source.exists, source.isHittable, sourceUnchanged(),
+          ProcessInfo.processInfo.systemUptime < deadline else { return destination.exists }
+    source.tap()
+    let remaining = max(0, deadline - ProcessInfo.processInfo.systemUptime)
+    return destination.waitForExistence(timeout: remaining)
+}
+
 /// Follow the same disclosure and scrolling gestures used on the map itself.
 func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
     let toggle = app.buttons["map-options"]
@@ -224,7 +239,9 @@ func mapTool(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         // Confirm disclosure once. A scan of unrelated tool rows repeatedly
         // snapshots the full map and can exhaust readiness before reaching
         // the requested control. Its own viewport/hit check follows scrolling.
-        XCTAssertTrue(rail.waitForExistence(timeout: 5), "Map options did not reveal the rail")
+        XCTAssertTrue(waitForNativeDisclosure(rail, from: toggle, timeout: 5,
+                                              sourceUnchanged: { toggle.value as? String == "Collapsed" }),
+                      "Map options did not reveal the rail")
     }
     let button = app.buttons[identifier]
     let rail = app.scrollViews["map-options-rail"]

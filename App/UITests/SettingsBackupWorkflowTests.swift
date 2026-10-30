@@ -21,7 +21,7 @@ final class SettingsBackupWorkflowTests: XCTestCase {
         tapNativeMenuItem(app.buttons["Position"]); tapNativeMenuItem(app.buttons["Settings"])
         if night { setNativeSwitch(app.switches["Night mode"],to:true) }
         let entry = app.buttons["settings-backup"]; reveal(entry,in:app); tapNativeMenuItem(entry)
-        XCTAssertTrue(app.navigationBars["Backup & restore"].waitForExistence(timeout:10))
+        XCTAssertTrue(waitForNativeDisclosure(app.navigationBars["Backup & restore"], from: entry, timeout:10))
     }
     private func close(_ app: XCUIApplication) {
         tapNativeMenuItem(app.navigationBars["Backup & restore"].buttons["Done"])
