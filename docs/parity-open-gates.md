@@ -541,3 +541,13 @@ field actions now reuse built products; full native expiry/recovery passes with
 external fake OS GPS and inspected stale day/night captures. YAML parses.
 See hosted123-field-triage.md. Library artifact triage and hosted confirmation
 remain open; current real enrolled TAK exchange/renewal and physical gates stay open.
+
+### Hosted123 library follow-up validated locally
+
+Both library failures were usable-rail queries while native controls were open.
+App-scope stable tool identities preserve viewport/hittability and five-second
+readiness checks. Dense, search/night-card and active ruler/drawing workflows
+pass locally; inspected captures retain the known extreme-density overlap.
+All local parents reaped, disposable phone deleted, watch preview retained.
+See hosted123-library-triage.md. Combined field/library follow-up needs hosted
+confirmation; real enrolled TAK exchange/renewal and physical gates stay open.

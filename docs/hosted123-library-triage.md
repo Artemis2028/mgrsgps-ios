@@ -1,0 +1,11 @@
+# Hosted run 123: native rail query failure
+
+Run 40973150871 on bb6af73 is terminal: map passed; field and library failed. Library artifact 12945575546 (763,698,442 bytes) matched SHA256 `cf470141a1eba67b35ab6752b945f7882c8e21b1bfc4b15b54c126d4457f632c`. Download 98719 and extraction 77655 exited zero and were reaped. Summary: 60 total, 58 passed, two failed, zero skipped.
+
+Dense-map accessibility (137.576s) and library search/grid/night cards (62.114s) both failed the usable-rail expectation in NativeMenuInteraction.swift. The search workflow recording shows the rail open at failure. Its archived accessibility snapshot has rail frame {{306,145},{76,532}} and no children; logs show index-bound descendant button handles fail resolution. This supports a test query failure; no production root cause is established. The diagnostic hang observer log is empty; no stall stack claimed.
+
+The helper now resolves the same known native tool identities at application scope using accessibility-bound handles, avoiding the empty rail subtree and index-bound child references. A row must still be nonempty, fully contained in the rail viewport and hittable. The existing five-second readiness deadline, requested-tool scrolling/hit checks and all workflow assertions remain. No production, fixture, timeout or marker-policy changes.
+
+Fresh iPhone 16e/iOS 26.2 native validation passed all three selected workflows: dense 109.656s; library search/grid/night cards 45.233s; active ruler/drawing controls 67.149s. Setup 24934 and build/test 50041 exited zero and were reaped. Result `/tmp/mgrsgps-ci123-rail-local.xcresult`; log `/tmp/mgrsgps-ci123-rail-local.log`. Dense day/night, filtered night card and active drawing captures were inspected unobstructed. Extreme marker/label overlap remains visible and unresolved. Accessibility equality does not establish dense visual legibility.
+
+Cleanup 27886 exited zero and was reaped: fake location cleared, only disposable B0D0C3F9-F45A-4D2D-A9DB-2EB5D922938D phone shut down/deleted. No feed or local test remains active. User watch preview retained. Combined with the separately validated post-build field execution fix (hosted123-field-triage.md), this needs fresh hosted confirmation. Current enrolled TAK exchange/renewal and physical gates remain open; TAK stays off. No merge, publish or release.
