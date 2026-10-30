@@ -532,3 +532,12 @@ stack observer is validated with13 Python tests and an actual owned-app sample.
 No deadline increase, assertion weakening or speculative production Files repair.
 All parents reaped, fakeGPS clear, fresh phone deleted; userwatchpreview preserved.
 See hosted120-library-triage.md. Full hosted confirmation remains open.
+
+### Hosted123 field follow-up
+
+Map passed; field failed before expiry tests during repeated watch CopySwiftLibs,
+while initial field UI had 418 passes, zero failures and 10 skips. Five later
+field actions now reuse built products; full native expiry/recovery passes with
+external fake OS GPS and inspected stale day/night captures. YAML parses.
+See hosted123-field-triage.md. Library artifact triage and hosted confirmation
+remain open; current real enrolled TAK exchange/renewal and physical gates stay open.

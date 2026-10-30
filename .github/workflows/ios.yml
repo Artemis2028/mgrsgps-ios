@@ -164,7 +164,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_freshness_feed EXIT
-          xcodebuild test -parallel-testing-enabled NO \
+          xcodebuild test-without-building -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
@@ -188,7 +188,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_movement_feed EXIT
-          xcodebuild test -parallel-testing-enabled NO \
+          xcodebuild test-without-building -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS \
@@ -213,7 +213,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_boundary_route EXIT
-          xcodebuild test -parallel-testing-enabled NO \
+          xcodebuild test-without-building -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
@@ -236,7 +236,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_navigation_route EXIT
-          xcodebuild test -parallel-testing-enabled NO \
+          xcodebuild test-without-building -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
@@ -259,7 +259,7 @@ jobs:
             xcrun simctl location "$DEST" clear || true
           }
           trap cleanup_practice_route EXIT
-          xcodebuild test -parallel-testing-enabled NO \
+          xcodebuild test-without-building -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
