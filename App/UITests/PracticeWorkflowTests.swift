@@ -137,6 +137,12 @@ final class PracticeWorkflowTests: XCTestCase {
     func testResultFailureRetryAndRelaunchDay() { failedResultRetry(night: false) }
     func testResultFailureRetryAndRelaunchNight() { failedResultRetry(night: true) }
     func testRandomSetupCreatesFiveSeparatedSavedCheckpoints() {
+        // Storage/relaunch assertions need a stationary real OS fix. The
+        // default alternating host route can legitimately reach a scattered
+        // checkpoint, which starts at least 120 m from its creation origin.
+        let token = UUID().uuidString
+        print("PRACTICE_SPLITS_HOLD \(token)")
+        defer { print("PRACTICE_SPLITS_RELEASE \(token)") }
         launch()
         XCTAssertTrue(app.buttons["open-practice"].waitForExistence(timeout: 10)); app.buttons["open-practice"].tap()
         let start = app.buttons["practice-start"]
@@ -148,6 +154,12 @@ final class PracticeWorkflowTests: XCTestCase {
         capture("practice-random-progress")
     }
     private func failedRandomPointsRetry(night: Bool) {
+        // Storage/relaunch assertions need a stationary real OS fix. The
+        // default alternating host route can legitimately reach a scattered
+        // checkpoint, which starts at least 120 m from its creation origin.
+        let token = UUID().uuidString
+        print("PRACTICE_SPLITS_HOLD \(token)")
+        defer { print("PRACTICE_SPLITS_RELEASE \(token)") }
         launch(["-uiTestPracticePointsWriteFailure"] + (night ? ["-uiTestPracticeNight"] : []))
         XCTAssertTrue(app.buttons["open-practice"].waitForExistence(timeout: 10)); app.buttons["open-practice"].tap()
         let start = app.buttons["practice-start"]
