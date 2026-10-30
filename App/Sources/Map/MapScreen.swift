@@ -2,150 +2,1536 @@ import GridFixCore
 import MapLibre
 import SwiftUI
 
-/// The map, with the MGRS grid on it.
-///
-/// The basemap here is MapLibre's keyless demo style — enough to prove the
-/// grid draws and to make a CI screenshot worth looking at. It is a low-detail
-/// world map and is **not** the shipping basemap; roadmap B replaces it with
-/// self-hosted OpenStreetMap vector tiles plus our own terrain, which is also
-/// what makes worldwide offline download possible.
+/// Raster catalog, imported maps, and saved areas share one tile pipeline.
+/// Field overlays stay installed while the underlying raster layer changes.
 struct MapScreen: View {
+    @EnvironmentObject private var tak: TAKSession
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var store: WaypointStore
+    @EnvironmentObject private var fieldData: FieldDataStore
+    @EnvironmentObject private var recorder: TrackRecorder
+    @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var lanes: NavigationLaneStore
+    @EnvironmentObject private var terrain: TerrainSession
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showingMapOptions = false
+    @State private var showingMapReadout = false
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    var onNavigate: () -> Void = {}
+    var onOpenCourse: () -> Void = {}
+    var onOrientation: () -> Void = {}
+    @State private var lassoActive = false
+    @State private var lassoSelection: LibrarySelection?
+    @State private var lassoVisibleRequest: UUID?
+    @State private var lassoFinishRequest: UUID?
+    @State private var lassoVertices = 0
+    @State private var lassoDelete = false
+    @State private var lassoError: String?
+    @StateObject private var lassoMutation = FieldMutation()
     @State private var intervalLabel = "—"
-    @State private var nightMode = false
+    @State private var overlayRoutes = 0
+    @State private var overlayTracks = 0
+    @State private var hasFieldPoints = false
+    @State private var overlayLoading = false
+    @State private var overlayError: String?
+    @State private var overlayRetry: UUID?
+    @State private var centre = CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773)
+    @StateObject private var targetMutation = FieldMutation()
+    @State private var selectedID: String?
+    @State private var qrRequest: PositionQRRequest?
+    @State private var cameraRequest: MapCameraRequest?
+    @State private var editorRequest: WaypointEditorRequest?
+    @State private var showingTAK = false
+    @State private var showingLayers = false
+    @State private var showingMapToolSettings = false
+    @State private var showingGoTo = false
+    @State private var showingTerrain = false
+    @State private var showingTools = false
+    @State private var pendingTool: MapToolChoice?
+    @State private var showingReference = false
+    @State private var showingAccessibleActions = false
+    @State private var showingCentreDetails = false
+    @State private var showingAccessibleRecording = false
+    @State private var pendingAccessibleAction: MapAccessibleAction?
+    @State private var fieldFixRequest: FieldFixRequest?
+    @State private var planningRequest: FieldPlanningRequest?
+    @State private var viewport = MapBounds(south: 24, north: 25, west: 54, east: 55)
+    @State private var zoom = 6.5
+    @State private var contourLabel = ""
+    @State private var showingBoundaries = false
+    @State private var boundaryDraft: BoundaryDraft?
+    @StateObject private var boundaryMutation = FieldMutation()
+    @State private var showingGraphics = false
+    @State private var graphicDraft: GraphicDraft?
+    @State private var measuringArea = false
+    @State private var rulerAnchor: GeoPoint?
+    @State private var rulerTarget = GeoPoint(lat: 24.4539,lon: 54.3773)
+    @State private var graphicError: String?
+    @StateObject private var graphicMutation = FieldMutation()
+    @State private var routeWaypointOffer: Backup.Graphic?
+    @State private var showingRouteWaypointOffer = false
+    @State private var routeWaypointError: String?
+    @State private var showingLanes = false
+    @State private var pendingLane: LaneMapAction?
+    @State private var laneDraft: LaneEditingDraft?
+    @State private var showingLaneDetails = false
+    @State private var choosingLaneLine = false
+    @State private var replacingLaneAction: LaneMapAction?
+    @State private var confirmingLaneReplace = false
 
-    /// Map tiles stay as they are. Chrome (and the grid overlay ink) follows
-    /// the saved night switch, or this screen's own DAY/NIGHT control.
-    private var chromeNight: Bool { settings.nightMode || nightMode }
+    private var chromeNight: Bool { settings.nightMode }
+    private var accessibleMap: Bool { dynamicType.isAccessibilitySize }
+    private var compactMap: Bool { verticalSizeClass == .compact }
+    private var activeMapTools: Set<String> {
+        var active: Set<String> = []
+        if boundaryDraft != nil || graphicDraft != nil || laneDraft != nil { active.insert("draw") }
+        if rulerAnchor != nil { active.insert("ruler") }
+        if lassoActive || measuringArea || terrain.viewshed != nil { active.insert("tools") }
+        if recorder.phase != .idle || recorder.failure != nil || recorder.hasRecoveryNotice { active.insert("record") }
+        return active
+    }
+    private func showsTool(_ key: String) -> Bool { !settings.hiddenMapTools.contains(key) || activeMapTools.contains(key) }
     private var palette: FieldPalette { FieldPalette(night: chromeNight) }
+    private var mapInk: Color { chromeNight ? palette.ink : .black }
+    private var mapInkDim: Color { chromeNight ? palette.inkDim : .black.opacity(0.65) }
+    private var visible: [Waypoint] {
+        WaypointMapSnapshot.visible(waypoints: store.waypoints, folders: store.folders)
+    }
+    private var selected: Waypoint? { visible.first { $0.id == selectedID } }
+
+    private var centreGrid: MGRS.Parts? {
+        MGRS.parts(lat: centre.latitude,lon: centre.longitude,digits: settings.mgrsDigits)
+    }
+    private var centreGridReadout: String {
+        guard let grid = centreGrid else { return "Outside \(settings.gridName) coverage" }
+        return "\(grid.gzd) \(grid.square)\n\(grid.easting) \(grid.northing)"
+    }
+
+    private var mapAttribution: String {
+        var text = maps.selectedMap?.attribution ?? maps.selectedLayer.attribution
+        if maps.preferences.hillshade, maps.selectedMap == nil, maps.layers.contains(where: { $0.key == "hillshade" }) {
+            text += " · Shading: Esri, USGS, NASA"
+        }
+        if maps.preferences.contours || terrain.readout?.elevation != nil || terrain.viewshed != nil { text += " · Elevation: Mapzen / AWS" }
+        return text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            MapContainer(nightMode: chromeNight,
-                         follow: location.fix,
-                         onChange: { label, _ in intervalLabel = label })
+        GeometryReader { geometry in
+        ZStack {
+            MapContainer(mapStore: maps, nightMode: chromeNight, fix: location.usableFix,
+                         lassoActive: lassoActive,lassoSelection: lassoSelection,lassoVisibleRequest: lassoVisibleRequest,
+                         lassoFinishRequest: lassoFinishRequest,onLassoVertices: { lassoVertices = $0 },
+                         onLassoSelect: { lassoSelection = $0; lassoError = nil },
+                         waypoints: visible, laneWaypoints:store.waypoints, navigationID: store.selectedId,
+                         document: fieldData.document, folders: store.folders, lanes: lanes.lanes, laneDraft: liveLaneDraft,
+                         recordingPoints: recorder.active?.livePoints ?? [],
+                         remoteItems: tak.profile.showRemote ? tak.remoteItems : [],
+                         viewshed: terrain.viewshed,
+                         rulerAnchor: rulerAnchor,
+                         onRulerAnchor: { rulerAnchor = $0; selectedID = nil },
+                         onRulerTarget: { if rulerTarget != $0 { rulerTarget = $0 } },
+                         boundaryPoints: boundaryDraft?.vertices ?? boundaries.displayedArea?.vertices ?? [],boundaryIdentity: boundaryDraft?.id,
+                         boundaryEditing: boundaryDraft != nil && !boundaryMutation.working, boundarySelection: boundaryDraft?.selected,
+                         onBoundaryPoint: { point in
+                             guard !boundaryMutation.working, boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             boundaryDraft!.vertices.append(point); boundaryDraft!.selected = boundaryDraft!.vertices.count-1
+                         },
+                         onBoundarySelect: { if !boundaryMutation.working { boundaryDraft?.selected = $0 } },
+                         onBoundaryInsert: { index, point in
+                             guard !boundaryMutation.working, boundaryDraft != nil, boundaryDraft!.vertices.count < 256 else { return }
+                             let position = min(index+1,boundaryDraft!.vertices.count)
+                             boundaryDraft!.vertices.insert(point,at: position); boundaryDraft!.selected = position
+                         },
+                         onBoundaryMove: { index, point in
+                             if !boundaryMutation.working, boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices[index] = point }
+                         },
+                         onBoundaryRemove: { index in
+                             if !boundaryMutation.working, boundaryDraft?.vertices.indices.contains(index) == true { boundaryDraft!.vertices.remove(at: index); boundaryDraft!.selected = nil }
+                         },
+                         graphicDraft: graphicDraft?.graphic, graphicSelection: graphicDraft?.selected,
+                         onGraphicPoint: { if !graphicMutation.working && (laneDraft == nil || (graphicDraft?.vertices.count ?? 0) < 500) { graphicDraft?.append($0) } },
+                         onGraphicSelect: { if !graphicMutation.working { graphicDraft?.selected = $0 } },
+                         onGraphicInsert: { index, point in if !graphicMutation.working && (laneDraft == nil || (graphicDraft?.vertices.count ?? 0) < 500) { graphicDraft?.selected = index; graphicDraft?.insert(point) } },
+                         onGraphicMove: { if !graphicMutation.working { graphicDraft?.move($0,to: $1) } },
+                         onGraphicRemove: { index in if !graphicMutation.working { graphicDraft?.selected = index; graphicDraft?.removeSelected() } },
+                         onGraphicPick: { guard !graphicMutation.working && laneDraft == nil else { return }; graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = GraphicDraft($0) },
+                         onContour: { contourLabel = $0 },
+                         onOverlays: { overlayRoutes = $0; overlayTracks = $1; hasFieldPoints = $2 },
+                         onOverlayStatus: { loading,error in
+                             overlayLoading = loading; overlayError = error
+                             if !loading,error == nil { Task { await fieldData.maintainTrackStorage() } }
+                         },overlayRetry: overlayRetry,
+                         cameraRequest: cameraRequest,
+                         onSelect: { if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { selectedID = $0 } },
+                         onChange: { label, position, bounds, level in
+                             intervalLabel = label; centre = position; viewport = bounds; zoom = level
+                             rulerTarget = GeoPoint(lat: position.latitude,lon: position.longitude)
+                             terrain.updateCentre(GeoPoint(lat: position.latitude,lon: position.longitude))
+                             maps.saveCamera(lat: position.latitude, lon: position.longitude, zoom: level)
+                         })
                 .ignoresSafeArea()
-
-            // Bottom right and square, the way Rafael asked for it on Android:
-            // the top left is vital real estate when the vertical dimension is
-            // short, and this readout only needs to be glanceable.
-            VStack(alignment: .trailing, spacing: 8) {
-                Button {
-                    nightMode.toggle()
-                } label: {
-                    Text(chromeNight ? "NIGHT" : "DAY")
-                        .font(Blackout.label(10))
-                        .tracking(1.2)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(Color.black.opacity(0.72))
-                        .foregroundStyle(chromeNight ? palette.ink : Blackout.ink)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(12)
-
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    VStack(spacing: 2) {
-                        Text("GRID")
-                            .font(Blackout.label(9))
-                            .tracking(1.4)
-                            .foregroundStyle(chromeNight ? palette.inkDim : Blackout.inkDim)
-                        Text(intervalLabel)
-                            .font(Blackout.numerals(15, weight: .semibold))
-                            .foregroundStyle(chromeNight ? palette.ink : Blackout.ink)
+            VStack(spacing: 12) {
+                if accessibleMap {
+                    accessibleMapHeader
+                } else {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 0) {
+                    Button { withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { showingMapReadout.toggle() } } label: {
+                        HStack(spacing: 10) {
+                            Text(centreGridReadout)
+                                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("map-centre-grid")
+                            Image(systemName: showingMapReadout ? "chevron.up" : "chevron.down").font(.caption2.weight(.semibold))
+                        }
+                        .padding(14).frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).foregroundStyle(mapInk)
+                        .accessibilityLabel(centreGrid?.full ?? centreGridReadout)
+                        .accessibilityValue(showingMapReadout ? "Details expanded" : "Details collapsed")
+                        .accessibilityHint("Shows elevation, grid spacing, map layers and TAK status")
+                        .accessibilityIdentifier("map-centre-summary")
+                    if showingMapReadout {
+                        mapHUDReadout(full: true, includeGrid: false).padding([.horizontal, .bottom], 14)
                     }
-                    .frame(width: 62, height: 46)
-                    .background(Color.black.opacity(0.72))
-                    .overlay(Rectangle().stroke(chromeNight ? palette.hairline : Blackout.hairline))
+                    }.frame(maxWidth: showingMapReadout ? 280 : nil, alignment: .leading).fixedSize(horizontal: !showingMapReadout, vertical: true).fieldChrome()
+                    Spacer(minLength: 0)
+                }
+                }
+                Spacer(minLength: 0)
+                if accessibleMap {
+                    if hasMapPanels {
+                        ScrollView { mapPanels }.scrollDismissesKeyboard(.interactively)
+                            .frame(maxHeight:max(80,geometry.size.height*0.42))
+                            .accessibilityIdentifier("map-accessible-panels")
+                    }
+                } else if hasMapPanels { mapPanels }
+                Text(mapAttribution)
+                    .font(.system(size: 9)).foregroundStyle(chromeNight ? palette.ink : .white)
+                    .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.8), in: Capsule())
+                    .accessibilityIdentifier("map-attribution")
+                if !accessibleMap { HStack(spacing: 12) {
+                    if laneDraft == nil && (!compactMap || (boundaryDraft == nil && graphicDraft == nil)) {
+                    if showsTool("locate") { Button {
+                        guard let fix = location.usableFix else { return }
+                        cameraRequest = MapCameraRequest(action: .locate(fix.lat, fix.lon))
+                    } label: {
+                        Label("Locate", systemImage: "location").labelStyle(.iconOnly).frame(width: 44,height: 40)
+                    }
+                    .fieldGlassButton(mapControl: true).disabled(location.usableFix == nil).accessibilityLabel("Locate") }
+                    Button {
+                        cameraRequest = MapCameraRequest(action: .fitData)
+                    } label: {
+                        Image(systemName: "viewfinder").frame(width: 44, height: 40)
+                    }
+                    .fieldGlassButton(mapControl: true).disabled(!fieldData.ready || (visible.isEmpty && !hasFieldPoints && !overlayLoading && recorder.active?.livePoints.isEmpty != false && boundaries.displayedArea == nil && !lanes.lanes.contains(where: { $0.visible })))
+                    .accessibilityLabel("Show all visible data")
+                    if showsTool("record") { RecordingButton(mapControl: true) }
+                    }
+                    Spacer(minLength: 0)
+                    Button {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86)) {
+                            showingMapOptions.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .medium))
+                            .rotationEffect(.degrees(showingMapOptions ? 45 : 0))
+                            .frame(width: 56, height: 56).contentShape(Circle()).fieldChrome(radius: 28)
+                    }.buttonStyle(.plain).foregroundStyle(mapInk)
+                        .accessibilityLabel(showingMapOptions ? "Close map options" : "Map options")
+                        .accessibilityValue(showingMapOptions ? "Expanded" : "Collapsed")
+                        .accessibilityIdentifier("map-options")
+                }.foregroundStyle(palette.ink).environment(\.colorScheme,.dark) }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showingMapOptions && !accessibleMap {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 4) {
+                            Button {
+                                showingMapOptions = false
+                                editorRequest = WaypointEditorRequest(lat: centre.latitude, lon: centre.longitude)
+                            } label: { Image(systemName: "mappin").frame(width: 44, height: 44) }
+                                .fieldGlassButton(mapControl: true)
+                                .accessibilityLabel("Add waypoint at map centre")
+                            mapToolButtons
+                        }.padding(4)
+                    }
+                    .frame(width: 76, height: mapRailHeight(available: geometry.size.height))
+                    .foregroundStyle(palette.ink).environment(\.colorScheme, .dark)
+                    .offset(x: 8, y: -68)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                    .accessibilityIdentifier("map-options-rail")
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 92)
+            .disabled(graphicMutation.working || lassoMutation.working)
+            .padding(.horizontal, 16).padding(.top, 8)
+            // The edge-to-edge UIKit map extends beneath the custom field bar.
+            // Reserve its control row explicitly for the overlaid map actions.
+            .padding(.bottom, 16 + (chromeNight ? FieldTabBar.controlHeight : 0))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Blackout.background)
+        }
+        .foregroundStyle(mapInk)
+        .environment(\.colorScheme, chromeNight ? .dark : .light)
+        .toolbarColorScheme(chromeNight ? .dark : .light, for: .tabBar)
+        .environment(\.fieldNight, chromeNight)
+        .onAppear { boundaryMutation.setPresented(true); targetMutation.setPresented(true); lassoMutation.setPresented(true); graphicMutation.setPresented(true); if let request = maps.focusRequest { cameraRequest = request }; receiveLaneRequest() }
+        .onChange(of: maps.laneRequest?.id) { _ in receiveLaneRequest() }
+        .onChange(of: graphicMutation.working) { busy in if !busy { receiveLaneRequest() } }
+        .onDisappear { boundaryMutation.setPresented(false); targetMutation.setPresented(false); lassoMutation.setPresented(false); graphicMutation.setPresented(false) }
+        .onChange(of: graphicDraft?.graphic.id) { value in if value != nil { endLasso() } }
+        .onChange(of: boundaryDraft?.id) { value in if value != nil { boundaryMutation.clearError(); endLasso() } }
+        .onChange(of: laneDraft?.lane.id) { value in if value != nil { endLasso() } }
+        .alert("Delete selected map items?",isPresented: $lassoDelete) {
+            Button("Delete selected",role: .destructive) { applyLasso(.delete) }
+            Button("Cancel",role: .cancel) { }
+        } message: { Text("Delete \(lassoSelection?.count ?? 0) saved waypoints and graphics? This cannot be undone.") }
+        .onChange(of: maps.focusRequest?.id) { _ in if let request = maps.focusRequest { cameraRequest = request } }
+        .onChange(of: terrain.viewshed?.id) { _ in
+            if let shade = terrain.viewshed {
+                cameraRequest = MapCameraRequest(action: .showBounds(.init(south: shade.south,north: shade.north,west: shade.west,east: shade.east)))
+            }
+        }
+        .onChange(of: maps.revision) { _ in
+            Task { await terrain.sampler.invalidateFailures(); terrain.refreshCentre(.init(lat: centre.latitude,lon: centre.longitude)) }
+        }
+        .onChange(of: maps.preferences.offlineOnly) { _ in terrain.refreshCentre(.init(lat: centre.latitude,lon: centre.longitude)) }
+        .onChange(of: maps.preferences.baseLayer) { _ in
+            if let map = maps.selectedMap { cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
+        .confirmationDialog("Create navigation waypoints for this route?", isPresented: $showingRouteWaypointOffer,titleVisibility: .visible,presenting: routeWaypointOffer) { route in
+            Button("Generate waypoints") {
+                do { try store.replaceRouteWaypoints(routeID: route.id,name: route.name,points: route.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) },folder: route.folder) }
+                catch { routeWaypointError = error.localizedDescription }
+                routeWaypointOffer = nil
+            }
+            Button("Not now") { showingRouteWaypointOffer = false; routeWaypointOffer = nil }
+        } message: { _ in Text("The route is saved. You can also generate waypoints or follow the route later from its route card.") }
+        .alert("Could not generate route waypoints",isPresented: Binding(get: { routeWaypointError != nil },set: { if !$0 { routeWaypointError = nil } })) {
+            Button("OK") { routeWaypointError = nil }
+        } message: { Text(routeWaypointError ?? "") }
+        .sheet(isPresented:$showingAccessibleActions,onDismiss:runPendingAccessibleAction) {
+            MapAccessibleActions(choices:accessibleChoices) { pendingAccessibleAction = $0; showingAccessibleActions = false }
+        }
+        .sheet(isPresented:$showingCentreDetails,onDismiss:runPendingAccessibleAction) { centreDetails }
+        .sheet(isPresented:$showingAccessibleRecording) { TrackRecordingPanel() }
+        .sheet(isPresented: $showingTools,onDismiss: runPendingTool) {
+            FieldToolChooser(night: settings.nightMode) { tool in pendingTool = tool; showingTools = false }
+        }
+        .sheet(item: $qrRequest) { PositionQRView(request: $0, night: settings.nightMode) }
+        .sheet(isPresented: $showingReference) { FieldReferenceView() }
+        .sheet(item: $planningRequest) { request in
+            switch request.kind {
+            case .sunMoon: SunMoonPlanningView(request: request)
+            case .declination: DeclinationPlanningView(request: request)
+            }
+        }
+        .sheet(item: $fieldFixRequest) { request in
+            FieldFixPanel(request: request) { point in
+                selectedID = nil; cameraRequest = MapCameraRequest(action: .locate(point.lat,point.lon))
+            }
+        }
+        .sheet(isPresented: $showingTerrain) {
+            TerrainPanel(centre: .init(lat: centre.latitude,lon: centre.longitude),position: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
+        }
+        .sheet(isPresented: $showingGraphics) {
+            GraphicPanel(onDraw: { draft in
+                graphicMutation.clearError(); selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicError = nil; graphicDraft = draft
+                if !draft.vertices.isEmpty { cameraRequest = MapCameraRequest(action: .showBoundary(draft.graphic.mapExtentPoints)) }
+            },onShow: { graphic in cameraRequest = MapCameraRequest(action: .showBoundary(graphic.mapExtentPoints)) },onNavigate: onNavigate)
+        }
+        .sheet(isPresented: $showingLanes,onDismiss: runLaneRequest) {
+            NavigationLaneLibraryView { pendingLane = $0; showingLanes = false }
+        }
+        .confirmationDialog("Replace the current unsaved drawing?",isPresented: $confirmingLaneReplace,titleVisibility: .visible) {
+            Button("Replace drawing",role: .destructive) {
+                boundaryDraft = nil; graphicDraft = nil; laneDraft = nil
+                pendingLane = replacingLaneAction; replacingLaneAction = nil; runLaneRequest()
+            }
+            Button("Keep drawing",role: .cancel) { replacingLaneAction = nil }
+        }
+        .sheet(isPresented: $showingLaneDetails) {
+            if let draft = laneDraft {
+                LaneDetailsView(draft: Binding(get: { laneDraft ?? draft },set: { laneDraft = $0 }),busy: graphicMutation.working,error: graphicMutation.error,save: saveLane)
+            }
+        }
+        .sheet(isPresented: $choosingLaneLine) {
+            NavigationStack {
+                List(fieldData.document.graphics.filter(NavLanes.canBeLimit)) { graphic in
+                    Button(graphic.name.isEmpty ? GraphicTypes.label(graphic.type) : graphic.name) {
+                        captureLaneLine(); laneDraft?.line = LaneLine(graphicId: graphic.id)
+                        graphicDraft = nil; choosingLaneLine = false
+                    }.accessibilityIdentifier("lane-link-"+graphic.id)
+                }.navigationTitle("Use existing line").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { choosingLaneLine = false } } }
+            }.fieldSheetAppearance()
+        }
+        .sheet(isPresented: $showingBoundaries) {
+            BoundaryPanel(onDraw: { area in
+                selectedID = nil; rulerAnchor = nil; boundaries.clearError()
+                boundaryDraft = area.map(BoundaryDraft.init) ?? BoundaryDraft()
+                if let area { cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) }
+            },onShow: { area in boundaries.displayedID = area.id; cameraRequest = MapCameraRequest(action: .showBoundary(area.vertices)) })
+        }
+        .sheet(isPresented: $showingMapToolSettings) { MapToolSettingsView() }
+        .sheet(isPresented: $showingGoTo) {
+            MapGoToView(centre: .init(lat: centre.latitude,lon: centre.longitude)) { point in selectedID = nil; cameraRequest = .init(action: .goTo(point.lat,point.lon)) }
+        }
+        .sheet(isPresented: $showingTAK) { TAKSettingsView(onShow: { item in cameraRequest = .init(action: .showTAK(item.points)) }) }
+        .sheet(isPresented: $showingLayers) {
+            MapLayersView(bounds: viewport, zoom: zoom) { map in cameraRequest = MapCameraRequest(action: .showBounds(map.bounds)) }
+        }
+        .sheet(item: $editorRequest) { request in
+            WaypointEditor(lat: request.lat, lon: request.lon) { waypoint in
+                selectedID = waypoint.id
+            }
+        }
+    }
+
+    private func endLasso() { lassoActive = false; lassoSelection = nil; lassoError = nil; lassoVisibleRequest = nil; lassoFinishRequest = nil; lassoVertices = 0 }
+    private func applyLasso(_ action: LibraryBatchAction) {
+        guard let selection = lassoSelection,selection.count > 0 else { return }
+        lassoError = nil
+        lassoMutation.run(action == .delete ? "Deleting selected items…" : "Hiding selected items…",action: {
+            let result = await MapLassoAction.apply(selection,action: action,waypoints: store,field: fieldData)
+            if let error = result.error {
+                lassoSelection = result.remaining
+                lassoError = "\(result.completed) items updated. Retry the remaining items. \(error)"
+            } else { endLasso() }
+        })
+    }
+    private var lassoControls: some View {
+        VStack(alignment: .leading,spacing: 8) {
+            Text(lassoSelection.map { "Lasso · \($0.waypoints.count) waypoints · \($0.graphics.count) \($0.graphics.count == 1 ? "graphic" : "graphics")" } ?? "Lasso · drag a loop, or tap its corners")
+                .font(.subheadline.weight(.semibold)).accessibilityIdentifier("lasso-summary")
+            if let label = lassoMutation.label { ProgressView(label).tint(palette.accent) }
+            if let error = lassoError { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("lasso-error") }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { lassoActions }
+                VStack(alignment: .leading,spacing: 4) { lassoActions }
+            }.buttonStyle(LassoActionStyle())
+        }.padding(12).fieldChrome()
+    }
+    @ViewBuilder private var lassoActions: some View {
+        if lassoSelection != nil {
+            Button("Hide") { applyLasso(.hide) }.disabled(lassoSelection?.count == 0).accessibilityIdentifier("lasso-hide")
+            Button("Delete",role: .destructive) { lassoDelete = true }.disabled(lassoSelection?.count == 0).accessibilityIdentifier("lasso-delete")
+            Button("Again") { lassoSelection = nil; lassoError = nil; lassoVertices = 0 }.accessibilityIdentifier("lasso-again")
+        } else {
+            Button("Select loop") { lassoFinishRequest = UUID() }.disabled(lassoVertices < 3).accessibilityIdentifier("lasso-select-loop")
+            Button("Select visible") { lassoVisibleRequest = UUID() }.accessibilityIdentifier("lasso-select-visible")
+        }
+        Button("Close") { endLasso() }.accessibilityIdentifier("lasso-close")
+    }
+
+
+    private func mapHUDReadout(full: Bool = false, includeGrid: Bool = true) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if includeGrid { Text(centreGridReadout)
+                .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
+                .accessibilityLabel(centreGrid?.full ?? centreGridReadout)
+                .accessibilityIdentifier("map-centre-grid") }
+            Text(Format.latLon(lat: centre.latitude, lon: centre.longitude, format: settings.latLonFormat))
+                .font(.system(.caption, design: .monospaced)).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("map-centre-latlon")
+            Text("UTM " + Format.utm(UTM.coordinate(lat: centre.latitude, lon: centre.longitude)))
+                .font(.system(.caption, design: .monospaced)).fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("map-centre-utm")
+            Text(maps.preferences.gridEnabled ? "MAP CENTRE · \(intervalLabel) GRID" : "MAP CENTRE · GRID OFF")
+                .font(.caption2.weight(.semibold)).tracking(1)
+                .lineLimit(nil).fixedSize(horizontal: false,vertical: true)
+                .foregroundStyle(mapInkDim).accessibilityIdentifier("map-grid-interval")
+            if full || !compactMap, let readout = terrain.readout {
+                Text(readout.elevation.map { String(format: "ELEV %.0f m",$0) } ?? "ELEV unavailable")
+                    .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-elevation")
+                if let slope = readout.slope { Text(String(format: "SLOPE %.1f° · DEM estimate",slope)).font(.caption2).foregroundStyle(mapInkDim) }
+            }
+            if (full || !compactMap) && !contourLabel.isEmpty { Text(contourLabel).font(.caption2).foregroundStyle(mapInkDim) }
+            Text((maps.preferences.offlineOnly ? "OFFLINE ONLY · " : "") + maps.layerName)
+                .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-layer-name")
+            if overlayLoading || !fieldData.ready { Text("Loading saved map data…").font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-loading") }
+            #if DEBUG
+            if overlayLoading,ProcessInfo.processInfo.arguments.contains("-uiTestHoldMapGeometry") {
+                Button("Finish saved map load") {
+                    try? FileManager.default.removeItem(at: FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/hold-map-geometry"))
+                }.accessibilityIdentifier("finish-map-geometry")
+            }
+            #endif
+            if let overlayError {
+                Text(overlayError).font(.caption2).foregroundStyle(mapInkDim)
+                Button("Retry map data") { overlayRetry = UUID() }.accessibilityIdentifier("retry-map-field-data")
+            }
+            if (full || !compactMap) && (overlayRoutes > 0 || overlayTracks > 0) {
+                Text("\(overlayRoutes) routes · \(overlayTracks) tracks")
+                    .font(.caption2).foregroundStyle(mapInkDim).accessibilityIdentifier("map-field-overlays")
+            }
+            Button { openMapTAK() } label: {
+                Label("TAK · \(tak.connected ? String(tak.remoteItems.count) : "off")", systemImage: "antenna.radiowaves.left.and.right")
+                    .font(.caption).frame(minHeight: 44)
+            }.accessibilityIdentifier("map-tak")
+        }
+    }
+    private var hasMapPanels: Bool {
+        lassoActive || rulerAnchor != nil || boundaryDraft != nil || laneDraft != nil || graphicDraft != nil || selected != nil || terrain.viewshed != nil
+    }
+    private var mapPanels: some View {
+        VStack(spacing:12) {
+                if lassoActive { lassoControls }
+                if let anchor = rulerAnchor {
+                    MapRulerCard(anchor: anchor,target: rulerTarget,reset: { rulerAnchor = rulerTarget },close: { rulerAnchor = nil })
+                }
+                if let draft = boundaryDraft {
+                    BoundaryDrawingControls(draft: Binding(get: { boundaryDraft ?? draft },set: { boundaryDraft = $0 }),
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: boundaryMutation.error ?? boundaries.error,saving: boundaryMutation.working,
+                        save: {
+                            guard let captured = boundaryDraft else { return }
+                            boundaryMutation.run("Saving boundary…",action: {
+                                guard await boundaries.save(captured.area) else { throw BoundaryError.invalid(boundaries.error ?? "Monitoring state changed. Stop monitoring before editing this boundary.") }
+                            },completion: { visible in if visible, boundaryDraft == captured { boundaryDraft = nil } })
+                        },cancel: { boundaryDraft = nil; boundaries.clearError(); boundaryMutation.clearError() })
+                }
+                if let draft = laneDraft {
+                    LaneDrawingControls(draft: draft,count: graphicDraft?.vertices.count ?? 0,selected: graphicDraft?.selected != nil,busy: graphicMutation.working,error: graphicMutation.error,
+                        chooseRole: switchLaneRole,
+                        add: { if graphicDraft?.vertices.count ?? 0 < 500 { graphicDraft?.append(.init(lat: centre.latitude,lon: centre.longitude)) } },
+                        undo: { if graphicDraft?.vertices.isEmpty == false { graphicDraft?.graphic.points.removeLast(); graphicDraft?.selected = nil } },remove: { graphicDraft?.removeSelected() },
+                        useLine: { choosingLaneLine = true },drawInstead: { laneDraft?.line = .init(); loadLaneLine() },
+                        review: { captureLaneLine(); showingLaneDetails = true },cancel: { laneDraft = nil; graphicDraft = nil })
+                }
+                if let draft = graphicDraft, laneDraft == nil {
+                    GraphicDrawingControls(draft: Binding(get: { graphicDraft ?? draft },set: { graphicDraft = $0 }),measuringArea: $measuringArea,
+                        centre: GeoPoint(lat: centre.latitude,lon: centre.longitude),error: graphicError ?? graphicMutation.error,saving: graphicMutation.working,
+                        save: {
+                            guard let draft = graphicDraft, draft.validationMessage == nil else { return }
+                            graphicError = nil; routeWaypointOffer = nil
+                            let isNew = draft.original == nil
+                            graphicMutation.run("Saving graphic…",action: {
+                                let saved = try await FieldEditAction.saveGraphic(draft.saved,original: draft.original,field: fieldData,waypoints: store)
+                                if graphicDraft?.graphic.id == draft.graphic.id {
+                                    graphicDraft = nil; graphicError = nil; measuringArea = false
+                                    if isNew && saved.type == "route" { routeWaypointOffer = saved }
+                                }
+                            },completion: { presented in
+                                if presented && isNew && routeWaypointOffer != nil { showingRouteWaypointOffer = true }
+                            })
+                        },cancel: { graphicDraft = nil; graphicError = nil; measuringArea = false })
+                }
+                if let waypoint = selected, !lassoActive, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+                    selectedCard(waypoint)
+                }
+                if let shade = terrain.viewshed, boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+                    Button { terrain.clearViewshed() } label: {
+                        VStack(alignment: .leading,spacing: 4) {
+                            Text("Viewshed · \(Int(shade.radius)) m · tap to clear").font(.caption.bold())
+                            Text(chromeNight ? "Faint: seen · mid: standing · bright: masked · hatched: unknown" : "Green: seen · amber: standing · red: masked · hatched: unknown").font(.caption2)
+                            if shade.missing > 0 { Text("Missing terrain: \(shade.unknownCells) unknown cells").font(.caption2) }
+                        }.padding(10).fieldChrome()
+                    }.buttonStyle(.plain).accessibilityIdentifier("viewshed-legend")
+                }
+        }
+    }
+    private var accessibleMapHeader: some View {
+        Group {
+            if compactMap && hasMapPanels {
+                accessibleActionsButton
+            } else if compactMap {
+                HStack(alignment:.top,spacing:12) {
+                    accessibleCentreSummary
+                    accessibleActionsButton.frame(maxWidth:280)
+                }
+            } else {
+                VStack(spacing:8) { accessibleCentreSummary; accessibleActionsButton }
+            }
+        }
+    }
+    private var accessibleActionsButton: some View {
+        Button { showingAccessibleActions = true } label: {
+            HStack(spacing:8) {
+                Image(systemName:"ellipsis").font(.system(size:22))
+                Text("Map actions").font(.caption.weight(.semibold)).fixedSize(horizontal:false,vertical:true)
+            }.frame(maxWidth:.infinity,minHeight:44)
+        }.fieldGlassButton(mapControl:true).foregroundStyle(palette.ink)
+            .accessibilityIdentifier("map-accessible-actions")
+    }
+    private var accessibleCentreSummary: some View {
+        Button { showingCentreDetails = true } label: {
+            VStack(alignment:.leading,spacing:6) {
+                if !compactMap { Text("Map centre").font(.caption2.weight(.semibold)).foregroundStyle(mapInkDim) }
+                Text(centreGridReadout).font(.system(.subheadline,design:.monospaced).weight(.semibold))
+                    .fixedSize(horizontal:false,vertical:true)
+                HStack {
+                    Text("Details").font(.caption2)
+                    Spacer(minLength:8)
+                    if overlayError != nil { Image(systemName:"exclamationmark.triangle.fill").font(.system(size:20)) }
+                    else if overlayLoading || !fieldData.ready { ProgressView().frame(width:22,height:22) }
+                    Text(maps.preferences.offlineOnly ? "Offline only" : "Online/cache").font(.caption2)
+                }
+            }.frame(maxWidth:.infinity,alignment:.leading).padding(12).fieldChrome()
+        }.buttonStyle(.plain).foregroundStyle(mapInk)
+            .accessibilityLabel("Map centre details")
+            .accessibilityValue((centreGrid?.full ?? centreGridReadout)+(maps.preferences.offlineOnly ? ", Offline only" : ", Online/cache")+(overlayError != nil ? ", Saved map data error" : overlayLoading || !fieldData.ready ? ", Loading saved map data" : ""))
+            .accessibilityIdentifier("map-centre-summary")
+    }
+    private var centreDetails: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment:.leading,spacing:16) {
+                    mapHUDReadout(full:true)
+                    Text("WGS84 latitude / longitude").font(.headline)
+                    Text(String(format:"%.7f\n%.7f",centre.latitude,centre.longitude)).font(.system(.subheadline,design:.monospaced))
+                        .textSelection(.enabled).accessibilityIdentifier("map-centre-decimal")
+                    Text("Map attribution").font(.headline)
+                    Text(mapAttribution).font(.body).textSelection(.enabled)
+                }.frame(maxWidth:.infinity,alignment:.leading).padding(16)
+            }.background { FieldScreenBackground() }.foregroundStyle(palette.ink)
+                .navigationTitle("Map centre").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement:.principal) { Text("Map centre").font(.headline).foregroundStyle(palette.ink) }
+                    ToolbarItem(placement:.confirmationAction) { Button("Done") { showingCentreDetails = false }.foregroundStyle(palette.accent) }
+                }
+        }.tint(palette.accent).fieldSheetAppearance()
+    }
+    private var canFitMapData: Bool {
+        fieldData.ready && (!visible.isEmpty || hasFieldPoints || overlayLoading || recorder.active?.livePoints.isEmpty == false || boundaries.displayedArea != nil || lanes.lanes.contains(where: { $0.visible }))
+    }
+    private var accessibleChoices: [MapAccessibleChoice] {
+        let editing = boundaryDraft != nil || graphicDraft != nil || laneDraft != nil
+        var values: [MapAccessibleChoice] = [.init(action:.details,title:"Map centre details",symbol:"info.circle")]
+        if showsTool("draw") {
+            values += [.init(action:.lanes,title:"Navigation lanes",symbol:"point.topleft.down.to.point.bottomright.curvepath",enabled:!editing),
+                       .init(action:.graphics,title:"Draw graphics and routes",symbol:"pencil.and.outline",enabled:!editing),
+                       .init(action:.boundaries,title:"Backstops and handrails",symbol:"shield.lefthalf.filled",enabled:!editing)]
+        }
+        if showsTool("layers") { values.append(.init(action:.layers,title:"Map layers",symbol:"square.3.layers.3d")) }
+        if !editing {
+            if showsTool("tools") { values += [.init(action:.tools,title:"Measurements and field tools",symbol:"wrench.and.screwdriver"),.init(action:.terrain,title:"Terrain visibility tools",symbol:"binoculars")] }
+            if showsTool("ruler") { values.append(.init(action:.ruler,title:rulerAnchor == nil ? "Distance ruler" : "Close ruler",symbol:"ruler")) }
+            if showsTool("goto") { values.append(.init(action:.goTo,title:"Go to coordinates",symbol:"magnifyingglass")) }
+        }
+        values.append(.init(action:.buttons,title:"Map button visibility",symbol:"slider.horizontal.3"))
+        values.append(.init(action:.night,title:chromeNight ? "Use day mode" : "Use night mode",symbol:"moon"))
+        if showsTool("locate") { values.append(.init(action:.locate,title:"Locate",symbol:"location.fill",enabled:location.usableFix != nil)) }
+        values.append(.init(action:.fit,title:"Show all visible data",symbol:"viewfinder",enabled:canFitMapData))
+        if showsTool("record") { values.append(.init(action:.record,title:recorder.canStart ? "Record track" : "Recording controls",symbol:recorder.canStop ? "stop.circle.fill" : "record.circle")) }
+        values.append(.init(action:.add,title:"Add waypoint at map centre",symbol:"plus"))
+        values.append(.init(action:.tak,title:"TAK server and remote layer",symbol:"antenna.radiowaves.left.and.right"))
+        return values
+    }
+    private func openMapTAK() {
+        if showingCentreDetails { pendingAccessibleAction = .tak; showingCentreDetails = false }
+        else { showingTAK = true }
+    }
+    private func runPendingAccessibleAction() {
+        guard let action = pendingAccessibleAction else { return }; pendingAccessibleAction = nil
+        switch action {
+        case .details: showingCentreDetails = true
+        case .lanes: if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { showingLanes = true }
+        case .graphics: if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { showingGraphics = true }
+        case .boundaries: if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil { showingBoundaries = true }
+        case .layers: showingLayers = true
+        case .tools: showingTools = true
+        case .terrain: showingTerrain = true
+        case .ruler:
+            if rulerAnchor != nil { rulerAnchor = nil }
+            else { rulerAnchor = .init(lat:centre.latitude,lon:centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil }
+        case .goTo: showingGoTo = true
+        case .buttons: showingMapToolSettings = true
+        case .night: settings.nightMode.toggle()
+        case .locate: if let fix = location.usableFix { cameraRequest = .init(action:.locate(fix.lat,fix.lon)) }
+        case .fit: if canFitMapData { cameraRequest = .init(action:.fitData) }
+        case .record: if recorder.canStart { recorder.start() } else { showingAccessibleRecording = true }
+        case .add: editorRequest = WaypointEditorRequest(lat:centre.latitude,lon:centre.longitude)
+        case .tak: showingTAK = true
+        }
+    }
+
+    private func mapRailHeight(available: CGFloat) -> CGFloat {
+        let editing = boundaryDraft != nil || graphicDraft != nil || laneDraft != nil
+        let count = 3 + (showsTool("draw") ? 3 : 0) + (showsTool("layers") ? 1 : 0)
+            + (!editing && showsTool("tools") ? 2 : 0)
+            + (!editing && showsTool("ruler") ? 1 : 0)
+            + (!editing && showsTool("goto") ? 1 : 0)
+        let room = max(100, available - 100 - (chromeNight ? FieldTabBar.controlHeight : 0))
+        let rows = min(count, max(1, Int((room - 4) / 48)))
+        return CGFloat(rows * 48 + 4)
+    }
+
+    @ViewBuilder private var mapToolButtons: some View {
+
+        if showsTool("draw") {
+            Button { showingMapOptions = false; showingLanes = true } label: { Image(systemName: "point.topleft.down.to.point.bottomright.curvepath").frame(width: 44,height: 44) }
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Navigation lanes").accessibilityIdentifier("map-lanes")
+                .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
+            Button { showingMapOptions = false; showingGraphics = true } label: {
+                Image(systemName: "pencil.and.outline").frame(width: 44,height: 44)
+            }.fieldGlassButton(mapControl: true).accessibilityLabel("Draw graphics and routes").accessibilityIdentifier("map-graphics")
+                .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
+            Button { showingMapOptions = false; showingBoundaries = true } label: {
+                Image(systemName: "shield.lefthalf.filled").frame(width: 44,height: 44)
+            }.fieldGlassButton(mapControl: true).accessibilityLabel("Backstops and handrails").accessibilityIdentifier("map-boundaries")
+                .disabled(boundaryDraft != nil || graphicDraft != nil || laneDraft != nil)
+        }
+        if showsTool("layers") { Button { showingMapOptions = false; showingLayers = true } label: {
+            Image(systemName: "square.3.layers.3d").frame(width: 44, height: 44)
+        }.fieldGlassButton(mapControl: true).accessibilityLabel("Map layers").accessibilityIdentifier("map-layers") }
+        if boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+            if showsTool("tools") { Button { showingMapOptions = false; showingTools = true } label: { Image(systemName: "wrench.and.screwdriver").frame(width: 44,height: 44) }
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Map measurements and field tools").accessibilityIdentifier("map-measure")
+            Button { showingMapOptions = false; showingTerrain = true } label: { Image(systemName: "binoculars").frame(width: 44,height: 44) }
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Terrain visibility tools").accessibilityIdentifier("map-terrain") }
+        }
+        if showsTool("ruler") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+            Button {
+                showingMapOptions = false
+                if rulerAnchor != nil { rulerAnchor = nil } else { rulerAnchor = .init(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil }
+            } label: { Image(systemName: "ruler").frame(width: 44,height: 44) }
+                .fieldGlassButton(mapControl: true).accessibilityLabel(rulerAnchor == nil ? "Ruler" : "Close ruler").accessibilityIdentifier("map-ruler")
+        }
+        if showsTool("goto") && boundaryDraft == nil && graphicDraft == nil && laneDraft == nil {
+            Button { showingMapOptions = false; showingGoTo = true } label: { Image(systemName: "magnifyingglass").frame(width: 44,height: 44) }
+                .fieldGlassButton(mapControl: true).accessibilityLabel("Go to coordinates").accessibilityIdentifier("map-goto")
+        }
+        Button { showingMapOptions = false; showingMapToolSettings = true } label: { Image(systemName: "slider.horizontal.3").frame(width: 44,height: 44) }
+            .fieldGlassButton(mapControl: true).accessibilityLabel("Map buttons").accessibilityIdentifier("map-button-settings")
+        Button { settings.nightMode.toggle() } label: {
+            Image(systemName: chromeNight ? "moon.fill" : "moon")
+                .frame(width: 44, height: 44)
+        }.fieldGlassButton(mapControl: true).accessibilityLabel("Toggle map night mode")
+    }
+
+    private var liveLaneDraft: NavLane? {
+        guard var draft = laneDraft else { return nil }
+        if draft.line.graphicId == nil,let graphicDraft { draft.line.points = NavLanes.sanitizedDrawnPoints(graphicDraft.vertices) }
+        return draft.lane
+    }
+    private func receiveLaneRequest() {
+        guard !graphicMutation.working,let request = maps.laneRequest else { return }
+        maps.laneRequest = nil
+        if case .show = request.action { pendingLane = request.action; runLaneRequest(); return }
+        if graphicDraft != nil || boundaryDraft != nil || laneDraft != nil {
+            replacingLaneAction = request.action; confirmingLaneReplace = true
+        } else { pendingLane = request.action; runLaneRequest() }
+    }
+    private func captureLaneLine() {
+        guard laneDraft?.line.graphicId == nil,let points = graphicDraft?.vertices else { return }
+        laneDraft?.line.points = NavLanes.sanitizedDrawnPoints(points)
+    }
+    private func loadLaneLine() {
+        guard let draft = laneDraft else { graphicDraft = nil; return }
+        guard draft.line.graphicId == nil else { graphicDraft = nil; return }
+        var graphic = GraphicDraft(type: "phase_line")
+        graphic.graphic.name = draft.line.label.isEmpty ? draft.role.title : draft.line.label
+        graphic.graphic.points = draft.line.points.map { .init(lat: $0.lat,lon: $0.lon) }
+        graphicDraft = graphic
+    }
+    private func switchLaneRole(_ role: LaneLimit) { captureLaneLine(); laneDraft?.role = role; loadLaneLine() }
+    private func runLaneRequest() {
+        guard let request = pendingLane else { return }; pendingLane = nil
+        switch request {
+        case .show(let lane):
+            let points = [lane.left,lane.right,lane.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }
+            cameraRequest = MapCameraRequest(action: .showBoundary(points))
+        case .create: beginLane(nil)
+        case .edit(let lane): beginLane(lane)
+        }
+    }
+    private func beginLane(_ lane: NavLane?) {
+        selectedID = nil; rulerAnchor = nil; measuringArea = false; graphicMutation.clearError()
+        laneDraft = LaneEditingDraft(lane); loadLaneLine()
+        if let lane {
+            cameraRequest = MapCameraRequest(action: .showBoundary([lane.left,lane.right,lane.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }))
+        }
+    }
+    private func saveLane() {
+        captureLaneLine()
+        guard var value = laneDraft?.lane else { return }
+        let original = laneDraft?.original
+        value.name = value.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.name.isEmpty {
+            let targetName = value.scope == .route ? fieldData.document.graphics.first { $0.id == value.targetId }?.name : store.waypoints.first { $0.id == value.targetId }?.name
+            value.name = "Lane to "+(targetName ?? "point")
+        }
+        let savedValue = value
+        graphicMutation.run("Saving lane…",action: {
+            let saved = try await lanes.save(savedValue,original: original,graphics: fieldData.document.graphics,waypoints:store.waypoints)
+            do { _ = try await LibraryRestoreCommit.waypoints([],folders: [.init(name: saved.folder)],into: store) }
+            catch { throw LaneSaveFolderError(message: "Lane saved. Folder settings could not be finished: \(error.localizedDescription). Retry to finish.") }
+            let extent = [saved.left,saved.right,saved.backstop].flatMap { NavLanes.points($0,graphics: fieldData.document.graphics) ?? [] }
+            cameraRequest = MapCameraRequest(action: .showBoundary(extent))
+            showingLaneDetails = false; laneDraft = nil; graphicDraft = nil
+        })
+    }
+    private func runPendingTool() {
+        guard let tool = pendingTool else { return }
+        pendingTool = nil
+        if tool != .lasso && tool != .reference { endLasso() }
+        switch tool {
+        case .lasso:
+            guard boundaryDraft == nil && graphicDraft == nil && laneDraft == nil else { return }
+            selectedID = nil; rulerAnchor = nil; measuringArea = false
+            lassoSelection = nil; lassoError = nil; lassoActive = true
+        case .distance:
+            rulerAnchor = GeoPoint(lat: centre.latitude,lon: centre.longitude); rulerTarget = rulerAnchor!; selectedID = nil
+        case .area:
+            rulerAnchor = nil; selectedID = nil; graphicError = nil
+            graphicDraft = GraphicDraft(type: "area"); measuringArea = true
+        case .resection: openFieldFix(.resection)
+        case .intersection: openFieldFix(.intersection)
+        case .sunMoon: openPlanning(.sunMoon)
+        case .declination: openPlanning(.declination)
+        case .sight: showingTerrain = true
+        case .course: onOpenCourse()
+        case .orientation: onOrientation()
+        case .reference: showingReference = true
+        }
+    }
+
+    private func openPlanning(_ kind: FieldPlanningRequest.Kind) {
+        rulerAnchor = nil; selectedID = nil
+        planningRequest = .init(kind: kind,centre: .init(lat: centre.latitude,lon: centre.longitude))
+    }
+
+    private func openFieldFix(_ mode: FieldFix.Mode) {
+        rulerAnchor = nil; selectedID = nil
+        fieldFixRequest = .init(mode: mode,centre: .init(lat: centre.latitude,lon: centre.longitude),position: location.usableFix.map { .init(lat: $0.lat,lon: $0.lon) })
+    }
+
+    private func selectedCard(_ waypoint: Waypoint) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(waypoint.name).font(.headline)
+                    Text(MGRS.parts(lat: waypoint.lat, lon: waypoint.lon, digits: settings.mgrsDigits)?.full ?? "—")
+                        .font(.system(.caption, design: .monospaced)).foregroundStyle(mapInkDim)
+                }
+                Spacer()
+                Button {
+                    qrRequest = PositionQRRequest(title: waypoint.name, lat: waypoint.lat, lon: waypoint.lon, label: waypoint.name)
+                } label: { Image(systemName: "qrcode").font(.system(size:22)).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                    .buttonStyle(.plain).accessibilityLabel("Share waypoint as QR code").accessibilityIdentifier("map-waypoint-qr")
+                Button { selectedID = nil } label: { Image(systemName: "xmark").font(.system(size:22)).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                    .buttonStyle(.plain).accessibilityLabel("Close waypoint")
+            }
+            Button {
+                targetMutation.run("Saving navigation target…",action: {
+                    try await WaypointEditAction.select(waypoint.id,in: store)
+                },completion: { visible in if visible { onNavigate() } })
+            } label: { Label("Navigate to waypoint", systemImage: "location.north.fill").frame(maxWidth: .infinity, minHeight: 44) }
+                .buttonStyle(.borderedProminent).tint(palette.accent).foregroundStyle(.black)
+                .accessibilityIdentifier("map-navigate-waypoint").disabled(targetMutation.working)
+            if let label = targetMutation.label { ProgressView(label).font(.caption) }
+            if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("map-target-error") }
+        }
+        .padding(16).fieldChrome()
+    }
+}
+
+struct MapCameraRequest {
+    enum Action { case locate(Double, Double), goTo(Double,Double), fitData, showBounds(MapBounds), showBoundary([GeoPoint]), showTAK([GeoPoint]) }
+    let id = UUID()
+    let action: Action
+}
+
+private struct LassoActionStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.padding(.horizontal,4).frame(minWidth: 44,minHeight: 44)
+            .contentShape(Rectangle()).opacity(enabled ? (configuration.isPressed ? 0.6 : 1) : 0.4)
     }
 }
 
 private struct MapContainer: UIViewRepresentable {
+    let mapStore: MapLayerStore
     let nightMode: Bool
-    let follow: Fix?
-    let onChange: (String, Int) -> Void
+    let fix: Fix?
+    let lassoActive: Bool
+    let lassoSelection: LibrarySelection?
+    let lassoVisibleRequest: UUID?
+    let lassoFinishRequest: UUID?
+    let onLassoVertices: (Int) -> Void
+    let onLassoSelect: (LibrarySelection) -> Void
+    let waypoints: [Waypoint]
+    let laneWaypoints:[Waypoint]
+    let navigationID: String?
+    let document: Backup.Document
+    let folders: [FolderInfo]
+    let lanes: [NavLane]
+    let laneDraft: NavLane?
+    let recordingPoints: [GeoPoint]
+    let remoteItems: [TAKRemoteItem]
+    let viewshed: TerrainAnalysis.Viewshed?
+    let rulerAnchor: GeoPoint?
+    let onRulerAnchor: (GeoPoint) -> Void
+    let onRulerTarget: (GeoPoint) -> Void
+    let boundaryPoints: [GeoPoint]
+    let boundaryIdentity: String?
+    let boundaryEditing: Bool
+    let boundarySelection: Int?
+    let onBoundaryPoint: (GeoPoint) -> Void
+    let onBoundarySelect: (Int) -> Void
+    let onBoundaryInsert: (Int,GeoPoint) -> Void
+    let onBoundaryMove: (Int,GeoPoint) -> Void
+    let onBoundaryRemove: (Int) -> Void
+    let graphicDraft: Backup.Graphic?
+    let graphicSelection: Int?
+    let onGraphicPoint: (GeoPoint) -> Void
+    let onGraphicSelect: (Int) -> Void
+    let onGraphicInsert: (Int,GeoPoint) -> Void
+    let onGraphicMove: (Int,GeoPoint) -> Void
+    let onGraphicRemove: (Int) -> Void
+    let onGraphicPick: (Backup.Graphic) -> Void
+    let onContour: (String) -> Void
+    let onOverlays: (Int, Int, Bool) -> Void
+    let onOverlayStatus: (Bool,String?) -> Void
+    let overlayRetry: UUID?
+    let cameraRequest: MapCameraRequest?
+    let onSelect: (String) -> Void
+    let onChange: (String, CLLocationCoordinate2D, MapBounds, Double) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> MLNMapView {
-        let view = MLNMapView(frame: .zero)
-        // Delegate first. Setting styleURL can complete before a delegate
-        // assigned afterwards is in place, and a missed didFinishLoading means
-        // the overlay is never installed while everything else looks fine.
+        let view = FieldMapView(frame: .zero)
         view.delegate = context.coordinator
-        view.styleURL = URL(string: "https://demotiles.maplibre.org/style.json")
-        // Attribution is a licence obligation, not decoration, and has to stay
-        // visible AND tappable. MapLibre's default puts the (i) button
-        // bottom-right, which is where the grid chip lives — Rafael's call on
-        // Android, because top-left is vital real estate on a short screen. So
-        // the button moves left beside the logo, the arrangement MapLibre uses
-        // on Android anyway, and both sit clear of the floating tab bar.
-        //
-        // This stops being cosmetic once roadmap B serves our own
-        // OpenStreetMap tiles: ODbL requires the credit, and a chip covering
-        // half of it is then a licence problem.
-        view.logoView.isHidden = false
+        view.isPitchEnabled = false
+        view.styleURL = mapStore.styleURL
+        for gesture in view.gestureRecognizers ?? [] { gesture.addTarget(context.coordinator,action: #selector(Coordinator.cameraGesture(_:))) }
+        context.coordinator.maps = mapStore
+        context.coordinator.hasCentred = mapStore.preferences.hasCamera
         view.logoViewPosition = .bottomLeft
-        view.logoViewMargins = CGPoint(x: 8, y: 86)
+        view.logoViewMargins = CGPoint(x: 12, y: 150)
         view.attributionButtonPosition = .bottomLeft
-        view.attributionButtonMargins = CGPoint(x: 118, y: 86)
+        view.attributionButtonMargins = CGPoint(x: 118, y: 150)
+        // Keep the SDK's icon legible without letting its symbol occupy the map
+        // at accessibility text sizes. The native attribution action stays intact.
+        view.attributionButton.setPreferredSymbolConfiguration(.init(pointSize:22),forImageIn:.normal)
+        let tap = UITapGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.boundaryTap(_:)))
+        tap.cancelsTouchesInView = false; tap.delegate = context.coordinator
+        for other in view.gestureRecognizers ?? [] {
+            if let doubleTap = other as? UITapGestureRecognizer, doubleTap.numberOfTapsRequired == 2 { tap.require(toFail: doubleTap) }
+        }
+        view.addGestureRecognizer(tap)
+        let lineHold = UILongPressGestureRecognizer(target: context.coordinator,action: #selector(Coordinator.bendLine(_:)))
+        lineHold.minimumPressDuration = 0.45; lineHold.delegate = context.coordinator
+        context.coordinator.lineHold = lineHold; view.addGestureRecognizer(lineHold)
+        let remote = context.coordinator.remote
+        remote.map = view; remote.frame = view.bounds; remote.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(remote)
+        let tactical = context.coordinator.tactical
+        tactical.map = view; tactical.frame = view.bounds; tactical.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(tactical)
+        let lasso = context.coordinator.lasso
+        lasso.map = view; lasso.frame = view.bounds; lasso.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+        view.addSubview(lasso)
+        let crosshair = context.coordinator.crosshair
+        crosshair.translatesAutoresizingMaskIntoConstraints = false
+        crosshair.isUserInteractionEnabled = false; crosshair.accessibilityElementsHidden = true
+        crosshair.layer.shadowColor = UIColor.black.cgColor; crosshair.layer.shadowRadius = 2; crosshair.layer.shadowOpacity = 0.8
+        view.addSubview(crosshair)
+        NSLayoutConstraint.activate([crosshair.centerXAnchor.constraint(equalTo: view.centerXAnchor),crosshair.centerYAnchor.constraint(equalTo: view.centerYAnchor),crosshair.widthAnchor.constraint(equalToConstant: 22),crosshair.heightAnchor.constraint(equalToConstant: 22)])
         view.showsUserLocation = true
-        view.setCenter(CLLocationCoordinate2D(latitude: 24.4539, longitude: 54.3773),
-                       zoomLevel: 13, animated: false)
+        view.setCenter(CLLocationCoordinate2D(latitude: mapStore.preferences.latitude, longitude: mapStore.preferences.longitude), zoomLevel: mapStore.preferences.zoom, animated: false)
         return view
     }
 
     func updateUIView(_ view: MLNMapView, context: Context) {
-        context.coordinator.overlay.nightMode = nightMode
-        if let f = follow, !context.coordinator.hasCentred {
-            context.coordinator.hasCentred = true
-            view.setCenter(CLLocationCoordinate2D(latitude: f.lat, longitude: f.lon),
-                           zoomLevel: 14, animated: true)
+        let coordinator = context.coordinator
+        coordinator.maps = mapStore
+        coordinator.lassoActive = lassoActive
+        coordinator.lasso.waypoints = waypoints; coordinator.lasso.graphics = document.graphics; coordinator.lasso.folders = folders
+        coordinator.lasso.onSelect = onLassoSelect; coordinator.lasso.onVertexCount = onLassoVertices
+        coordinator.lasso.update(active: lassoActive,selection: lassoSelection,night: nightMode,selectVisibleRequest: lassoVisibleRequest,finishLoopRequest: lassoFinishRequest)
+        view.bringSubviewToFront(coordinator.lasso)
+        // Keep a new vertex at the crosshair draggable even when it is exactly
+        // at the GPS fix. The position marker returns when editing ends.
+        let editing = boundaryEditing || graphicDraft != nil
+        if view.showsUserLocation == editing { view.showsUserLocation = !editing }
+        coordinator.crosshair.tintColor = nightMode ? .systemRed : UIColor(Blackout.accent)
+        view.bringSubviewToFront(coordinator.crosshair)
+        coordinator.contours.onInterval = { text in DispatchQueue.main.async { onContour(text) } }
+        coordinator.onChange = onChange
+        coordinator.onSelect = onSelect
+        coordinator.rulerActive = rulerAnchor != nil
+        coordinator.onRulerAnchor = onRulerAnchor; coordinator.onRulerTarget = onRulerTarget
+        coordinator.boundaryPoints = boundaryPoints; coordinator.boundaryIdentity = boundaryIdentity; coordinator.boundaryEditing = boundaryEditing
+        coordinator.currentGraphicDraft = graphicDraft; coordinator.graphicEditing = graphicDraft != nil; coordinator.graphicSelection = graphicSelection; coordinator.graphicType = graphicDraft?.type
+        coordinator.graphicPoints = graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? []
+        coordinator.onGraphicRemove = onGraphicRemove; coordinator.onBoundaryRemove = onBoundaryRemove
+        coordinator.onGraphicPoint = onGraphicPoint; coordinator.onGraphicSelect = onGraphicSelect; coordinator.onGraphicMove = onGraphicMove; coordinator.onGraphicPick = onGraphicPick; coordinator.onGraphicInsert = onGraphicInsert
+        coordinator.boundarySelection = boundarySelection
+        coordinator.onBoundaryPoint = onBoundaryPoint; coordinator.onBoundarySelect = onBoundarySelect; coordinator.onBoundaryMove = onBoundaryMove; coordinator.onBoundaryInsert = onBoundaryInsert
+        coordinator.boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: view)
+        coordinator.laneOverlay.update(lanes: lanes,draft: laneDraft,graphics: document.graphics,folders: folders,waypoints:laneWaypoints,night: nightMode)
+        coordinator.graphicHandles.update(points: graphicDraft?.points.map { GeoPoint(lat: $0.lat,lon: $0.lon) } ?? [],editing: graphicDraft != nil,selected: graphicSelection,night: nightMode,map: view,closed: graphicDraft.map { GraphicTypes.isArea($0.type) } ?? false,allowInsertion: graphicDraft.map { GraphicTypes.fixedPoints($0.type) == nil } ?? false)
+        coordinator.tactical.update(document: document,folders: folders,draft: graphicDraft,night: nightMode,light: ["sat","usgs_img"].contains(mapStore.preferences.baseLayer),viewshed: viewshed,rulerAnchor: rulerAnchor)
+        coordinator.reconcileVertexPreview()
+        let cameraInteraction = !lassoActive && !coordinator.isVertexDragging
+        if view.isScrollEnabled != cameraInteraction { view.isScrollEnabled = cameraInteraction }
+        if view.isZoomEnabled != cameraInteraction { view.isZoomEnabled = cameraInteraction }
+        if view.isRotateEnabled != cameraInteraction { view.isRotateEnabled = cameraInteraction }
+        // The SDK's zoom setter also configures double-tap recognizers. Apply
+        // drawing policy afterwards, or a camera update re-enables zoom taps
+        // and consumes a quick pair of vertices. Pinch and pan remain usable.
+        let doubleTapEnabled = cameraInteraction && !editing
+        for gesture in view.gestureRecognizers ?? [] {
+            if let tap = gesture as? UITapGestureRecognizer,tap.numberOfTapsRequired == 2,tap.isEnabled != doubleTapEnabled {
+                tap.isEnabled = doubleTapEnabled
+            }
+        }
+        coordinator.overlay.nightMode = nightMode
+        coordinator.overlay.enabled = mapStore.preferences.gridEnabled
+        coordinator.overlay.lightLines = ["sat", "usgs_img"].contains(mapStore.preferences.baseLayer)
+        coordinator.nightMode = nightMode
+        if let style = view.style { coordinator.rasterLayers.update(style: style, store: mapStore, night: nightMode); coordinator.contours.refresh(map: view, store: mapStore, night: nightMode) }
+        coordinator.fieldOverlay.onStatus = onOverlayStatus
+        coordinator.fieldOverlay.onChange = { [weak coordinator,weak view,waypoints,recordingPoints,boundaryPoints,onOverlays] routes,tracks,hasPoints in
+            onOverlays(routes,tracks,hasPoints)
+            guard let coordinator,let view,coordinator.pendingFit != nil,
+                  coordinator.pendingFit == coordinator.lastRequest,!coordinator.fieldOverlay.preparing,coordinator.fieldOverlay.error == nil else { return }
+            coordinator.pendingFit = nil
+            coordinator.fitData(in: view,waypoints: waypoints,recording: recordingPoints,boundary: boundaryPoints)
+        }
+        var overlayDocument = document
+        if let i = overlayDocument.tracks.firstIndex(where: { $0.id == mapStore.viewedTrackID }) { overlayDocument.tracks[i].visible = true }
+        coordinator.fieldOverlay.update(document: overlayDocument, folders: folders, night: nightMode,retryToken: overlayRetry)
+        coordinator.remote.update(remoteItems, night: nightMode)
+        coordinator.liveOverlay.update(recordingPoints)
+        coordinator.sync(waypoints, navigationID: navigationID, night: nightMode, in: view)
+        coordinator.raiseAnnotations(in: view)
+        view.bringSubviewToFront(coordinator.lasso)
+        if let request = cameraRequest, coordinator.lastRequest != request.id {
+            coordinator.lastRequest = request.id
+            coordinator.pendingFit = nil
+            switch request.action {
+            case let .showBoundary(points):
+                if let bounds = FieldMapGeometry.bounds(points), let first = points.first {
+                    if bounds.south == bounds.north && bounds.west == bounds.east {
+                        view.setCenter(CLLocationCoordinate2D(latitude: first.lat,longitude: first.lon),zoomLevel: 16,animated: true)
+                    } else { view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 210,left: 65,bottom: 350,right: 65),animated: true,completionHandler: nil) }
+                }
+            case let .showTAK(points):
+                if points.allSatisfy({ abs($0.lat) <= 85.05112878 }), let bounds = FieldMapGeometry.bounds(points), let first = points.first {
+                    if points.count == 1 {
+                        view.setCenter(CLLocationCoordinate2D(latitude: first.lat, longitude: first.lon), zoomLevel: 16, animated: true)
+                    } else {
+                        let compact = view.bounds.width > view.bounds.height
+                        let padding = UIEdgeInsets(top: compact ? 110 : min(430, view.bounds.height * 0.5), left: 32,
+                                                   bottom: compact ? 140 : min(220, view.bounds.height * 0.25), right: 32)
+                        view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: padding, animated: true, completionHandler: nil)
+                    }
+                }
+            case let .showBounds(bounds):
+                view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south, longitude: bounds.west), ne: CLLocationCoordinate2D(latitude: bounds.north, longitude: bounds.east)), edgePadding: UIEdgeInsets(top: 180, left: 30, bottom: 220, right: 30), animated: true, completionHandler: nil)
+            case let .goTo(lat,lon):
+                view.setCenter(CLLocationCoordinate2D(latitude: lat,longitude: lon),zoomLevel: view.zoomLevel < 14 ? 15 : view.zoomLevel,animated: true)
+            case let .locate(lat, lon):
+                view.setCenter(CLLocationCoordinate2D(latitude: lat, longitude: lon), zoomLevel: 14, animated: true)
+            case .fitData:
+                if coordinator.fieldOverlay.preparing { coordinator.pendingFit = request.id }
+                else { coordinator.fitData(in: view,waypoints: waypoints,recording: recordingPoints,boundary: boundaryPoints) }
+            }
+            coordinator.hasCentred = true
+        } else if let fix, !coordinator.hasCentred {
+            coordinator.hasCentred = true
+            view.setCenter(CLLocationCoordinate2D(latitude: fix.lat, longitude: fix.lon), zoomLevel: 14, animated: false)
         }
     }
 
-    @MainActor
-    final class Coordinator: NSObject, MLNMapViewDelegate {
-        let overlay = GridOverlay()
-        var hasCentred = false
+    static func dismantleUIView(_ view: MLNMapView,coordinator: Coordinator) {
+        coordinator.cancelVertexDrag(); coordinator.pendingFit = nil; coordinator.fieldOverlay.onChange = nil; coordinator.fieldOverlay.onStatus = nil
+        coordinator.fieldOverlay.cancel()
+    }
 
-        init(onChange: @escaping (String, Int) -> Void) {
-            super.init()
-            overlay.onChange = onChange
+    @MainActor
+    final class Coordinator: NSObject, @preconcurrency MLNMapViewDelegate, UIGestureRecognizerDelegate {
+        let lasso = MapLassoOverlay(frame: .zero)
+        var lassoActive = false
+        let crosshair = UIImageView(image: UIImage(systemName: "plus",withConfiguration: UIImage.SymbolConfiguration(pointSize: 22,weight: .light)))
+        let overlay = GridOverlay()
+        let fieldOverlay = FieldOverlay()
+        let laneOverlay = NavigationLaneMapOverlay()
+        let liveOverlay = LiveTrackOverlay()
+        let rasterLayers = RasterMapLayers()
+        let contours = ContourMapOverlay()
+        let boundaryOverlay = BoundaryMapOverlay()
+        let graphicHandles = BoundaryMapOverlay(identifier: "graphic",drawArea: false)
+        let remote = TAKMapOverlay(frame: .zero)
+        let tactical = TacticalMapOverlay(frame: .zero)
+        var graphicEditing = false
+        var rulerActive = false
+        var onRulerAnchor: ((GeoPoint) -> Void)?
+        var onRulerTarget: ((GeoPoint) -> Void)?
+        var currentGraphicDraft: Backup.Graphic?
+        private var vertexPreview: (owner: String,sourceID: String?,geometry: BoundaryVertexPreview)?
+        private weak var activeVertexView: BoundaryVertexView?
+        var isVertexDragging: Bool { vertexPreview != nil }
+        func cancelVertexDrag() { activeVertexView?.cancelEditingDrag(); endVertexPreview() }
+        func reconcileVertexPreview() {
+            guard let preview = vertexPreview else { return }
+            let valid = preview.owner == "graphic"
+                ? graphicEditing && currentGraphicDraft?.id == preview.sourceID && graphicPoints == preview.geometry.source
+                : boundaryEditing && boundaryIdentity == preview.sourceID && boundaryPoints == preview.geometry.source
+            if !valid { cancelVertexDrag() } else { applyVertexPreview() }
+        }
+        private func beginVertexPreview(_ vertex: BoundaryVertexAnnotation,view: BoundaryVertexView?) {
+            activeVertexView = view
+            let source = vertex.owner == "graphic" ? graphicPoints : boundaryPoints
+            vertexPreview = (vertex.owner,vertex.owner == "graphic" ? currentGraphicDraft?.id : boundaryIdentity,
+                             .init(source: source,index: vertex.index,midpoint: vertex.isMidpoint,point: .init(lat: vertex.coordinate.latitude,lon: vertex.coordinate.longitude)))
+        }
+        private func vertexDragIsCurrent(_ vertex: BoundaryVertexAnnotation) -> Bool {
+            guard let preview = vertexPreview,preview.owner == vertex.owner,preview.geometry.index == vertex.index,preview.geometry.midpoint == vertex.isMidpoint else { return false }
+            if vertex.owner == "graphic" { return graphicEditing && currentGraphicDraft?.id == preview.sourceID && graphicPoints == preview.geometry.source }
+            return boundaryEditing && boundaryIdentity == preview.sourceID && boundaryPoints == preview.geometry.source
+        }
+        func applyVertexPreview() {
+            guard let preview = vertexPreview,let points = preview.geometry.points else { return }
+            if preview.owner == "graphic",graphicEditing,currentGraphicDraft?.id == preview.sourceID,graphicPoints == preview.geometry.source,var graphic = currentGraphicDraft {
+                graphic.points = points.map { .init(lat: $0.lat,lon: $0.lon) }; tactical.draft = graphic; tactical.setNeedsDisplay()
+            } else if preview.owner == "boundary",boundaryEditing,boundaryIdentity == preview.sourceID,boundaryPoints == preview.geometry.source {
+                boundaryOverlay.preview(points)
+            }
+        }
+        private func previewVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
+            guard vertexDragIsCurrent(vertex) else { return }
+            vertexPreview?.geometry.point = .init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude)); applyVertexPreview()
+        }
+        private func endVertexPreview() {
+            guard let preview = vertexPreview else { return }
+            vertexPreview = nil; activeVertexView = nil
+            if preview.owner == "boundary" { boundaryOverlay.preview(nil) }
+            else { tactical.draft = currentGraphicDraft; tactical.setNeedsDisplay() }
+        }
+        var graphicType: String?
+        var graphicPoints: [GeoPoint] = []
+        weak var lineHold: UILongPressGestureRecognizer?
+        private var lineDrag: (owner: String,index: Int)?
+        var onGraphicRemove: ((Int) -> Void)?
+        var onBoundaryRemove: ((Int) -> Void)?
+        var graphicSelection: Int?
+        var onGraphicPoint: ((GeoPoint) -> Void)?
+        var onGraphicSelect: ((Int) -> Void)?
+        var onGraphicInsert: ((Int,GeoPoint) -> Void)?
+        var onGraphicMove: ((Int,GeoPoint) -> Void)?
+        var onGraphicPick: ((Backup.Graphic) -> Void)?
+        var boundaryPoints: [GeoPoint] = []
+        var boundaryIdentity: String?
+        var boundaryEditing = false
+        var boundarySelection: Int?
+        var onBoundaryPoint: ((GeoPoint) -> Void)?
+        var onBoundarySelect: ((Int) -> Void)?
+        var onBoundaryInsert: ((Int,GeoPoint) -> Void)?
+        var onBoundaryMove: ((Int,GeoPoint) -> Void)?
+        @objc func boundaryTap(_ gesture: UITapGestureRecognizer) {
+            guard !lassoActive, gesture.state == .ended, let map = gesture.view as? MLNMapView else { return }
+            if rulerActive {
+                let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
+                onRulerAnchor?(.init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude))); return
+            }
+            if !boundaryEditing && !graphicEditing {
+                if let graphic = tactical.graphic(at: gesture.location(in: tactical)) { onGraphicPick?(graphic) }
+                return
+            }
+            let point = map.convert(gesture.location(in: map),toCoordinateFrom: map)
+            let location = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+            if graphicEditing {
+                let tap = gesture.location(in: map)
+                let nearest = previous.map { waypoint -> (Waypoint,CGFloat) in
+                    let position = map.convert(CLLocationCoordinate2D(latitude: waypoint.lat,longitude: waypoint.lon),toPointTo: map)
+                    return (waypoint,hypot(position.x-tap.x,position.y-tap.y))
+                }.filter { $0.1 < 30 }.min { $0.1 < $1.1 }
+                if graphicType == "route", let waypoint = nearest?.0 { onGraphicPoint?(GeoPoint(lat: waypoint.lat,lon: waypoint.lon)) }
+                else { onGraphicPoint?(location) }
+            } else { onBoundaryPoint?(location) }
+        }
+        private func lineSegment(at touch: CGPoint,in map: MLNMapView) -> (owner: String,index: Int)? {
+            let points: [GeoPoint], owner: String, closed: Bool
+            if boundaryEditing { points = boundaryPoints; owner = "boundary"; closed = points.count >= 3 }
+            else if graphicEditing, let type = graphicType, GraphicTypes.fixedPoints(type) == nil {
+                points = graphicPoints; owner = "graphic"; closed = GraphicTypes.isArea(type) && points.count >= 3
+            } else { return nil }
+            guard points.count >= 2, points.count < (owner == "boundary" ? 256 : 4096) else { return nil }
+            var best = CGFloat(22), result: Int?
+            for i in 0..<(closed ? points.count : points.count-1) {
+                let a = points[i], b = points[(i+1)%points.count]
+                let lon = map.centerCoordinate.longitude+TerrainGeometry.wrap(a.lon-map.centerCoordinate.longitude)
+                let p = map.convert(CLLocationCoordinate2D(latitude: a.lat,longitude: lon),toPointTo: map)
+                let q = map.convert(CLLocationCoordinate2D(latitude: b.lat,longitude: lon+TerrainGeometry.wrap(b.lon-a.lon)),toPointTo: map)
+                let dx = q.x-p.x, dy = q.y-p.y, length = dx*dx+dy*dy
+                guard length > 0 else { continue }
+                let t = min(1,max(0,((touch.x-p.x)*dx+(touch.y-p.y)*dy)/length))
+                let distance = hypot(touch.x-p.x-t*dx,touch.y-p.y-t*dy)
+                if distance < best { best = distance; result = i }
+            }
+            return result.map { (owner,$0) }
+        }
+        @objc func bendLine(_ gesture: UILongPressGestureRecognizer) {
+            guard let map = gesture.view as? MLNMapView else { return }
+            let touch = gesture.location(in: map), coordinate = map.convert(touch,toCoordinateFrom: map)
+            let point = GeoPoint(lat: coordinate.latitude,lon: TerrainGeometry.wrap(coordinate.longitude))
+            switch gesture.state {
+            case .began:
+                guard let segment = lineSegment(at: touch,in: map) else { return }
+                lineDrag = (segment.owner,segment.index+1)
+                if segment.owner == "graphic" { onGraphicInsert?(segment.index,point) } else { onBoundaryInsert?(segment.index,point) }
+            case .changed, .ended:
+                if let drag = lineDrag {
+                    if drag.owner == "graphic" { onGraphicMove?(drag.index,point) } else { onBoundaryMove?(drag.index,point) }
+                }
+                if gesture.state == .ended { lineDrag = nil }
+            case .cancelled, .failed:
+                if let drag = lineDrag {
+                    if drag.owner == "graphic" { onGraphicRemove?(drag.index) } else { onBoundaryRemove?(drag.index) }
+                }
+                lineDrag = nil
+            default: break
+            }
+        }
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if lassoActive { return false }
+            guard gestureRecognizer === lineHold, let map = gestureRecognizer.view as? MLNMapView else { return true }
+            return lineSegment(at: gestureRecognizer.location(in: map),in: map) != nil
+        }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            if gestureRecognizer === lineHold || otherGestureRecognizer === lineHold { return false }
+            return true
+        }
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,shouldReceive touch: UITouch) -> Bool {
+            var view = touch.view
+            while let current = view {
+                if current is MLNAnnotationView || current is UIControl { return false }
+                view = current.superview
+            }
+            return true
+        }
+        var maps: MapLayerStore?
+        var nightMode = false
+        var hasCentred = false
+        var lastRequest: UUID?
+        var pendingFit: UUID?
+        @objc func cameraGesture(_ gesture: UIGestureRecognizer) {
+            if gesture.state == .began || (gesture is UITapGestureRecognizer && gesture.state == .ended) { pendingFit = nil }
+        }
+        func fitData(in view: MLNMapView,waypoints: [Waypoint],recording: [GeoPoint],boundary: [GeoPoint]) {
+            let points = waypoints.map { GeoPoint(lat: $0.lat,lon: $0.lon) } + fieldOverlay.points + laneOverlay.points + recording + boundary
+            guard let bounds = FieldMapGeometry.bounds(points) else { return }
+            if bounds.south == bounds.north && bounds.west == bounds.east {
+                view.setCenter(CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),zoomLevel: 15,animated: true)
+            } else {
+                view.setVisibleCoordinateBounds(MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: bounds.south,longitude: bounds.west),ne: CLLocationCoordinate2D(latitude: bounds.north,longitude: bounds.east)),edgePadding: UIEdgeInsets(top: 140,left: 82,bottom: 240,right: 82),animated: true,completionHandler: nil)
+            }
+        }
+        var annotations: [String: WaypointAnnotation] = [:]
+        var onSelect: ((String) -> Void)?
+        var onChange: ((String, CLLocationCoordinate2D, MapBounds, Double) -> Void)?
+        private var previous: [Waypoint] = []
+        private var navigationID: String?
+        private var night = false
+        private var labelsNeedLayout = true
+        private var labelLayoutWork: DispatchWorkItem?
+        private var annotationLabelPassQueued = false
+        private let waypointCaptions = WaypointCaptionOverlay()
+
+        private func annotationLabelViewCreated(in map: MLNMapView) {
+            guard !annotationLabelPassQueued else { return }
+            annotationLabelPassQueued = true
+            // The SDK can realize UIKit annotations after its final Metal
+            // frame. Coalesce factories, then sample after views are attached.
+            DispatchQueue.main.async { [weak self,weak map] in
+                guard let self,let map else { return }
+                self.annotationLabelPassQueued = false
+                self.scheduleLabelLayout(map)
+            }
+        }
+
+        private func scheduleLabelLayout(_ map: MLNMapView) {
+            labelLayoutWork?.cancel()
+            labelsNeedLayout = false
+            let work = DispatchWorkItem { [weak self, weak map] in
+                guard let self, let map else { return }
+                // visibleAnnotations can be nil while UIKit marker views are
+                // already on screen. Use the owned attached views and clip
+                // their actual label geometry instead of dropping cold labels.
+                let markers = self.annotations.values.compactMap { annotation -> (WaypointAnnotation,WaypointMarkerView)? in
+                    guard let marker = map.view(for: annotation) as? WaypointMarkerView,
+                          marker.superview != nil else { return nil }
+                    return (annotation,marker)
+                }
+                let candidates = markers.map { annotation,marker in
+                    WaypointLabelLayout.Candidate(id: annotation.waypoint.id,rect: marker.labelRect(in: map),priority: annotation.waypoint.id == self.navigationID)
+                }
+                let visible = WaypointLabelLayout.visible(candidates,in: map.bounds)
+                self.waypointCaptions.frame = map.bounds
+                self.waypointCaptions.autoresizingMask = [.flexibleWidth,.flexibleHeight]
+                self.waypointCaptions.captions = candidates.filter { visible.contains($0.id) }.compactMap { item in
+                    guard let annotation = self.annotations[item.id] else { return nil }
+                    return .init(text: annotation.waypoint.name,rect: item.rect,night: self.night)
+                }
+                if self.waypointCaptions.superview !== map { map.addSubview(self.waypointCaptions) }
+                self.waypointCaptions.isHidden = false
+                map.bringSubviewToFront(self.waypointCaptions)
+                map.bringSubviewToFront(self.crosshair)
+            }
+            labelLayoutWork = work
+            // Wait for camera motion and native annotation realization to settle.
+            DispatchQueue.main.asyncAfter(deadline: .now()+0.12,execute: work)
+        }
+
+        func sync(_ waypoints: [Waypoint], navigationID: String?, night: Bool, in map: MLNMapView) {
+            guard previous != waypoints || self.navigationID != navigationID || self.night != night else { return }
+            (map as? FieldMapView)?.invalidateAnnotationAccessibility()
+            previous = waypoints
+            self.navigationID = navigationID
+            self.night = night
+            let ids = Set(waypoints.map(\.id))
+            var removed: [WaypointAnnotation] = [], added: [WaypointAnnotation] = []
+            for id in Array(annotations.keys) where !ids.contains(id) {
+                if let old = annotations.removeValue(forKey: id) { removed.append(old) }
+            }
+            for waypoint in waypoints {
+                if let old = annotations[waypoint.id], old.waypoint == waypoint {
+                    (map.view(for: old) as? WaypointMarkerView)?.configure(waypoint, selected: navigationID == waypoint.id, night: night)
+                } else {
+                    if let old = annotations.removeValue(forKey: waypoint.id) { removed.append(old) }
+                    let annotation = WaypointAnnotation(waypoint)
+                    annotations[waypoint.id] = annotation
+                    added.append(annotation)
+                }
+            }
+            // MapLibre reconciles its annotation views on each call. Individual
+            // insertion repeatedly rebuilds the growing hierarchy for a large
+            // library; commit the complete diff in two operations instead.
+            if !removed.isEmpty { map.removeAnnotations(removed) }
+            if !added.isEmpty { map.addAnnotations(added) }
+            labelsNeedLayout = true
+            scheduleLabelLayout(map)
+        }
+
+        func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            if let vertex = annotation as? BoundaryVertexAnnotation {
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "boundary-vertex") as? BoundaryVertexView) ?? BoundaryVertexView(reuseIdentifier: "boundary-vertex")
+                view.configure(index: vertex.index,selected: !vertex.isMidpoint && (vertex.owner == "graphic" ? graphicSelection : boundarySelection) == vertex.index,night: nightMode,owner: vertex.owner,isMidpoint: vertex.isMidpoint)
+                view.onSelect = { [weak self] in
+                    if vertex.isMidpoint { self?.insertVertex(vertex,at: vertex.coordinate) }
+                    else { self?.selectVertex(vertex) }
+                }
+                view.onDragStart = { [weak self,weak view] in self?.pendingFit = nil; self?.beginVertexPreview(vertex,view: view); self?.selectVertex(vertex) }
+                view.dragIsCurrent = { [weak self] in self?.vertexDragIsCurrent(vertex) ?? false }
+                view.onDragPreview = { [weak self] point in self?.previewVertex(vertex,at: point) }
+                view.onDragCancel = { [weak self] in self?.endVertexPreview() }
+                view.onDragEnd = { [weak self] point in
+                    guard let self,self.vertexDragIsCurrent(vertex) else { return }
+                    self.endVertexPreview()
+                    if vertex.isMidpoint { self.insertVertex(vertex,at: point); return }
+                    let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+                    if vertex.owner == "graphic" { self.onGraphicMove?(vertex.index,p) } else { self.onBoundaryMove?(vertex.index,p) }
+                }
+                return view
+            }
+            guard let annotation = annotation as? WaypointAnnotation else { return nil }
+            let marker = (mapView.dequeueReusableAnnotationView(withIdentifier: "waypoint") as? WaypointMarkerView)
+                ?? WaypointMarkerView(reuseIdentifier: "waypoint")
+            marker.configure(annotation.waypoint, selected: navigationID == annotation.waypoint.id, night: night)
+            labelsNeedLayout = true
+            annotationLabelViewCreated(in: mapView)
+            return marker
+        }
+
+        func mapView(_ mapView: MLNMapView, didSelect annotation: MLNAnnotation) {
+            if let vertex = annotation as? BoundaryVertexAnnotation {
+                selectVertex(vertex); mapView.deselectAnnotation(vertex,animated: false); return
+            }
+            if rulerActive {
+                let point = annotation.coordinate
+                if CLLocationCoordinate2DIsValid(point) { onRulerAnchor?(.init(lat: point.latitude,lon: TerrainGeometry.wrap(point.longitude))) }
+                mapView.deselectAnnotation(annotation,animated: false); return
+            }
+            guard let annotation = annotation as? WaypointAnnotation else { return }
+            if boundaryEditing {
+                // Marker views own their tap. Treat it as a boundary vertex
+                // instead of silently dropping it behind the editing guard.
+                onBoundaryPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
+            } else if graphicEditing && graphicType == "route" {
+                onGraphicPoint?(GeoPoint(lat: annotation.waypoint.lat,lon: annotation.waypoint.lon))
+            } else { onSelect?(annotation.waypoint.id) }
+            // Deselect immediately so the same marker can reopen a dismissed card.
+            mapView.deselectAnnotation(annotation, animated: false)
         }
 
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+            (mapView as? FieldMapView)?.invalidateAnnotationAccessibility()
+            if let maps { rasterLayers.update(style: style, store: maps, night: nightMode) }
             overlay.install(into: style)
-            redraw(mapView)
+            fieldOverlay.install(into: style)
+            laneOverlay.install(style)
+            liveOverlay.install(into: style)
+            contours.install(style: style)
+            boundaryOverlay.install(style: style)
+            graphicHandles.install(style: style)
+            boundaryOverlay.update(points: boundaryPoints,editing: boundaryEditing,selected: boundarySelection,night: nightMode,map: mapView)
+            reconcileVertexPreview(); redraw(mapView)
         }
 
-        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
-            redraw(mapView)
+        func insertVertex(_ vertex: BoundaryVertexAnnotation,at point: CLLocationCoordinate2D) {
+            let p = GeoPoint(lat: point.latitude,lon: ((point.longitude+540).truncatingRemainder(dividingBy: 360))-180)
+            if vertex.owner == "graphic" { onGraphicInsert?(vertex.index,p) } else { onBoundaryInsert?(vertex.index,p) }
         }
-
-        private func redraw(_ mapView: MLNMapView) {
-            // Belt and braces: install here too, in case the camera moved
-            // before didFinishLoading arrived.
-            if let style = mapView.style, !overlay.isInstalled {
-                overlay.install(into: style)
+        func selectVertex(_ vertex: BoundaryVertexAnnotation) {
+            guard !vertex.isMidpoint else { return }
+            if vertex.owner == "graphic" { onGraphicSelect?(vertex.index) } else { onBoundarySelect?(vertex.index) }
+        }
+        func raiseAnnotations(in map: MLNMapView) {
+            // Place the canvas immediately below native annotations, inside
+            // their hosting view. Raising their outer ancestor can raise the
+            // Metal basemap over the tactical canvas as well.
+            // Only the first hosted marker is needed. Eager compactMap queried
+            // every annotation on every camera/layout update in dense libraries.
+            if let marker = (map.annotations ?? []).lazy.compactMap({ map.view(for: $0) }).first,
+               let container = marker.superview {
+                let host = container === map ? map : container.superview
+                let sibling = container === map ? marker : container
+                if let host {
+                    if tactical.superview !== host { tactical.removeFromSuperview(); tactical.frame = host.bounds }
+                    host.insertSubview(tactical,belowSubview: sibling)
+                    if remote.superview !== host { remote.removeFromSuperview(); remote.frame = host.bounds }
+                    host.insertSubview(remote,aboveSubview: tactical)
+                }
             }
-            let bounds = mapView.visibleCoordinateBounds
-            let metersPerPoint = mapView.metersPerPoint(atLatitude: mapView.centerCoordinate.latitude)
-            overlay.refresh(bounds: bounds, metersPerPoint: metersPerPoint,
-                            viewSize: mapView.bounds.size,
-                            safeArea: mapView.safeAreaInsets)
+            map.bringSubviewToFront(crosshair)
+        }
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            waypointCaptions.isHidden = true
+            labelsNeedLayout = true
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded()
+            if rulerActive {
+                let point = GeoPoint(lat: mapView.centerCoordinate.latitude,lon: TerrainGeometry.wrap(mapView.centerCoordinate.longitude))
+                DispatchQueue.main.async { [weak self] in if self?.rulerActive == true { self?.onRulerTarget?(point) } }
+            }
+        }
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) { redraw(mapView) }
+        func mapViewDidFinishRenderingFrame(_ mapView: MLNMapView, fullyRendered: Bool) {
+            (mapView as? FieldMapView)?.annotationVisibilityDidRender()
+            if labelsNeedLayout { scheduleLabelLayout(mapView) }
+        }
+
+        private func redraw(_ map: MLNMapView) {
+            scheduleLabelLayout(map)
+            lasso.setNeedsDisplay(); remote.setNeedsDisplay(); tactical.redrawForCameraIfNeeded(); raiseAnnotations(in: map)
+            if lassoActive { map.bringSubviewToFront(lasso) }
+            if let maps { contours.refresh(map: map, store: maps, night: nightMode) }
+            if let style = map.style, !overlay.isInstalled { overlay.install(into: style) }
+            overlay.refresh(bounds: map.visibleCoordinateBounds,
+                            metersPerPoint: map.metersPerPoint(atLatitude: map.centerCoordinate.latitude),
+                            viewSize: map.bounds.size, safeArea: map.safeAreaInsets)
+            // MapLibre may call during updateUIView; publish on the next main turn.
+            let label = overlay.intervalLabel, centre = map.centerCoordinate
+            let b = map.visibleCoordinateBounds
+            let bounds = MapBounds(south: b.sw.latitude, north: b.ne.latitude, west: b.sw.longitude, east: b.ne.longitude)
+            let zoom = map.zoomLevel
+            DispatchQueue.main.async { [weak self] in self?.onChange?(label, centre, bounds, zoom) }
+        }
+    }
+}
+
+private final class WaypointAnnotation: MLNPointAnnotation {
+    let waypoint: Waypoint
+    init(_ waypoint: Waypoint) {
+        self.waypoint = waypoint
+        super.init()
+        coordinate = CLLocationCoordinate2D(latitude: waypoint.lat, longitude: waypoint.lon)
+        title = waypoint.name
+    }
+    required init?(coder: NSCoder) { fatalError("Annotations are built from the waypoint store") }
+}
+
+/// Fit labels to their text while keeping a contrasting backing over map imagery.
+private final class WaypointMarkerView: MLNAnnotationView {
+    private let nameLabel = UILabel()
+    private let dot = UIImageView()
+    private let character = UILabel()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 130, height: 74)
+        // Keep the centre of the 44-point symbol exactly at its coordinate.
+        centerOffset = CGVector(dx: 0, dy: -13)
+        nameLabel.frame = CGRect(x: 0, y: 0, width: 130, height: 26)
+        nameLabel.font = .monospacedSystemFont(ofSize: 11, weight: .semibold)
+        nameLabel.textAlignment = .center
+        nameLabel.backgroundColor = .black.withAlphaComponent(0.78)
+        nameLabel.layer.cornerRadius = 4
+        nameLabel.clipsToBounds = true
+        dot.frame = CGRect(x: 43, y: 28, width: 44, height: 44)
+        dot.contentMode = .scaleAspectFit
+        dot.layer.shadowColor = UIColor.black.cgColor
+        dot.layer.shadowOpacity = 0.8
+        dot.layer.shadowRadius = 2
+        character.frame = dot.frame
+        character.textAlignment = .center
+        character.font = .monospacedSystemFont(ofSize: 12, weight: .bold)
+        character.textColor = .black
+        addSubview(nameLabel); addSubview(dot); addSubview(character)
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+    }
+
+    required init?(coder: NSCoder) { fatalError("Markers are created by MapLibre") }
+
+    func labelRect(in view: UIView) -> CGRect { nameLabel.convert(nameLabel.bounds,to: view) }
+
+    func configure(_ waypoint: Waypoint, selected: Bool, night: Bool) {
+        let style = WaypointMarkerStyle(waypoint: waypoint, night: night)
+        nameLabel.text = waypoint.name
+        // The common caption overlay paints above all symbols, so neighboring
+        // annotation views cannot cover the contrasting text backing.
+        nameLabel.isHidden = true
+        let textWidth = ceil((waypoint.name as NSString).size(withAttributes: [.font: nameLabel.font!]).width)
+        let labelWidth = min(150, max(16, textWidth + 10))
+        let markerWidth = max(44, labelWidth)
+        bounds.size = CGSize(width: markerWidth, height: 68)
+        centerOffset = CGVector(dx: 0, dy: -10)
+        nameLabel.frame = CGRect(x: (markerWidth-labelWidth)/2, y: 0, width: labelWidth, height: 20)
+        dot.frame = CGRect(x: (markerWidth-44)/2, y: 22, width: 44, height: 44)
+        character.frame = dot.frame
+        nameLabel.layer.borderWidth = 0.5
+        nameLabel.layer.borderColor = (night ? UIColor.systemRed : UIColor.white).withAlphaComponent(0.35).cgColor
+        nameLabel.textColor = night ? .systemRed : .white
+        dot.tintColor = style.color
+        dot.image = MilitaryMarkerRenderer.image(waypoint,night: night)
+        dot.layer.cornerRadius = 16
+        dot.layer.borderWidth = selected ? 2 : 0
+        dot.layer.borderColor = (night ? UIColor.systemRed : .white).cgColor
+        character.text = nil
+        accessibilityLabel = "Waypoint \(waypoint.name)"
+        accessibilityIdentifier = "map-waypoint-\(waypoint.id)"
+        accessibilityValue = [WaypointMarkerDescription.text(waypoint),selected ? "Navigation target" : nil].compactMap { $0 }.joined(separator: ", ")
+    }
+}
+
+private final class WaypointCaptionOverlay: UIView {
+    struct Caption { let text: String, rect: CGRect, night: Bool }
+    var captions: [Caption] = [] { didSet { setNeedsDisplay() } }
+    init() {
+        super.init(frame: .zero)
+        isOpaque = false; backgroundColor = .clear; isUserInteractionEnabled = false
+        isAccessibilityElement = false; accessibilityElementsHidden = true
+    }
+    required init?(coder: NSCoder) { fatalError("Captions are created by the map coordinator") }
+    override func draw(_ rect: CGRect) {
+        let font = UIFont.monospacedSystemFont(ofSize: 11,weight: .semibold)
+        for caption in captions {
+            let path = UIBezierPath(roundedRect: caption.rect,cornerRadius: 4)
+            UIColor.black.withAlphaComponent(0.9).setFill(); path.fill()
+            let ink: UIColor = caption.night ? .systemRed : .white
+            ink.withAlphaComponent(0.35).setStroke(); path.lineWidth = 0.5; path.stroke()
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center; paragraph.lineBreakMode = .byTruncatingTail
+            let textRect = CGRect(x: caption.rect.minX+5,y: caption.rect.midY-font.lineHeight/2,width: caption.rect.width-10,height: font.lineHeight)
+            (caption.text as NSString).draw(in: textRect,withAttributes: [.font: font,.foregroundColor: ink,.paragraphStyle: paragraph])
         }
     }
 }

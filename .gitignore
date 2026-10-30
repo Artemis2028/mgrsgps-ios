@@ -3,8 +3,27 @@
 *.xcodeproj
 *.xcworkspace
 build/
+build-release/
 .build/
 DerivedData/
 screenshots/
 .DS_Store
 xcuserdata/
+App/Resources/Info.generated.plist
+
+# Optional local map-key configuration (never commit provider credentials).
+*.local.xcconfig
+
+# Python helpers for simulator routes.
+__pycache__/
+
+Watch/Info.generated.plist
+
+# Generated PDF review artifacts and rendered pages.
+tmp/
+output/
+
+ActivityWidget/Info.generated.plist
+
+# One-shot local renewal credentials are staged only outside the repository.
+tak-local-renewal-proof-login.json

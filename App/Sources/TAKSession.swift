@@ -1,0 +1,479 @@
+import CoreLocation
+import Foundation
+import GridFixCore
+
+@MainActor
+final class TAKSession: ObservableObject {
+    @Published private(set) var profile = TAKProfile()
+    @Published private(set) var status = "Disconnected"
+    @Published private(set) var connected = false
+    @Published private(set) var connecting = false
+    @Published private(set) var trustRequest: TAKServerTrust.Certificate?
+    @Published private(set) var remoteItems: [TAKRemoteItem] = []
+    @Published private(set) var lastReceivedAt: Date?
+    @Published private(set) var failure: String?
+    @Published private(set) var sharingWaitMessage: String?
+    @Published private(set) var positionWaitMessage: String?
+    @Published private(set) var clientCertificate: TAKClientCertificateInfo?
+    @Published private(set) var certificateDetailsStatus = "Client certificate details have not been loaded"
+    @Published private(set) var loadingCertificateDetails = false
+    private var certificateDetailsGeneration = UUID()
+    struct Renewal: Equatable, Sendable {
+        let uid: String
+        let credentialID: String
+        let target: TAKEnrollment.Target
+        let pin: String?
+    }
+    @Published private(set) var enrollmentSuggestion: TAKEnrollment.Target?
+    @Published private(set) var renewalContext: Renewal?
+    @Published private(set) var certificateRenewalMessage: String?
+    @Published var sharePosition = false { didSet { if oldValue != sharePosition { if !sharePosition { positionWaitMessage = nil }; updateLocationDemand(); lastPresence = nil; tick() } } }
+    private let transport: TAKTransportDriving
+    private let location: RecordingLocationDriver
+    private var store: TAKLocalStore?
+    private var credentials: TAKImportedCredentials?
+    private var scene = TAKRemoteScene()
+    private var timer: Timer?
+    private var desired = false
+    private var foreground = true
+    private var attempt = UUID()
+    private var retryAt: TimeInterval?
+    private var backoff: TimeInterval = 1
+    private var lastPing: TimeInterval?
+    private var lastPresence: TimeInterval?
+    private var fix: Fix?
+    private var locationStarted = false
+    private let waypoints: WaypointStore?
+    private let field: FieldDataStore?
+    private var sent: [String: String] = [:]
+    private var sharingAvailable = true
+    private var sharingBusy = false
+    private var lastShareCheck: TimeInterval?
+    private var lastShareRefresh: TimeInterval?
+    private var synthetic: GeoPoint?
+    var isSyntheticValidation: Bool { synthetic != nil }
+    var availableFolders: [String] {
+        Array(Set((waypoints?.folders.map(\.name) ?? []) + (field?.document.graphics.map(\.folder) ?? []))).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+    var sharedFolders: Set<String> { profile.sharedFolders ?? [] }
+    var configured: Bool { !profile.host.isEmpty }
+
+    /// Shared with Android's TAK policy, independently of navigation-grade GPS.
+    static func canShare(_ fix: Fix,nowUptime: TimeInterval) -> Bool {
+        let age = nowUptime - fix.timestampUptime
+        return fix.timestampUptime.isFinite && fix.timestampUptime > 0 && age.isFinite && (0...30).contains(age)
+            && fix.accuracyMeters.isFinite && (0...1000).contains(fix.accuracyMeters)
+            && fix.lat.isFinite && fix.lon.isFinite && abs(fix.lat) <= 90 && abs(fix.lon) <= 180
+            && (fix.lat != 0 || fix.lon != 0)
+    }
+
+    init(directory: URL, startup: TAKLocalStore.PreparedStartup? = nil, transport: TAKTransportDriving = TAKTransport(), driver: RecordingLocationDriver? = nil, startTimer: Bool = true, waypoints: WaypointStore? = nil, field: FieldDataStore? = nil) {
+        self.waypoints = waypoints; self.field = field
+        self.transport = transport; self.location = driver ?? CoreLocationRecordingDriver()
+        do {
+            let prepared = startup ?? TAKLocalStore.prepareStartup(root: directory)
+            guard prepared.root == directory else { throw TAKLocalStore.StartupFailure.changed }
+            try prepared.validate()
+            store = prepared.store
+            if let saved = prepared.profile { profile = saved }
+            sent = prepared.sent; sharingAvailable = prepared.sharingAvailable; failure = prepared.failure
+        } catch { failure = "Unable to read local TAK preferences" }
+        location.onLocations = { [weak self] samples in
+            guard let self, let sample = samples.last else { return }
+            self.fix = Fix(location: sample, now: Date(), uptime: ProcessInfo.processInfo.systemUptime)
+            self.tick()
+        }
+        location.onAuthorization = { [weak self] in self?.updateLocationDemand() }
+        location.onFailure = { [weak self] _ in self?.fix = nil }
+        if startTimer { timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        } }
+    }
+    func importPackage(_ bytes: Data) async {
+        disconnect()
+        clearEnrollmentSuggestion()
+        certificateRenewalMessage = nil
+        do {
+            let package = try await Task.detached(priority: .userInitiated) { try TAKConnectionPackage.read(bytes) }.value
+            guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
+            if package.needsEnrollment {
+                enrollmentSuggestion = try .init(host: package.host, streamPort: package.port)
+                failure = nil; status = "Sign in to finish this connection package"
+                return
+            }
+            let imported = try await Task.detached(priority: .userInitiated) { try TAKImportedCredentials.read(package) }.value
+            var next = profile
+            if next.host != package.host || next.port != package.port || next.tls != package.usesTLS { next.pin = nil }
+            next.host = package.host; next.port = package.port; next.title = package.description; next.tls = package.usesTLS
+            next.enrollmentPort = nil
+            // Secrets stay in a device-only Keychain item; the profile contains
+            // endpoint/callsign/pin only and is excluded from backups.
+            let oldCredentialID = profile.credentialID ?? profile.uid
+            let newCredentialID = next.uid + "-imported-" + UUID().uuidString
+            next.credentialID = newCredentialID
+            try store.saveCredentials(.init(package), uid: newCredentialID)
+            do { try store.write(next) }
+            catch { try? store.deleteCredentials(newCredentialID); throw error }
+            removeReplacedCredentials(oldCredentialID, store: store)
+            profile = next
+            do { sent = try store.readSent(profile: next); sharingAvailable = true }
+            catch { sent = [:]; sharingAvailable = false }
+            credentials = imported; publishCertificateInfo(TAKClientCertificateInfo.credentials(imported)); trustRequest = nil; failure = nil
+            status = "Ready to connect"
+            scene.clear(); remoteItems = []
+        } catch { failure = error.localizedDescription; status = "Import failed" }
+    }
+    func refreshCertificateDetails(reader: @escaping @Sendable (TAKLocalStore,String) throws -> TAKClientCertificateInfo? = { try TAKClientCertificateInfo.read(store: $0,id: $1) }) async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestTAKCertificateDetails") { return }
+        #endif
+        guard configured,profile.tls,let store else { publishCertificateInfo(nil); return }
+        let id = profile.credentialID ?? profile.uid,token = UUID()
+        certificateDetailsGeneration = token; loadingCertificateDetails = true
+        let worker = Task.detached(priority: .userInitiated) { try Task.checkCancellation(); return try reader(store,id) }
+        do {
+            let value = try await withTaskCancellationHandler(operation: { try await worker.value },onCancel: { worker.cancel() })
+            guard certificateDetailsGeneration == token,id == (profile.credentialID ?? profile.uid) else { return }
+            loadingCertificateDetails = false
+            guard !Task.isCancelled else { return }
+            clientCertificate = value
+            certificateDetailsStatus = value == nil ? "No client certificate is saved for this connection" : ""
+        } catch {
+            guard certificateDetailsGeneration == token,id == (profile.credentialID ?? profile.uid) else { return }
+            loadingCertificateDetails = false
+            guard !(error is CancellationError) else { return }
+            clientCertificate = nil
+            certificateDetailsStatus = "Unable to read client certificate details. Retry or import the connection package again."
+        }
+    }
+    private func publishCertificateInfo(_ value: TAKClientCertificateInfo?) {
+        certificateDetailsGeneration = UUID(); loadingCertificateDetails = false; clientCertificate = value
+        certificateDetailsStatus = value == nil ? "No client certificate is saved for this connection" : ""
+    }
+    @discardableResult func suggestCertificateRenewal() -> Bool {
+        guard configured,profile.tls else { return false }
+        enrollmentSuggestion = nil; renewalContext = nil
+        do {
+            let target = try TAKEnrollment.Target(host: profile.host,enrollmentPort: profile.enrollmentPort ?? 8446,streamPort: profile.port)
+            enrollmentSuggestion = target
+            renewalContext = .init(uid: profile.uid,credentialID: profile.credentialID ?? profile.uid,target: target,pin: profile.pin)
+            return true
+        } catch { failure = "Check the saved server address and ports before renewing"; return false }
+    }
+
+    func clearEnrollmentSuggestion() { enrollmentSuggestion = nil; renewalContext = nil }
+    /// Installing a new sign-in is transactional: failure leaves the old
+    /// profile/identity intact, and the pending key is deleted by its owner.
+    func installEnrollment(_ enrollment: TAKEnrollmentClient.Result,renewal: Renewal? = nil) throws {
+        if let renewal {
+            guard profile.uid == renewal.uid, (profile.credentialID ?? profile.uid) == renewal.credentialID,
+                  profile.host == renewal.target.host,profile.port == renewal.target.streamPort,profile.tls,
+                  (profile.enrollmentPort ?? 8446) == renewal.target.enrollmentPort,profile.pin == renewal.pin,
+                  enrollment.server.target == renewal.target else {
+                throw TAKCoT.Failure(message: "The saved TAK connection changed during renewal. Start renewal again.")
+            }
+        }
+        guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
+        let previous = profile, credentialID = profile.uid + "-enrolled-" + UUID().uuidString
+        var next = profile
+        next.host = enrollment.server.target.host; next.port = enrollment.server.target.streamPort
+        next.title = enrollment.server.target.host; next.tls = true
+        next.enrollmentPort = enrollment.server.target.enrollmentPort
+        next.pin = renewal == nil ? (enrollment.server.explicitlyApproved ? enrollment.server.certificate.sha256 : nil) : previous.pin
+        next.credentialID = credentialID
+        // A fresh account/server never inherits folder sharing choices. Explicit
+        // renewal keeps current policy for the same captured server/credential.
+        if renewal == nil { next.sharedFolders = [] }
+        try store.saveCredentials(.init(enrollment: enrollment), uid: credentialID)
+        do { try store.write(next) }
+        catch { try? store.deleteCredentials(credentialID); throw TAKCoT.Failure(message: "Unable to save the enrolled server; the previous connection was preserved") }
+        enrollment.key.retainForProfile()
+        if renewal != nil {
+            // A ready transport retains its existing TLS session. Future
+            // connection attempts use the newly saved identity. Invalidate an
+            // unfinished old credential read before it can overwrite this one.
+            let reconnect = desired && !connected
+            if !connected { attempt = UUID(); transport.stop(); connecting = false; retryAt = nil }
+            profile = next; credentials = enrollment.credentials
+            publishCertificateInfo(TAKClientCertificateInfo.credentials(enrollment.credentials))
+            failure = nil; trustRequest = nil
+            certificateRenewalMessage = "Renewed certificate saved. An open connection uses it when it next reconnects."
+            if reconnect { beginAttempt() }
+            else if !connected { status = "Certificate renewed · ready to connect" }
+        } else {
+            disconnect(); profile = next; credentials = enrollment.credentials
+            publishCertificateInfo(TAKClientCertificateInfo.credentials(enrollment.credentials))
+            do { sent = try store.readSent(profile: next); sharingAvailable = true }
+            catch { sent = [:]; sharingAvailable = false }
+            trustRequest = nil; failure = nil; scene.clear(); remoteItems = []; lastReceivedAt = nil
+            certificateRenewalMessage = nil
+            status = "Signed in · ready to connect"
+        }
+        removeReplacedCredentials(previous.credentialID ?? previous.uid, store: store)
+    }
+    private func removeReplacedCredentials(_ id: String, store: TAKLocalStore) {
+        // Profile already points to the new credentials. Cleanup failure must
+        // not turn a successful, durable sign-in into a misleading error.
+        if let archive = try? store.credentials(id), let tag = archive.enrollmentKeyTag { try? TAKEnrollmentKey.delete(tag) }
+        try? store.deleteCredentials(id)
+    }
+    func reportImportFailure(_ message: String) { failure = message }
+    func setCallsign(_ value: String) {
+        let name = String(value.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+        guard !name.isEmpty else { return }
+        var next = profile; next.callsign = name
+        guard saveProfile(next) else { return }; lastPresence = nil
+    }
+    func setFolderShared(_ folder: String, shared: Bool) {
+        var folders = sharedFolders
+        if shared { folders.insert(folder) } else { folders.remove(folder) }
+        var next = profile; next.sharedFolders = folders
+        guard saveProfile(next) else { return }; lastShareCheck = nil; tick()
+        if folders.isEmpty { sharingWaitMessage = nil }
+    }
+    func setRemoteVisible(_ value: Bool) { var next = profile; next.showRemote = value; _ = saveProfile(next) }
+    func connect() {
+        guard configured, !desired else { return }
+        desired = true; failure = nil; backoff = 1; retryAt = nil
+        beginAttempt()
+    }
+    func disconnect() {
+        desired = false; attempt = UUID(); retryAt = nil; connected = false; connecting = false
+        transport.stop(); status = "Disconnected"; sharePosition = false
+        updateLocationDemand()
+        trustRequest = nil
+        sharingWaitMessage = nil
+    }
+    func approveCertificate() {
+        guard let request = trustRequest else { return }
+        var next = profile; next.pin = request.sha256
+        guard saveProfile(next,failureMessage: "Unable to save the certificate pin") else { return }
+        trustRequest = nil; connect()
+    }
+    func declineCertificate() { trustRequest = nil; disconnect() }
+    func resetServerTrust() {
+        disconnect()
+        guard let store else { failure = "Local TAK storage is unavailable"; return }
+        var next = profile; next.pin = nil
+        do {
+            try store.write(next); profile = next; failure = nil
+            status = "Server trust reset. Connect to verify the certificate."
+        } catch { failure = "Unable to reset the saved certificate pin" }
+    }
+    func setForeground(_ active: Bool) {
+        foreground = active
+        if active { updateLocationDemand(); tick() }
+        else if !sharePosition {
+            // iOS can suspend receive-only sockets. Do not turn on location to
+            // manufacture background execution when position sharing is off.
+            attempt = UUID(); transport.stop(); connected = false; connecting = false
+            if desired { status = "Paused in background"; retryAt = 0 }
+        }
+    }
+    private func beginAttempt() {
+        guard desired, foreground || sharePosition, let port = UInt16(exactly: profile.port), port > 0 else { return }
+        let token = UUID(); attempt = token; connecting = true; connected = false; status = "Connecting"
+        let profile = profile
+        Task {
+            do {
+                if credentials == nil {
+                    guard let archive = try store?.credentials(profile.credentialID ?? profile.uid) else { throw TAKCoT.Failure(message: "Sign in or import a TAK connection package first") }
+                    let loaded = try await Task.detached(priority: .userInitiated) { try archive.read(profile) }.value
+                    // An import/sign-in may replace the connection while the
+                    // Keychain worker is running. Never publish its old identity.
+                    guard attempt == token, desired else { return }
+                    credentials = loaded
+                    publishCertificateInfo(TAKClientCertificateInfo.credentials(loaded))
+                }
+                guard attempt == token, desired, let credentials else { return }
+                transport.start(host: profile.host, port: port, tls: profile.tls, identity: credentials.identity,
+                                anchors: credentials.anchors, pinnedSHA256: profile.pin) { [weak self] event in
+                    Task { @MainActor in self?.receive(event, attempt: token) }
+                }
+            } catch {
+                guard attempt == token else { return }
+                desired = false; connecting = false; failure = error.localizedDescription; status = "Credentials unavailable"
+            }
+        }
+    }
+    private func receive(_ event: TAKTransport.Event, attempt token: UUID) {
+        guard attempt == token, desired else { return }
+        switch event {
+        case .ready:
+            connected = true; connecting = false; failure = nil; status = "Connected"; lastReceivedAt = nil
+            backoff = 1; retryAt = nil; lastPing = nil; lastPresence = nil; lastShareCheck = nil; lastShareRefresh = nil; sharingBusy = false
+            updateLocationDemand(); tick()
+        case let .trustRequired(certificate):
+            desired = false; connecting = false; connected = false
+            status = "Certificate approval required"; trustRequest = certificate
+            updateLocationDemand()
+        case let .refused(reason):
+            desired = false; connected = false; connecting = false; status = "Connection refused"; failure = reason
+            updateLocationDemand()
+        case let .failed(reason):
+            connected = false; connecting = false; status = "Reconnecting"; failure = reason
+            retryAt = ProcessInfo.processInfo.systemUptime + backoff; backoff = min(60, backoff * 2)
+        case let .xml(xml):
+            lastReceivedAt = Date()
+            if let event = TAKCoT.parse(xml, ownUID: profile.uid, now: Date()) {
+                if scene.apply(event, now: Date(), uptime: ProcessInfo.processInfo.systemUptime) { remoteItems = scene.items }
+            }
+        }
+    }
+    private func tick() {
+        let uptime = ProcessInfo.processInfo.systemUptime, now = Date()
+        if scene.expire(now: now, uptime: uptime) { remoteItems = scene.items }
+        if desired, !connected, !connecting, let retryAt, uptime >= retryAt, foreground || sharePosition {
+            self.retryAt = nil; beginAttempt()
+        }
+        guard connected else { return }
+        do {
+            // Announce device identity before other traffic on every connection.
+            // This deterministic ordering is not a workaround for OTS's unique
+            // callsign constraint: the caller must still use a unique callsign.
+            let cadence: TimeInterval = sharePosition ? 10 : 60
+            if lastPresence == nil || uptime - lastPresence! >= cadence {
+                var position: GeoPoint?, accuracy: Double = 9999999
+                if sharePosition {
+                    if let synthetic { position = synthetic; accuracy = 5 }
+                    else if let fix, Self.canShare(fix,nowUptime: uptime) {
+                        position = .init(lat: fix.lat, lon: fix.lon); accuracy = fix.accuracyMeters
+                    }
+                }
+                let waiting = sharePosition && position == nil ? "Waiting for GPS within 30 seconds and 1 km accuracy. Only your callsign is being shared." : nil
+                if positionWaitMessage != waiting { positionWaitMessage = waiting }
+                let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+                transport.send(try TAKCoT.presence(uid: profile.uid, callsign: profile.callsign, version: version,
+                                                 now: now, position: position, accuracy: accuracy))
+                lastPresence = uptime
+            }
+            if lastPing == nil || uptime - lastPing! >= 15 {
+                transport.send(try TAKCoT.ping(uid: profile.uid, now: now)); lastPing = uptime
+            }
+            reconcileSharing(now: now, uptime: uptime)
+        } catch { failure = "Unable to encode TAK presence" }
+    }
+    private func reconcileSharing(now: Date, uptime: TimeInterval) {
+        let fieldsKnown = field?.ready != false && field?.loadError == nil
+        let pointsKnown = waypoints?.loadError == nil
+        // An unavailable source is not evidence that its shared items were
+        // deleted. Explicitly unsharing every folder is authoritative anyway.
+        var unknownPrefixes: [String] = []
+        if !sharedFolders.isEmpty {
+            if !fieldsKnown { unknownPrefixes.append(profile.uid+"-g-") }
+            if !pointsKnown { unknownPrefixes.append(profile.uid+"-wp-") }
+        }
+        let waiting = unknownPrefixes.isEmpty ? nil : "Some folder updates are waiting for saved data to become readable. Previously shared items are kept. Unsharing all folders still withdraws everything."
+        if sharingWaitMessage != waiting { sharingWaitMessage = waiting }
+        guard sharingAvailable, !sharingBusy, let store,
+              lastShareCheck == nil || uptime - lastShareCheck! >= 3 else { return }
+        lastShareCheck = uptime
+        let current = TAKSharing.current(sharedFolders: sharedFolders, waypoints: pointsKnown ? waypoints?.waypoints ?? [] : [],
+                                         graphics: fieldsKnown ? field?.document.graphics ?? [] : [], folders: waypoints?.folders ?? [],
+                                         uid: profile.uid, callsign: profile.callsign)
+        let refresh = unknownPrefixes.isEmpty && (lastShareRefresh == nil || uptime - lastShareRefresh! >= TAKSharing.refreshSeconds)
+        let plan = TAKSharing.plan(current: current, sent: sent, refreshAll: refresh)
+        let deletions = plan.delete.filter { uid in !unknownPrefixes.contains(where: { uid.hasPrefix($0) }) }
+        guard !plan.send.isEmpty || !deletions.isEmpty else { if refresh { lastShareRefresh = uptime }; return }
+        let token = attempt, sharingProfile = profile
+        sharingBusy = true
+        Task {
+            defer { if attempt == token { sharingBusy = false } }
+            guard connected, attempt == token else { return }
+            do {
+                // Journal newly advertised UIDs before any network write. A
+                // crash must not lose the ability to unshare them on reconnect.
+                var journal = sent
+                for item in plan.send { journal[item.uid] = item.signature }
+                try store.writeSent(journal, profile: sharingProfile); sent = journal
+                for uid in deletions {
+                    guard connected, attempt == token else { return }
+                    let success = await sendTracked(try TAKCoT.delete(uid: uid, now: now))
+                    guard success, attempt == token else { return }
+                    var next = sent; next[uid] = nil
+                    try store.writeSent(next, profile: sharingProfile); sent = next
+                }
+                for item in plan.send {
+                    guard connected, attempt == token else { return }
+                    guard await sendTracked(try item.xml(now: now)) else { return }
+                }
+                if attempt == token, refresh { lastShareRefresh = uptime }
+            } catch { failure = "Unable to persist or encode TAK folder sharing" }
+        }
+    }
+    private func sendTracked(_ xml: String) async -> Bool {
+        await withCheckedContinuation { continuation in
+            transport.send(xml, completion: { continuation.resume(returning: $0) })
+        }
+    }
+    private func updateLocationDemand() {
+        guard synthetic == nil else { if locationStarted { location.stop(); locationStarted = false }; return }
+        guard sharePosition, desired else {
+            if locationStarted { location.stop(); locationStarted = false }; fix = nil; return
+        }
+        switch location.authorization {
+        case .authorizedAlways, .authorizedWhenInUse:
+            if !locationStarted, foreground { location.start(); locationStarted = true }
+        case .notDetermined:
+            if foreground { location.requestPermission() }
+        default: failure = "Location permission is required to share your position"; fix = nil
+        }
+    }
+    /// Publish choices only after durable storage succeeds. A failed sharing
+    /// toggle must not advertise data using a choice that will vanish at restart.
+    private func saveProfile(_ next: TAKProfile,failureMessage: String = "Unable to save TAK preferences") -> Bool {
+        do {
+            guard let store else { throw TAKCoT.Failure(message: "Local TAK storage is unavailable") }
+            try store.write(next); profile = next; return true
+        } catch { failure = failureMessage; return false }
+    }
+    #if DEBUG
+    func seedMapPreview() {
+        profile.host = "127.0.0.1"; profile.title = "Local rendering preview"
+        status = "Rendering preview · no server connection"
+        let now = Date()
+        let events = [
+            try? TAKCoT.marker(uid: "preview-wp", name: "ANDROID OP CAFÉ", affiliation: "hostile", position: .init(lat: 35.1384, lon: -78.9925), creatorUID: "preview", creatorCallsign: "PREVIEW", now: now),
+            try? TAKCoT.drawing(uid: "preview-line", name: "ANDROID TEST LINE", points: [.init(lat: 35.1378, lon: -78.9930), .init(lat: 35.1380, lon: -78.9920), .init(lat: 35.1376, lon: -78.9912)], closed: false, creatorUID: "preview", creatorCallsign: "PREVIEW", now: now)
+        ]
+        for xml in events.compactMap({ $0 }) {
+            if let event = TAKCoT.parse(xml, ownUID: profile.uid, now: now) { scene.apply(event, now: now, uptime: ProcessInfo.processInfo.systemUptime) }
+        }
+        remoteItems = scene.items
+    }
+    func seedCertificateDetailsPreview(expired: Bool) {
+        let now = Date()
+        profile.host = "127.0.0.1"; profile.port = 8089; profile.enrollmentPort = 8446; profile.tls = true
+        profile.title = "Synthetic certificate preview"
+        status = "Synthetic certificate preview · no connection"
+        publishCertificateInfo(.init(subject: "MGRS GPS SYNTHETIC CLIENT",sha256: Array(repeating: "AA",count: 32).joined(separator: ":"),
+                                     validity: .init(notBefore: now.addingTimeInterval(-86400),notAfter: now.addingTimeInterval(expired ? -60 : 7*86400))))
+    }
+    /// Fixed synthetic CoT events for paired-watch rendering/expiry checks; never connects.
+    func seedWatchPreview(hidden: Bool = false,cleared: Bool = false,expiry: Bool = false) {
+        scene.clear(); remoteItems = []
+        profile.showRemote = !hidden
+        status = "Synthetic watch scene · no server connection"
+        guard !cleared else { return }
+        let now = Date(),formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime,.withFractionalSeconds]
+        let stale = formatter.string(from:now.addingTimeInterval(expiry ? 45 : 600))
+        let events = [
+            try? TAKCoT.presence(uid:"watch-team",callsign:"TEAM ONE",now:now,position:.init(lat:24.4539,lon:54.3773),accuracy:5),
+            try? TAKCoT.marker(uid:"watch-op",name:"OP CAFÉ",affiliation:"hostile",position:.init(lat:24.4544,lon:54.3781),creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now),
+            try? TAKCoT.drawing(uid:"watch-line",name:"ROAD",points:[.init(lat:24.4537,lon:54.377),.init(lat:24.4542,lon:54.378),.init(lat:24.4548,lon:54.3782)],closed:false,creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now),
+            try? TAKCoT.drawing(uid:"watch-area",name:"NAI 2",points:[.init(lat:24.4546,lon:54.377),.init(lat:24.4546,lon:54.3775),.init(lat:24.455,lon:54.3775)],closed:true,creatorUID:"synthetic",creatorCallsign:"SYNTHETIC",now:now)
+        ]
+        for xml in events.compactMap({ $0 }) {
+            let bounded = xml.replacingOccurrences(of:"stale=\"[^\"]*\"",with:"stale=\""+stale+"\"",options:.regularExpression)
+            if let event = TAKCoT.parse(bounded,ownUID:profile.uid,now:now) { scene.apply(event,now:now,uptime:ProcessInfo.processInfo.systemUptime) }
+        }
+        remoteItems = scene.items
+    }
+    func enableLocalValidation() {
+        guard profile.host == "127.0.0.1", profile.port == 8089, profile.tls else { return }
+        synthetic = .init(lat: 35.1388, lon: -78.9914)
+        updateLocationDemand()
+    }
+    #endif
+}

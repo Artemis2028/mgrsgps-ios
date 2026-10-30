@@ -1,12 +1,48 @@
 import SwiftUI
+import GridFixCore
 
 struct RootView: View {
+    @EnvironmentObject private var waypointStore: WaypointStore
+    @EnvironmentObject private var fieldStore: FieldDataStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var maps: MapLayerStore
+    @EnvironmentObject private var terrain: TerrainSession
+    @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var practice: PracticeSession
+    @EnvironmentObject private var navigation: NavigationSession
+    @EnvironmentObject private var liveActivities: LiveActivityManager
+    @EnvironmentObject private var tak: TAKSession
+    @EnvironmentObject private var lanes: NavigationLaneStore
+    @State private var showingOrientationPicker = false
+    @State private var pendingOrientation: ScreenOrientation?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Int
+    @State private var showingRecorder = false
+    @State private var incomingFile: URL?
+    @State private var incomingQueue: [URL] = []
+    @State private var importRequest: TextImportRequest?
+    @State private var importStatus: String?
+    @State private var seededIncomingTest = false
+    @State private var showingPractice = false
+    @State private var startupLoadReleased = false
+    @State private var startupURLs: [URL]
 
-    init() {
-        // CI cannot tap a tab bar, so the screenshot run picks the tab with a
-        // launch argument instead of driving the UI. Order matches Android:
+    private var practiceBannerText: String {
+        if practice.damaged { return "Saved course needs attention" }
+        if practice.summary != nil { return "Course complete · view results" }
+        if practice.working { return "Saving course progress…" }
+        if practice.hasPendingWrite { return "Course save needs attention · retry" }
+        if practice.finalizing { return "Saving course result…" }
+        if practice.active?.done == true { return "Completed run kept · retry saving result" }
+        if practice.active?.paused == true { return "Course paused · missing checkpoint" }
+        return "Practice course · CP \(min((practice.active?.nextIndex ?? 0)+1,practice.active?.waypointIDs.count ?? 0))"
+    }
+
+    init(initialURLs: [URL] = []) {
+        _startupURLs = State(initialValue: initialURLs)
+        // The standalone screenshot script picks a tab with a launch argument;
+        // the UI workflow tests also exercise normal tab interaction. Order matches Android:
         // position=0, navigate=1, map=2, waypoints=3. Keep map=2 stable for CI.
         let args = ProcessInfo.processInfo.arguments
         let tab: Int
@@ -23,24 +59,197 @@ struct RootView: View {
         _selection = State(initialValue: tab)
     }
 
-    var body: some View {
-        Group {
-            switch selection {
-            case 1:
-                NavigateView()
-            case 2:
-                MapScreen()
-            case 3:
-                WaypointsView()
-            default:
-                PositionView()
+    private func handleIncomingURL(_ url: URL) {
+        if url.isFileURL {
+            if incomingFile == nil { incomingFile = url }
+            else { incomingQueue.append(url) }
+        } else if url.scheme == "gridfix",url.host == "recording" { showingRecorder = true }
+        else if url.scheme == "gridfix",url.host == "navigation" { selection = 1 }
+    }
+    private func updateCompassDemand() { location.setCompassEnabled(selection == 1 || (selection == 0 && settings.face != .glance)) }
+
+    @ViewBuilder private var libraryLoadingOverlay: some View {
+        if !fieldStore.ready {
+            ZStack {
+                FieldPalette(night: settings.nightMode).background.opacity(0.96).ignoresSafeArea()
+                VStack(spacing: 12) {
+                    ProgressView().tint(FieldPalette(night: settings.nightMode).accent)
+                    Text("Loading field library…").font(.headline).accessibilityIdentifier("field-library-loading")
+                    Text("Checking saved graphics, tracks and course history.").font(.footnote).multilineTextAlignment(.center)
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad") {
+                        Button("Continue loading") { startupLoadReleased = true }
+                            .accessibilityIdentifier("field-library-load-continue")
+                    }
+                    #endif
+                }.foregroundStyle(FieldPalette(night: settings.nightMode).ink).padding(24).fieldChrome()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Blackout.background.ignoresSafeArea())
-        .environment(\.fieldNight, settings.nightMode)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if maps.preferenceError != nil { MapPreferenceSaveNotice(prefix: "map-preferences-root") }
+            if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-root") }
+            if practice.locked || practice.hasPendingWrite || practice.summary != nil {
+                Button { showingPractice = true } label: {
+                    HStack { Image(systemName: "timer"); Text(practiceBannerText); Spacer(); Image(systemName: "chevron.right") }
+                        .font(.caption).padding(.horizontal,16).frame(minHeight: 44)
+                }.accessibilityIdentifier("practice-banner")
+            }
+            if let url = incomingFile {
+                HStack {
+                    Button {
+                        importRequest = TextImportRequest(url: url)
+                    } label: { Label("Review " + url.lastPathComponent,systemImage: "doc.badge.plus").lineLimit(1).frame(minHeight: 44) }
+                    Spacer()
+                    Button("Dismiss") { advanceIncomingFile() }.font(.caption)
+                }.foregroundStyle(FieldPalette(night: settings.nightMode).ink).padding(.horizontal,16).accessibilityIdentifier("incoming-file-banner")
+            }
+            if let importStatus {
+                HStack {
+                    ScrollView { Text(importStatus).font(.caption).foregroundStyle(FieldPalette(night: settings.nightMode).ink).frame(maxWidth: .infinity,alignment: .leading).accessibilityIdentifier("incoming-import-status") }
+                        .frame(maxHeight: 88)
+                    Button("Done") { self.importStatus = nil }.frame(minWidth: 44,minHeight: 44).tint(FieldPalette(night: settings.nightMode).accent)
+                }.padding(.horizontal,16)
+            }
+            RecordingBanner(onOpen: { showingRecorder = true }).zIndex(1)
+            #if DEBUG
+            OfflineDownloadValidationControl(maps: maps, awayFromMap: selection != 2)
+            #endif
+            if boundaries.running {
+                Button { selection = 2 } label: {
+                    HStack {
+                        Image(systemName: "shield.lefthalf.filled")
+                        Text(boundaries.activeArea?.name ?? "Boundary")
+                        Spacer()
+                        Text(boundaries.hasFreshFix ? boundaries.status : "Waiting for GPS")
+                            .font(.caption).lineLimit(2)
+                    }.padding(.horizontal,12).padding(.vertical,6)
+                }.accessibilityIdentifier("boundary-monitor-banner")
+            }
+            if navigation.running || navigation.preparing {
+                Button { selection = 1 } label: {
+                    HStack {
+                        Image(systemName: "location.north.line")
+                        Text(navigation.progress?.name ?? "Haptic guide")
+                        Spacer()
+                        Text(navigation.status).font(.caption).lineLimit(2)
+                    }.padding(.horizontal,12).padding(.vertical,6)
+                }.accessibilityIdentifier("navigation-session-banner")
+            }
+            TabView(selection: $selection) {
+                PositionView(onOrientation: { showingOrientationPicker = true })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Position", systemImage: "location.north.line") }.tag(0)
+                NavigateView(onOrientation: { showingOrientationPicker = true })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Navigate", systemImage: "safari") }.tag(1)
+                MapScreen(onNavigate: { selection = 1 },onOpenCourse: { showingPractice = true },onOrientation: { showingOrientationPicker = true })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Map", systemImage: "map") }.tag(2)
+                WaypointsView(onNavigate: { selection = 1 },onShowMap: { selection = 2 },onOrientation: { showingOrientationPicker = true })
+                    .toolbar(settings.nightMode ? .hidden : .visible, for: .tabBar)
+                    .tabItem { Label("Waypoints", systemImage: "flag") }.tag(3)
+            }
+        }
+        // Keep the content hierarchy alive when night mode changes, including
+        // an open Settings/editor sheet. Only the navigation chrome changes.
+        .tint(settings.nightMode ? FieldPalette(night: true).accent : Blackout.accent)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            FieldTabBar(selection: $selection)
+            if settings.nightMode { FieldTabBar(selection: $selection) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .disabled(!fieldStore.ready)
+        .overlay { libraryLoadingOverlay }
+        .task(id: startupLoadReleased) {
+            #if DEBUG
+            // Explicit fixture gate: XCTest launch-idle waits can consume a
+            // timed delay before the test can inspect the loading surface.
+            if ProcessInfo.processInfo.arguments.contains("-uiTesting"),ProcessInfo.processInfo.arguments.contains("-uiTestSlowFieldLoad"), !startupLoadReleased { return }
+            #endif
+            await fieldStore.load(prepare:{ try $0.prepare(deferTrackContents:true) })
+            await fieldStore.maintainTrackStorage()
+        }
+        .background(Blackout.background.ignoresSafeArea())
+        .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))
+        .sheet(isPresented: $showingOrientationPicker,onDismiss: {
+            if let mode = pendingOrientation { settings.orientation = mode.rawValue; pendingOrientation = nil }
+        }) {
+            OrientationChooser(current: settings.orientation,night: settings.nightMode) { mode in
+                pendingOrientation = mode; showingOrientationPicker = false
+            }
+        }
+        .onOpenURL { handleIncomingURL($0) }
+        .sheet(item: $importRequest) { request in
+            InterchangeImportView(request: request,knownFolders: waypointStore.folders.map(\.name),onRestoreBackup: { document in
+                let message = await BackupCoordinator.restore(document,waypoints: waypointStore,fieldData: fieldStore,settings: settings,lanes: lanes,boundaries: boundaries)
+                reportIncoming(message)
+                if incomingFile == request.url && (message.hasPrefix("Restored") || message == "Nothing new to restore") { advanceIncomingFile() }
+                return message
+            }) { document in
+                let result = try await InterchangeCoordinator.apply(document,waypoints: waypointStore,field: fieldStore)
+                reportIncoming(result.message)
+                if result.completed && incomingFile == request.url { advanceIncomingFile() }
+                return result
+            }.id(request.id)
+        }
+        .sheet(isPresented: $showingPractice) { PracticeCourseView() }
+        .sheet(isPresented: Binding(get: { fieldStore.ready && showingRecorder },set: { showingRecorder = $0 })) { TrackRecordingPanel() }
+        .environment(\.fieldNight, settings.nightMode)
+        .onAppear {
+            for url in startupURLs { handleIncomingURL(url) }
+            startupURLs.removeAll()
+            #if DEBUG
+            seedIncomingTestFiles()
+            #endif
+            updateCompassDemand(); practice.setForeground(scenePhase == .active); location.start(); UIApplication.shared.isIdleTimerDisabled = settings.keepScreenOn }
+        .onChange(of: selection) { _ in updateCompassDemand() }
+        .onChange(of: settings.face) { _ in updateCompassDemand() }
+        .onChange(of: settings.keepScreenOn) { UIApplication.shared.isIdleTimerDisabled = $0 }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { tak.setForeground(true) }
+            else if phase == .background { tak.setForeground(false) }
+            practice.setForeground(phase == .active)
+            if phase == .active { liveActivities.refresh(); OrientationState.shared.refresh(); location.start(); boundaries.becameActive(); navigation.foregroundChanged(true) }
+            else if phase == .inactive { navigation.foregroundChanged(false) }
+            else if phase == .background { location.stop(); maps.pauseDownload(); terrain.backgrounded() }
+        }
+        .onReceive(OrientationState.shared.$interfaceOrientation) { location.setDisplayOrientation($0) }
+        .onReceive(location.$usableFix) { practice.receive($0) }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            location.refreshFixValidity(); boundaries.refresh(); practice.receive(location.usableFix)
         }
     }
+    private func reportIncoming(_ message: String) {
+        importStatus = importStatus.map { $0 + "\n" + message } ?? message
+    }
+    #if DEBUG
+    private func seedIncomingTestFiles() {
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("-uiTesting"),args.contains("-uiTestProtectedIncoming"),!args.contains("-keepUITestData"),!seededIncomingTest else { return }
+        seededIncomingTest = true
+        Task {
+            do {
+                let urls = try await Task.detached(priority: .userInitiated) {
+                    let root = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests")
+                    var backup = Backup.Document(); backup.hasSettings = false
+                    backup.waypoints = [.init(id: "incoming-test-backup-point",name: "Protected backup point",lat: 35.1,lon: -79)]
+                    backup.quietBoundaries = [.init(id: "incoming-quiet-area",name: "Incoming quiet area",vertices: [.init(lat: 35.1,lon: -79),.init(lat: 35.1,lon: -78.999),.init(lat: 35.101,lon: -78.999),.init(lat: 35.101,lon: -79)])]
+                    let first = root.appendingPathComponent("incoming-backup.mgrsgps"), second = root.appendingPathComponent("incoming-file.mgrsgps")
+                    try BackupCrypto.seal(Backup.exportZip(backup),password: "fixture password").write(to: first)
+                    let gpx = GPX.build(waypoints: [.init(name: "Protected queued point",lat: 35.2,lon: -79.1)],tracks: [])
+                    try ProtectedFiles.seal(name: "queued.gpx",bytes: Data(gpx.utf8),password: "fixture password").write(to: second)
+                    return [first,second]
+                }.value
+                incomingFile = urls[0]; incomingQueue = [urls[1]]
+            } catch { importStatus = "Incoming test fixture failed: " + error.localizedDescription }
+        }
+    }
+    #endif
+
+    private func advanceIncomingFile() {
+        incomingFile = incomingQueue.isEmpty ? nil : incomingQueue.removeFirst()
+    }
+
 }

@@ -1,0 +1,21 @@
+# ZIP64 container compatibility
+
+Android reference: `release/1.1.0` at `482b417`, `data/BackupArchive.kt`, `ImportArchive.kt`, `InterchangeFiles.kt` and `DataPackage.kt`. ZIP64 record layout follows [PKWARE APPNOTE 6.3.10](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT), sections 4.3.9, 4.3.14–15 and 4.5.3.
+
+The reader accepts single-disk ZIP64 metadata for stored/DEFLATE members, including local-only ZIP64 sizes with a classic directory, full ZIP64 central/footer records, conditional central size/offset/disk fields and streamed 64-bit data descriptors. Both signed and unsigned descriptors are verified. A checksum equal to the optional descriptor signature is handled explicitly. Local headers, central metadata, descriptor sizes and actual decoded CRC/length must agree. Physical local-file order remains authoritative for first-KML/package ordering.
+
+64-bit counts/offsets/sizes are checked against archive boundaries and product budgets **before** conversion to platform integers or decoding. Split/encrypted archives, missing/truncated/conflicting ZIP64 fields, overlapping entries, invalid checksums and oversized members are rejected. Classic ZIP behavior remains covered, including directory comments that resemble a ZIP64 locator. The app still writes ordinary ZIP files: its export limits do not need ZIP64 output.
+
+ZIP64 does not raise Android's decompression limits: backups remain 16 MiB/member, 4 MiB/manifest, 32 MiB/total and 512 entries; interchange remains 32 MiB/member, 128 MiB/total and 2,048 entries, including nested/ignored members. Existing record and point budgets remain. Native backup files also use the existing 512 MiB container envelope used by KMZ/ATAK imports; this is a product bound, not a platform prohibition.
+
+Compressed input is decoded directly from the archive's read-only byte range, avoiding a second compressed-member copy. Native backup reads are memory-mapped when safe and parsed while coordinated, security-scoped provider access remains held. Stored entries require equal compressed/decoded sizes before allocation. Ignored backup files are validated and charged to budgets but no longer retained alongside wanted manifests/tracks. Cancellation is checked during decompression, with no partially parsed import returned for persistence.
+
+## Evidence
+
+`scripts/generate_zip64_fixtures.py` uses Python's independent `zipfile` writer with forced ZIP64 local headers, then constructs full ZIP64 central/footer records where requested. The generator independently reads every fixture, verifies CRC and compares member bytes. It also produces unsigned descriptors, a deliberately signature-valued CRC and a compact archive that expands to exactly the actual 32 MiB backup ceiling. `scripts/VerifyZip64Fixtures.java` uses JDK ZipFile to independently check member lengths and CRCs. These are synthetic interoperability fixtures, not Android-device captures.
+
+Core tests cover successful backup/KMZ/nested-package imports, content identity, signed/unsigned descriptors, integer overflow/malformed/split metadata, every truncated prefix, decompression budgets including ignored files, actual budget-boundary restore and cancellation before a large member is delivered. Native app integration restores the coordinated/mapped ZIP64 backup into real stores and verifies reopened settings, route, waypoint and track points. Native KMZ/ATAK Files round trips remain regression checks.
+
+This closes ZIP64 metadata compatibility within the product budgets. It does **not** claim arbitrary multi-gigabyte payload support or finish large-library UI/persistence performance, file-provider/storage-pressure, or physical-device validation. [Backup preparation](backup-preparation.md) moves coordinated reads, merging, encoding and staged file writes off the main actor. Revision checks rebase successful preparations after concurrent edits before atomic publication. Active sessions, offline packs and quiet-inside boundary definitions remain outside the v1 backup contract.
+
+The original ZIP64 milestone passed 289 core tests and 95 app integration tests, plus native KMZ/ATAK Files round trips with inspected previews. Subsequent staged-restore evidence is recorded in the backup-preparation notes. Hosted CI remains a separate release gate.

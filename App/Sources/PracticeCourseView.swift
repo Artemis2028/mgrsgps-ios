@@ -1,0 +1,220 @@
+import GridFixCore
+import SwiftUI
+
+struct PracticeCourseView: View {
+    @EnvironmentObject private var course: PracticeSession
+    @EnvironmentObject private var waypoints: WaypointStore
+    @EnvironmentObject private var field: FieldDataStore
+    @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dismiss) private var dismiss
+    @State private var mode = 0
+    @State private var count = 5
+    @State private var radius = 1000
+    @State private var folder = ""
+    @State private var ending: String?
+    @State private var showReset = false
+    @State private var eligibleFolderNames: [String] = []
+    private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
+    private var rowBackground: Color { settings.nightMode ? .black : Color(white: 0.12) }
+    private func refreshEligibleFolders(points: [Waypoint],folders: [FolderInfo]) {
+        // Android remembers this by waypoints/folders. Rebuild only for those
+        // publications, never for GPS or the active course's elapsed timer.
+        // Hidden points still count; keep the saved folder and checkpoint order.
+        var counts: [String:Int] = [:]
+        for point in points { counts[point.folder,default: 0] += 1 }
+        eligibleFolderNames = folders.compactMap { counts[$0.name,default: 0] >= 2 ? $0.name : nil }
+    }
+    var body: some View {
+        let eligible = mode == 1 ? eligibleFolderNames : []
+        NavigationStack {
+            Form {
+                if let error = course.error {
+                    Section {
+                        Text(error).foregroundStyle(palette.warn).accessibilityIdentifier("practice-error")
+                        if course.hasPendingWrite {
+                            Button("Retry saving course") { course.retryWrite() }.disabled(course.working).accessibilityIdentifier("practice-retry-write")
+                            if course.canCancelStart { Button("Cancel start") { course.cancelPendingStart() } }
+                        }
+                        #if DEBUG
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeHistoryWriteFailure") {
+                            Button("Repair test result storage") {
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/field-data-v2.json")
+                                if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                            }.accessibilityIdentifier("practice-repair-result")
+                        }
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"), ProcessInfo.processInfo.arguments.contains("-uiTestPracticeProgressWriteFailure") {
+                            Button("Repair test course storage") {
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/practice-course-v1.json")
+                                if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                            }.accessibilityIdentifier("practice-repair-progress")
+                        }
+                        if ProcessInfo.processInfo.arguments.contains("-uiTesting"),
+                           (ProcessInfo.processInfo.arguments.contains("-uiTestPracticePointsWriteFailure") || ProcessInfo.processInfo.arguments.contains("-uiTestPracticeTargetWriteFailure")) {
+                            Button("Repair test checkpoint storage") {
+                                let file = FileManager.default.temporaryDirectory.appendingPathComponent("mgrsgps-ui-tests/waypoints-v1.json")
+                                if (try? FileManager.default.contentsOfDirectory(atPath: file.path))?.isEmpty == true { try? FileManager.default.removeItem(at: file) }
+                            }.accessibilityIdentifier("practice-repair-points")
+                        }
+                        #endif
+                    }.listRowBackground(rowBackground)
+                }
+                if course.working { Section { ProgressView(course.recovering ? "Preserving damaged session…" : "Saving course…").accessibilityIdentifier("practice-saving-progress") }.listRowBackground(rowBackground) }
+                if course.damaged {
+                    Section("Saved course needs attention") {
+                        Text("The unreadable session is kept. Resetting preserves a copy and unlocks navigation; waypoints, tracks and results are retained.")
+                        Button("Preserve damaged session and reset",role: .destructive) { showReset = true }.disabled(course.working).accessibilityIdentifier("practice-reset-damaged")
+                    }.listRowBackground(rowBackground)
+                } else if let result = course.summary {
+                    Section("Course complete") { resultRows(result) }.listRowBackground(rowBackground)
+                    Button("Done") { course.dismissSummary(); dismiss() }.accessibilityIdentifier("practice-summary-done").listRowBackground(rowBackground)
+                } else if let active = course.active {
+                    progress(active)
+                } else {
+                    Section("Create course") {
+                        Picker("Setup",selection: $mode) { Text("Random points").tag(0); Text("From folder").tag(1) }.pickerStyle(.segmented)
+                        if mode == 0 {
+                            Picker("Points",selection: $count) { ForEach([3,4,5,6,8],id: \.self) { Text("\($0)").tag($0) } }
+                            Picker("Radius",selection: $radius) { Text("500 m").tag(500); Text("1 km").tag(1000); Text("2 km").tag(2000) }
+                            if location.usableFix == nil { Text("Waiting for an accurate location").foregroundStyle(palette.inkDim) }
+                        } else {
+                            FieldChoicePicker(selection: $folder,title: "Folder",choices: eligible.map { .init(id: $0,title: $0) },identifier: "practice-folder")
+                            if eligible.isEmpty { Text("No folders with at least two points").foregroundStyle(palette.inkDim) }
+                        }
+                        Button("Start course") {
+                            if mode == 0 { course.startRandom(count: count,radius: radius,fix: location.usableFix) }
+                            else { course.startFolder(folder) }
+                        }.disabled(mode == 0 ? location.usableFix == nil : !eligible.contains(folder))
+                            .accessibilityIdentifier("practice-start")
+                    }.listRowBackground(rowBackground).disabled(course.working || course.hasPendingWrite)
+                    if !field.document.courseHistory.isEmpty {
+                        Section("Practice log") {
+                            ForEach(Array(field.document.courseHistory.sorted { $0.started > $1.started }.enumerated()),id: \.offset) { _, result in
+                                DisclosureGroup("\(PracticeCourse.time(result.total)) · \(result.points) points · \(result.name)") { resultRows(result) }
+                            }
+                        }.listRowBackground(rowBackground)
+                    }
+                }
+                if !course.damaged && course.summary == nil {
+                    Section {
+                        DisclosureGroup("Practice help") {
+                            Text("Random checkpoints are saved in a course folder, 120 m to the chosen radius from you and at least 120 m apart.")
+                            Text("Folder courses use saved checkpoint order, including hidden points. Choose a folder with at least two points.")
+                            Text("Find checkpoints in order. Your position and its accuracy circle must fit inside 25 m. Scoring runs while the app is open; elapsed time continues while closed.")
+                            Text("Navigation follows the current checkpoint and advances automatically. Haptic guidance is optional and separate from scoring.")
+                        }.accessibilityIdentifier("practice-help")
+                    }.listRowBackground(rowBackground)
+                }
+            }
+            .scrollContentBackground(.hidden).background { FieldScreenBackground() }
+            .foregroundStyle(palette.ink)
+            .navigationTitle("Practice course").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) { Text("Practice course").font(.headline).foregroundStyle(palette.ink) }
+                ToolbarItem(placement: .confirmationAction) { Button("Close") { dismiss() } }
+            }
+            .confirmationDialog("End this course? Saved checkpoints remain; unfinished runs are not added to results.",isPresented: Binding(get: { ending != nil },set: { if !$0 { ending = nil } }),titleVisibility: .visible) {
+                Button("End course",role: .destructive) { course.end(expectedRunID: ending); ending = nil }
+            }
+            .confirmationDialog("Preserve a copy of the unreadable session and reset?",isPresented: $showReset,titleVisibility: .visible) {
+                Button("Reset course session",role: .destructive) { course.resetDamaged() }
+                Button("Keep saved session") { showReset = false }
+            }
+        }.tint(palette.accent).environment(\.fieldNight,settings.nightMode).fieldSheetAppearance()
+            .onReceive(waypoints.$waypoints) { refreshEligibleFolders(points:$0,folders:waypoints.folders) }
+            .onReceive(waypoints.$folders) { refreshEligibleFolders(points:waypoints.waypoints,folders:$0) }
+    }
+    @ViewBuilder private func progress(_ active: PracticeCourse) -> some View {
+        Section(active.paused ? "Course paused" : "Course · \(active.name)") {
+            if let reason = active.pauseReason { Text(reason).foregroundStyle(palette.warn).accessibilityIdentifier("practice-paused") }
+            Text(active.done ? (course.finalizing ? "Saving result…" : "Completed · result not saved") : "CP \(active.nextIndex+1) of \(active.waypointIDs.count)")
+                .font(.title2.monospacedDigit()).accessibilityIdentifier("practice-progress")
+            if let id = active.targetID, let target = waypoints.waypoints.first(where: { $0.id == id }) {
+                Text(target.name).font(.headline)
+                Text(MGRS.parts(lat: target.lat,lon: target.lon,digits: settings.mgrsDigits)?.full ?? "—")
+                    .font(.system(.body,design: .monospaced)).accessibilityIdentifier("practice-target-grid")
+            }
+            TimelineView(.periodic(from: .now,by: 1)) { timeline in
+                let end = active.done ? (active.foundAt.last ?? active.startedAt) : Int64(timeline.date.timeIntervalSince1970*1000)
+                Text("Elapsed \(PracticeCourse.time(end-active.startedAt))").monospacedDigit()
+            }
+            if !active.foundAt.isEmpty {
+                NavigationLink {
+                    PracticeActiveSplitsView(runID:active.runID)
+                } label: {
+                    Text("View all \(active.foundAt.count) recorded splits")
+                }.accessibilityIdentifier("practice-open-active-splits")
+            }
+            Button("Continue") { dismiss() }
+            if course.finalizing { ProgressView("Saving course result…").accessibilityIdentifier("practice-saving-result") }
+            if active.done { Button("Retry saving result") { course.retryResult() }.disabled(course.finalizing).accessibilityIdentifier("practice-retry-result") }
+            Button("End course…",role: .destructive) { ending = active.runID }.disabled(active.done).accessibilityIdentifier("practice-end")
+        }.listRowBackground(rowBackground)
+    }
+    private func resultRows(_ result: Backup.CourseResult) -> some View {
+        VStack(alignment: .leading,spacing: 8) {
+            Text(PracticeCourse.time(result.total)).font(.largeTitle.monospacedDigit())
+            Text("\(result.points) points · \(result.name)")
+            NavigationLink {
+                PracticeSplitsView(splits:result.splits)
+            } label: {
+                Text("View all \(result.splits.count) splits")
+            }.accessibilityIdentifier("practice-open-splits")
+        }.accessibilityElement(children:.contain).accessibilityIdentifier("practice-result")
+    }
+}
+
+/// Observe the live run only while its split screen is open. The progress form
+/// does not allocate every split on GPS-driven redraws.
+private struct PracticeActiveSplitsView: View {
+    let runID: String
+    @EnvironmentObject private var course: PracticeSession
+    var body: some View {
+        if let active = course.active,active.runID == runID {
+            let splits = active.foundAt.enumerated().map { index,time in
+                time - (index == 0 ? active.startedAt : active.foundAt[index-1])
+            }
+            PracticeSplitsView(splits:splits)
+        } else if let completed = course.completion,completed.runID == runID {
+            PracticeSplitsView(splits:completed.result.splits)
+        } else {
+            Text("This course is no longer active.")
+        }
+    }
+}
+
+/// A native List keeps long result logs out of the eager summary Form row.
+/// Every saved split is available; jumps change the viewport, never the data.
+private struct PracticeSplitsView: View {
+    let splits: [Int64]
+    @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var palette: FieldPalette { FieldPalette(night:settings.nightMode) }
+    var body: some View {
+        ScrollViewReader { scroll in
+            List {
+                ForEach(splits.indices,id: \.self) { index in
+                    let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment:.leading,spacing:6)) : AnyLayout(HStackLayout())
+                    layout {
+                        Text("CP \(index + 1)").font(.headline)
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                        Text(PracticeCourse.time(splits[index])).monospacedDigit()
+                    }.accessibilityElement(children:.combine)
+                        .accessibilityIdentifier("practice-split-\(index + 1)").id(index)
+                        .listRowBackground(settings.nightMode ? Color.black : Color(white:0.12))
+                }
+            }.scrollContentBackground(.hidden).background { FieldScreenBackground() }
+                .safeAreaInset(edge:.top,spacing:0) {
+                    HStack {
+                        Button("First") { scroll.scrollTo(0,anchor:.top) }
+                            .frame(minHeight:44).accessibilityLabel("Go to first split").accessibilityIdentifier("practice-splits-first")
+                        Spacer()
+                        Button("Last") { if let last = splits.indices.last { scroll.scrollTo(last,anchor:.bottom) } }
+                            .frame(minHeight:44).accessibilityLabel("Go to last split").accessibilityIdentifier("practice-splits-last")
+                    }.padding(.horizontal,20).disabled(splits.isEmpty)
+                        .fieldContentSurface(night:settings.nightMode)
+                }
+        }.foregroundStyle(palette.ink).tint(palette.accent)
+            .navigationTitle("Checkpoint splits").navigationBarTitleDisplayMode(.inline)
+    }
+}

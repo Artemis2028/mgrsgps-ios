@@ -3,11 +3,16 @@ name: iOS
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
-# Needed only to publish the ci-status branch at the end. No other secret is
-# used anywhere in this workflow: a Simulator build is unsigned and the map
-# style is keyless, so nothing here needs a MapTiler key or a signing keystore.
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Write access publishes the ci-status branch. Simulator builds are unsigned.
+# The optional ESRI_KEY secret enables licensed global map layers; missing keys
+# retain Android's Debug fallbacks and Release USGS/imported-map availability.
 permissions:
   contents: write
 
@@ -16,8 +21,16 @@ permissions:
 # the screenshots are gated on the field math passing first.
 jobs:
   build:
+    name: Build and test (${{ matrix.shard }})
     runs-on: macos-latest
-    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [library, map, field]
+    # Run 109 reached the 90-minute deadline during XCTest finalization,
+    # leaving a changing xcresult for artifact upload. Rebalance measured UI
+    # work and retain headroom for finalization on the same three runners.
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +40,22 @@ jobs:
           sw_vers
           xcodebuild -version
           swift --version
+
+      - name: Configure optional global map key
+        env:
+          ESRI_KEY: ${{ secrets.ESRI_KEY }}
+        run: |
+          python3 - <<'PYKEY'
+          import os, pathlib, re
+          key = os.environ.get("ESRI_KEY", "").strip()
+          if key:
+              if not re.fullmatch(r"[A-Za-z0-9._~-]+", key):
+                  raise SystemExit("Map key has unsupported configuration characters")
+              path = pathlib.Path(os.environ["RUNNER_TEMP"]) / "gridfix-map-key.xcconfig"
+              path.write_text("GRIDFIX_ESRI_API_KEY = " + key + "\n")
+              with open(os.environ["GITHUB_ENV"], "a") as output:
+                  output.write("XCODE_XCCONFIG_FILE=" + str(path) + "\n")
+          PYKEY
 
       - name: Field math (GridFixCore)
         id: tests
@@ -49,48 +78,291 @@ jobs:
           set -o pipefail
           DEST=$(./scripts/pick-simulator.sh | cut -f1)
           echo "building for $DEST"
-          xcodebuild build \
+          if ! xcodebuild build \
             -project MGRSGPS.xcodeproj \
             -scheme MGRSGPS \
             -configuration Debug \
             -destination "id=$DEST" \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/build.log" | tail -n 40; then
+            # Parallel compilation can put the useful error far before the tail.
+            python3 -c 'import pathlib,sys; print("\n".join(line for line in pathlib.Path(sys.argv[1]).read_text(errors="replace").splitlines() if "error:" in line))' "$GITHUB_WORKSPACE/build.log"
+            exit 1
+          fi
 
       - name: Screenshots
+        if: matrix.shard == 'library'
         run: |
           APP=$(find build/Build/Products -maxdepth 4 -name "MGRSGPS.app" | head -n 1)
           echo "app: $APP"
           ./scripts/simulator-shots.sh "$APP" screenshots
 
+      - name: Simulator location feed recovery tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: App integration and field UI workflows
+        id: ui_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          xcrun simctl boot "$DEST" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEST" -b
+          xcrun simctl install "$DEST" build/Build/Products/Debug-iphonesimulator/MGRSGPS.app
+          python3 scripts/ui_test_shards.py "${{ matrix.shard }}" > "$RUNNER_TEMP/ui-test-selection.txt"
+          TEST_ARGUMENTS=()
+          while IFS= read -r argument; do
+            TEST_ARGUMENTS+=("$argument")
+          done < "$RUNNER_TEMP/ui-test-selection.txt"
+          # Actual Core Location updates for recording/background workflow tests.
+          # The screenshot step grants Always; verify recording needs only While Using.
+          xcrun simctl privacy "$DEST" revoke location-always app.gridfix.ios
+          xcrun simctl privacy "$DEST" grant location app.gridfix.ios
+          # Keep feeding across app reinstalls/relaunches by the test runner.
+          python3 scripts/recording-test-route.py "$DEST" > /tmp/recording-route.log 2>&1 &
+          ROUTE_PID=$!
+          # Deliver the real OS recording URL during the held cold-start test.
+          python3 scripts/startup-link-test.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" > "$GITHUB_WORKSPACE/startup-link-test.log" 2>&1 &
+          LINK_PID=$!
+          python3 scripts/recording_background_check.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" > "$GITHUB_WORKSPACE/recording-background-check.log" 2>&1 &
+          RECORDING_CHECK_PID=$!
+          # Observe native UI stalls without changing app state or test deadlines.
+          python3 scripts/ui_hang_diagnostics.py "$DEST" "$GITHUB_WORKSPACE/ui-test.log" "$GITHUB_WORKSPACE/ui-hang-diagnostics" > "$GITHUB_WORKSPACE/ui-hang-diagnostics.log" 2>&1 &
+          HANG_DIAGNOSTICS_PID=$!
+          cleanup_route() {
+            kill "$HANG_DIAGNOSTICS_PID" 2>/dev/null || true
+            kill "$ROUTE_PID" 2>/dev/null || true
+            kill "$LINK_PID" 2>/dev/null || true
+            kill "$RECORDING_CHECK_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_route EXIT
+          xcodebuild test -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj \
+            -scheme MGRSGPS \
+            -configuration Debug \
+            -destination "id=$DEST" \
+            -derivedDataPath build \
+            -resultBundlePath build/ui-tests.xcresult \
+            "${TEST_ARGUMENTS[@]}" \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/ui-test.log"
+
+      - name: Real fix expiry and recovery
+        if: matrix.shard == 'field'
+        id: fix_freshness_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          : > "$GITHUB_WORKSPACE/fix-freshness-test.log"
+          python3 scripts/fix-freshness-test.py "$DEST" "$GITHUB_WORKSPACE/fix-freshness-test.log" > /tmp/fix-freshness-route.log 2>&1 &
+          FRESHNESS_FEED_PID=$!
+          cleanup_freshness_feed() {
+            kill "$FRESHNESS_FEED_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_freshness_feed EXIT
+          xcodebuild test-without-building -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS \
+            -configuration Debug -destination "id=$DEST" \
+            -derivedDataPath build -resultBundlePath build/fix-freshness-tests.xcresult \
+            -only-testing:MGRSGPSUITests/PositionFixWorkflowTests \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/fix-freshness-test.log"
+
+      - name: Real GPS course and speed
+        if: matrix.shard == 'field'
+        id: movement_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          : > "$GITHUB_WORKSPACE/movement-test.log"
+          python3 scripts/movement-test-route.py "$DEST" "$GITHUB_WORKSPACE/movement-test.log" > /tmp/movement-route.log 2>&1 &
+          MOVEMENT_FEED_PID=$!
+          cleanup_movement_feed() {
+            kill "$MOVEMENT_FEED_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_movement_feed EXIT
+          xcodebuild test-without-building -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS \
+            -configuration Debug -destination "id=$DEST" \
+            -derivedDataPath build -resultBundlePath build/movement-tests.xcresult \
+            -only-testing:MGRSGPSUITests/MovementWorkflowTests \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/movement-test.log"
+
+      - name: Boundary drawing and real background crossing
+        if: matrix.shard == 'field'
+        id: boundary_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          # This route alternates inside/outside a drawn perimeter. Never run
+          # alongside the northbound recording feed from the previous step.
+          python3 scripts/boundary-test-route.py "$DEST" > /tmp/boundary-route.log 2>&1 &
+          BOUNDARY_ROUTE_PID=$!
+          cleanup_boundary_route() {
+            kill "$BOUNDARY_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_boundary_route EXIT
+          xcodebuild test-without-building -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/boundary-tests.xcresult \
+            -only-testing:MGRSGPSUITests/BoundaryWorkflowTests \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/boundary-test.log"
+
+      - name: Automatic route following with real background locations
+        if: matrix.shard == 'field'
+        id: navigation_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          python3 scripts/navigation-test-route.py "$DEST" > /tmp/navigation-route.log 2>&1 &
+          NAVIGATION_ROUTE_PID=$!
+          cleanup_navigation_route() {
+            kill "$NAVIGATION_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_navigation_route EXIT
+          xcodebuild test-without-building -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/navigation-tests.xcresult \
+            -only-testing:MGRSGPSUITests/NavigationWorkflowTests \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/navigation-test.log"
+
+      - name: Practice course scoring with real locations
+        if: matrix.shard == 'field'
+        id: practice_tests
+        run: |
+          set -o pipefail
+          DEST=$(./scripts/pick-simulator.sh | cut -f1)
+          python3 scripts/practice-test-route.py "$DEST" "$GITHUB_WORKSPACE/practice-test.log" > /tmp/practice-route.log 2>&1 &
+          PRACTICE_ROUTE_PID=$!
+          cleanup_practice_route() {
+            kill "$PRACTICE_ROUTE_PID" 2>/dev/null || true
+            xcrun simctl location "$DEST" clear || true
+          }
+          trap cleanup_practice_route EXIT
+          xcodebuild test-without-building -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -project MGRSGPS.xcodeproj -scheme MGRSGPS -configuration Debug \
+            -destination "id=$DEST" -derivedDataPath build \
+            -resultBundlePath build/practice-tests.xcresult \
+            -only-testing:MGRSGPSUITests/PracticeWorkflowTests \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- \
+            2>&1 | tee "$GITHUB_WORKSPACE/practice-test.log"
+
+      - name: Export UI test screenshots
+        if: always() && steps.ui_tests.outcome != 'skipped'
+        run: |
+          if [ -f build/movement-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/movement-tests.xcresult --output-path screenshots/movement-tests
+          fi
+          if [ -f build/fix-freshness-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/fix-freshness-tests.xcresult --output-path screenshots/fix-freshness-tests
+          fi
+          if [ -f build/practice-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/practice-tests.xcresult --output-path screenshots/practice-tests
+          fi
+          if [ -f build/ui-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/ui-tests.xcresult --output-path screenshots/ui-tests
+          fi
+          if [ -f build/navigation-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/navigation-tests.xcresult --output-path screenshots/navigation-tests
+          fi
+          if [ -f build/boundary-tests.xcresult/Info.plist ]; then
+            xcrun xcresulttool export attachments \
+              --path build/boundary-tests.xcresult --output-path screenshots/boundary-tests
+          fi
+
+      - name: Collect simulator location feed diagnostics
+        if: always()
+        run: |
+          for feed in recording boundary navigation practice fix-freshness movement; do
+            if [ -f "/tmp/$feed-route.log" ]; then
+              cp "/tmp/$feed-route.log" "$GITHUB_WORKSPACE/$feed-route.log"
+            fi
+          done
+
       - name: Upload the build and the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mgrsgps-ios-${{ github.run_number }}
+          name: mgrsgps-ios-${{ github.run_number }}-${{ matrix.shard }}
           path: |
             screenshots/
             build.log
             test.log
+            ui-test.log
+            startup-link-test.log
+            boundary-test.log
+            navigation-test.log
+            recording-route.log
+            recording-background-check.log
+            ui-hang-diagnostics.log
+            ui-hang-diagnostics/
+            boundary-route.log
+            navigation-route.log
+            practice-route.log
+            practice-test.log
+            fix-freshness-test.log
+            fix-freshness-route.log
+            movement-test.log
+            movement-route.log
+            build/movement-tests.xcresult/
+            build/fix-freshness-tests.xcresult/
+            build/practice-tests.xcresult/
+            build/navigation-tests.xcresult/
+            build/ui-tests.xcresult/
+            build/boundary-tests.xcresult/
           if-no-files-found: warn
 
       # Publish the outcome and the logs to a branch, so they can be read with
       # a plain git fetch. The Actions API needs a token; a branch does not,
       # and on a public repo that makes every run diagnosable from anywhere.
       - name: Publish the run outcome to the ci-status branch
-        if: always()
+        if: always() && github.event_name != 'pull_request' && matrix.shard == 'library'
         run: |
           mkdir -p /tmp/status
           {
             echo "run=${{ github.run_number }}"
+            echo "scope=library shard only; all three workflow jobs must pass"
             echo "sha=${GITHUB_SHA:0:7}"
             echo "tests=${{ steps.tests.outcome }}"
             echo "build=${{ steps.build.outcome }}"
+            echo "ui_tests=${{ steps.ui_tests.outcome }}"
+            echo "boundary_tests=${{ steps.boundary_tests.outcome }}"
+            echo "navigation_tests=${{ steps.navigation_tests.outcome }}"
+            echo "practice_tests=${{ steps.practice_tests.outcome }}"
             echo "finished=$(date -u +%FT%TZ)"
           } > /tmp/status/outcome.txt
           cp "$GITHUB_WORKSPACE/test.log" /tmp/status/testlog.txt 2>/dev/null || true
           cp "$GITHUB_WORKSPACE/build.log" /tmp/status/buildlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/ui-test.log" /tmp/status/ui-testlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/boundary-test.log" /tmp/status/boundary-testlog.txt 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/navigation-test.log" /tmp/status/navigation-testlog.txt 2>/dev/null || true
           # The screenshots and the app's own log go here too. They are the
           # only evidence for anything that is wrong on screen rather than in a
           # test, and downloading a run artifact needs a token where a branch

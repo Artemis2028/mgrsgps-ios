@@ -32,7 +32,8 @@ public enum MGRS {
 
     /// Lat/lon to MGRS at 4, 6, 8 or 10 digits. Nil outside -80...84.
     public static func parts(lat: Double, lon: Double, digits: Int) -> Parts? {
-        guard lat >= -80.0, lat <= 84.0 else { return nil }
+        guard lat.isFinite, lon.isFinite, lat >= -80.0, lat <= 84.0,
+              lon >= -180.0, lon <= 180.0 else { return nil }
         let d = [4, 6, 8, 10].contains(digits) ? digits : 10
         let z = UTM.zone(lat: lat, lon: lon)
         let north = lat >= 0
@@ -107,7 +108,13 @@ public enum MGRS {
     }
 
     static func decode(_ text: String) -> Decoded? {
-        let s = text.uppercased().filter { !$0.isWhitespace }
+        let digits = text.unicodeScalars.map { scalar -> String in
+            if scalar.properties.generalCategory == .decimalNumber, let digit = Character(String(scalar)).wholeNumberValue { return String(digit) }
+            return String(scalar)
+        }.joined()
+        let labelled = digits.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+            .replacingOccurrences(of: "^(MGRS|USNG)[:\\s]*",with: "",options: .regularExpression)
+        let s = labelled.filter { !$0.isWhitespace && $0 != "-" }
         guard !s.isEmpty else { return nil }
         let chars = Array(s)
         var i = 0

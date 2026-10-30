@@ -4,9 +4,18 @@ import SwiftUI
 /// Navigate slice — azimuth / back-azimuth / distance / ETA to the selected
 /// waypoint. Honours saved units, MGRS digits, north reference, and night mode.
 struct NavigateView: View {
+    var onOrientation: () -> Void = {}
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @EnvironmentObject private var practice: PracticeSession
+    @State private var showingPractice = false
+    @State private var choosingTarget = false
+    @State private var pendingTargetID: String?
+    @StateObject private var targetMutation = FieldMutation()
+    @EnvironmentObject private var navigation: NavigationSession
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -17,31 +26,80 @@ struct NavigateView: View {
 
     var body: some View {
         ZStack {
-            palette.background.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 22) {
-                SectionLabel(text: "Navigate")
-                if let wp = target {
-                    targetBlock(wp)
-                } else {
-                    emptyPrompt
+            FieldScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    if let label = targetMutation.label { ProgressView(label) }
+                    if let error = targetMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("navigation-target-error") }
+                    if practice.locked { Text(practice.active?.done == true ? "Save the completed course result to unlock navigation." : "Practice course navigation is locked. End the course to choose another target.").font(.caption).foregroundStyle(palette.inkDim) }
+                    if let wp = target {
+                        targetBlock(wp)
+                    } else {
+                        emptyPrompt
+                    }
+                    if target != nil || navigation.progress != nil {
+                        Button(practice.locked ? "Stop haptic guidance" : "Stop navigation") { navigation.stop(); if !practice.locked { chooseTarget(nil) } }
+                            .buttonStyle(.bordered).tint(palette.accent).accessibilityIdentifier("stop-navigation")
+                    }
+                    Button("Practice course") { showingPractice = true }.buttonStyle(.bordered).accessibilityIdentifier("open-practice")
+                    NavigationControlsView().disabled(practice.working || (practice.locked && practice.blockedByStorage) || practice.active?.paused == true)
                 }
-                Spacer(minLength: 0)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 18)
-            .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
+        .sheet(isPresented: $choosingTarget,onDismiss: applyTargetChoice) {
+            FieldChoiceSheet(title: "Navigation target",choices: store.waypoints.map { .init(id:$0.id,title:$0.name,waypoint:$0) },
+                             selectedID:store.selectedId,night:settings.nightMode) { id in
+                pendingTargetID = id; choosingTarget = false
+            }
+        }
+        .sheet(isPresented: $showingPractice) { PracticeCourseView() }
         .onAppear { location.start() }
+    }
+
+    @ViewBuilder private var header: some View {
+        if dynamicTypeSize.isAccessibilitySize && verticalSizeClass != .compact {
+            VStack(alignment:.leading,spacing:12) {
+                heading
+                HStack { Spacer(); headerActions }
+            }
+        } else { HStack { heading; Spacer(); headerActions } }
+    }
+    private var heading: some View {
+        Text("Navigate").font(.system(.largeTitle,design:.rounded,weight:.bold))
+            .fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("navigation-title")
+    }
+    @ViewBuilder private var headerActions: some View {
+        Button(action:onOrientation) { Image(systemName:"rotate.right").font(.system(size:20)).frame(width:44,height:44) }
+            .fieldGlassButton().accessibilityLabel("Screen orientation").accessibilityIdentifier("screen-orientation-menu")
+        Button { choosingTarget = true } label: { Image(systemName:"flag").font(.system(size:20)).frame(width:44,height:44) }
+            .fieldGlassButton().disabled(store.waypoints.isEmpty || practice.locked || targetMutation.working)
+            .accessibilityLabel("Choose navigation target")
+    }
+
+    private func applyTargetChoice() {
+        guard let id = pendingTargetID else { return }
+        pendingTargetID = nil
+        // A course or library edit may have changed while the sheet closed.
+        guard !practice.locked,!targetMutation.working,store.waypoints.contains(where: { $0.id == id }) else { return }
+        chooseTarget(id)
+    }
+
+    private func chooseTarget(_ id: String?) {
+        targetMutation.run("Saving navigation target…",action: { try await WaypointEditAction.select(id,in: store) })
     }
 
     private var emptyPrompt: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("No target selected")
                 .font(Blackout.label(18, weight: .semibold))
-            Text("Pick a waypoint on the Waypoints tab (swipe Nav), then come back here for azimuth, distance and ETA.")
+            Text("Choose a saved waypoint using the flag above, or tap Navigate on a waypoint or map marker.")
                 .font(Blackout.label(14))
                 .foregroundStyle(palette.inkDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -50,9 +108,9 @@ struct NavigateView: View {
 
     @ViewBuilder
     private func targetBlock(_ wp: Waypoint) -> some View {
-        let mgrs = MGRS.string(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits) ?? "—"
+        let mgrs = MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "—"
         let nav: Geodesy.NavInfo? = {
-            guard let f = location.fix else { return nil }
+            guard let f = location.usableFix else { return nil }
             return Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
         }()
         let letter = settings.northRef.letter
@@ -60,18 +118,25 @@ struct NavigateView: View {
         let back = formattedAzimuth(nav, offset: 180)
         let distance = nav.map { Format.distance(meters: $0.distanceMeters, unit: settings.units) } ?? "—"
         let eta = etaText(nav: nav)
+        let heading = navigationHeading()
 
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(wp.name)
-                    .font(Blackout.label(22, weight: .semibold))
-                Text(mgrs)
-                    .font(Blackout.numerals(16))
-                    .foregroundStyle(palette.inkDim)
+            HStack(alignment:.top,spacing:10) {
+                MilitaryMarker(symbol:wp.symbol,affiliation:wp.affiliation,echelon:wp.echelon,
+                               rotation:wp.rotation,metadata:wp.metadata)
+                    .frame(width:32,height:32).accessibilityIdentifier("navigation-target-symbol")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(wp.name)
+                        .font(Blackout.label(22, weight: .semibold)).accessibilityIdentifier("navigation-target-name")
+                    Text(mgrs)
+                        .accessibilityIdentifier("navigation-target-grid")
+                        .font(Blackout.numerals(16))
+                        .foregroundStyle(palette.inkDim)
+                }
             }
 
-            if location.fix == nil {
-                Text("Waiting for a fix…")
+            if location.usableFix == nil {
+                Text("Waiting for a recent, precise position…")
                     .font(Blackout.label(14))
                     .foregroundStyle(palette.inkDim)
             } else {
@@ -90,16 +155,55 @@ struct NavigateView: View {
                 cell(title: "Distance", value: distance)
                 cell(title: "Time to go", value: eta)
             }
+            if let heading, let nav {
+                let deviation = FieldMath.normalize(nav.bearingTrue - heading.degreesTrue + 180) - 180
+                HStack(spacing: 12) {
+                    Image(systemName: "arrow.up").font(.system(size: 32,weight: .semibold))
+                        .rotationEffect(.degrees(deviation)).frame(width: 56,height: 56)
+                    VStack(alignment: .leading,spacing: 4) {
+                        Text("\(heading.label) · \(formattedHeading(heading.degreesTrue)) \(letter)")
+                        Text(abs(deviation) < 0.5 ? "On bearing" : "\(deviation > 0 ? "Right" : "Left") \(Format.angle(degrees: abs(deviation),unit: settings.angleUnit))")
+                    }.font(Blackout.label(14))
+                }.foregroundStyle(palette.accent).accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("display-relative-navigation")
+            } else {
+                Text("Screen heading unavailable").font(Blackout.label(12)).foregroundStyle(palette.inkDim)
+                    .accessibilityIdentifier("display-heading-unavailable")
+            }
         }
+    }
+
+    /// Compass steering follows the screen; GPS course follows travel. Pocket
+    /// cues use the separate portrait/top-edge driver regardless of this view.
+    private func navigationHeading() -> MovementHeading? {
+        guard let fix = location.usableFix else { return nil }
+        let heading = location.usableHeading
+        let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
+            .declination(lat: fix.lat,lon: fix.lon,heightMeters: fix.altitudeMeters ?? 0,
+                         heading: heading,isCurrentPosition: true)
+        let compass = FieldMath.heading(trueHeading: settings.declinationOverride == nil && (heading?.trueHeading ?? -1) >= 0 ? heading?.trueHeading : nil,
+                                        magneticHeading: heading?.magneticHeading,
+                                        north: .trueNorth,declinationEast: decl.degreesEast,convergence: nil)
+        return MovementHeading.navigation(hasCompass: location.hasCompass,compassTrue: compass,fix: fix)
+    }
+    private func formattedHeading(_ value: Double) -> String {
+        guard let fix = location.usableFix else { return "—" }
+        let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
+            .declination(lat: fix.lat,lon: fix.lon,heightMeters: fix.altitudeMeters ?? 0,
+                         heading: location.usableHeading,isCurrentPosition: true)
+        guard let referenced = FieldMath.toNorthRef(angleTrue: value,north: settings.northRef,
+                                                   declinationEast: decl.degreesEast,
+                                                   convergence: UTM.gridConvergence(lat: fix.lat,lon: fix.lon)) else { return "—" }
+        return Format.angle(degrees: referenced,unit: settings.angleUnit)
     }
 
     /// Azimuth in the saved north reference. Magnetic without a declination
     /// is a dash, not the true bearing labelled as magnetic and not 0.
     private func formattedAzimuth(_ nav: Geodesy.NavInfo?, offset: Double) -> String {
-        guard let nav, let f = location.fix else { return "—" }
+        guard let nav, let f = location.usableFix else { return "—" }
         let decl = DeclinationService(overrideDegrees: settings.declinationOverride)
             .declination(lat: f.lat, lon: f.lon, heightMeters: f.altitudeMeters ?? 0,
-                         heading: location.heading, isCurrentPosition: true)
+                         heading: location.usableHeading, isCurrentPosition: true)
         let conv = UTM.gridConvergence(lat: f.lat, lon: f.lon)
         guard let az = FieldMath.toNorthRef(
             angleTrue: nav.bearingTrue + offset,
@@ -124,17 +228,17 @@ struct NavigateView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(palette.hairline, lineWidth: 1)
-        )
+        .fieldContentSurface(night: settings.nightMode)
     }
 
-    /// ETA stub: HERE under 50 m, mm:ss / h:mm when speed is known, else em dash.
+    /// Arrival requires the fix's accuracy circle to fit inside the 50 m ring.
     private func etaText(nav: Geodesy.NavInfo?) -> String {
         guard let nav else { return "—" }
-        if nav.distanceMeters < 50 { return "HERE" }
-        guard let speed = location.fix?.speedMetersPerSecond, speed > 0.4 else { return "—" }
+        if let fix = location.usableFix,
+           NavigationFixPolicy.insideArrivalRadius(distanceMeters: nav.distanceMeters, accuracyMeters: fix.accuracyMeters) {
+            return "HERE"
+        }
+        guard let speed = location.usableFix?.speedMetersPerSecond, speed > 0.4 else { return "—" }
         let secs = Int(nav.distanceMeters / speed)
         if secs >= 3600 {
             return String(format: "%d:%02d h", secs / 3600, (secs % 3600) / 60)

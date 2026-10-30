@@ -1,0 +1,371 @@
+import CoreLocation
+import GridFixCore
+import SwiftUI
+import UserNotifications
+
+@MainActor
+protocol BoundaryAlerting: AnyObject {
+    var status: String { get }
+    func prepare() async
+    func begin()
+    func crossing(name: String)
+    func stop()
+}
+
+/// Foreground: haptic only. Background/locked: a system notification, whose
+/// sound/haptics and delivery remain controlled by the user's iOS settings.
+@MainActor
+final class BoundaryAlerts: BoundaryAlerting {
+    private let center = UNUserNotificationCenter.current()
+    private var session: UUID?
+    private var identifiers = Set<String>()
+    private(set) var status = "Locked-screen alerts need notification permission."
+    func prepare() async {
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined { _ = try? await center.requestAuthorization(options: [.alert,.sound]) }
+        let current = await center.notificationSettings()
+        if current.authorizationStatus == .authorized {
+            status = current.soundSetting == .enabled ? "Locked-screen alerts use your iOS sound and haptic settings; Focus may silence them." : "Notification sounds are off. Locked-screen buzzes may be silent."
+        } else { status = "Notifications are not enabled. Buzzes work only while the app is open." }
+    }
+    func begin() { session = UUID() }
+    func crossing(name: String) {
+        guard let token = session else { return }
+        if UIApplication.shared.applicationState == .active {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "Boundary crossed"
+        content.body = "You crossed outside \(name). Open MGRS GPS to check your position."
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+        let id = "boundary-\(token.uuidString)"
+        identifiers.insert(id)
+        Task {
+            guard session == token else { return }
+            do {
+                try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+                if session != token { center.removePendingNotificationRequests(withIdentifiers: [id]); center.removeDeliveredNotifications(withIdentifiers: [id]) }
+            } catch { status = "The last locked-screen alert could not be delivered: \(error.localizedDescription)" }
+        }
+    }
+    func stop() {
+        session = nil
+        center.removePendingNotificationRequests(withIdentifiers: Array(identifiers))
+        center.removeDeliveredNotifications(withIdentifiers: Array(identifiers))
+        identifiers.removeAll()
+    }
+}
+
+@MainActor
+final class BoundaryMonitor: ObservableObject {
+    struct Document: Codable, Sendable { var areas: [BoundaryArea] = []; var interruptedID: String? }
+    @Published private(set) var areas: [BoundaryArea] = []
+    @Published private(set) var activeID: String?
+    @Published private(set) var preparing = false
+    @Published private(set) var writing = false
+    @Published private(set) var status = "Monitoring off"
+    @Published private(set) var alertStatus = ""
+    @Published private(set) var error: String?
+    @Published private(set) var loadFailed = false
+    @Published private(set) var crossingCount = 0
+    @Published private(set) var lastFixAt: Date?
+    @Published private(set) var hasFreshFix = false
+    @Published private(set) var lastCrossing: Date?
+    @Published var displayedID: String?
+    private let file: URL
+    private var sourceStamp: SourceStamp?
+    private let driver: RecordingLocationDriver
+    private let alerts: BoundaryAlerting
+    private let now: () -> Date
+    private let foreground: @MainActor () -> Bool
+    private var detector: BoundaryCrossingDetector?
+    private var pendingID: String?
+    private var operation: Task<Void,Never>?
+    private var generation = UUID()
+    private var latestTimestamp: TimeInterval?
+    private var writeWaiters: [CheckedContinuation<Void,Never>] = []
+    private var checkpoint: Task<Void,Never>?
+    private var stopRevision = UUID()
+    private let stage: @Sendable (Document,URL) async throws -> PreparedAtomicFile
+
+    nonisolated static func stageDocument(_ document: Document,to file: URL) async throws -> PreparedAtomicFile {
+        try await Task.detached(priority: .userInitiated) {
+            let data = try JSONEncoder().encode(document)
+            guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
+            return try PreparedAtomicFile(data: data,destination: file,lockCompatible: true)
+        }.value
+    }
+    // A confirmed write survives view dismissal/caller cancellation, as restore
+    // already does. The FIFO gate serializes preparation as well as publication.
+    private func acquireWrite() async {
+        if !writing { writing = true; return }
+        await withCheckedContinuation { writeWaiters.append($0) }
+    }
+    private func releaseWrite() {
+        if writeWaiters.isEmpty { writing = false }
+        else { writeWaiters.removeFirst().resume() }
+    }
+    func waitForPersistence() async { await checkpoint?.value }
+
+    var activeArea: BoundaryArea? { areas.first { $0.id == activeID } }
+    var displayedArea: BoundaryArea? { areas.first { $0.id == (activeID ?? displayedID) } }
+    var running: Bool { activeID != nil }
+
+    struct PreparedStartup: Sendable {
+        fileprivate let file: URL
+        fileprivate let stamp: SourceStamp?
+        fileprivate let document: Document?
+        fileprivate let error: String?
+        func validate() throws {
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+        }
+    }
+    enum StartupFailure: LocalizedError {
+        case changed
+        var errorDescription: String? { "Saved boundaries changed. Reopen MGRS GPS to reload them before trying again." }
+    }
+    fileprivate struct SourceStamp: Equatable, Sendable {
+        let size: UInt64,inode: UInt64,volume: UInt64
+        let modified: Date?
+        static func read(_ file: URL) -> Self? {
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: file.path) else { return nil }
+            return .init(size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
+                         inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0,
+                         volume: (attributes[.systemNumber] as? NSNumber)?.uint64Value ?? 0,
+                         modified: attributes[.modificationDate] as? Date)
+        }
+    }
+    nonisolated static func prepareStartup(directory: URL? = nil) -> PreparedStartup {
+        let file = (directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!).appendingPathComponent("boundaries-v1.json")
+        let stamp = SourceStamp.read(file)
+        guard FileManager.default.fileExists(atPath: file.path) else { return .init(file: file,stamp: stamp,document: nil,error: nil) }
+        do {
+            guard stamp.map({ $0.size <= 2 * 1024 * 1024 }) ?? true else { throw BoundaryError.invalid("Boundary library is too large.") }
+            let data = try Data(contentsOf: file,options: .mappedIfSafe)
+            guard data.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library is too large.") }
+            let doc = try JSONDecoder().decode(Document.self,from: data)
+            try Backup.validateQuietBoundaries(doc.areas)
+            return .init(file: file,stamp: stamp,document: doc,error: nil)
+        } catch { return .init(file: file,stamp: stamp,document: nil,error: "Boundary files were kept: \(error.localizedDescription)") }
+    }
+
+    init(directory: URL? = nil,startup: PreparedStartup? = nil, driver: RecordingLocationDriver? = nil, alerts: BoundaryAlerting? = nil,
+         now: @escaping () -> Date = Date.init, foreground: @escaping @MainActor () -> Bool = { UIApplication.shared.applicationState == .active },
+         stage: @escaping @Sendable (Document,URL) async throws -> PreparedAtomicFile = { try await BoundaryMonitor.stageDocument($0,to: $1) }) {
+        let dir = directory ?? FileManager.default.urls(for: .documentDirectory,in: .userDomainMask).first!
+        file = dir.appendingPathComponent("boundaries-v1.json")
+        self.stage = stage
+        self.driver = driver ?? CoreLocationRecordingDriver()
+        self.alerts = alerts ?? BoundaryAlerts(); self.now = now; self.foreground = foreground
+        let prepared = startup ?? Self.prepareStartup(directory: directory)
+        do {
+            guard prepared.file == file else { throw BoundaryError.invalid("Prepared boundaries belong to another library.") }
+            try prepared.validate()
+            sourceStamp = prepared.stamp
+            if let failure = prepared.error { loadFailed = true; error = failure }
+            else if let doc = prepared.document {
+                areas = doc.areas; displayedID = areas.first?.id
+                if doc.interruptedID != nil { status = "Monitoring was interrupted. Open a saved boundary and start again." }
+            }
+        } catch { loadFailed = true; self.error = "Boundary files were kept: \(error.localizedDescription)" }
+        self.driver.onLocations = { [weak self] in self?.receive($0) }
+        self.driver.onAuthorization = { [weak self] in self?.authorizationChanged() }
+        self.driver.onFailure = { [weak self] in
+            guard let self, self.running else { return }
+            if ($0 as? CLError)?.code == .denied { self.stop(); self.error = "Monitoring stopped: precise location permission is unavailable." }
+            else { self.status = "Location unavailable · boundary crossings cannot be checked"; self.lastFixAt = nil }
+        }
+    }
+    @discardableResult func save(_ area: BoundaryArea) async -> Bool {
+        await acquireWrite(); defer { releaseWrite() }
+        guard !running, !preparing, !loadFailed else { return false }
+        do {
+            let original = areas, stamp = sourceStamp, file = file
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            let next = try await Task.detached(priority: .userInitiated) {
+                _ = try BoundaryGeometry(vertices: area.vertices)
+                let name = area.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !area.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, area.id.count <= 256, !name.isEmpty, name.count <= 100 else { throw BoundaryError.invalid("Give the boundary a name of 1–100 characters.") }
+                var next = original
+                let saved = BoundaryArea(id: area.id,name: name,vertices: area.vertices)
+                if let i = next.firstIndex(where: { $0.id == area.id }) { next[i] = saved } else { next.append(saved) }
+                guard next.count <= 100 else { throw BoundaryError.invalid("The boundary library is full. Delete a boundary first.") }
+                return next
+            }.value
+            let staged = try await stage(Document(areas: next),file)
+            defer { staged.discard() }
+            guard !running, !preparing, !loadFailed else { return false }
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            try staged.publish(); sourceStamp = SourceStamp.read(file)
+            areas = next; displayedID = area.id; error = nil
+            return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
+    @discardableResult func delete(_ area: BoundaryArea) async -> Bool {
+        await acquireWrite(); defer { releaseWrite() }
+        guard !running, !preparing, !loadFailed else { return false }
+        do {
+            // Do not delete an area edited after the confirmation was shown.
+            guard areas.contains(area) else { throw BoundaryError.invalid("This boundary changed. Review it before deleting it.") }
+            let next = areas.filter { $0.id != area.id }, stamp = sourceStamp
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            let staged = try await stage(Document(areas: next),file)
+            defer { staged.discard() }
+            guard !running, !preparing, !loadFailed else { return false }
+            guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+            try staged.publish(); sourceStamp = SourceStamp.read(file); areas = next
+            if displayedID == area.id { displayedID = next.first?.id }
+            error = nil; return true
+        } catch { self.error = error.localizedDescription; return false }
+    }
+    /// Additive confirmed restore. Geometry preparation and staging run off Main;
+    /// publication retains current edits and leaves any existing monitor untouched.
+    func restore(_ imported: [BoundaryArea]) async throws -> Int {
+        await acquireWrite(); defer { releaseWrite() }
+        do {
+            while true {
+                guard !loadFailed else { throw BoundaryError.invalid("Boundary library could not be read. Its file was kept.") }
+                let original = areas, active = activeID, token = generation, file = file
+                let stamp = SourceStamp.read(file)
+                guard stamp == sourceStamp else { throw StartupFailure.changed }
+                let prepared = try await Task.detached(priority: .userInitiated) {
+                    try Backup.validateQuietBoundaries(imported)
+                    let known = Set(original.map(\.id)), fresh = imported.filter { !known.contains($0.id) }
+                    let next = original + fresh
+                    try Backup.validateQuietBoundaries(next)
+                    let bytes = try JSONEncoder().encode(Document(areas: next,interruptedID: active))
+                    guard bytes.count <= 2 * 1024 * 1024 else { throw BoundaryError.invalid("Boundary library exceeds 2 MiB.") }
+                    let staged = fresh.isEmpty ? nil : try PreparedAtomicFile(data: bytes,destination: file,lockCompatible: true)
+                    return (next,fresh.count,staged)
+                }.value
+                guard SourceStamp.read(file) == stamp else {
+                    prepared.2?.discard()
+                    // A local operation can change both memory and disk while
+                    // staging. Rebuild; an external edit must never be replaced.
+                    if areas != original || activeID != active || generation != token { continue }
+                    throw StartupFailure.changed
+                }
+                guard areas == original, activeID == active, generation == token, !loadFailed else { prepared.2?.discard(); continue }
+                try prepared.2?.publish()
+                sourceStamp = SourceStamp.read(file)
+                if prepared.1 > 0 { areas = prepared.0; if displayedID == nil { displayedID = areas.first?.id } }
+                error = nil
+                return prepared.1
+            }
+        } catch { self.error = error.localizedDescription; throw error }
+    }
+
+    func start(_ area: BoundaryArea) {
+        guard !running, !preparing, !loadFailed, areas.contains(area), foreground() else { return }
+        error = nil
+        guard driver.servicesEnabled, driver.authorization != .denied, driver.authorization != .restricted else { error = "Enable location permission to monitor a boundary."; return }
+        if driver.authorization == .notDetermined { pendingID = area.id; preparing = true; driver.requestPermission(); return }
+        guard hasPermission else { error = "Boundary monitoring needs Precise Location. Enable it in Settings."; return }
+        preparing = true; generation = UUID(); let token = generation
+        operation = Task {
+            await alerts.prepare()
+            await waitForPermissionForeground(foreground)
+            guard generation == token else { return }
+            guard !Task.isCancelled, foreground(), hasPermission else {
+                preparing = false; error = "Start monitoring with the app open and Precise Location enabled."; return
+            }
+            await acquireWrite(); defer { releaseWrite() }
+            guard generation == token else { return }
+            do {
+                guard areas.contains(area), foreground(), hasPermission else {
+                    preparing = false; error = "The boundary or location permission changed. Review it before starting again."; return
+                }
+                let detector = try await Task.detached(priority: .userInitiated) {
+                    try BoundaryCrossingDetector(vertices: area.vertices)
+                }.value
+                let stamp = sourceStamp
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                let staged = try await stage(Document(areas: areas,interruptedID: area.id),file)
+                defer { staged.discard() }
+                guard generation == token else { return }
+                guard foreground(), hasPermission else {
+                    preparing = false; error = "Start monitoring with the app open and Precise Location enabled."; return
+                }
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                try staged.publish(); sourceStamp = SourceStamp.read(file)
+                self.detector = detector; activeID = area.id; displayedID = area.id; preparing = false
+                crossingCount = 0; lastFixAt = nil; hasFreshFix = false; latestTimestamp = nil; lastCrossing = nil
+                alertStatus = alerts.status; status = "Waiting for an accurate fix inside the boundary"
+                alerts.begin(); driver.start()
+            } catch { if generation == token { preparing = false; self.error = error.localizedDescription } }
+        }
+    }
+    func stop() {
+        generation = UUID(); operation?.cancel(); pendingID = nil; preparing = false
+        driver.stop(); alerts.stop(); activeID = nil; detector = nil; lastFixAt = nil; hasFreshFix = false
+        status = "Monitoring off"
+        let revision = UUID(); stopRevision = revision
+        checkpoint = Task {
+            await acquireWrite(); defer { releaseWrite() }
+            // A later stop subsumes this checkpoint; a completed new start must
+            // keep its interruption marker. Preparing a new start is safe: its
+            // active marker will be written after this queued off checkpoint.
+            guard stopRevision == revision, !running, !loadFailed else { return }
+            do {
+                let stamp = sourceStamp
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                let staged = try await stage(Document(areas: areas),file)
+                defer { staged.discard() }
+                guard stopRevision == revision, !running, !loadFailed else { return }
+                guard SourceStamp.read(file) == stamp else { throw StartupFailure.changed }
+                try staged.publish(); sourceStamp = SourceStamp.read(file)
+            } catch { self.error = "Monitoring stopped; status could not be saved: \(error.localizedDescription)" }
+        }
+    }
+    func becameActive() {
+        refresh()
+        guard running else { return }
+        let token = generation
+        Task {
+            await alerts.prepare()
+            guard generation == token, running else { return }
+            alertStatus = alerts.status
+        }
+    }
+    func clearError() { if !loadFailed { error = nil } }
+    func refresh() {
+        if running, !hasPermission { stop(); error = "Monitoring stopped because precise location permission changed." }
+        let fresh = lastFixAt.map { (-1...10).contains(now().timeIntervalSince($0)) } ?? false
+        if hasFreshFix != fresh { hasFreshFix = fresh }
+        if running, alertStatus != alerts.status { alertStatus = alerts.status }
+    }
+    private var hasPermission: Bool { (driver.authorization == .authorizedWhenInUse || driver.authorization == .authorizedAlways) && driver.precise && driver.servicesEnabled }
+    private func authorizationChanged() {
+        if let id = pendingID, driver.authorization != .notDetermined {
+            pendingID = nil; preparing = false
+            if let area = areas.first(where: { $0.id == id }) { start(area) }
+        } else if running, !hasPermission { stop(); error = "Monitoring stopped because precise location permission changed." }
+    }
+    private func receive(_ locations: [CLLocation]) {
+        guard running, hasPermission else { refresh(); return }
+        let time = now().timeIntervalSince1970
+        for location in locations.sorted(by: { $0.timestamp < $1.timestamp }) {
+            let timestamp = location.timestamp.timeIntervalSince1970
+            guard latestTimestamp.map({ timestamp > $0 }) ?? true else { continue }
+            let point = GeoPoint(lat: location.coordinate.latitude,lon: location.coordinate.longitude)
+            let result = detector?.update(point: point,accuracy: location.horizontalAccuracy,timestamp: timestamp,now: time) ?? .unknown
+            if result != .unknown { latestTimestamp = timestamp; lastFixAt = location.timestamp }
+            switch result {
+            case .unknown: status = "Waiting for an accurate, fresh location"
+            case .edge: status = "Near boundary · GPS uncertainty overlaps the line"
+            case .confirming(.inside): status = "Confirming position inside"
+            case .confirming(.outside): status = "Confirming position outside"
+            case .inside: status = "Inside · quiet · crossing alerts armed"
+            case .outside: status = "Outside · enter the boundary to re-arm"
+            case .exited:
+                crossingCount += 1; lastCrossing = location.timestamp
+                status = "Boundary crossed · outside · enter to re-arm"
+                alerts.crossing(name: activeArea?.name ?? "the boundary")
+            }
+        }
+        alertStatus = alerts.status
+        refresh()
+    }
+}

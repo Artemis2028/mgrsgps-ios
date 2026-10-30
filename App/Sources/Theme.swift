@@ -32,7 +32,8 @@ struct FieldPalette {
 
     var background: Color { .black }
     var ink: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.ink }
-    var inkDim: Color { night ? Color(red: 0.62, green: 0.16, blue: 0.12) : Blackout.inkDim }
+    // Secondary labels stay red, with readable contrast on the opaque night surfaces.
+    var inkDim: Color { night ? Color(red: 0.90, green: 0.22, blue: 0.18) : Blackout.inkDim }
     var accent: Color { night ? Color(red: 1.0, green: 0.23, blue: 0.19) : Blackout.accent }
     var good: Color { night ? Color(red: 1.0, green: 0.35, blue: 0.24) : Blackout.good }
     var warn: Color { night ? Color(red: 1.0, green: 0.32, blue: 0.20) : Blackout.warn }
@@ -48,6 +49,98 @@ extension EnvironmentValues {
     var fieldNight: Bool {
         get { self[FieldNightKey.self] }
         set { self[FieldNightKey.self] = newValue }
+    }
+}
+
+/// Glass is reserved for the control layer. Content remains opaque and legible.
+struct FieldScreenBackground: View {
+    @Environment(\.fieldNight) private var night
+    var body: some View {
+        LinearGradient(colors: night ? [.black] : [Color(red: 0.12, green: 0.15, blue: 0.19), .black],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+            .ignoresSafeArea()
+    }
+}
+
+private struct FieldChrome: ViewModifier {
+    @Environment(\.fieldNight) private var night
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var radius: CGFloat
+
+    @ViewBuilder func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if night || reduceTransparency {
+            content.background(night ? Color.black : Color(red: 0.16, green: 0.18, blue: 0.22), in: shape)
+                .overlay(shape.stroke(night ? FieldPalette(night: true).hairline : Color.white.opacity(0.18)))
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
+        }
+    }
+}
+
+private struct OpaqueFieldButtonStyle: ButtonStyle {
+    let night: Bool
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        let palette = FieldPalette(night: night)
+        configuration.label
+            .foregroundStyle(palette.accent)
+            .frame(minWidth: 44, minHeight: 44)
+            .padding(.horizontal, 12)
+            .background(Color.black, in: Capsule())
+            .overlay(Capsule().stroke(palette.hairline, lineWidth: 1))
+            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
+    }
+}
+
+private struct ReadableMapGlassStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
+        let label = configuration.label
+            .foregroundStyle(Blackout.ink)
+            .frame(minWidth: 44,minHeight: 44)
+            .padding(.horizontal,12)
+            // Native glass can brighten independently over pale map tiles.
+            // Keep a dark backing beneath the light symbol in either state.
+            .background(.black.opacity(0.72),in: Capsule())
+            .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.4)
+        if #available(iOS 26.0, *) {
+            label.glassEffect(.regular.tint(.black.opacity(0.35)).interactive(),in: Capsule())
+        } else {
+            label.overlay(Capsule().stroke(.white.opacity(0.18)))
+        }
+    }
+}
+
+private struct FieldGlassButton: ViewModifier {
+    @Environment(\.fieldNight) private var night
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var mapControl: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if night || reduceTransparency {
+            content.buttonStyle(OpaqueFieldButtonStyle(night: night))
+        } else if mapControl {
+            content.buttonStyle(ReadableMapGlassStyle())
+        } else if #available(iOS 26.0, *) {
+            content.buttonStyle(.glass)
+        } else {
+            content.buttonStyle(.bordered)
+        }
+    }
+}
+
+extension View {
+    func fieldChrome(radius: CGFloat = 20) -> some View { modifier(FieldChrome(radius: radius)) }
+    func fieldGlassButton(mapControl: Bool = false) -> some View { modifier(FieldGlassButton(mapControl: mapControl)) }
+
+    func fieldContentSurface(night: Bool) -> some View {
+        background(night ? Color.black : Color.white.opacity(0.045),
+                   in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(night ? FieldPalette(night: true).hairline : Color.white.opacity(0.09)))
     }
 }
 
@@ -91,5 +184,14 @@ struct BlackoutSegments: View {
         .background(Color(white: palette.night ? 0.06 : 0.08))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.hairline))
+    }
+}
+
+/// Field forms use light ink on dark content surfaces, even when presented
+/// from the map's light chrome environment.
+extension View {
+    func fieldSheetAppearance() -> some View {
+        self.environment(\.colorScheme,.dark).preferredColorScheme(.dark)
+            .toolbarColorScheme(.dark,for: .navigationBar)
     }
 }

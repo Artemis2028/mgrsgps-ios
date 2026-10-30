@@ -2,88 +2,402 @@ import GridFixCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Waypoint list + add/edit. First product slice toward Android 0.9.32 parity.
+/// Local waypoints with coordinate editing, folder visibility, and navigation.
 struct WaypointsView: View {
     @EnvironmentObject private var store: WaypointStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var fieldData: FieldDataStore
+    @EnvironmentObject private var maps: MapLayerStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var accessibleLayout: Bool { dynamicTypeSize.isAccessibilitySize }
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    private var compactLandscape: Bool { verticalSizeClass == .compact }
+    @EnvironmentObject private var boundaries: BoundaryMonitor
+    @EnvironmentObject private var lanes: NavigationLaneStore
 
+    private var preparingOutput: Bool { fieldExport.format != nil || backupTransfer.phase == .exporting }
+    private var exportUnavailable: Bool { fieldExport.format != nil || backupTransfer.phase != nil || exportFile != nil }
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
-    @State private var editing: Waypoint?
-    @State private var showingEditor = false
-    @State private var draftName = ""
-    @State private var draftFolder = Folders.defaultFolder
+    @State private var editorRequest: WaypointEditorRequest?
+    var onNavigate: () -> Void = {}
+    var onShowMap: () -> Void = {}
+    var onOrientation: () -> Void = {}
+    @State private var choosingLibraryActions = false
+    @State private var showingRecovery = false
+    @State private var pendingLibraryAction: LibraryAction?
+    @State private var waypointActions: Waypoint?
+    @State private var pendingWaypointAction: (id: String, action: String)?
+    @State private var trackActions: Backup.TrackMeta?
+    @State private var pendingTrackAction: (id: String, action: String)?
+    @State private var choosingSelectionAction = false
+    @State private var pendingSelectionAction: String?
+    @State private var choosingPasteFormat = false
+    @State private var choosingExportFormat = false
+    @State private var pendingExportChoice: String?
+    @StateObject private var listing = LibraryPresentation()
+    @State private var prunedSourceRevision: UInt64?
+    private var folderFilter: String? {
+        get { listing.folder }
+        nonmutating set { listing.setFolder(newValue) }
+    }
+    @ScaledMetric(relativeTo: .subheadline) private var folderPickerHeight: CGFloat = 60
+    @FocusState private var searchFocused: Bool
+    private var searchQuery: String { listing.query }
+    private var waypointSort: WaypointSort {
+        get { listing.sort }
+        nonmutating set { listing.setSort(newValue) }
+    }
+    @State private var choosingSort = false
     @State private var status: String?
-    @State private var exportDoc: BackupDocumentFile?
-    @State private var exportGPX: GPXDocumentFile?
+    @State private var showingLibrary = false
+    @State private var showingLanes = false
+    @State private var pendingLane: LaneMapAction?
+    @State private var choosingProtectedFormat = false
+    @State private var protectedFormat: TextInterchangeFormat?
+    @State private var pendingProtectedExport: (FieldExportRequest,String)?
+    @State private var textImport: TextImportRequest?
+    @State private var exportFile: FieldExportDocumentFile?
     @State private var showingImporter = false
     @State private var importKind: ImportKind = .backup
+    @State private var backupPasswordRequest: BackupPasswordRequest?
+    @State private var pendingProtectedBackup: (URL?,String)?
+    @State private var selecting = false
+    @State private var selection = LibrarySelection()
+    @State private var deleteSelection = false
+    @State private var choosingFolderActions = false
+    @State private var folderActionTarget: String?
+    @State private var pendingFolderAction: (folder: String,action: String)?
+    @State private var folderRequest: LibraryFolderRequest?
+    @State private var folderToDelete: String?
+    @State private var movingTrack: Backup.TrackMeta?
+    @State private var graphicActions: Backup.Graphic?
+    @State private var pendingGraphicAction: (id: String,action: String)?
+    @State private var routeDetail: Backup.Graphic?
+    @State private var trackDetail: Backup.TrackMeta?
+    @State private var trackFocusToken: UUID?
+    @State private var backtrackingID: String?
+    @State private var backtrackWork: Task<Void,Never>?
+    @StateObject private var backupTransfer = BackupTransfer()
+    @StateObject private var fieldExport = FieldExportTransfer()
+    @StateObject private var fieldMutation = FieldMutation()
 
-    private enum ImportKind { case backup, gpx }
+    private var libraryFolders: [FolderInfo] { listing.snapshot?.folders ?? [] }
+    private var listedWaypoints: [Waypoint] { listing.snapshot?.waypoints ?? [] }
+    private var query: String { searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    private var listedGraphics: [Backup.Graphic] { listing.snapshot?.graphics ?? [] }
+    private var listedTracks: [Backup.TrackMeta] { listing.snapshot?.tracks ?? [] }
+    private var listedSelection: LibrarySelection { listing.snapshot?.selection ?? LibrarySelection() }
+
+    private enum ImportKind { case backup, text }
 
     var body: some View {
         ZStack {
-            palette.background.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                if store.waypoints.isEmpty {
-                    empty
-                } else {
-                    list
-                }
-            }
-            .padding(.bottom, 12)
+            FieldScreenBackground()
+            if accessibleLayout {
+                ScrollView {
+                    workspace.padding(.bottom,settings.nightMode ? FieldTabBar.controlHeight : 0)
+                }.accessibilityIdentifier("library-workspace-scroll")
+            } else { workspace }
         }
         .foregroundStyle(palette.ink)
         .environment(\.fieldNight, settings.nightMode)
-        .sheet(isPresented: $showingEditor) { editor }
-        .fileExporter(isPresented: Binding(
-            get: { exportDoc != nil },
-            set: { if !$0 { exportDoc = nil } }
-        ), document: exportDoc, contentType: .zip, defaultFilename: "gridfix-backup") { _ in
-            exportDoc = nil
+        .onAppear { fieldMutation.setPresented(true); listing.activate() }
+        .onDisappear { trackFocusToken = nil; fieldMutation.setPresented(false); listing.deactivate(); searchFocused = false; backtrackWork?.cancel(); backtrackWork = nil; backtrackingID = nil; backupTransfer.cancel(); fieldExport.cancel() }
+        .onReceive(store.$waypoints) { listing.setWaypoints($0) }
+        .onReceive(store.$folders) { listing.setFolders($0) }
+        .onReceive(fieldData.$document) { listing.setField(graphics: $0.graphics,tracks: $0.tracks) }
+        .onReceive(location.$usableFix) { listing.setOrigin($0.map { .init(lat: $0.lat,lon: $0.lon) }) }
+        .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in listing.refreshLocale(.current) }
+        .onReceive(listing.$snapshot) { snapshot in
+            guard let snapshot, prunedSourceRevision != listing.acceptedSourceRevision else { return }
+            prunedSourceRevision = listing.acceptedSourceRevision
+            selection.retain(waypoints: snapshot.allIDs.waypoints,graphics: snapshot.allIDs.graphics,tracks: snapshot.allIDs.tracks)
+            if let id = maps.viewedTrackID, !snapshot.allIDs.tracks.contains(id) { maps.viewedTrackID = nil }
+            if let folderFilter, !snapshot.folderNames.contains(folderFilter) { self.folderFilter = nil }
         }
-        .fileExporter(isPresented: Binding(
-            get: { exportGPX != nil },
-            set: { if !$0 { exportGPX = nil } }
-        ), document: exportGPX, contentType: .xml, defaultFilename: "waypoints") { _ in
-            exportGPX = nil
+        .sheet(isPresented: $choosingSort) {
+            FieldChoiceSheet(title: "Sort waypoints",choices: WaypointSort.allCases.map { .init(id: $0.rawValue,title: $0.label) },selectedID: waypointSort.rawValue,night: settings.nightMode) { id in
+                if let order = WaypointSort(rawValue: id) { waypointSort = order }
+                choosingSort = false
+            }
+        }
+        .sheet(isPresented: $choosingLibraryActions,onDismiss: runLibraryAction) {
+            FieldChoiceSheet(title: "Waypoint actions",choices: LibraryAction.allCases.map { .init(id: $0.rawValue,title: $0.title,enabled: ($0 != .backup || backupTransfer.phase == nil) && ($0 != .export || !exportUnavailable)) },night: settings.nightMode) { id in
+                pendingLibraryAction = LibraryAction(rawValue: id); choosingLibraryActions = false
+            }
+        }
+        .sheet(isPresented: $choosingFolderActions,onDismiss: runFolderAction) {
+            FieldChoiceSheet(title: "Folder options",choices: [
+                .init(id: "rename",title: "Rename folder"),
+                .init(id: "delete",title: "Delete folder",destructive: true)
+            ],night: settings.nightMode) { action in
+                if let folder = folderActionTarget { pendingFolderAction = (folder,action) }
+                choosingFolderActions = false
+            }
+        }
+        .sheet(isPresented: $showingRecovery) { WaypointRecoveryView() }
+        .sheet(item: $waypointActions,onDismiss: runWaypointAction) { point in
+            FieldChoiceSheet(title: point.name,choices: waypointChoices(point),night: settings.nightMode) { action in
+                pendingWaypointAction = (point.id,action); waypointActions = nil
+            }
+        }
+        .sheet(item: $graphicActions,onDismiss: runGraphicAction) { graphic in
+            FieldChoiceSheet(title: graphic.name,choices: graphicChoices(graphic),night: settings.nightMode) { action in
+                pendingGraphicAction = (graphic.id,action); graphicActions = nil
+            }
+        }
+        .sheet(item: $trackActions,onDismiss: runTrackAction) { track in
+            FieldChoiceSheet(title: track.name,choices: trackChoices(track),night: settings.nightMode) { action in
+                pendingTrackAction = (track.id,action); trackActions = nil
+            }
+        }
+        .sheet(isPresented: $choosingSelectionAction,onDismiss: runSelectionAction) {
+            FieldChoiceSheet(title: "Selected item actions",choices: [
+                .init(id: "library-swap-visibility",title: "Swap map visibility"),
+                .init(id: "library-delete-selected",title: "Delete selected",destructive: true)
+            ],night: settings.nightMode) { action in
+                pendingSelectionAction = action; choosingSelectionAction = false
+            }
+        }
+        .confirmationDialog("Paste text",isPresented: $choosingPasteFormat,titleVisibility: .visible) {
+            ForEach(TextInterchangeFormat.allCases.filter { $0.canPaste },id: \.self) { format in
+                Button("Paste " + format.label) { textImport = TextImportRequest(format: format) }
+            }
+        }
+        .sheet(isPresented: $choosingExportFormat,onDismiss: runExportChoice) {
+            FieldChoiceSheet(title: "Export",choices: [
+                .init(id: "backup",title: "Export backup",enabled: !exportUnavailable),
+                .init(id: "protected-backup",title: "Export protected backup",enabled: !exportUnavailable)
+            ] + TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Export " + $0.label,enabled: !exportUnavailable) } + [
+                .init(id: "protected-file",title: "Export protected file…",enabled: !exportUnavailable)
+            ],night: settings.nightMode) { id in
+                pendingExportChoice = id; choosingExportFormat = false
+            }
+        }
+        .sheet(isPresented: $choosingProtectedFormat,onDismiss: {
+            guard let format = protectedFormat else { return }; protectedFormat = nil
+            backupPasswordRequest = .init(url: nil,exportRequest: .library(format,store.waypoints,fieldData.document))
+        }) {
+            FieldChoiceSheet(title: "Protect export",choices: TextInterchangeFormat.allCases.map { .init(id: $0.rawValue,title: "Protect " + $0.label,accessibilityIdentifier:"protected-format-"+$0.rawValue) },night: settings.nightMode) { id in
+                protectedFormat = TextInterchangeFormat(rawValue: id); choosingProtectedFormat = false
+            }
+        }
+        .sheet(item: $backupPasswordRequest,onDismiss: {
+            if let (request,password) = pendingProtectedExport {
+                pendingProtectedExport = nil; prepareExport(request,password: password)
+            } else { finishProtectedBackup() }
+        }) { request in
+            BackupPasswordSheet(exporting: request.url == nil,interchange: request.exportRequest != nil) { password in
+                if let export = request.exportRequest { pendingProtectedExport = (export,password) }
+                else { pendingProtectedBackup = (request.url,password) }
+                backupPasswordRequest = nil
+            }
+        }
+        .sheet(item: $folderRequest) { request in
+            LibraryFolderEditor(original: request.original,folders: libraryFolders) { name in try await saveFolder(original: request.original,name: name) }
+        }
+        .sheet(isPresented: $showingLanes,onDismiss: {
+            if let action = pendingLane { pendingLane = nil; maps.laneRequest = LaneMapRequest(action: action); onShowMap() }
+        }) { NavigationLaneLibraryView { pendingLane = $0; showingLanes = false } }
+        .sheet(item: $movingTrack) { track in
+            LibraryTrackFolderPicker(track: track,folders: libraryFolders) { folder in try await FieldEditAction.apply(.moveTrack(track.id,folder),to: fieldData) }.id(track.id)
+        }
+        .sheet(item: $routeDetail) { route in
+            NavigationStack {
+                RouteDetailView(routeID: route.id,onNavigate: { routeDetail = nil; onNavigate() })
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { routeDetail = nil } } }
+            }.fieldSheetAppearance()
+        }
+        .sheet(item: $trackDetail) { track in
+            NavigationStack {
+                TrackDetailView(trackID: track.id,onShowMap: { trackDetail = nil; onShowMap() })
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { trackDetail = nil } } }
+            }.fieldSheetAppearance()
+        }
+        .alert("Delete \(selection.count) selected items?",isPresented: $deleteSelection) {
+            Button("Delete",role: .destructive) { applyBatch(.delete) }
+            Button("Cancel",role: .cancel) { if !selecting { selection = LibrarySelection() } }
+        } message: { Text("\(selection.waypoints.count) waypoints, \(selection.graphics.count) graphics and \(selection.tracks.count) finished tracks. Selected track point logs are deleted too.") }
+        .confirmationDialog("Delete folder?",isPresented: Binding(get: { folderToDelete != nil },set: { if !$0 { folderToDelete = nil } }),titleVisibility: .visible,presenting: folderToDelete) { name in
+            Button("Keep contents in Base") { removeFolder(name,deleteContents: false) }
+            Button("Delete folder and contents",role: .destructive) { removeFolder(name,deleteContents: true) }
+            Button("Cancel",role: .cancel) {}
+        } message: { name in Text("Remove \(name) and move its waypoints, graphics and finished tracks to Base, or delete them with the folder. Active recording is kept.") }
+        .sheet(item: $editorRequest) { request in
+            WaypointEditor(waypoint: request.waypoint, lat: request.lat, lon: request.lon) { _ in
+                status = nil
+            }
+        }
+        .sheet(isPresented: $showingLibrary) {
+            FieldLibraryView(onNavigate: { showingLibrary = false; onNavigate() },onShowMap: { showingLibrary = false; onShowMap() })
+        }
+        .sheet(item: $textImport) { request in
+            InterchangeImportView(request: request,knownFolders: libraryFolders.map(\.name),onRestoreBackup: { document in
+                let message = await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes,boundaries: boundaries)
+                status = message; return message
+            }) { document in
+                let result = try await InterchangeCoordinator.apply(document,waypoints: store,field: fieldData)
+                status = result.message
+                return result
+            }.id(request.id)
+        }
+        .background {
+            if let exportFile {
+                FieldFileExportPresentation(document: exportFile,onDismiss: { self.exportFile = nil }) { result in
+                    if case .failure(let error) = result {
+                        let failure = error as NSError
+                        if failure.domain != NSCocoaErrorDomain || failure.code != NSUserCancelledError {
+                            status = "Export failed: " + error.localizedDescription
+                        }
+                    }
+                    self.exportFile = nil
+                }
+            }
         }
         .fileImporter(isPresented: $showingImporter,
-                      allowedContentTypes: importKind == .backup ? [.zip] : [.xml, .data],
+                      allowedContentTypes: importKind == .backup ? [.zip,.gridFixProtectedBackup,.data] : [.gridFixProtectedBackup, .gridFixGPX, .gridFixGeoJSON, .gridFixKML, .gridFixKMZ, .gridFixDPK, .commaSeparatedText, .zip, .xml, .json, .data],
                       allowsMultipleSelection: false) { result in
             handleImport(result)
         }
     }
 
+    private var workspace: some View {
+            VStack(alignment: .leading, spacing: 0) {
+                header.disabled(preparingOutput || fieldMutation.working)
+                if let error = store.loadError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("waypoint-library-load-error")
+                        Button("Waypoint recovery") { showingRecovery = true }.frame(minHeight: 44).accessibilityIdentifier("waypoint-library-recovery")
+                    }.padding(.horizontal,20).padding(.vertical,8)
+                }
+                if let failure = fieldData.loadError {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(failure).font(.footnote).foregroundStyle(palette.warn).fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("field-data-read-error")
+                        Button("Retry reading saved data") { Task { await fieldData.retryLoad(prepare:{ try $0.prepare(deferTrackContents:true) }) } }
+                            .fixedSize(horizontal:false,vertical:true).frame(minHeight: 44).accessibilityIdentifier("field-data-retry")
+                        #if DEBUG
+                        FieldLibraryReadValidationRepair(identifier: "field-data-test-repair")
+                        #endif
+                    }.padding(.horizontal,20).padding(.vertical,8)
+                }
+                if !compactLandscape { fieldLibraryButton }
+                if compactLandscape {
+                    HStack(spacing: 0) {
+                        folderPicker.frame(maxWidth: .infinity)
+                        searchControls.frame(maxWidth: .infinity)
+                    }.disabled(preparingOutput || fieldMutation.working)
+                } else { folderPicker.disabled(preparingOutput || fieldMutation.working) }
+                if !lanes.lanes.isEmpty {
+                    Button { showingLanes = true } label: {
+                        HStack { Text("Navigation lanes · \(lanes.lanes.count)"); Spacer(); Image(systemName: "chevron.right") }
+                            .padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working).accessibilityIdentifier("library-nav-lanes")
+                }
+                if !compactLandscape { searchControls.disabled(preparingOutput || fieldMutation.working) }
+                libraryCaption.disabled(preparingOutput || fieldMutation.working)
+                if let label = fieldMutation.label { ProgressView(label).tint(palette.accent).padding(.horizontal,20) }
+                if let error = fieldMutation.error { Text(error).font(.footnote).foregroundStyle(palette.warn).padding(.horizontal,20) }
+                if let format = fieldExport.format {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text("Preparing " + format.label + "…").font(.footnote)
+                        Spacer()
+                        Button("Cancel") { fieldExport.cancel(); status = "Export cancelled" }
+                            .frame(minHeight: 44).accessibilityIdentifier("field-export-cancel")
+                    }.padding(.horizontal,20).accessibilityIdentifier("field-export-progress")
+                }
+                if let phase = backupTransfer.phase {
+                    HStack {
+                        ProgressView().tint(palette.accent)
+                        Text(phase.title).font(.footnote)
+                        Spacer()
+                        if phase != .restoring {
+                            Button("Cancel") { backupTransfer.cancel(); status = "Backup cancelled" }
+                                .frame(minHeight: 44).accessibilityIdentifier("backup-cancel")
+                        }
+                    }.padding(.horizontal,20).accessibilityIdentifier("backup-progress")
+                }
+                if listing.updating || listing.snapshot == nil && listing.error == nil {
+                    ProgressView("Updating library…").tint(palette.accent)
+                        .frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-updating")
+                } else if let error = listing.error {
+                    VStack(spacing: 12) {
+                        Text(error)
+                        Button("Retry") { listing.retry() }
+                    }.frame(maxWidth: .infinity,maxHeight: .infinity)
+                } else if !query.isEmpty && listedSelection.count == 0 {
+                    Text("No matching records").foregroundStyle(palette.inkDim).frame(maxWidth: .infinity,maxHeight: .infinity).accessibilityIdentifier("library-no-matches")
+                } else if store.waypoints.isEmpty && fieldData.document.graphics.isEmpty && fieldData.document.tracks.isEmpty {
+                    if fieldData.loadError == nil { empty } else { Spacer() }
+                } else {
+                    list.disabled(preparingOutput || fieldMutation.working)
+                }
+            }
+            .padding(.bottom, 12)
+    }
+
     private var header: some View {
-        HStack {
-            SectionLabel(text: "Waypoints")
-            Spacer()
-            Menu {
-                Button("Add at fix") { beginAdd(atFix: true) }
-                Button("Add blank") { beginAdd(atFix: false) }
-                Divider()
-                Button("Export backup") { exportBackup() }
-                Button("Export GPX") { exportGpx() }
-                Button("Import backup") { importKind = .backup; showingImporter = true }
-                Button("Import GPX") { importKind = .gpx; showingImporter = true }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(palette.accent)
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment: .leading,spacing: 10)) : AnyLayout(HStackLayout())
+        return layout {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Waypoints").font(.system(compactLandscape ? .title2 : .largeTitle, design: .rounded, weight: .bold))
+                    .fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("library-heading")
+                if !compactLandscape {
+                    Text("\(store.waypoints.count) saved · on this device")
+                        .font(.subheadline).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
+                }
+            }
+            if !accessibleLayout { Spacer() }
+            HStack {
+                if compactLandscape { fieldLibraryButton }
+                Button { choosingLibraryActions = true } label: {
+                    Image(systemName: "ellipsis").font(accessibleLayout ? .system(size:22) : .body)
+                        .frame(width:44,height:44).contentShape(Rectangle())
+                }.fieldGlassButton().accessibilityLabel("Waypoint actions")
+                Button { beginAdd(atFix: false) } label: {
+                    Image(systemName: "plus").font(accessibleLayout ? .system(size:22) : .body).frame(width:44,height:44)
+                }.fieldGlassButton().accessibilityLabel("Add waypoint").accessibilityIdentifier("add-waypoint")
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
+        .padding(.horizontal,20)
+        .padding(.top,compactLandscape ? 0 : 18)
+        .padding(.bottom,compactLandscape ? 0 : 12)
+    }
+
+    private var fieldLibraryButton: some View {
+        Button { showingLibrary = true } label: {
+            if accessibleLayout && !compactLandscape {
+                VStack(alignment:.leading,spacing:6) {
+                    HStack(spacing:8) {
+                        Image(systemName:"point.topleft.down.to.point.bottomright.curvepath").font(.system(size:22)).accessibilityHidden(true)
+                        Text("Routes & tracks").font(.headline).fixedSize(horizontal:false,vertical:true)
+                    }
+                    Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
+                        .font(.caption).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true)
+                }.frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,20).padding(.vertical,12).contentShape(Rectangle())
+            } else if compactLandscape {
+                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                    .frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
+            } else {
+                HStack {
+                    Label("Routes & tracks",systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    Spacer()
+                    Text("\(listing.snapshot?.routeCount ?? 0) routes · \(fieldData.document.tracks.count) tracks")
+                        .font(.caption).foregroundStyle(palette.inkDim)
+                    Image(systemName: "chevron.right").font(.caption)
+                }.padding(.horizontal,20).frame(minHeight: 44).contentShape(Rectangle())
+            }
+        }.buttonStyle(.plain).disabled(preparingOutput || fieldMutation.working)
+            .accessibilityLabel("Routes & tracks, \(listing.snapshot?.routeCount ?? 0) routes, \(fieldData.document.tracks.count) tracks")
+            .accessibilityIdentifier("open-field-library")
     }
 
     private var empty: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("No waypoints yet")
                 .font(Blackout.label(18, weight: .semibold))
-            Text("Add one at your current fix, or import a GridFix backup / GPX.")
+            Text("Add one at your current fix, or import a backup, GPX, KML/KMZ, CSV, GeoJSON or ATAK package.")
                 .font(Blackout.label(14))
                 .foregroundStyle(palette.inkDim)
             if let status {
@@ -94,184 +408,539 @@ struct WaypointsView: View {
         .padding(.horizontal, 22)
     }
 
-    private var list: some View {
-        List {
-            ForEach(store.folders) { folder in
-                let items = store.waypoints.filter {
-                    $0.folder.caseInsensitiveCompare(folder.name) == .orderedSame
-                }
-                if !items.isEmpty {
-                    Section {
-                        ForEach(items) { wp in
-                            Button {
-                                beginEdit(wp)
-                            } label: {
-                                row(wp)
-                            }
-                            .listRowBackground(palette.background)
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    store.select(wp.id)
-                                } label: { Label("Nav", systemImage: "safari") }
-                                .tint(palette.accent)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    store.delete(ids: [wp.id])
-                                } label: { Label("Delete", systemImage: "trash") }
+    private var folderPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 8) {
+                folderChip("All", selected: folderFilter == nil) { folderFilter = nil }
+                ForEach(libraryFolders) { folder in
+                    folderChip(folder.name, selected: folderFilter == folder.name) { folderFilter = folder.name }
+                        .contextMenu {
+                            Button(folder.visible ? "Hide folder on map" : "Show folder on map") { setFolderVisible(folder.name,visible: !folder.visible) }
+                            if folder.name != Folders.defaultFolder {
+                                Button("Rename folder") { folderRequest = LibraryFolderRequest(original: folder.name) }
+                                Button("Delete folder",role: .destructive) { folderToDelete = folder.name }
                             }
                         }
-                    } header: {
-                        Text(folder.name.uppercased())
-                            .font(Blackout.label(11))
-                            .tracking(1.4)
-                            .foregroundStyle(palette.accent)
+                }
+                Button { folderRequest = LibraryFolderRequest() } label: { Label("Folder",systemImage: "folder.badge.plus").padding(10) }.accessibilityIdentifier("library-new-folder")
+            }.padding(.horizontal, 20).padding(.vertical, 8)
+        }.frame(height: folderPickerHeight)
+    }
+
+    private func folderChip(_ name: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(name).font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .foregroundStyle(selected ? palette.accent : palette.ink)
+                .background(selected ? palette.accent.opacity(0.14) : Color.white.opacity(0.04), in: Capsule())
+                .overlay(Capsule().stroke(selected ? palette.accent.opacity(0.4) : palette.hairline))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var searchControls: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.inkDim).accessibilityHidden(true)
+            TextField(accessibleLayout ? "Search library" : "Search name, folder or grid",text: Binding(get: { listing.query },set: { listing.setQuery($0) }),
+                      prompt: Text(accessibleLayout ? "Search library" : "Search name, folder or grid").foregroundColor(palette.inkDim))
+                .textInputAutocapitalization(.never).autocorrectionDisabled().focused($searchFocused).submitLabel(.search).onSubmit { searchFocused = false }
+                .accessibilityIdentifier("library-search")
+            if !searchQuery.isEmpty {
+                Button { listing.setQuery("") } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 44,minHeight: 44) }
+                    .accessibilityLabel("Clear library search").accessibilityIdentifier("library-search-clear")
+            }
+            Button { searchFocused = false; choosingSort = true } label: {
+                Image(systemName: "arrow.up.arrow.down").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+                .accessibilityLabel("Sort waypoints, \(waypointSort.label)").accessibilityIdentifier("library-sort")
+        }.padding(.horizontal,12).frame(minHeight: 44)
+            .fieldContentSurface(night: settings.nightMode).padding(.horizontal,20).padding(.vertical,4)
+    }
+
+    private var libraryCaption: some View {
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment:.leading,spacing:10)) : AnyLayout(HStackLayout(spacing:10))
+        return layout {
+            if selecting {
+                Text("\(selection.count) selected").font(.caption.bold()).accessibilityIdentifier("library-selected-count")
+                if !accessibleLayout { Spacer() }
+                HStack {
+                Button {
+                    guard listing.isReady else { return }
+                    selection = selection == listedSelection ? LibrarySelection() : listedSelection
+                } label: { Image(systemName: selection == listedSelection ? "checkmark.circle.fill" : "checkmark.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }
+                    .accessibilityLabel(selection == listedSelection ? "Select none" : "Select all").accessibilityIdentifier("library-select-all").disabled(!listing.isReady)
+                Button { choosingSelectionAction = true } label: {
+                    Image(systemName: "ellipsis.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44).contentShape(Rectangle())
+                }
+                    .disabled(selection.count == 0 || !listing.isReady).accessibilityLabel("Selected item actions")
+                Button("Done") { selecting = false; selection = LibrarySelection() }.accessibilityIdentifier("library-selection-done")
+                }
+            } else {
+                Text("\(waypointSort.label) · \(listedWaypoints.count) waypoints · \(listedGraphics.count) graphics · \(listedTracks.count) tracks")
+                    .font(.caption).foregroundStyle(palette.inkDim).fixedSize(horizontal:false,vertical:true).accessibilityIdentifier("library-listed-count")
+                if !accessibleLayout { Spacer(minLength: 0) }
+                HStack {
+                if let folder = libraryFolders.first(where: { $0.name == folderFilter }) ?? (libraryFolders.count == 1 ? libraryFolders.first : nil) {
+                    Button { setFolderVisible(folder.name,visible: !folder.visible) } label: {
+                        Image(systemName: folder.visible ? "eye" : "eye.slash").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44)
+                    }.accessibilityLabel(folder.visible ? "Hide folder" : "Show folder").accessibilityIdentifier("folder-visibility-\(folder.name)")
+                    if folder.name != Folders.defaultFolder {
+                        Button {
+                            folderActionTarget = folder.name; choosingFolderActions = true
+                        } label: { Image(systemName: "folder.badge.gearshape").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Folder options")
                     }
                 }
+                Button { selecting = true; selection = LibrarySelection() } label: { Image(systemName: "checkmark.circle").font(accessibleLayout ? .system(size:22) : .caption).frame(minWidth: 44,minHeight: 44) }.accessibilityLabel("Select items").accessibilityIdentifier("library-select-button")
+                }
             }
-            if let status {
-                Text(status)
-                    .font(Blackout.label(12))
-                    .foregroundStyle(palette.accent)
-                    .listRowBackground(palette.background)
-            }
+        }.font(.caption).padding(.horizontal,20).frame(minHeight: 44)
+    }
+
+    private var list: some View {
+        Group {
+            if accessibleLayout { libraryRows }
+            else { ScrollView { libraryRows } }
+        }.accessibilityIdentifier("library-list")
+    }
+
+    private var libraryRows: some View {
+            LazyVStack(alignment: .leading,spacing: 12) {
+                if let folder = libraryFolders.first(where: { $0.name == folderFilter }), !folder.visible {
+                    Text("\(folder.name) is hidden on the map. Its saved records remain listed here.").font(.footnote).foregroundStyle(palette.inkDim)
+                }
+                if !listedWaypoints.isEmpty {
+                    SectionLabel(text: "Waypoints · \(listedWaypoints.count)")
+                    ForEach(listedWaypoints) { point in
+                        if selecting {
+                            selectionRow(id: point.id,name: point.name,kind: "waypoint",visible: point.visible,ids: $selection.waypoints) {
+                                HStack(spacing: 12) {
+                                    MilitaryMarker(symbol: point.symbol,affiliation: point.affiliation,echelon: point.echelon,rotation: point.rotation,metadata: point.metadata).frame(width: 40,height: 44).accessibilityHidden(true)
+                                    waypointSummary(point)
+                                }
+                            }
+                        } else { row(point) }
+                    }
+                }
+                if !listedGraphics.isEmpty {
+                    SectionLabel(text: "Graphics · \(listedGraphics.count)")
+                    ForEach(listedGraphics) { graphic in
+                        if selecting {
+                            selectionRow(id: graphic.id,name: graphic.name,kind: "graphic",visible: graphic.visible,ids: $selection.graphics) { graphicSummary(graphic) }
+                        } else { graphicRow(graphic) }
+                    }
+                    if let folderFilter, listedGraphics.count > 1 {
+                        Button("Clear \(listedGraphics.count) graphics in \(folderFilter)",role: .destructive) {
+                            selection = LibrarySelection(); selection.graphics = Set(listedGraphics.map(\.id)); deleteSelection = true
+                        }.font(.caption).frame(minHeight: 44).accessibilityIdentifier("library-clear-graphics")
+                    }
+                }
+                if !listedTracks.isEmpty {
+                    SectionLabel(text: "Tracks · \(listedTracks.count)")
+                    ForEach(listedTracks) { track in
+                        if selecting {
+                            selectionRow(id: track.id,name: track.name,kind: "track",visible: track.visible,ids: $selection.tracks) { trackSummary(track) }
+                        } else { trackRow(track) }
+                    }
+                }
+                if listedSelection.count == 0 && fieldData.ready && fieldData.loadError == nil { Text("Nothing in \(folderFilter ?? "the library") yet.").font(.footnote).foregroundStyle(palette.inkDim) }
+                if let status { Text(status).font(.footnote).foregroundStyle(palette.accent).padding(.vertical,8).accessibilityIdentifier("library-status") }
+            }.padding(.horizontal,20).padding(.bottom,20)
+    }
+
+    private func selectionRow<Content: View>(id: String,name: String,kind: String,visible: Bool,ids: Binding<Set<String>>,@ViewBuilder content: () -> Content) -> some View {
+        let selected = ids.wrappedValue.contains(id)
+        return Button {
+            guard listing.isReady else { return }
+            if selected { ids.wrappedValue.remove(id) } else { ids.wrappedValue.insert(id) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(selected ? palette.accent : palette.inkDim).frame(width: 28)
+                content().frame(maxWidth: .infinity,alignment: .leading)
+                if !visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map") }
+            }.padding(12).fieldContentSurface(night: settings.nightMode)
+        }.buttonStyle(.plain).accessibilityLabel("\(selected ? "Deselect" : "Select") \(kind) \(name)")
+            .accessibilityValue(visible ? "Map visibility on" : "Map visibility off")
+            .accessibilityIdentifier("select-\(kind)-\(id)").accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private func waypointSummary(_ point: Waypoint) -> some View {
+        VStack(alignment: .leading,spacing: 5) {
+            HStack { Text(point.name).font(.headline); if point.favorite { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("Favourite") } }
+            Text(MGRS.parts(lat: point.lat,lon: point.lon,digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage").font(.system(.caption,design: .monospaced))
+            if folderFilter == nil { Text(point.folder).font(.caption).foregroundStyle(palette.inkDim) }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+    }
+    private func graphicSummary(_ graphic: Backup.Graphic) -> some View {
+        VStack(alignment: .leading,spacing: 5) {
+            Text(graphic.name).font(.headline)
+            Text("\(GraphicTypes.label(graphic.type)) · \(graphic.points.count) points\(folderFilter == nil ? " · "+graphic.folder : "")").font(.caption).foregroundStyle(palette.inkDim)
+        }
+    }
+    private func trackSummary(_ track: Backup.TrackMeta) -> some View {
+        VStack(alignment: .leading,spacing: 5) {
+            Text(track.name).font(.headline)
+            Text("\(track.pointCount) points · \(Format.distance(meters: track.distanceM,unit: settings.units))\(folderFilter == nil ? " · "+track.folder : "")").font(.caption).foregroundStyle(palette.inkDim)
+        }
+    }
+    private func graphicRow(_ graphic: Backup.Graphic) -> some View {
+        HStack {
+            Button { showGraphic(graphic) } label: { graphicSummary(graphic).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityIdentifier("library-graphic-\(graphic.name)")
+            if !graphic.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-graphic-hidden-\(graphic.name)") }
+            Button { graphicActions = graphic } label: {
+                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Actions for graphic \(graphic.name)")
+        }.padding(12).fieldContentSurface(night: settings.nightMode)
+    }
+    private func trackRow(_ track: Backup.TrackMeta) -> some View {
+        HStack {
+            Button { showTrack(track) } label: { trackSummary(track).frame(maxWidth: .infinity,alignment: .leading).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityIdentifier("library-track-\(track.name)")
+            if !track.visible { Image(systemName: "eye.slash").accessibilityLabel("Hidden on map").accessibilityIdentifier("library-track-hidden-\(track.name)") }
+            Button { trackActions = track } label: {
+                Image(systemName: "ellipsis").frame(width: 44,height: 44).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel("Actions for track \(track.name)")
+        }.padding(12).fieldContentSurface(night: settings.nightMode)
+    }
+
+    private func waypointCardMarker(_ wp: Waypoint) -> some View {
+        MilitaryMarker(symbol:wp.symbol,affiliation:wp.affiliation,echelon:wp.echelon,rotation:wp.rotation,metadata:wp.metadata)
+            .frame(width:44,height:48)
+            .background(palette.accent.opacity(0.09),in:RoundedRectangle(cornerRadius:12))
+            .accessibilityHidden(true)
     }
 
     private func row(_ wp: Waypoint) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(wp.name)
-                    .font(Blackout.label(16, weight: .semibold))
-                    .foregroundStyle(wp.visible ? palette.ink : palette.inkDim)
-                Text(MGRS.string(lat: wp.lat, lon: wp.lon, digits: 8) ?? "—")
-                    .font(Blackout.numerals(13))
-                    .foregroundStyle(palette.inkDim)
+        let layout = accessibleLayout ? AnyLayout(VStackLayout(alignment:.leading,spacing:12)) : AnyLayout(HStackLayout(alignment:.center,spacing:12))
+        return layout {
+            if !accessibleLayout { waypointCardMarker(wp) }
+            Button { beginEdit(wp) } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(wp.name).font(.headline).foregroundStyle(palette.ink)
+                        if wp.favorite { Image(systemName: "star.fill").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.accent).accessibilityLabel("Favourite").accessibilityIdentifier("favorite-\(wp.name)") }
+                        if !wp.visible { Image(systemName: "eye.slash").font(accessibleLayout ? .system(size:22) : .body).foregroundStyle(palette.ink).accessibilityLabel("Hidden on map").accessibilityIdentifier("library-waypoint-hidden-\(wp.name)") }
+                    }
+                    Text(MGRS.parts(lat: wp.lat, lon: wp.lon, digits: settings.mgrsDigits)?.full ?? "Outside \(settings.gridName) coverage")
+                        .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
+                    if folderFilter == nil { Text(wp.folder).font(.caption).foregroundStyle(palette.inkDim) }
+                    if let f = location.usableFix {
+                        let nav = Geodesy.navInfo(fromLat: f.lat, fromLon: f.lon, toLat: wp.lat, toLon: wp.lon)
+                        Text(Format.distance(meters: nav.distanceMeters, unit: settings.units))
+                            .font(.system(.caption, design: .monospaced)).foregroundStyle(palette.inkDim)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8).contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
-            if store.selectedId == wp.id {
-                Text("NAV")
-                    .font(Blackout.label(10, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(palette.accent)
+            .buttonStyle(.plain)
+            .accessibilityValue(WaypointMarkerDescription.text(wp))
+            .accessibilityIdentifier("edit-waypoint-\(wp.name)")
+            HStack(spacing:12) {
+                if accessibleLayout { waypointCardMarker(wp); Spacer() }
+                Button { searchFocused = false; waypointActions = wp } label: {
+                    Image(systemName: "ellipsis").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44, height: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                .foregroundStyle(palette.inkDim)
+                .accessibilityLabel("Actions for \(wp.name)")
+                Button { navigate(to: wp) } label: {
+                    Image(systemName: "arrow.up.right").font(accessibleLayout ? .system(size:22) : .body).frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .fieldGlassButton()
+                .accessibilityLabel("Navigate to \(wp.name)")
             }
-        }
-        .padding(.vertical, 4)
+        }.padding(12).fieldContentSurface(night:settings.nightMode)
     }
 
-    private var editor: some View {
-        NavigationStack {
-            Form {
-                TextField("Name", text: $draftName)
-                TextField("Folder", text: $draftFolder)
-                if let hint = Folders.reservedHint(draftFolder) {
-                    Text(hint).foregroundStyle(palette.warn).font(Blackout.label(12))
-                }
-            }
-            .navigationTitle(editing == nil ? "New waypoint" : "Edit waypoint")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showingEditor = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { saveEditor() }
-                        .disabled(draftName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.medium])
+    private func navigate(to waypoint: Waypoint) {
+        guard store.waypoints.contains(where: { $0.id == waypoint.id }) else { status = "This waypoint is no longer saved."; return }
+        fieldMutation.run("Saving navigation target…",action: {
+            try await WaypointEditAction.select(waypoint.id,in: store)
+        },completion: { visible in if visible { onNavigate() } })
     }
 
     private func beginAdd(atFix: Bool) {
-        draftFolder = Folders.defaultFolder
         if atFix {
-            guard let f = location.fix else {
-                status = "No fix yet — wait for a position"
+            guard let f = location.usableFix else {
+                status = "A recent, precise position is needed. You can enter coordinates instead."
                 return
             }
-            draftName = MGRS.string(lat: f.lat, lon: f.lon, digits: settings.mgrsDigits) ?? "Waypoint"
-            // Empty id marks a new waypoint; coords come from the fix.
-            editing = Waypoint(id: "", name: draftName, lat: f.lat, lon: f.lon)
+            editorRequest = WaypointEditorRequest(lat: f.lat, lon: f.lon)
         } else {
-            draftName = ""
-            editing = nil
+            editorRequest = WaypointEditorRequest()
         }
-        showingEditor = true
     }
 
     private func beginEdit(_ wp: Waypoint) {
-        editing = wp
-        draftName = wp.name
-        draftFolder = wp.folder
-        showingEditor = true
+        guard let current = store.waypoints.first(where: { $0.id == wp.id }) else { status = "This waypoint is no longer saved."; return }
+        editorRequest = WaypointEditorRequest(waypoint: current)
     }
 
-    private func saveEditor() {
-        let name = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        if let existing = editing, !existing.id.isEmpty {
-            store.update(id: existing.id, draft: WaypointDraft(
-                name: name, lat: existing.lat, lon: existing.lon, folder: draftFolder,
-                symbol: existing.symbol, affiliation: existing.affiliation,
-                echelon: existing.echelon, designation: existing.designation,
-                kind: existing.kind, rotation: existing.rotation,
-                metadata: existing.metadata
-            ))
-        } else {
-            let lat = editing?.lat ?? location.fix?.lat ?? 0
-            let lon = editing?.lon ?? location.fix?.lon ?? 0
-            store.add(WaypointDraft(name: name, lat: lat, lon: lon, folder: draftFolder))
+    private func pruneSelection() {
+        selection.retain(waypoints: Set(store.waypoints.map(\.id)),graphics: Set(fieldData.document.graphics.map(\.id)),tracks: Set(fieldData.document.tracks.map(\.id)))
+        if let id = maps.viewedTrackID, !fieldData.document.tracks.contains(where: { $0.id == id }) { maps.viewedTrackID = nil }
+    }
+
+    /// Like Android, repositories commit independently. Completed IDs leave the
+    /// selection immediately, so a retry cannot swap their visibility twice.
+    private func applyBatch(_ action: LibraryBatchAction) {
+        let confirmed = selection
+        fieldMutation.run("Updating selected items…",action: {
+            let result = await LibraryMutationAction.batch(confirmed,action: action,waypoints: store,field: fieldData)
+            selection = result.remaining
+            if let failure = result.failure {
+                selecting = selection.count > 0
+                status = "\(result.completed) items updated; remaining items unchanged. \(failure)"
+            } else {
+                selecting = false
+                status = "\(action == .delete ? "Deleted" : "Swapped visibility for") \(result.completed) items"
+            }
+        })
+    }
+
+    private func swapWaypointVisibility(_ id: String) {
+        var confirmed = LibrarySelection(); confirmed.waypoints = [id]
+        fieldMutation.run("Updating waypoint visibility…",action: {
+            let result = await LibraryMutationAction.batch(confirmed,action: .swapVisibility,waypoints: store,field: fieldData)
+            if let error = result.failure { throw LibraryActionError.partial(error) }
+            status = nil
+        })
+    }
+
+    private func updateLibrary(_ edit: WaypointStore.LibraryEdit,label: String) {
+        fieldMutation.run(label,action: { _ = try await LibraryMutationAction.apply(edit,to: store); status = nil })
+    }
+    private func setFolderVisible(_ name: String,visible: Bool) {
+        updateLibrary(.folderVisibility(name,visible),label: "Updating folder visibility…")
+    }
+
+    private func saveFolder(original: String?,name: String) async throws {
+        if let original {
+            let target = Folders.match(known: libraryFolders.map(\.name).filter { $0.caseInsensitiveCompare(original) != .orderedSame },raw: name)
+            try await FieldEditAction.apply(.changeLibraryFolder(from: original,to: target,deleteContents: false),to: fieldData)
+            do { folderFilter = try await LibraryMutationAction.apply(.renameFolder(original,target),to: store) }
+            catch { throw LibraryActionError.partial("Graphics and tracks moved. Retry to finish updating waypoints and folder settings. \(error.localizedDescription)") }
+        } else { folderFilter = try await LibraryMutationAction.apply(.createFolder(name),to: store) }
+        selecting = false; selection = LibrarySelection(); status = nil
+    }
+    private func removeFolder(_ name: String,deleteContents: Bool) {
+        fieldMutation.run("Updating folder…",action: {
+            try await FieldEditAction.apply(.changeLibraryFolder(from: name,to: nil,deleteContents: deleteContents),to: fieldData)
+            do { _ = try await LibraryMutationAction.apply(.removeFolder(name,deleteContents),to: store) }
+            catch { throw LibraryActionError.partial("Graphics and tracks updated. Retry to finish updating waypoints and folder settings. \(error.localizedDescription)") }
+            folderFilter = nil; pruneSelection(); status = deleteContents ? "Folder and its contents deleted" : "Folder removed; contents kept in Base"
+        })
+    }
+    private func showGraphic(_ graphic: Backup.Graphic) {
+        guard let current = fieldData.document.graphics.first(where: { $0.id == graphic.id }) else { status = "This graphic is no longer saved."; return }
+        maps.focusRequest = MapCameraRequest(action: .showBoundary(current.mapExtentPoints)); onShowMap()
+    }
+    private func showTrack(_ track: Backup.TrackMeta) {
+        let token = UUID(), camera = maps.focusRequest?.id
+        var prepared: TrackMapFocusAction.Prepared?
+        trackFocusToken = token
+        fieldMutation.run("Opening track…",action: {
+            prepared = try await TrackMapFocusAction.prepare(trackID: track.id,field: fieldData,waypoints: store)
+        },completion: { visible in
+            guard visible, trackFocusToken == token, maps.focusRequest?.id == camera,
+                  let prepared, prepared.isCurrent(in: fieldData) else { return }
+            trackFocusToken = nil
+            maps.viewedTrackID = prepared.trackID
+            maps.focusRequest = MapCameraRequest(action: .showBoundary(prepared.points)); onShowMap()
+        })
+    }
+    private func backtrack(_ track: Backup.TrackMeta) {
+        guard backtrackingID == nil else { return }
+        backtrackingID = track.id; status = "Building backtrack route…"
+        backtrackWork = Task {
+            do {
+                let route = try await TrackBacktrackAction.create(track: track,field: fieldData,waypoints: store)
+                backtrackingID = nil; backtrackWork = nil
+                status = "Backtrack saved with \(route.points.count) vertices. Review the simplified route before following it."
+                maps.focusRequest = MapCameraRequest(action: .showBoundary(route.mapExtentPoints)); onShowMap()
+            } catch {
+                backtrackingID = nil; backtrackWork = nil
+                if !(error is CancellationError) { status = "Backtrack failed: \(error.localizedDescription)" }
+            }
         }
-        showingEditor = false
+    }
+
+    private func exportBackup(password: String? = nil) {
+        guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
+        let doc: Backup.Document
+        do { doc = try BackupCoordinator.snapshot(waypoints:store,fieldData:fieldData,settings:settings,lanes:lanes,boundaries:boundaries) }
+        catch { status = "Backup failed: \(error.localizedDescription)"; return }
         status = nil
-    }
-
-    private func exportBackup() {
-        let doc = Backup.Document(
-            waypoints: store.waypoints,
-            folders: store.folders
-        )
-        do {
-            let data = try Backup.exportZip(doc)
-            exportDoc = BackupDocumentFile(data: data)
-            status = "Backup ready"
-        } catch {
-            status = "Backup failed: \(error.localizedDescription)"
+        backupTransfer.exportFile(doc,password: password) { result in
+            switch result {
+            case .success(let payload):
+                exportFile = FieldExportDocumentFile(payload: payload,contentType: password == nil ? .zip : .gridFixProtectedBackup,filename: password == nil ? "gridfix-backup" : "gridfix-backup.mgrsgps")
+                status = "Backup ready"
+            case .failure(let error): status = "Backup failed: \(error.localizedDescription)"
+            }
         }
     }
 
-    private func exportGpx() {
-        let xml = GPX.build(waypoints: store.waypoints)
-        exportGPX = GPXDocumentFile(text: xml)
-        status = "GPX ready"
+    private func restoreBackup(_ url: URL,password: String? = nil) {
+        backupTransfer.restore(url,password: password,passwordRequired: { backupPasswordRequest = .init(url: url) },apply: { document in
+            await BackupCoordinator.restore(document,waypoints: store,fieldData: fieldData,settings: settings,lanes: lanes,boundaries: boundaries)
+        },completion: { status = $0 })
+    }
+
+    private func finishProtectedBackup() {
+        guard let (url,password) = pendingProtectedBackup else { return }
+        pendingProtectedBackup = nil
+        if let url { restoreBackup(url,password: password) }
+        else { exportBackup(password: password) }
+    }
+
+    private func exportOther(_ format: TextInterchangeFormat) {
+        guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
+        searchFocused = false; status = nil
+        prepareExport(.library(format,store.waypoints,fieldData.document))
+    }
+    private func prepareExport(_ request: FieldExportRequest,password: String? = nil) {
+        fieldExport.start(request,password: password) { result in
+            switch result {
+            case .success(let prepared): exportFile = FieldExportDocumentFile(prepared); status = prepared.format.label + " ready"
+            case .failure(let error): status = "Export failed: " + error.localizedDescription
+            }
+        }
+    }
+
+    private func runFolderAction() {
+        defer { pendingFolderAction = nil; folderActionTarget = nil }
+        guard let action = pendingFolderAction, action.folder != Folders.defaultFolder,
+              store.folders.contains(where: { $0.name == action.folder }) else { return }
+        // Present the editor/confirmation only after the choice sheet finishes
+        // dismissing. Native popup activation can leave an older iOS menu open.
+        if action.action == "rename" { folderRequest = LibraryFolderRequest(original: action.folder) }
+        else if action.action == "delete" { folderToDelete = action.folder }
+    }
+
+    private func runSelectionAction() {
+        guard let action = pendingSelectionAction else { return }
+        pendingSelectionAction = nil
+        guard selection.count > 0 else { return }
+        if action == "library-swap-visibility" { applyBatch(.swapVisibility) }
+        else if action == "library-delete-selected" { deleteSelection = true }
+    }
+
+    private func runExportChoice() {
+        guard let choice = pendingExportChoice else { return }
+        pendingExportChoice = nil
+        guard !exportUnavailable else { return }
+        // Native Files/password presentation begins after the choice controller
+        // has dismissed, including when a tiny export finishes immediately.
+        switch choice {
+        case "backup": exportBackup()
+        case "protected-backup": backupPasswordRequest = .init(url: nil)
+        case "protected-file": choosingProtectedFormat = true
+        default: if let format = TextInterchangeFormat(rawValue: choice) { exportOther(format) }
+        }
+    }
+    private func runLibraryAction() {
+        guard let action = pendingLibraryAction else { return }
+        pendingLibraryAction = nil
+        switch action {
+        case .fix: beginAdd(atFix: true)
+        case .coordinates: beginAdd(atFix: false)
+        case .select: selecting = true; selection = LibrarySelection()
+        case .folder: folderRequest = LibraryFolderRequest()
+        case .orientation: onOrientation()
+        case .export: choosingExportFormat = true
+        case .backup: importKind = .backup; showingImporter = true
+        case .file: importKind = .text; showingImporter = true
+        case .paste: choosingPasteFormat = true
+        case .recovery: showingRecovery = true
+        }
+    }
+    private func waypointChoices(_ point: Waypoint) -> [FieldChoice] {
+        [.init(id: "edit",title: "Edit"),
+         .init(id: point.favorite ? "favorite-off" : "favorite-on",title: point.favorite ? "Remove favourite" : "Favourite",accessibilityIdentifier: "toggle-favorite-"+point.name),
+         .init(id: "visibility",title: point.visible ? "Hide on map" : "Make visible on map"),
+         .init(id: "navigate",title: "Navigate"),.init(id: "show",title: "Show on map"),
+         .init(id: "delete",title: "Delete",destructive: true)]
+    }
+    private func runWaypointAction() {
+        guard let pending = pendingWaypointAction else { return }
+        pendingWaypointAction = nil
+        guard let point = store.waypoints.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "edit": beginEdit(point)
+        case "favorite-on", "favorite-off": updateLibrary(.favorite(point.id,pending.action == "favorite-on"),label: "Saving favourite…")
+        case "visibility": swapWaypointVisibility(point.id)
+        case "navigate": navigate(to: point)
+        case "show": maps.focusRequest = MapCameraRequest(action: .locate(point.lat,point.lon)); onShowMap()
+        case "delete": selection = LibrarySelection(); selection.waypoints = [point.id]; deleteSelection = true
+        default: break
+        }
+    }
+
+    private func graphicChoices(_ graphic: Backup.Graphic) -> [FieldChoice] {
+        var choices: [FieldChoice] = [.init(id: "show",title: "Show on map")]
+        if graphic.type == "route" { choices.append(.init(id: "route",title: "Route card")) }
+        choices += [.init(id: graphic.visible ? "hide" : "unhide",title: graphic.visible ? "Hide on map" : "Make visible on map"),
+                    .init(id: "delete",title: "Delete",destructive: true)]
+        return choices
+    }
+    private func runGraphicAction() {
+        guard let pending = pendingGraphicAction else { return }
+        pendingGraphicAction = nil
+        // Resolve current data after the choices dismiss, before opening the
+        // route card or confirming a mutation. Never act on a removed row.
+        guard let graphic = fieldData.document.graphics.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "show": showGraphic(graphic)
+        case "route": if graphic.type == "route" { routeDetail = graphic }
+        case "hide", "unhide":
+            fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setGraphicVisible(graphic.id,pending.action == "unhide"),to: fieldData) })
+        case "delete": selection = LibrarySelection(); selection.graphics = [graphic.id]; deleteSelection = true
+        default: break
+        }
+    }
+
+    private func trackChoices(_ track: Backup.TrackMeta) -> [FieldChoice] {
+        var choices: [FieldChoice] = [.init(id: "show",title: "Show on map"),.init(id: "details",title: "Details")]
+        if maps.viewedTrackID == track.id { choices.append(.init(id: "stop",title: "Stop viewing")) }
+        choices += [.init(id: "move",title: "Move to folder"),
+                    .init(id: "backtrack",title: backtrackingID == track.id ? "Building backtrack…" : "Create backtrack route",
+                          accessibilityIdentifier: "backtrack-track-"+track.name,enabled: backtrackingID == nil && track.pointCount >= 2),
+                    .init(id: "visibility",title: track.visible ? "Hide on map" : "Make visible on map"),
+                    .init(id: "export",title: "Export GPX",enabled: !exportUnavailable),.init(id: "export-protected",title: "Export protected GPX",enabled: !exportUnavailable),.init(id: "delete",title: "Delete",destructive: true)]
+        return choices
+    }
+    private func runTrackAction() {
+        guard let pending = pendingTrackAction else { return }
+        pendingTrackAction = nil
+        guard let track = fieldData.document.tracks.first(where: { $0.id == pending.id }) else { return }
+        switch pending.action {
+        case "show": showTrack(track)
+        case "details": trackDetail = track
+        case "stop": maps.viewedTrackID = nil
+        case "move": movingTrack = track
+        case "backtrack": if backtrackingID == nil && track.pointCount >= 2 { backtrack(track) }
+        case "visibility": fieldMutation.run("Saving visibility…",action: { try await FieldEditAction.apply(.setTrackVisible(track.id,!track.visible),to: fieldData) })
+        case "export-protected":
+            guard !exportUnavailable else { return }
+            do { backupPasswordRequest = .init(url: nil,exportRequest: .savedTrack(try fieldData.trackReadSnapshot(track.id))) }
+            catch { status = error.localizedDescription }
+        case "export":
+            guard backupTransfer.phase == nil, fieldExport.format == nil, exportFile == nil else { return }
+            searchFocused = false; status = nil
+            do { prepareExport(.savedTrack(try fieldData.trackReadSnapshot(track.id))) }
+            catch { status = error.localizedDescription }
+        case "delete": selection = LibrarySelection(); selection.tracks = [track.id]; deleteSelection = true
+        default: break
+        }
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {
         do {
             guard let url = try result.get().first else { return }
-            let unlocked = url.startAccessingSecurityScopedResource()
-            defer { if unlocked { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
-            switch importKind {
-            case .backup:
-                let doc = try Backup.importZip(data)
-                let r = Backup.restoreWaypoints(doc, into: store)
-                status = r.waypoints == 0
-                    ? "Nothing new to restore"
-                    : "Restored \(r.waypoints) waypoints"
-            case .gpx:
-                let xml = String(data: data, encoding: .utf8) ?? ""
-                let drafts = GPX.parseWaypoints(xml)
-                for d in drafts { store.add(d) }
-                status = drafts.isEmpty ? "No waypoints in GPX" : "Imported \(drafts.count) from GPX"
-            }
-        } catch {
-            status = "Import failed: \(error.localizedDescription)"
-        }
+            if importKind == .text { textImport = TextImportRequest(url: url); return }
+            guard backupTransfer.phase == nil else { return }
+            status = nil
+            restoreBackup(url)
+        } catch { status = "Import failed: \(error.localizedDescription)" }
     }
+
 }
 
 struct BackupDocumentFile: FileDocument {
@@ -286,15 +955,44 @@ struct BackupDocumentFile: FileDocument {
     }
 }
 
-struct GPXDocumentFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.xml] }
+extension UTType {
+    static let gridFixGPX = UTType(exportedAs: "app.gridfix.gpx", conformingTo: .xml)
+}
+
+private enum LibraryActionError: LocalizedError {
+    case partial(String)
+    var errorDescription: String? { if case let .partial(message) = self { return message }; return nil }
+}
+
+struct TextDocumentFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.commaSeparatedText,.gridFixGeoJSON,.json,.gridFixKML] }
     var text: String
-    init(text: String) { self.text = text }
+    var contentType: UTType
+    init(text: String,contentType: UTType) { self.text = text; self.contentType = contentType }
     init(configuration: ReadConfiguration) throws {
-        let d = configuration.file.regularFileContents ?? Data()
-        text = String(data: d, encoding: .utf8) ?? ""
+        text = String(decoding: configuration.file.regularFileContents ?? Data(),as: UTF8.self)
+        contentType = configuration.contentType
     }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: Data(text.utf8)) }
+}
+
+extension UTType {
+    static let gridFixGeoJSON = UTType(exportedAs: "app.gridfix.geojson",conformingTo: .json)
+}
+
+struct BinaryInterchangeDocumentFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.zip,.gridFixKMZ,.gridFixDPK] }
+    var data: Data
+    var contentType: UTType
+    init(data: Data,contentType: UTType) { self.data = data; self.contentType = contentType }
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data(); contentType = configuration.contentType
     }
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper { FileWrapper(regularFileWithContents: data) }
+}
+
+extension UTType {
+    static let gridFixKML = UTType(importedAs: "com.google.earth.kml",conformingTo: .xml)
+    static let gridFixKMZ = UTType(importedAs: "com.google.earth.kmz",conformingTo: .zip)
+    static let gridFixDPK = UTType(importedAs: "app.gridfix.dpk",conformingTo: .zip)
 }

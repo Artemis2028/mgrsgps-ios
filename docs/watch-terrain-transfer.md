@@ -1,0 +1,147 @@
+# Apple Watch terrain transfer and readout
+
+The phone Terrain visibility panel now has an explicit **Send terrain at map centre**
+action. It sends one existing z13 tile, not an area download. Export reads the same
+pinned DEM priority as the phone renderer, retaining the selected area's attribution;
+otherwise it reads the ordinary elevation disk cache with its provider attribution.
+It never invokes fetch, creates a request, resamples an ancestor or downloads a missing
+tile. Missing or incompatible cached data produces a retryable result.
+
+## Transport and source ownership
+
+The terrain manifest uses the cache contract in [watch-terrain-cache.md](watch-terrain-cache.md).
+It travels separately from the vector map context, whose versions/budgets are unchanged.
+A foreground reachable watch receives a message only if the complete binary property
+list is at most48 KiB. The watch replies **after** source matching, full manifest/hash/
+PNG validation and successful atomic cache installation. Only that positive reply
+produces **Terrain saved on watch** on the phone. One preparation/message send is
+active at a time; source/session generation changes invalidate old callbacks and
+cancel pending preparation. Repeat manual sends get newer persisted revisions.
+
+Larger tiles, an unreachable watch, or message transport failure use native queued
+WatchConnectivity file transfer. At most four terrain files are outstanding. UUID-only
+files live in a dedicated outbox until completion; activation removes orphan files.
+Completion reports transport success (**Terrain sent. Check coverage on watch**),
+not installation. Old file completions cannot replace the latest send's status.
+Queue pressure, pairing/activation changes, missing cache, rejected installation and
+send failures leave explicit retry states. This is an explicit copy, not an automatic
+phone-cache deletion mirror.
+
+The receiver derives expected identity from the paired SDK's latest valid map context
+and persisted accepted map, applying the existing map revision rule. A terrain packet
+cannot select an active source. Mismatched sources are rejected. The file callback
+owns bounded payload bytes and installs them before the SDK removes the Inbox file.
+The foreground message receiver enforces its independent48 KiB property-list bound.
+Both use exactly the same cache validation. Unpair/re-pair/clock/fault/queue-pressure
+and interruption rounds remain broader native and physical checks.
+
+## Watch UI
+
+Map information includes **Terrain · map centre**, its DEM elevation and attribution.
+It samples the current watch map centre, independently of a phone GPS fix or watch
+altimeter. It does not arm navigation or start another location owner. Reads run off
+the main actor; cancellation prevents an old camera/source query replacing the current
+readout. Missing tiles/no-data/outside coverage remain **Elevation unavailable here**.
+The accepted companion source is required even after relaunch; cached data from another
+source cannot become the active readout. A four-raster memory budget and disk limits
+remain as documented. This adds a numeric readout, not a terrain basemap/contour/LOS
+or viewshed overlay.
+
+## Validation, 29 October 2026
+
+- Seven native app terrain integration cases pass, including three new export cases:
+  online cache misses/invalid data never fetch, raw PNG/provenance/revision preservation
+  with watch cache reopening, and pinned DEM priority with its exact attribution.
+- The opt-in paired UI case passes on final source in14.144s. A real native tap on the
+  phone send control receives the actual watch's successful-installation reply; no
+  transport/receiver/terrain success injection. The synthetic tile's native watch
+  record byte count and SHA256 are independently checked. Eight final app/UI cases
+  pass, zero failures/skips, Xcode exit0. The opt-in marker is removed afterward;
+  unpaired ordinary CI skips this specific paired round.
+- The40mm watch displays the expected synthetic100m DEM value and attribution in day
+  mode. A cold night relaunch retains100m from its own cache. An earlier no-cache
+  capture honestly shows unavailable. Native phone confirmation and both watch captures
+  were inspected. No fake GPS or heading callbacks were added for this round.
+- Final unsigned phone/watch/widget device Release passes. The636 core tests and68
+  Wear unit/build/native cache evidence belong to the preceding unchanged foundation;
+  Wear phone transfer/readout is still implementation work.
+- Initial native file enqueue alone passed17.289s but produced zero received records;
+  it is explicitly **not delivery proof**. [Apple documents that Simulator does not
+  support transferFile](https://developer.apple.com/documentation/watchconnectivity/wcsession/transferfile%28_%3Ametadata%3A%29).
+  The production foreground message path subsequently provides actual paired-simulator
+  installation/readout proof. Physical queued-file delivery remains an open gate.
+- All local test/build parents are reaped. Both owned simulators are off; original
+  phone/watch preferences are restored byte-for-byte at freshly resolved containers;
+  owned terrain cache/outbox fixtures are removed. No server, TAK connection, credentials,
+  container or database changes.
+
+Evidence: `/tmp/mgrsgps-terrain-transfer-active.json`, final `.xcresult`/summary, native
+phone attachment, `/tmp/mgrsgps-terrain-watch-message.png` and
+`/tmp/mgrsgps-terrain-watch-cold-night.png`. iOS pushes remain held while hosted116's
+library job is active. Map116 passes; field116 failure triage continues independently.
+Next: Wear companion transport/readout, physical Apple queued-file transfer, explicit
+cache deletion/area semantics, offline raster packs and terrain analysis overlays.
+Real enrolled iOS/Android TAK exchange/renewal still requires coordinated GO; server off.
+
+## Rejected replacement retention — core checkpoint
+
+Six focused WatchTerrain tests pass, including a sequence against an already
+installed and decoded synthetic tile. A malformed PNG with a matching manifest
+hash reaches raster validation and is rejected; a newer wrong-companion payload
+and same-revision metadata conflict are also rejected. The original record bytes
+stay identical. Both the warm reader and a newly opened cache retain the original
+sample/provenance; the wrong source cannot read it. A later valid revision with
+identical PNG bytes updates provenance correctly in both readers.
+
+Evidence: `/tmp/mgrsgps-watch-terrain-replacement-core.log`, parent 9183 exit 0
+and reaped. This is core cache/source/atomic replacement evidence only, not new
+native WatchConnectivity fault/queue delivery or physical pressure evidence.
+No production, wire, server, phone cache or original device state changed.
+
+## Queued completion belongs to its Send request
+
+Review found a phone status race: a previous queued transfer could finish during
+a newer Send's cache preparation, while the stored published revision still
+matched the old transfer. It could also overwrite the newer preparation failure
+when that request never published a revision. Revision comparison alone therefore
+could not establish callback ownership.
+
+The phone now assigns queued outbox files to the current request generation.
+Starting a new preparation or invalidating the session drops earlier status
+ownership immediately. Completion still removes its owned temporary file before
+checking ownership, but only the current registered file may update status, once.
+Old asynchronous fallbacks cannot register against a newer request. Cold-session
+SDK completions clean up without claiming an active Send. Transport completion
+still means sent/check coverage; it does not claim successful watch installation.
+No protocol, payload, SDK queue limit, transfer destination or cache policy changed.
+
+Eight focused terrain cases and all641 shared-core cases pass, including late
+completion before revision publication, failed-new-request supersession, stale
+registration, duplicate completion, session invalidation and cold-session scope.
+Evidence: `/tmp/mgrsgps-watch-terrain-owner-core.log` and
+`/tmp/mgrsgps-watch-terrain-owner-core-full.log`; parents13272/55201 exit0/reaped.
+This is callback-ownership policy and bridge source evidence, not new native
+queued WatchConnectivity delivery; physical queued-file/fault tests remain open.
+Unsigned phone/watch/widget device Release also passes in
+`/tmp/mgrsgps-watch-terrain-owner-release.log`, parent98785 exit0/reaped.
+All validation parents are terminal; no simulator or fake-GPS feed was needed.
+The repair stays local while hosted119 map/library are active. TAK remains off.
+
+## Query-bound watch elevation display
+
+The Apple watch terrain view now labels each asynchronous sample with its query
+(source, terrain revision and map-centre coordinates) and renders it only while
+that query still matches the current view. Source/camera changes can render a
+new SwiftUI body before its replacement task starts; clearing sample state only
+inside the task left that interval able to display the previous point/source's
+value. The new body immediately shows unavailable until its own result arrives.
+Task cancellation continues to reject late results. Android already resets its
+remembered sample synchronously using source/point/reception-generation keys.
+
+Current watch simulator and unsigned phone/watch/widget device Release builds
+pass: `/tmp/mgrsgps-watch-terrain-readout-build.log` and
+`/tmp/mgrsgps-watch-terrain-readout-release.log`, parents84494/25261 exit0/reaped.
+This is a view-only repair and compile verification; the 641-case core result
+from the previous ownership repair is unchanged and was not rerun. No new native
+source-transition capture, paired transport, sensor or physical claim. No device
+was booted for these builds. Hosted119 is preserved; newer commits stay local.

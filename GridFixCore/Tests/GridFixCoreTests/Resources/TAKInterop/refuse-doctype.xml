@@ -1,0 +1,1 @@
+<?xml version="1.0"?><!DOCTYPE event [<!ENTITY x "y">]><event version="2.0" uid="BAD-1" type="a-h-G" how="h-g-i-g-o" time="2026-10-25T15:30:00.000Z" start="2026-10-25T15:30:00.000Z" stale="2026-10-25T15:40:00.000Z"><point lat="35.1" lon="-79.0" hae="9999999.0" ce="9999999.0" le="9999999.0"/><detail><contact callsign="&x;"/></detail></event>

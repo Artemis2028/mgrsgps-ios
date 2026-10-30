@@ -6,12 +6,21 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var liveActivities: LiveActivityManager
     @Environment(\.dismiss) private var dismiss
 
+    @ObservedObject private var orientationState = OrientationState.shared
+    @State private var showingTAK = false
+    @State private var showingGuide = false
+    @State private var showingMapTools = false
+    @State private var showingReference = false
+    @State private var showingBackup = false
     @State private var manualOn = false
     @State private var asGridMagnetic = true
     @State private var east = true
     @State private var draft = ""
+    @State private var paceDraft = ""
+    @FocusState private var editingPace: Bool
 
     private var palette: FieldPalette { FieldPalette(night: settings.nightMode) }
 
@@ -21,9 +30,31 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     section("Display")
                     faceBlock
+                    Picker("Orientation", selection: $settings.orientation) {
+                        ForEach(ScreenOrientation.allCases) { Text($0.title).tag($0.rawValue) }
+                    }.pickerStyle(.segmented).accessibilityIdentifier("screen-orientation")
+                    .accessibilityValue(orientationState.actual)
+                    if let error = orientationState.error {
+                        Text(error).font(.footnote).foregroundStyle(palette.warn).accessibilityIdentifier("orientation-error")
+                        Button("Retry orientation") { orientationState.refresh() }.foregroundStyle(palette.accent)
+                    }
                     nightBlock
+                    Toggle("Keep screen on", isOn: $settings.keepScreenOn).tint(palette.accent).foregroundStyle(palette.ink)
+                    paceBlock
 
+                    Button("Haptic navigation settings") { showingGuide = true }
+                        .foregroundStyle(palette.accent)
+                    Button("TAK server") { showingTAK = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-tak")
+                    Button("Backup & restore") { showingBackup = true }.frame(minHeight:44).contentShape(Rectangle()).foregroundStyle(palette.accent).accessibilityIdentifier("settings-backup")
+                    Button("Field reference") { showingReference = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-reference")
+                    Button("Map buttons") { showingMapTools = true }.foregroundStyle(palette.accent).accessibilityIdentifier("settings-map-buttons")
+                    Toggle("Live Activities",isOn:$settings.liveActivitiesEnabled).foregroundStyle(palette.ink).frame(minHeight: 44).tint(palette.accent).accessibilityIdentifier("settings-live-activities")
+                    Text("Optional Lock Screen and Dynamic Island status for recording and navigation. Shows track/target details. Background location still depends on location permissions.").font(.footnote).foregroundStyle(palette.inkDim)
+                    Text(liveActivities.message).font(.footnote).foregroundStyle(palette.inkDim).accessibilityIdentifier("live-activity-status").accessibilityValue("\(liveActivities.activityCount) active")
                     section("Grid & units")
+                    Picker("Grid name", selection: $settings.gridSystem) {
+                        Text("MGRS").tag(0); Text("USNG").tag(1)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("grid-system")
                     digitsBlock
                     latLonBlock
                     unitsBlock
@@ -35,12 +66,20 @@ struct SettingsView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 28)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top,spacing: 0) { if settings.saveError != nil { SettingsSaveNotice(identifier: "settings-save-sheet") } }
             .background(palette.background.ignoresSafeArea())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItemGroup(placement:.keyboard) {
+                    if editingPace {
+                        Spacer()
+                        Button("Done") { editingPace = false }.accessibilityIdentifier("pace-entry-keyboard-done")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { Task { await settings.waitForPersistence(); dismiss() } }
                         .font(Blackout.label(15))
                         .foregroundStyle(palette.accent)
                 }
@@ -48,13 +87,46 @@ struct SettingsView: View {
             .toolbarBackground(palette.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
+        // Keep the scene request attached to the presented settings window too.
+        .background(OrientationHost(value: settings.orientation).allowsHitTesting(false))
         .environment(\.fieldNight, settings.nightMode)
         .preferredColorScheme(.dark)
         .onAppear { loadDraft() }
+        .onChange(of:settings.pacePer100m) { paceDraft = String($0) }
+        .sheet(isPresented: $showingTAK) { TAKSettingsView() }
+        .sheet(isPresented: $showingGuide) { GuideSettingsView() }
+        .sheet(isPresented: $showingReference) { FieldReferenceView() }
+        .sheet(isPresented: $showingBackup) { SettingsBackupView() }
+        .sheet(isPresented: $showingMapTools) { MapToolSettingsView() }
     }
 
     private func section(_ title: String) -> some View {
         SectionLabel(text: title)
+    }
+
+    private var paceBlock: some View {
+        VStack(alignment:.leading,spacing:8) {
+            Text("Pace count per 100 m").font(.headline).foregroundStyle(palette.ink)
+            HStack {
+                TextField("Paces",text:$paceDraft)
+                    .focused($editingPace)
+                    .keyboardType(.numberPad).font(.system(.body,design:.monospaced))
+                    .accessibilityLabel("Pace count per 100 metres").accessibilityIdentifier("pace-count-input")
+                    .onChange(of:paceDraft) { value in
+                        let digits = PaceCountEntry.digits(value)
+                        if digits != value { paceDraft = digits }
+                        if let count = PaceCountEntry.accepted(digits),count != settings.pacePer100m { settings.pacePer100m = count }
+                    }
+                Text("paces").font(.body)
+            }.foregroundStyle(palette.ink).padding(12).frame(minHeight:44)
+                .background(Color(white:settings.nightMode ? 0 : 0.08))
+                .overlay(RoundedRectangle(cornerRadius:8).stroke(palette.hairline))
+            if PaceCountEntry.accepted(paceDraft) == nil {
+                Text("Enter 30–200 paces. Route cards still use \(settings.pacePer100m).")
+                    .font(.footnote).foregroundStyle(palette.warn).fixedSize(horizontal:false,vertical:true)
+                    .accessibilityIdentifier("pace-count-validation")
+            }
+        }
     }
 
     private var faceBlock: some View {
@@ -66,25 +138,13 @@ struct SettingsView: View {
             ) { index in
                 if let face = PositionFace(rawValue: index) { settings.face = face }
             }
-            caption(faceCaption)
-        }
-    }
-
-    private var faceCaption: String {
-        switch settings.face {
-        case .glance:
-            return "Glance: the grid as two big numbers."
-        case .lensatic:
-            return "Lensatic: issued-compass dial, grid on the glass, heading under the index."
-        case .dial:
-            return "Dial: a clean compass card with the grid and a heading mark."
         }
     }
 
     private var nightBlock: some View {
-        block("Night mode") {
+        VStack(alignment: .leading) {
             Toggle(isOn: $settings.nightMode) {
-                Text("Red-on-black, to keep night vision")
+                Text("Night mode")
                     .font(Blackout.label(14, weight: .regular))
                     .foregroundStyle(palette.ink)
             }
@@ -93,7 +153,7 @@ struct SettingsView: View {
     }
 
     private var digitsBlock: some View {
-        block("MGRS precision") {
+        block("\(settings.gridName) precision") {
             BlackoutSegments(
                 options: ["4", "6", "8", "10"],
                 selected: [4, 6, 8, 10].firstIndex(of: settings.mgrsDigits) ?? 2,
@@ -149,7 +209,6 @@ struct SettingsView: View {
             ) { index in
                 if let n = NorthReference(rawValue: index) { settings.northRef = n }
             }
-            caption("Headings and azimuths use this reference. Magnetic needs a declination; a missing one stays a dash, not 0.")
         }
     }
 
@@ -220,7 +279,7 @@ struct SettingsView: View {
             return svc.declination(
                 lat: f.lat, lon: f.lon,
                 heightMeters: f.altitudeMeters ?? 0,
-                heading: location.heading,
+                heading: location.usableHeading,
                 isCurrentPosition: true
             )
         }
@@ -231,6 +290,7 @@ struct SettingsView: View {
     }
 
     private func loadDraft() {
+        paceDraft = String(settings.pacePer100m)
         if let o = settings.declinationOverride {
             manualOn = true
             asGridMagnetic = false
@@ -269,5 +329,17 @@ struct SettingsView: View {
             .font(Blackout.label(12, weight: .regular))
             .foregroundStyle(palette.inkDim)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Android PaceSetting accepts three decimal digits and applies only30...200.
+enum PaceCountEntry {
+    static func digits(_ text: String) -> String {
+        text.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) }.prefix(3)
+            .compactMap { Character(String($0)).wholeNumberValue }.map(String.init).joined()
+    }
+    static func accepted(_ digits: String) -> Int? {
+        guard let value = Int(digits),(30...200).contains(value) else { return nil }
+        return value
     }
 }

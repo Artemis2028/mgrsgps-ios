@@ -1,10 +1,9 @@
 # Model data
 
-`WMM.COF` belongs here and is deliberately **not** committed until it has been
-downloaded from the source rather than typed from anywhere.
+`WMM.COF` is the bundled WMM2025 coefficient file (epoch 2025.0). It was added
+with the NOAA test-value fixture in commit `5993e76`; it is not a pending step.
+`WMMValidationTests` checks the bundled model against those reference values.
 
-    curl -O https://www.ncei.noaa.gov/products/world-magnetic-model  # see docs/wmm-plan.md
-
-Until it is present, `WMM.bundled` is nil and the app falls back to the
-declination iOS derives from `CLHeading`. That fallback only works for here and
-now with the compass running, which is why the file matters.
+See `docs/wmm-plan.md` for the original design rationale and validity-window
+requirements. Refresh the coefficients and validation fixture together when
+adopting a new model epoch.

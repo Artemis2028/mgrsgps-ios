@@ -1,4 +1,7 @@
-# Parity with Android (target 0.9.32)
+# Historical parity with Android 0.9.32
+
+For current work against Android 1.0.4, see [the current parity roadmap](ios-parity-1.0.4.md).
+This file records the original port baseline.
 
 Target tip: `Artemis2028/gridfix` tag **v0.9.32-b68** (`40d5900`).
 This file is the checklist of what this iOS tree matches, and what is still
@@ -21,7 +24,7 @@ The still-missing list below is otherwise unchanged.
 | Folders | Canonical / reserved / case-insensitive match frozen since 0.9.9. |
 | Manual declination | Port of `ManualDeclination.kt`. |
 | Sun / moon | Port of `SunMoon.kt` + ordering tests. |
-| WMM | Degree-12 model; coefficients not committed (see `wmm-plan.md`). |
+| WMM | Degree-12 model; WMM2025 coefficients and NOAA validation values bundled; validation tests pass. |
 | Waypoints + folders store | Local JSON persistence; additive id-keyed merge. |
 | Backup v1 | Zip + `gridfix-backup.json` read/write; version >1 refused; null declination preserved. Graphics/tracks/course encoded; restore slice applies waypoints/folders. |
 | GPX baseline | Waypoint import/export with MilGPS `symbolcode` / `color`, elevation, time. |

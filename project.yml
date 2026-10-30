@@ -23,7 +23,19 @@ targets:
     platform: iOS
     sources:
       - path: App/Sources
+      - path: Shared
+      - path: App/Resources/MapAssets
+        buildPhase: resources
+      - path: App/Resources/Assets.xcassets
+        buildPhase: resources
+      - path: App/Resources/MilitarySymbols
+        type: folder
+        buildPhase: resources
     dependencies:
+      - target: FieldActivityWidget
+        embed: true
+      - target: GridFixWatch
+        embed: true
       - package: GridFixCore
         product: GridFixCore
       - package: MapLibre
@@ -31,29 +43,224 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
-        # Portrait plus both landscapes: the app is used on a chest rig and on
-        # a wrist, and Android already ships worn-landscape layouts.
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: >-
-          UIInterfaceOrientationPortrait
-          UIInterfaceOrientationLandscapeLeft
-          UIInterfaceOrientationLandscapeRight
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
+    entitlements:
+      path: App/Resources/MGRSGPS.entitlements
+      properties:
+        com.apple.developer.usernotifications.time-sensitive: true
     info:
       path: App/Resources/Info.generated.plist
       properties:
         CFBundleDisplayName: MGRS GPS
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: app.gridfix.sessions
+            CFBundleURLSchemes:
+              - gridfix
+        GridFixEsriKey: $(GRIDFIX_ESRI_API_KEY)
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: app.gridfix.protected-backup
+            UTTypeDescription: Protected MGRS GPS file
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mgrsgps
+          - UTTypeIdentifier: app.gridfix.gpx
+            UTTypeDescription: GPS Exchange Format
+            UTTypeConformsTo:
+              - public.xml
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - gpx
+              public.mime-type: application/gpx+xml
+          - UTTypeIdentifier: app.gridfix.geojson
+            UTTypeDescription: GeoJSON geographic data
+            UTTypeConformsTo:
+              - public.json
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - geojson
+              public.mime-type: application/geo+json
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.google.earth.kml
+            UTTypeDescription: Keyhole Markup Language
+            UTTypeConformsTo:
+              - public.xml
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kml
+              public.mime-type: application/vnd.google-earth.kml+xml
+          - UTTypeIdentifier: com.google.earth.kmz
+            UTTypeDescription: Compressed KML
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - kmz
+              public.mime-type: application/vnd.google-earth.kmz
+          - UTTypeIdentifier: app.gridfix.dpk
+            UTTypeDescription: ATAK mission package
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - dpk
+              public.mime-type: application/zip
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Geographic files
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - app.gridfix.protected-backup
+              - app.gridfix.gpx
+              - app.gridfix.geojson
+              - public.comma-separated-values-text
+              - com.google.earth.kml
+              - com.google.earth.kmz
+              - app.gridfix.dpk
+              - public.zip-archive
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UIUserInterfaceStyle: Dark
         NSLocationWhenInUseUsageDescription: >-
-          MGRS GPS reads your position to show your grid. Nothing leaves the
-          phone — there are no accounts, no analytics and no network calls for
-          your location.
+          MGRS GPS uses precise location to show your grid, record tracks and
+          alert when you cross a drawn boundary. After you start recording or
+          monitoring, location continues while locked. Location stays on your device
+          unless you enable TAK position sharing.
         NSLocationAlwaysAndWhenInUseUsageDescription: >-
           Background access lets MGRS GPS keep recording a track while the
-          screen is off. Nothing leaves the phone.
+          screen is off. If you enable TAK position sharing, your position is sent
+          to your selected TAK server.
         UIBackgroundModes:
           - location
+
+  FieldActivityWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.2"
+    sources:
+      - path: ActivityWidget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.activities
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+    info:
+      path: ActivityWidget/Info.generated.plist
+      properties:
+        CFBundleDisplayName: MGRS GPS Live Activities
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  GridFixWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: Watch/Sources
+      - path: App/Sources/MilitarySymbolArtwork.swift
+      - path: App/Sources/Map/TacticalGraphicCanvas.swift
+      - path: App/Sources/Map/WatchGraphicProjection.swift
+      - path: Watch/Resources
+        buildPhase: resources
+      - path: App/Resources/MilitarySymbols
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: GridFixCore
+        product: GridFixCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        SDKROOT: watchos
+        TARGETED_DEVICE_FAMILY: "4"
+    info:
+      path: Watch/Info.generated.plist
+      properties:
+        CFBundleDisplayName: MGRS GPS
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: app.gridfix.ios
+        WKRunsIndependentlyOfCompanionApp: true
+        NSLocationWhenInUseUsageDescription: MGRS GPS uses your location for your grid, waypoint bearing and wrist alerts. Alerts can keep running with the screen off when you enable that option.
+        UIBackgroundModes:
+          - location
+        UIAppFonts:
+          - antonio.ttf
+          - fira_mono_regular.ttf
+          - saira_semi_condensed_semibold.ttf
+
+  MGRSGPSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/Tests
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/zip64-full-backup.zip
+        buildPhase: resources
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-backup-contract.zip
+        buildPhase: resources
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-mission-package.zip
+        buildPhase: resources
+      - path: GridFixCore/Tests/GridFixCoreTests/Resources/android-nested-budget.zip
+        buildPhase: resources
+    dependencies:
+      - target: MGRSGPS
+      - package: GridFixCore
+        product: GridFixCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+
+  MGRSGPSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: App/UITests
+    dependencies:
+      - target: MGRSGPS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.gridfix.ios.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.9"
+
+schemes:
+  MGRSGPS:
+    build:
+      targets:
+        MGRSGPS: all
+    test:
+      targets:
+        - MGRSGPSTests
+        - MGRSGPSUITests
+  GridFixWatch:
+    build:
+      targets:
+        GridFixWatch: all

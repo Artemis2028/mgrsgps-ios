@@ -89,3 +89,43 @@ final class BackupTests: XCTestCase {
         XCTAssertNil(MilGpsSymbols.decode(50)) // cross with non-zero suffix
     }
 }
+
+final class QuietBoundaryBackupTests: XCTestCase {
+    private var area: BoundaryArea { .init(id: "quiet-1",name: "Quiet CAFÉ",vertices: [.init(lat: 24,lon: 54),.init(lat: 24,lon: 54.001),.init(lat: 24.001,lon: 54.001),.init(lat: 24.001,lon: 54)]) }
+    func testVersionOneRoundTripKeepsGeometrySeparateAndLegacyDefaultsEmpty() throws {
+        let value = Backup.Document(exportedAt: 1,waypoints: [.init(id: "quiet-fixture-wp",name: "QUIET CAFÉ FIXTURE",lat: 24.0005,lon: 54.0005)],quietBoundaries: [area])
+        let decoded = try Backup.importZip(Backup.exportZip(value))
+        XCTAssertEqual(decoded.quietBoundaries,[area]); XCTAssertTrue(decoded.navLanes.isEmpty)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Backup.encodeManifest(value)) as? [String:Any])
+        XCTAssertEqual(root["version"] as? Int,1)
+        let record = try XCTUnwrap((root["quietBoundaries"] as? [[String:Any]])?.first)
+        XCTAssertEqual(Set(record.keys),["id","name","vertices"])
+        XCTAssertTrue(try Backup.decodeManifest(Data(#"{"app":"GridFix","version":1}"#.utf8)).quietBoundaries.isEmpty)
+        let plain = try Backup.exportZip(value), password = "synthetic-fixture-only"
+        let protected = try BackupCrypto.seal(plain,password: password)
+        XCTAssertEqual(try Backup.importZip(BackupCrypto.open(protected,password: password)),decoded)
+        if let path = ProcessInfo.processInfo.environment["GRIDFIX_QUIET_FIXTURE_DIRECTORY"] {
+            let directory = URL(fileURLWithPath: path,isDirectory: true)
+            try FileManager.default.createDirectory(at: directory,withIntermediateDirectories: true)
+            try plain.write(to: directory.appendingPathComponent("quiet-boundary-v1.zip"))
+            try protected.write(to: directory.appendingPathComponent("quiet-boundary-v1.mgrsgps"))
+            try Data(password.utf8).write(to: directory.appendingPathComponent("synthetic-fixture-password.txt"))
+        }
+    }
+    func testMalformedOptionalSectionRejectsWholeBackup() throws {
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: Backup.encodeManifest(.init(quietBoundaries: [area]))) as? [String:Any])
+        let record = try XCTUnwrap((original["quietBoundaries"] as? [[String:Any]])?.first)
+        for section: Any in [NSNull(),"bad",[1],[record,record],Array(repeating: record,count: 101)] {
+            var root = original; root["quietBoundaries"] = section
+            XCTAssertThrowsError(try Backup.decodeManifest(JSONSerialization.data(withJSONObject: root)))
+        }
+        var bad = area; bad.vertices = [area.vertices[0],area.vertices[2],area.vertices[1],area.vertices[3]]
+        XCTAssertThrowsError(try Backup.exportZip(.init(quietBoundaries: [area,bad])))
+        bad = area; bad.name = " "
+        XCTAssertThrowsError(try Backup.validate(.init(quietBoundaries: [bad])))
+        bad = BoundaryArea(id: " ",name: area.name,vertices: area.vertices)
+        XCTAssertThrowsError(try Backup.validate(.init(quietBoundaries: [bad])))
+        bad = area; bad.vertices = Array(repeating: area.vertices[0],count: 257)
+        XCTAssertThrowsError(try Backup.validate(.init(quietBoundaries: [bad])))
+    }
+}

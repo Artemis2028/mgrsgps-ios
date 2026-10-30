@@ -13,12 +13,25 @@ public enum Backup {
         public var nightMode: Bool = false
         public var keepScreenOn: Bool = true
         public var mgrsDigits: Int = 10
+        public var gridSystem: Int = 0
         public var latLonFormat: Int = 1
         public var units: Int = 0
         public var angleUnit: Int = 0
         public var northRef: Int = 0
         public var pacePer100m: Int = 65
         public var face: Int = 1
+        public var guideAllowance = 10
+        public var guideHoldOffSec = 5
+        public var guideHeartbeatSec = 30
+        public var guideMode = 0
+        public var guideCorridorM = 0
+        public var laneWarningM = 0
+        public var laneSideCues = true
+        public var laneBackstopCue = true
+        public var laneInsideTick = true
+        public var laneReminderMin = 5
+        public var laneGpsAlert = true
+        public var hiddenMapTools: Set<String> = []
         public var orientation: Int = 0
         public var disclaimerAccepted: Bool = false
         /// Nil means unset — never conflate with 0.0° (a real meridian value).
@@ -33,7 +46,7 @@ public enum Backup {
         public init(lat: Double, lon: Double) { self.lat = lat; self.lon = lon }
     }
 
-    public struct Graphic: Equatable, Sendable {
+    public struct Graphic: Equatable, Sendable, Identifiable {
         public var id: String
         public var name: String
         public var type: String
@@ -59,7 +72,7 @@ public enum Backup {
         }
     }
 
-    public struct TrackMeta: Equatable, Sendable {
+    public struct TrackMeta: Equatable, Sendable, Identifiable {
         public var id: String
         public var name: String
         public var startedAt: Int64
@@ -97,11 +110,29 @@ public enum Backup {
         public var waypoints: [Waypoint]
         public var folders: [FolderInfo]
         public var graphics: [Graphic]
-        public var settings: AppSettings
+        public var settings: AppSettings {
+            didSet {
+                // Programmatic edits to a parsed sparse plan make only those
+                // changed settings explicit; do not discard its absence policy.
+                if settingsKeys != nil {settingsKeys?.formUnion(Backup.changedSettingsKeys(oldValue,settings))}
+            }
+        }
         public var tracks: [TrackMeta]
         public var courseHistory: [CourseResult]
-        /// Track id → raw points file bytes (lat lon time alt lines).
+        public var navLanes: [NavLane]
+        /// iOS quiet-inside perimeters; geometry only, never monitoring state.
+        public var quietBoundaries: [BoundaryArea]
+        /// Track id → owned points file bytes (lat lon time alt lines).
+        /// Deferred local tracks use localTrackFiles instead; consumers call
+        /// trackData so a missing source cannot become a fabricated empty log.
         public var trackFiles: [String: Data]
+        /// Local-only immutable references. Workers materialize requested logs;
+        /// manifests, ZIPs and watch/TAK payloads never encode these paths.
+        public var localTrackFiles: [String: SavedTrackSource] = [:]
+        public var hasSettings: Bool = true
+        /// Nil means a complete/programmatic settings value. Parsed older files
+        /// retain their actual keys so restore can preserve newer local settings.
+        public var settingsKeys: Set<String>? = nil
 
         public init(exportedAt: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
                     waypoints: [Waypoint] = [],
@@ -110,6 +141,8 @@ public enum Backup {
                     settings: AppSettings = AppSettings(),
                     tracks: [TrackMeta] = [],
                     courseHistory: [CourseResult] = [],
+                    navLanes: [NavLane] = [],
+                    quietBoundaries: [BoundaryArea] = [],
                     trackFiles: [String: Data] = [:]) {
             self.exportedAt = exportedAt
             self.waypoints = waypoints
@@ -118,6 +151,8 @@ public enum Backup {
             self.settings = settings
             self.tracks = tracks
             self.courseHistory = courseHistory
+            self.navLanes = navLanes
+            self.quietBoundaries = quietBoundaries
             self.trackFiles = trackFiles
         }
     }
@@ -139,12 +174,57 @@ public enum Backup {
     // MARK: - Export
 
     public static func exportZip(_ doc: Document) throws -> Data {
+        try validate(doc,includingTrackFiles:false)
+        let doc = try doc.materializedForBackup()
+        try validate(doc)
         let manifest = try encodeManifest(doc)
         var entries = [ZipArchive.Entry(name: manifestName, data: manifest)]
         for (id, data) in doc.trackFiles {
             entries.append(ZipArchive.Entry(name: "tracks/\(id).txt", data: data))
         }
+        guard entries.count <= 512, manifest.count <= ZipArchive.manifestLimit,
+              entries.allSatisfy({ $0.data.count <= ZipArchive.entryLimit }),
+              entries.reduce(0, { $0 + $1.data.count }) <= ZipArchive.totalLimit else {
+            throw BackupError.notABackup("Backup exceeds supported size limits")
+        }
         return ZipArchive.write(entries: entries)
+    }
+
+    /// File-oriented output with the existing external backup budgets. Retains
+    /// bounded manifest metadata and at most one 16 MiB track, never all track
+    /// bytes or a decoded point array/archive. Sources are validated twice.
+    public static func writeZip(_ doc: Document,sink: (Data) throws -> Void) throws {
+        try validate(doc,includingTrackFiles:false)
+        let ids = Set(doc.tracks.map(\.id))
+        guard doc.tracks.count+1 <= 512,Set(doc.trackFiles.keys).union(doc.localTrackFiles.keys).isSubset(of:ids) else {
+            throw BackupError.notABackup("Backup exceeds member limits or a track file is missing from manifest")
+        }
+        let manifest = try encodeManifest(doc)
+        guard manifest.count <= ZipArchive.manifestLimit else { throw BackupError.notABackup("Backup exceeds supported manifest size") }
+        var entries = [ZipArchive.StoredEntry(name:manifestName,produce: { emit in
+            for start in stride(from:0,to:manifest.count,by:64*1024) {
+                try Task.checkCancellation(); try emit(manifest.subdata(in:start..<min(start+64*1024,manifest.count)))
+            }
+        })]
+        var measured = Set<String>(),totalPoints = 0,totalBytes = manifest.count
+        for track in doc.tracks {
+            entries.append(.init(name:"tracks/\(track.id).txt",produce: { emit in
+                let data = try doc.trackData(track.id,maximumBytes:ZipArchive.entryLimit)
+                var count = 0
+                try TrackCodec.visitLocal(data) { _ in
+                    count += 1
+                    guard count <= 250_000 else { throw BackupError.notABackup("Too many backup track points") }
+                }
+                if measured.insert(track.id).inserted {
+                    totalPoints += count; totalBytes += data.count
+                    guard totalPoints <= 250_000,totalBytes <= ZipArchive.totalLimit else { throw BackupError.notABackup("Backup exceeds supported point or size limits") }
+                }
+                for start in stride(from:0,to:data.count,by:64*1024) {
+                    try Task.checkCancellation(); try emit(data.subdata(in:start..<min(start+64*1024,data.count)))
+                }
+            }))
+        }
+        try ZipArchive.writeStored(entries:entries,sink:sink)
     }
 
     public static func encodeManifest(_ doc: Document) throws -> Data {
@@ -161,9 +241,11 @@ public enum Backup {
                 "symbol": w.symbol, "affiliation": w.affiliation,
                 "echelon": w.echelon, "designation": w.designation,
                 "kind": w.kind, "rotation": w.rotation,
-                "visible": w.visible,
+                "visible": w.visible, "favorite": w.favorite,
             ]
             d["metadata"] = metadataJSON(w.metadata)
+            d["sourceRouteId"] = w.sourceRouteId
+            d["sourceRoutePointIndex"] = w.sourceRoutePointIndex
             return d
         }
         root["folders"] = doc.folders.map { ["name": $0.name, "visible": $0.visible] as [String: Any] }
@@ -176,25 +258,8 @@ public enum Backup {
                 "visible": g.visible,
             ]
         }
-        var settings: [String: Any] = [
-            "nightMode": doc.settings.nightMode,
-            "keepScreenOn": doc.settings.keepScreenOn,
-            "mgrsDigits": doc.settings.mgrsDigits,
-            "latLonFormat": doc.settings.latLonFormat,
-            "units": doc.settings.units,
-            "angleUnit": doc.settings.angleUnit,
-            "northRef": doc.settings.northRef,
-            "pacePer100m": doc.settings.pacePer100m,
-            "face": doc.settings.face,
-            "orientation": doc.settings.orientation,
-            "disclaimerAccepted": doc.settings.disclaimerAccepted,
-        ]
-        if let d = doc.settings.declinationOverride {
-            settings["declinationOverride"] = d
-        } else {
-            settings["declinationOverride"] = NSNull()
-        }
-        root["settings"] = settings
+        let settings=settingsJSON(doc.settings).filter {doc.settingsKeys?.contains($0.key) ?? true}
+        if doc.hasSettings { root["settings"] = settings }
         root["tracks"] = doc.tracks.map { t -> [String: Any] in
             [
                 "id": t.id, "name": t.name,
@@ -210,6 +275,10 @@ public enum Backup {
                 "splits": r.splits,
             ]
         }
+        root["navLanes"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(doc.navLanes))
+        if !doc.quietBoundaries.isEmpty {
+            root["quietBoundaries"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(doc.quietBoundaries))
+        }
 
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
@@ -217,17 +286,30 @@ public enum Backup {
     // MARK: - Import
 
     public static func importZip(_ data: Data) throws -> Document {
-        let entries = try ZipArchive.read(data)
-        guard let manifest = entries.first(where: { $0.name == manifestName })?.data else {
+        var manifest: Data?, trackFiles: [String: Data] = [:]
+        try ZipArchive.visit(data,beforeEntry: { name,_ in
+            if !name.hasSuffix("/"), name.hasPrefix("tracks/") {
+                guard name.hasSuffix(".txt") else { throw BackupError.notABackup("Invalid track filename") }
+                let id = String(name.dropFirst(7).dropLast(4))
+                guard TrackCodec.validID(id) else { throw BackupError.notABackup("Invalid track ID") }
+            }
+        }) { name,bytes in
+            if name == manifestName { manifest = bytes }
+            else if !name.hasSuffix("/"), name.hasPrefix("tracks/") {
+                trackFiles[String(name.dropFirst(7).dropLast(4))] = bytes
+            }
+        }
+        guard let manifest else {
             throw BackupError.notABackup("not an MGRS GPS backup")
         }
         var doc = try decodeManifest(manifest)
-        for e in entries where e.name.hasPrefix("tracks/") && e.name.hasSuffix(".txt") {
-            let id = String(e.name.dropFirst("tracks/".count).dropLast(".txt".count))
-            if !id.isEmpty { doc.trackFiles[id] = e.data }
+        doc.trackFiles = trackFiles
+        try validate(doc)
+        for index in doc.tracks.indices {
+            let points = try TrackCodec.decode(doc.trackFiles[doc.tracks[index].id] ?? Data())
+            doc.tracks[index].pointCount = points.count
+            doc.tracks[index].distanceM = TrackCodec.distance(points)
         }
-        // A track whose points entry is absent is skipped entirely.
-        doc.tracks = doc.tracks.filter { doc.trackFiles[$0.id] != nil || $0.pointCount == 0 }
         return doc
     }
 
@@ -235,23 +317,45 @@ public enum Backup {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw BackupError.notABackup("not an MGRS GPS backup")
         }
-        if let v = root["version"] as? Int, v > VERSION {
-            throw BackupError.unsupportedVersion(v)
+        guard let version = root["version"] as? Int, version == VERSION else {
+            throw BackupError.unsupportedVersion(root["version"] as? Int ?? 0)
         }
+        guard ["GridFix", "MGRS GPS"].contains(root["app"] as? String ?? "") else {
+            throw BackupError.notABackup("Not an MGRS GPS backup")
+        }
+        for key in ["waypoints", "folders", "graphics", "tracks", "courseHistory", "navLanes", "quietBoundaries"] {
+            guard root[key] == nil || root[key] is [[String: Any]], (root[key] as? [Any])?.count ?? 0 <= 10_000 else {
+                throw BackupError.notABackup("Invalid or oversized \(key) section")
+            }
+        }
+        guard root["settings"] == nil || root["settings"] is [String: Any] else { throw BackupError.notABackup("Invalid settings section") }
         let exportedAt = int64(root["exportedAt"]) ?? 0
         let waypoints = try (root["waypoints"] as? [[String: Any]] ?? []).map(decodeWaypoint)
-        let folders = (root["folders"] as? [[String: Any]] ?? []).compactMap { f -> FolderInfo? in
-            guard let name = f["name"] as? String else { return nil }
+        let folders = try (root["folders"] as? [[String: Any]] ?? []).map { f -> FolderInfo in
+            guard let name = f["name"] as? String else { throw BackupError.missingField("folder.name") }
             return FolderInfo(name: Folders.canonical(name),
                               visible: f["visible"] as? Bool ?? true)
         }
         let graphics = try (root["graphics"] as? [[String: Any]] ?? []).map(decodeGraphic)
-        let settings = decodeSettings(root["settings"] as? [String: Any] ?? [:])
-        let tracks = (root["tracks"] as? [[String: Any]] ?? []).compactMap(decodeTrack)
-        let course = (root["courseHistory"] as? [[String: Any]] ?? []).compactMap(decodeCourse)
-        return Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
-                        graphics: graphics, settings: settings, tracks: tracks,
-                        courseHistory: course)
+        let settings = try decodeSettings(root["settings"] as? [String: Any] ?? [:])
+        let tracks = try (root["tracks"] as? [[String: Any]] ?? []).map { record -> TrackMeta in
+            guard let track = decodeTrack(record) else { throw BackupError.missingField("track.id/name") }
+            return track
+        }
+        let course = try (root["courseHistory"] as? [[String: Any]] ?? []).map { record -> CourseResult in
+            try decodeCourse(record)
+        }
+        let laneBytes = try JSONSerialization.data(withJSONObject: root["navLanes"] ?? [])
+        let navLanes = try JSONDecoder().decode([NavLane].self,from: laneBytes)
+        let boundaryBytes = try JSONSerialization.data(withJSONObject: root["quietBoundaries"] ?? [])
+        let quietBoundaries = try JSONDecoder().decode([BoundaryArea].self,from: boundaryBytes)
+        var document = Document(exportedAt: exportedAt, waypoints: waypoints, folders: folders,
+                                graphics: graphics, settings: settings, tracks: tracks, courseHistory: course,navLanes: navLanes,quietBoundaries: quietBoundaries)
+        document.hasSettings = root["settings"] is [String:Any]
+        let keys=Set((root["settings"] as? [String:Any] ?? [:]).keys)
+        document.settingsKeys=Set(settingsJSON(AppSettings()).keys).isSubset(of:keys) ? nil : keys
+        try validate(document, includingTrackFiles: false)
+        return document
     }
 
     /// Merge a document into a waypoint store (waypoints + folders only in this slice).
@@ -261,6 +365,71 @@ public enum Backup {
                              settingsApplied: false)
     }
 
+    public static func validate(_ doc: Document, includingTrackFiles: Bool = true) throws {
+        func require(_ condition: Bool, _ message: String) throws {
+            guard condition else { throw BackupError.notABackup(message) }
+        }
+        func ids(_ values: [String]) -> Bool {
+            values.count <= 10_000 && Set(values).count == values.count
+                && values.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.count <= 256 }
+        }
+        try require(ids(doc.waypoints.map(\.id)) && ids(doc.graphics.map(\.id)) && ids(doc.tracks.map(\.id)), "Duplicate or invalid record IDs")
+        try require(ids(doc.navLanes.map(\.id)),"Duplicate or invalid navigation lane IDs")
+        // Like Android laneFromJson: validate the complete optional section,
+        // including programmatic documents, without requiring linked records to
+        // exist. An orphan is retained and can fall back to azimuth guidance.
+        _ = try JSONDecoder().decode([NavLane].self,from: JSONEncoder().encode(doc.navLanes))
+        try validateQuietBoundaries(doc.quietBoundaries)
+        try require(doc.folders.count <= 10_000, "Too many folders")
+        for point in doc.waypoints {
+            try require(TrackCodec.validCoordinates(point.lat, point.lon) && point.rotation.isFinite
+                        && (point.sourceRoutePointIndex.map { $0 >= 0 } ?? true), "Invalid waypoint coordinates or route ownership")
+        }
+        try require(doc.graphics.reduce(0) { $0 + $1.points.count } <= 250_000, "Too many graphic vertices")
+        for graphic in doc.graphics {
+            try require(graphic.points.count >= GraphicTypes.minPoints(graphic.type)
+                        && graphic.points.allSatisfy { TrackCodec.validCoordinates($0.lat, $0.lon) }, "Invalid graphic vertices")
+        }
+        let s = doc.settings
+        if doc.hasSettings {
+            try require((0...1).contains(s.gridSystem) && [4,6,8,10].contains(s.mgrsDigits) && (0...2).contains(s.latLonFormat)
+                        && (0...2).contains(s.units) && (0...1).contains(s.angleUnit) && (0...2).contains(s.northRef)
+                        && (1...1000).contains(s.pacePer100m) && (0...2).contains(s.face) && (0...3).contains(s.orientation)
+                        && (1...90).contains(s.guideAllowance) && (0...60).contains(s.guideHoldOffSec)
+                        && (0...600).contains(s.guideHeartbeatSec) && (0...1).contains(s.guideMode) && (0...2000).contains(s.guideCorridorM)
+                        && (0...200).contains(s.laneWarningM) && (0...120).contains(s.laneReminderMin)
+                        && (s.declinationOverride.map { $0.isFinite && (-180...180).contains($0) } ?? true), "Invalid settings in backup")
+        }
+        try require(doc.courseHistory.count <= 10_000 && doc.courseHistory.allSatisfy {
+            $0.points >= 0 && $0.started >= 0 && $0.total >= 0 && $0.splits.count <= 10_000 && $0.splits.allSatisfy { $0 >= 0 }
+        }, "Invalid course history")
+        var totalPoints = 0
+        for track in doc.tracks {
+            try require(TrackCodec.validID(track.id) && track.pointCount >= 0 && track.distanceM.isFinite && track.distanceM >= 0, "Invalid track metadata")
+            if includingTrackFiles {
+                let points = try TrackCodec.decode(doc.trackData(track.id,maximumBytes:ZipArchive.entryLimit))
+                totalPoints += points.count
+                try require(totalPoints <= 250_000, "Too many backup track points")
+            }
+        }
+        if includingTrackFiles {
+            try require(Set(doc.trackFiles.keys).union(doc.localTrackFiles.keys).isSubset(of: Set(doc.tracks.map(\.id))), "Track file is missing from manifest")
+        }
+    }
+
+    /// Shared limits for backup geometry and the local quiet-boundary library.
+    public static func validateQuietBoundaries(_ areas: [BoundaryArea]) throws {
+        guard areas.count <= 100, Set(areas.map(\.id)).count == areas.count,
+              areas.allSatisfy({ !$0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.id.count <= 256
+                  && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.name.count <= 100 }) else {
+            throw BackupError.notABackup("Invalid or oversized quiet-boundary library")
+        }
+        for area in areas { try Task.checkCancellation(); _ = try BoundaryGeometry(vertices: area.vertices) }
+        guard try JSONEncoder().encode(areas).count <= 2 * 1024 * 1024 else {
+            throw BackupError.notABackup("Quiet-boundary library exceeds 2 MiB")
+        }
+    }
+
     // MARK: - Decoders
 
     private static func decodeWaypoint(_ o: [String: Any]) throws -> Waypoint {
@@ -268,6 +437,9 @@ public enum Backup {
         guard let name = o["name"] as? String else { throw BackupError.missingField("waypoint.name") }
         guard let lat = double(o["lat"]) else { throw BackupError.missingField("waypoint.lat") }
         guard let lon = double(o["lon"]) else { throw BackupError.missingField("waypoint.lon") }
+        if let rawIndex = o["sourceRoutePointIndex"], !(rawIndex is NSNull), int(rawIndex) == nil {
+            throw BackupError.notABackup("Invalid route point index")
+        }
         let metaObj = o["metadata"] as? [String: Any]
         return Waypoint(
             id: id, name: name, lat: lat, lon: lon,
@@ -280,7 +452,10 @@ public enum Backup {
             kind: o["kind"] as? String ?? KIND_WP,
             rotation: double(o["rotation"]) ?? 0,
             visible: o["visible"] as? Bool ?? true,
-            metadata: decodeMetadata(metaObj)
+            metadata: decodeMetadata(metaObj),
+            sourceRouteId: o["sourceRouteId"] as? String,
+            sourceRoutePointIndex: int(o["sourceRoutePointIndex"]),
+            favorite: o["favorite"] as? Bool ?? false
         )
     }
 
@@ -318,23 +493,80 @@ public enum Backup {
         )
     }
 
-    private static func decodeCourse(_ o: [String: Any]) -> CourseResult? {
-        guard let name = o["name"] as? String else { return nil }
-        let splits = (o["splits"] as? [Any] ?? []).compactMap { int64($0) }
+    private static func decodeCourse(_ o: [String: Any]) throws -> CourseResult {
+        guard let name = o["name"] as? String, let points = int(o["points"]),
+              let started = int64(o["started"]), let total = int64(o["total"]),
+              let rawSplits = o["splits"] as? [Any] else { throw BackupError.missingField("course result") }
+        let splits = try rawSplits.map { value -> Int64 in
+            guard let split = int64(value) else { throw BackupError.notABackup("Invalid course split") }
+            return split
+        }
         return CourseResult(
             name: name,
-            points: int(o["points"]) ?? 0,
-            started: int64(o["started"]) ?? 0,
-            total: int64(o["total"]) ?? 0,
+            points: points,
+            started: started,
+            total: total,
             splits: splits
         )
     }
 
-    private static func decodeSettings(_ o: [String: Any]) -> AppSettings {
+    private static func settingsJSON(_ s:AppSettings)->[String:Any] {
+        var settings: [String: Any] = [
+            "nightMode": s.nightMode,
+            "keepScreenOn": s.keepScreenOn,
+            "mgrsDigits": s.mgrsDigits,
+            "gridSystem": s.gridSystem,
+            "latLonFormat": s.latLonFormat,
+            "units": s.units,
+            "angleUnit": s.angleUnit,
+            "northRef": s.northRef,
+            "pacePer100m": s.pacePer100m,
+            "face": s.face,
+            "orientation": s.orientation,
+            "guideAllowance": s.guideAllowance,
+            "guideHoldOffSec": s.guideHoldOffSec,
+            "guideHeartbeatSec": s.guideHeartbeatSec,
+            "guideMode": s.guideMode,
+            "guideCorridorM": s.guideCorridorM,
+            "laneWarningM": s.laneWarningM,
+            "laneSideCues": s.laneSideCues,
+            "laneBackstopCue": s.laneBackstopCue,
+            "laneInsideTick": s.laneInsideTick,
+            "laneReminderMin": s.laneReminderMin,
+            "laneGpsAlert": s.laneGpsAlert,
+            "hiddenMapTools": MapTools.encode(s.hiddenMapTools),
+            "disclaimerAccepted": s.disclaimerAccepted,
+        ]
+        if let d = s.declinationOverride {
+            settings["declinationOverride"] = d
+        } else {
+            settings["declinationOverride"] = NSNull()
+        }
+        return settings
+    }
+
+    private static func changedSettingsKeys(_ before:AppSettings,_ after:AppSettings)->Set<String> {
+        let old=settingsJSON(before)
+        return Set(settingsJSON(after).compactMap {key,value in
+            (old[key] as? NSObject)?.isEqual(value) == true ? nil : key
+        })
+    }
+
+    public static func mergingSettings(_ incoming:AppSettings,presentKeys:Set<String>?,current:AppSettings) throws -> AppSettings {
+        guard let keys=presentKeys else {return incoming}
+        var merged=settingsJSON(current)
+        for (key,value) in settingsJSON(incoming) where keys.contains(key) {merged[key]=value}
+        let result=try decodeSettings(merged)
+        try validate(Document(settings:result))
+        return result
+    }
+
+    private static func decodeSettings(_ o: [String: Any]) throws -> AppSettings {
         var s = AppSettings()
         s.nightMode = o["nightMode"] as? Bool ?? false
         s.keepScreenOn = o["keepScreenOn"] as? Bool ?? true
         s.mgrsDigits = int(o["mgrsDigits"]) ?? 10
+        s.gridSystem = int(o["gridSystem"]) ?? 0
         s.latLonFormat = int(o["latLonFormat"]) ?? 1
         s.units = int(o["units"]) ?? 0
         s.angleUnit = int(o["angleUnit"]) ?? 0
@@ -342,11 +574,24 @@ public enum Backup {
         s.pacePer100m = int(o["pacePer100m"]) ?? 65
         s.face = int(o["face"]) ?? 1
         s.orientation = int(o["orientation"]) ?? 0
+        s.guideAllowance = int(o["guideAllowance"]) ?? 10
+        s.guideHoldOffSec = int(o["guideHoldOffSec"]) ?? 5
+        s.guideHeartbeatSec = int(o["guideHeartbeatSec"]) ?? 30
+        s.guideMode = int(o["guideMode"]) ?? 0
+        s.guideCorridorM = int(o["guideCorridorM"]) ?? 0
+        s.laneWarningM = int(o["laneWarningM"]) ?? 0
+        s.laneSideCues = o["laneSideCues"] as? Bool ?? true
+        s.laneBackstopCue = o["laneBackstopCue"] as? Bool ?? true
+        s.laneInsideTick = o["laneInsideTick"] as? Bool ?? true
+        s.laneReminderMin = int(o["laneReminderMin"]) ?? 5
+        s.laneGpsAlert = o["laneGpsAlert"] as? Bool ?? true
+        s.hiddenMapTools = MapTools.decode(o["hiddenMapTools"] as? String)
         s.disclaimerAccepted = o["disclaimerAccepted"] as? Bool ?? false
         if o["declinationOverride"] is NSNull || o["declinationOverride"] == nil {
             s.declinationOverride = nil
         } else {
-            s.declinationOverride = double(o["declinationOverride"])
+            guard let degrees = double(o["declinationOverride"]) else { throw BackupError.notABackup("Invalid declination override") }
+            s.declinationOverride = degrees
         }
         return s
     }
@@ -387,7 +632,7 @@ public enum Backup {
         switch v {
         case let i as Int: return i
         case let i as Int64: return Int(i)
-        case let d as Double: return Int(d)
+        case let d as Double: return d.isFinite ? Int(exactly: d) : nil
         case let n as NSNumber: return n.intValue
         case let s as String: return Int(s)
         default: return nil
@@ -397,7 +642,7 @@ public enum Backup {
         switch v {
         case let i as Int64: return i
         case let i as Int: return Int64(i)
-        case let d as Double: return Int64(d)
+        case let d as Double: return d.isFinite ? Int64(exactly: d) : nil
         case let n as NSNumber: return n.int64Value
         case let s as String: return Int64(s)
         default: return nil

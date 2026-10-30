@@ -37,7 +37,7 @@ Changing one of these is a bug even when it looks like an improvement.
 - **A grid line belongs to its zone** and stops dead at the zone meridian. Letting one run on draws a line naming a grid square that does not exist — the most common bug in MGRS overlays.
 - **Bearings come out in 0..<360**, never −180…180 and never 360.
 - **Unit raw values match the Android settings store**, so a restored preference means the same thing.
-- Night mode is red on black. No accounts, no analytics, nothing leaves the phone.
+- Night mode is red on black. No accounts or analytics. The paired watch receives selected-waypoint and display settings plus a bounded copy of visible field overlays. Watch position comes from its own GPS. Basemap requests go to the map provider, including Apple Maps on watchOS.
 
 ## Deliberate differences from Android
 
@@ -56,7 +56,9 @@ So `DeclinationService` resolves in this order: **operator override → live hea
 
 `WMM.swift` implements the degree-12 model. Its Legendre recursion was checked against SciPy for every degree and order to 12 across colatitudes 0.5°–179.5° (8e-15 in value, 9e-13 in derivative), and its field summation is proved with dipoles whose answers are known in closed form. That dipole test earned its place: the first draft had the sign of the X component inverted, which is invisible in the dip angle and produces a declination 180° wrong everywhere.
 
-**The coefficients are deliberately not committed** and must never be typed from memory. See `wmm-plan.md`.
+**WMM2025 coefficients and the NOAA validation fixture are bundled** (`5993e76`).
+They must never be replaced from memory. See `wmm-plan.md` for the original
+model-source and validation rationale.
 
 ## Process
 

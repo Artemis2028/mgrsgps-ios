@@ -1,10 +1,40 @@
 # MGRS GPS — iOS
 
+The app is named **MGRS GPS** on Android, iOS, watchOS and Wear OS.
+
+Current work compares against Android **release/1.1.0** (`482b417`). See
+[the remaining parity inventory](docs/ios-parity-release-1.1.0.md). Earlier work targets Android **1.0.4**. See [the current parity roadmap](docs/ios-parity-1.0.4.md)
+for implemented features, validation, and remaining work.
+
 Native Swift and SwiftUI. The sibling of the Android app in
-`Artemis2028/gridfix`, sharing its field math through a fixture rather than
-through a runtime, and **never** pushing to that repo.
+`Artemis2028/gridfix`, sharing its field math through fixtures rather than
+an Android application runtime.
+
+The native Apple Watch companion is in [Watch](Watch/README.md): Glance-style
+large MGRS and waypoint pages, an interactive map with synced visible field
+overlays, foreground watch location, fix quality, phone target/settings sync,
+local 4/6/8/10-digit formatting and red night mode. See the
+[shared watch feature contract](docs/watch-companion-parity.md) for platform differences.
+Wear OS is a separate companion in the Android project. Both watch apps are
+additional requested work; they do not replace the main iOS parity milestone.
+
+GPX, KML/KMZ, CSV, GeoJSON and ATAK packages now support review-before-import, safe unchanged-content retry,
+native Files export and file-opening associations. See [text interchange](docs/text-interchange.md)
+for format losses and validation limits, and [KML/ATAK details](docs/kml-atak-interchange.md)
+for geometry, archive budgets and interoperability checks.
+
+The mixed field library supports cross-section search, persisted favourites and
+distance/name/newest waypoint sorting, including legacy-file migration. See
+[field library workflows](docs/field-library.md).
+
+Practice land-navigation courses now support random/folder setup, automatic checkpoint
+scoring, timed splits, relaunch recovery and results history. See
+[practice courses](docs/practice-courses.md) for behavior and verification.
 
 ## Getting it running
+
+Build with Xcode 26 or newer for the native glass APIs. The app still deploys
+to iOS 16 with material fallbacks; UI automation runs on iOS 17 or newer.
 
 ```bash
 brew install xcodegen
@@ -16,7 +46,7 @@ The `.xcodeproj` is generated and git-ignored. Everything that would live in
 it lives in `project.yml`, which is reviewable; a hand-edited pbxproj is not.
 
 ```bash
-cd GridFixCore && swift test     # the field math, 72 assertions
+cd GridFixCore && swift test     # field math, WMM, coordinates, interchange, visibility
 ```
 
 ## Layout
@@ -32,16 +62,42 @@ scripts/              simulator boot + screenshot, used by CI and by hand
 .github/workflows/    macOS runner: swift test -> build -> screenshots
 ```
 
-## Field chrome and CI shots
+## Interface and verification
 
-The bottom nav is custom blackout chrome (`FieldTabBar`) — pure black, amber
-selected, dim unselected — not the system `TabView` bar. Four tabs match Android
-(Position / Navigate / Map / Waypoints; tags 0/1/2/3); CI `-startTab map` opens
-Map at tag **2**.
+Day mode uses native tab navigation and glass buttons on iOS 26+, with system
+material fallbacks on earlier supported iOS versions. Waypoint cards remain
+readable content surfaces. Night mode keeps opaque red-on-black field chrome.
+Glance, Lensatic, and Dial remain available; this pass does not redesign the
+compass artwork.
 
-`scripts/pick-simulator.sh` prefers exact **iPhone 16**, then **15**, then **14**
-(so `iPhone 16e` cannot beat a real `iPhone 16`), then series/plain fallbacks so
-image churn does not brick the pipeline. Override with `SIMULATOR_DEVICE_NAME`.
+The four tabs are Position / Navigate / Map / Waypoints (tags 0/1/2/3).
+`-startTab map` opens Map at tag **2**. Add/edit supports MGRS or WGS84 decimal
+coordinates, and visible waypoints/folders appear on the map. Tap a marker to
+navigate; use Locate or Show all visible data for explicit camera moves.
+
+The map ruler menu measures anchor-to-crosshair distance and azimuth or a drawn
+area/perimeter. Hold and drag a line to create a bend; drag numbered points to
+adjust it. Area results can become a saved graphic. Measurements and tactical
+graphics remain separate from quiet-inside monitoring. See
+[map measurements](docs/map-measurement.md).
+
+The Waypoints tab includes graphics and finished tracks, distance-bucket ordering,
+mixed selection/visibility/deletion, and folder management. Track viewing can
+temporarily show a hidden record without changing its visibility flag. See
+[field library workflows](docs/field-library.md).
+
+After `xcodegen generate`, run the scheme's UI tests with:
+
+```bash
+xcodebuild test -project MGRSGPS.xcodeproj -scheme MGRSGPS \
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
+```
+
+Choose an installed simulator name. The UI tests use a separate Debug data
+store and cover coordinate entry/editing/persistence, marker navigation, folder
+visibility, map-centre creation, route cards/waypoint ownership, GPX tracks/routes,
+offline map imports/layer selection, download estimates,
+and restored data after relaunch. Screenshots are attached to the test results.
 
 ## The loop
 
@@ -50,11 +106,12 @@ Simulator, boots a phone, drops it on 40R BN in Abu Dhabi, and posts
 screenshots as artifacts - the position readout and the map with the MGRS grid
 drawn on it.
 
-The basemap is MapLibre's keyless demo style: enough to prove the grid draws,
-and **not** the shipping basemap. Roadmap B replaces it with self-hosted
-OpenStreetMap vector tiles and our own terrain, which is what makes worldwide
-offline download possible. That is the "I can see it" step — no Mac required to
-watch it work, same as the Android pipeline.
+MapLibre renders the same raster catalog as Android: Streets, Topographic,
+Satellite, USGS Topo/Imagery, and Hillshade, subject to build-key availability.
+USGS area downloads, raster MBTiles imports, offline-only mode, grid/shading
+switches, elevation downloads, and contours are implemented. Global licensed
+layers need an Esri build key in Release; Debug has Android's development
+fallbacks. See [offline maps and configuration](docs/offline-maps.md).
 
 The test step gates everything after it. A red field-math suite must not be
 able to produce a build that looks shippable; the Android pipeline learned
@@ -78,12 +135,57 @@ that one the expensive way.
 MGRS truncates and never rounds. A typed grid resolves to the cell centre;
 calibration control points resolve to the SW corner. Distances are ellipsoidal.
 Bearings come out in 0..<360. Night mode is red on black. No accounts, no
-analytics, nothing leaves the phone.
+analytics, or field-data uploads. Online maps request provider tiles; Offline
+only disables map network requests.
 
 ## Parity with Android
 
-Field math is pinned to the shared golden fixture. Product surfaces are catching
-up toward `gridfix` **0.9.32** — see `docs/parity-with-android.md` for the
-matched / unmatched checklist. Waypoints, folders, backup v1 and GPX import/export
-are in; terrain, tracks UI and KML/ATAK are not.
+Field math is pinned to the shared golden fixture. Product surfaces target
+`gridfix` **release/1.1.0** — see [the current checklist](docs/ios-parity-release-1.1.0.md).
+`docs/ios-parity-1.0.4.md` and `docs/parity-with-android.md` record earlier milestones.
+Waypoints, folders, route creation/cards, saved tracks/overlays, complete backup
+v1, live track recording/recovery, and GPX waypoint/route/track import/export are
+in. Recording uses dedicated background location and lock-compatible log files;
+physical locked-screen verification remains before release. Map layers, USGS
+area downloads, raster MBTiles and contours are also in. See
+[track recording](docs/track-recording.md) and [offline maps](docs/offline-maps.md).
+Editable [backstops and handrails](docs/backstops-handrails.md) define a closed
+perimeter with bends: quiet inside, one alert on a confirmed exit, re-arm on
+return. Dedicated background location and system notifications support locked
+screen use within iOS limits. Physical-device validation remains before release.
+Terrain field tools, practice courses, and KML/ATAK workflows are implemented;
+their validation and remaining device checks are linked in the current checklist.
 
+
+Automatic route following and haptic navigation now follow the release/1.1.0
+guide policy and course checkpoint thresholds; see [navigation](docs/navigation-guide.md)
+for foreground patterns, background milestones and the separation from boundaries.
+
+Map graphics now include the complete 30-type Android control-measure set,
+native drawing/editing with draggable segment handles, and waypoint-snapped
+route drawing tied to route cards and automatic navigation. See
+[graphics and route drawing](docs/tactical-graphics.md). Quiet-inside boundary
+monitoring remains a separate mode.
+
+Terrain tools now include map-centre elevation/slope estimates, point-to-point
+line of sight, route elevation profiles, and day/night viewsheds using the same
+cached/downloaded DEM data as contours. Missing data stays unknown. See
+[terrain visibility](docs/terrain-visibility.md) for behavior and validation.
+
+Route cards include a complete leg table and a native, multi-page A4 strip-map PDF preview with Files save and system sharing. See [route-card export behavior and verification](docs/route-card-pdf.md).
+
+The map field-tools menu also includes [resection and intersection worksheets](docs/field-fixes.md), with per-point north-reference conversion, geometry warnings and show/save actions.
+
+[Field planning](docs/field-planning.md) includes waypoint projection (up to 200 km), local/Zulu sun and moon tables with date navigation, and the map-centre true/grid/magnetic north diagram. The map tools menu also opens practice courses and terrain line of sight.
+
+Position callouts, QR handoff and USNG naming: [behavior and validation](docs/position-sharing.md).
+
+Native orientation and cross-runtime UI checks: [screen orientation](docs/screen-orientation.md) and [validation notes](docs/native-ui-validation.md). For local simulator tests from a Documents workspace, use a derived-data path outside Documents, such as `/tmp/gridfix-native-field-derived`.
+
+[Backup preparation](docs/backup-preparation.md) runs provider reads, merging, encoding and staged file writes off the UI thread. Restore preserves Android's section order and partial-failure retries; revision checks rebase after concurrent edits before atomic publication. Large-library listing/rendering and other synchronous edits still need performance work.
+
+Position fix age, accuracy/trusted precision and screen-versus-pocket compass references: [behavior and device checks](docs/position-fix-quality.md).
+
+GPS course selection and speed units: [behavior and real-location verification](docs/gps-course-speed.md).
+
+ZIP64 inputs and bounded archive handling: [compatibility and independent fixtures](docs/zip64-containers.md).
